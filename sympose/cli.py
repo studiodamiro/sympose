@@ -143,6 +143,15 @@ class TerminalInterface:
                     current_handle = self.select_persona(default_handle=current_handle)
                 continue
 
+            # Bare @handle switching (e.g. "@grace" or "@aurelius" alone)
+            if user_input.startswith("@") and len(user_input.split()) == 1:
+                candidate = user_input.replace("@", "").lower()
+                if candidate in self.pm.profiles:
+                    current_handle = candidate
+                    if self.console:
+                        self.console.print(f"[bold green]Switched active persona to @{current_handle}[/bold green]")
+                    continue
+
             is_command = user_input.startswith("/")
             start_time = time.time()
 

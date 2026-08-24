@@ -155,11 +155,13 @@ class TerminalInterface:
                 status.start()
 
             first_chunk_received = False
+            first_token_time = 0.0
 
             try:
                 for chunk in self.engine.chat_stream(current_handle, user_input):
                     if not first_chunk_received:
                         first_chunk_received = True
+                        first_token_time = time.time() - start_time
                         if status:
                             status.stop()
                             status = None
@@ -176,13 +178,13 @@ class TerminalInterface:
 
             total_elapsed = time.time() - start_time
 
-            # Print clean telemetry badge
+            # Print clean telemetry badge with TTFT and Total Duration
             if first_chunk_received and not is_command:
                 short_model = model.split("/")[-1] if "/" in model else model
-                telemetry_badge = f"\n\n[dim cyan][{total_elapsed:.2f}s | {short_model}][/dim cyan]\n"
+                telemetry_badge = f"\n\n[dim cyan][{first_token_time:.2f}s TTFT | {total_elapsed:.2f}s total | {short_model}][/dim cyan]\n"
                 if self.console:
                     self.console.print(telemetry_badge)
                 else:
-                    print(f"\n[{total_elapsed:.2f}s | {short_model}]\n")
+                    print(f"\n[{first_token_time:.2f}s TTFT | {total_elapsed:.2f}s total | {short_model}]\n")
             else:
                 print("\n")

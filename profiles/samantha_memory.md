@@ -6,3 +6,4 @@
 - **Tone Preference**: Direct, structured, actionable, and warm.
 
 - User loves concise and pragmatic solutions.
+- The user values sub-second responsiveness.

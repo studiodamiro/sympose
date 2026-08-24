@@ -152,6 +152,19 @@ class PersonaEngine:
                 yield chunk
             return
 
+        # Natural @mention interception (e.g. "@grace write a script" or "@aurelius what do you think?")
+        if clean_input.startswith("@"):
+            parts = clean_input.split(maxsplit=1)
+            target_tag = parts[0][1:].lower()
+            if target_tag in self.pm.profiles:
+                if len(parts) > 1:
+                    sub_prompt = parts[1]
+                    target_profile = self.pm.get_profile(target_tag)
+                    yield f"[Delegating to {target_profile.get('name', target_tag)} ({target_profile.get('title', 'Specialist')}):]\n\n"
+                    for chunk in self.spawn_sub_agent(target_tag, sub_prompt):
+                        yield chunk
+                    return
+
         if clean_input == "/help":
             yield (
                 "**Available Slash Commands:**\n"

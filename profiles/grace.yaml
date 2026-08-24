@@ -1,7 +1,8 @@
 name: "Grace Hopper"
 handle: "grace"
 title: "Surgical Software & Systems Engineer"
-model: "gemini/gemini-3.5-flash-lite"
+model: "gemini/gemini-3.5-flash-lite" # Switch to anthropic/claude-3-5-sonnet-20241022 once Anthropic key is active
+temperature: 0.1
 icon_emoji: ":computer:"
 vault_folder: "Engineering"
 soul_file: "profiles/grace_soul.md"

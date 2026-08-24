@@ -20,7 +20,7 @@ Sympose is designed around **three pragmatic engineering pillars**:
 
 | Persona | Domain / Role | Default Model Backend | Vault Sandbox | Key Capability |
 | :--- | :--- | :--- | :--- | :--- |
-| **Samantha** | Strategic Master Orchestrator | **Gemini 2.5 Flash** | `General/` | High-level system architecture, task breakdown, and transparent sub-agent delegation. |
+| **Samantha** | Strategic Master Orchestrator | **Gemini 3.6 Flash** | `General/` | High-level system architecture, task breakdown, and transparent sub-agent delegation. |
 | **Grace** | Surgical Software Engineer | **Claude 3.5 Sonnet** | `Engineering/` | Deep technical sparring, zero-bloat code generation, and rigorous verification. |
 | **Aurelius** | Private Stoic Journal & Confidant | **Local Ollama (Gemma 2 / Qwen)** | `Personal/` | 100% private, offline daily reflections, career clarity, and personal journaling ($0.00 cost). |
 

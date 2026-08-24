@@ -1,7 +1,7 @@
 name: "Samantha"
 handle: "samantha"
 title: "Polymath Strategic Master Orchestrator"
-model: "gemini/gemini-2.5-flash"
+model: "gemini/gemini-3.6-flash"
 icon_emoji: ":brain:"
 vault_folder: "General"
 soul_file: "profiles/samantha_soul.md"

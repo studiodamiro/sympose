@@ -22,7 +22,7 @@ This master document serves as the table of contents and index for daily enginee
 
 | Date | Title / Focus | Status | Log File |
 | :--- | :--- | :--- | :--- |
-| **2026-08-24** | Foundation Review, ADR-001, ADR-002, ADR-003 & Workflow Standardization | ✅ Complete | [2026-08-24_foundation_review.md](file:///Users/damiro/Development/sympose/docs/journal/2026-08-24_foundation_review.md) |
+| **2026-08-24** | Foundation Review, ADR-001 through ADR-004 & Phase 1 Delivery | ✅ Complete | [2026-08-24_foundation_review.md](file:///Users/damiro/Development/sympose/docs/journal/2026-08-24_foundation_review.md) |
 
 ---
 
@@ -33,9 +33,11 @@ This master document serves as the table of contents and index for daily enginee
   * *ADR-001.2:* Defensive File Access for Obsidian Vault
   * *ADR-001.3:* Local Ollama Offline Resilience
   * *ADR-001.4:* Phased 4-Step Build Sequence
+  * *ADR-001.5:* Zero-Latency Explicit API Key Resolution
 * **[ADR-002 (2026-08-24): Master Vault Domain Sandboxing](file:///Users/damiro/Development/sympose/docs/journal/2026-08-24_foundation_review.md#adr-002-master-vault-domain-sandboxing--access-control):**
   * Strict folder-level sandboxing (`/General`, `/Engineering`, `/Personal`) per agent profile.
   * Hard security boundary (`is_safe_path()`) preventing cloud models from inspecting private notes.
 * **[ADR-003 (2026-08-24): Pluggable Multi-Tier Vault Search Architecture](file:///Users/damiro/Development/sympose/docs/journal/2026-08-24_foundation_review.md#adr-003-pluggable-multi-tier-vault-search-architecture):**
   * Configurable search mode: `direct` (Pure Python), `sqlite_fts` (Ranked BM25), `semantic` (Local Vector Embeddings).
-  * Future-proofed and documented for modular upgrades without rewriting core runtime.
+* **[ADR-004 (2026-08-24): Industry-Standard Modular Package Architecture](file:///Users/damiro/Development/sympose/docs/journal/2026-08-24_foundation_review.md#adr-004-industry-standard-modular-package-architecture):**
+  * Segregated monolithic runtime into a clean `sympose/` package (`config`, `profiles`, `vault`, `engine`, `cli`), reducing `app.py` to a lean 35-line entry point.

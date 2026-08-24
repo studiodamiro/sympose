@@ -9,22 +9,17 @@ tags:
   - adr
 ---
 
-# 🏛️ Sympose Engineering Log: Foundation Review & Phase 1B Delivery
+# 🏛️ Sympose Engineering Log: Foundation Review & Modular Architecture Refactor
 
 > **Date:** Monday, August 24, 2026  
-> **Topic:** Phase 1B Delivery — Sub-Agent Delegation & Sandboxed Vault Notes  
+> **Topic:** Phase 1B Delivery & ADR-004 Modular Package Refactoring  
 > **Participants:** damiro (Lead Architect), Grace (Engineering Partner)  
-> **Status:** Phase 1A & Phase 1B Complete & Verified  
+> **Status:** Modular Package Architecture Complete & Verified  
 
 ---
 
 ## 1. Executive Summary
-Completed the implementation and verification of **Phase 1B**:
-1. **True Cross-Persona Sub-Agent Delegation (`/ask <@persona> <task>` and `spawn_sub_agent`)**: Spawns isolated single-turn sub-calls with peer soul, memory, and model without polluting parent conversation history.
-2. **Bi-Directional Sandboxed Vault Writing (`VaultManager`)**:
-   * `/note <filename.md> <content>`: Writes or appends notes inside the persona's sandboxed folder with clean Obsidian YAML frontmatter.
-   * `/daily <reflection>`: Automatically formats and appends daily reflections into `Daily Notes/YYYY-MM-DD.md`.
-3. **Zero-Latency API Routing (ADR-001.5)**: Verified sub-second time-to-first-token streaming across all turns.
+Completed the implementation and verification of **Phase 1B** (Sub-Agent Delegation & Sandboxed Vault Notes). Following the user's architectural critique regarding single-file bloat in `app.py`, executed **ADR-004**, refactoring Sympose into an industry-standard, modular Python package (`sympose/`) with strict Single Responsibility Principle (SRP) separation and reducing `app.py` to a lean 35-line entry point.
 
 ---
 
@@ -39,43 +34,33 @@ Completed the implementation and verification of **Phase 1B**:
 
 ### ADR-002: Master Vault Domain Sandboxing & Access Control
 * **Context:** The user utilizes a single master Obsidian vault organized into top-level domain folders (`/General`, `/Engineering`, `/Personal`).
-* **Decision:** Implement strict runtime folder sandboxing per persona.
-  * **Samantha (Gemini Flash):** Sandboxed to `${VAULT_PATH}/General` (planning, writing, business).
-  * **Grace (Claude Sonnet):** Sandboxed to `${VAULT_PATH}/Engineering` (code, architecture, technical specs).
-  * **Aurelius (Local Ollama):** Sandboxed to `${VAULT_PATH}/Personal` (journals, family, relationships, career).
-* **Security & Privacy Guarantee:** File readers enforce hard path boundaries (`is_safe_path()`) preventing cross-folder inspection. Cloud models physically cannot access personal notes.
+* **Decision:** Implement strict runtime folder sandboxing per persona with path boundary checks (`is_safe_path()`).
 
 ### ADR-003: Pluggable Multi-Tier Vault Search Architecture
-* **Context:** Searching deep Obsidian notes requires speed, precision, and privacy without bloating Day 1 dependencies.
-* **Decision:** Implement a modular, pluggable search interface in `app.py`:
-  * **Tier 1 (Default / Phase 1):** *Smart Title + Keyword Scanner*. Pure Python standard library (`os`, `re`), 0ms latency, zero dependencies, excerpt extraction.
-  * **Tier 2 (Config Option / Phase 2):** *SQLite FTS5 Full-Text Search*. Built-in Python SQLite BM25 ranking for multi-word scoring across thousands of notes.
-  * **Tier 3 (Config Option / Phase 3):** *Local Semantic Vector Search*. Offline embeddings via Ollama (`nomic-embed-text`) for concept and synonym matching.
-* **Configuration:** User selects mode via environment variable or YAML config (`VAULT_SEARCH_MODE=direct|sqlite_fts|semantic`).
+* **Decision:** Implement modular search modes (`direct` -> `sqlite_fts` -> `semantic`).
+
+### ADR-004: Industry-Standard Modular Package Architecture
+* **Context:** Monolithic `app.py` was approaching 600+ lines and becoming unwieldy before adding Phase 2 Slack/Dashboard modules.
+* **Decision:** Segregate responsibilities into clean, focused Python modules under `sympose/`:
+  * `sympose/config.py`: Environment loading and path security validation (`is_safe_path`).
+  * `sympose/profiles.py`: `ProfileManager` for dynamic YAML scanning and composite prompt building.
+  * `sympose/vault.py`: `VaultManager` for sandboxed note reading, writing, and daily notes.
+  * `sympose/engine.py`: `PersonaEngine` for LiteLLM routing, sliding context, command interception, and sub-agent delegation (`spawn_sub_agent`).
+  * `sympose/cli.py`: `TerminalInterface` for real-time 60 FPS streaming, witty thinking phrases, and telemetry.
+  * `app.py`: Lean 35-line CLI entry point.
+* **Consequences:** 100% testable, zero bloat, easy to maintain, and ready for clean Phase 2 Slack module addition (`sympose/slack.py`).
 
 ---
 
 ## 3. Workflow & Deliverables Completed
 
-### Phase 1A & Phase 1B Milestones
-- [x] Persona & tone codified in [`.agents/rules/identity.md`](file:///Users/damiro/Development/sympose/.agents/rules/identity.md).
-- [x] Execution guidelines embedded in [`.agents/rules/execution_guidelines.md`](file:///Users/damiro/Development/sympose/.agents/rules/execution_guidelines.md).
-- [x] Documentation & daily journaling standards codified in [`.agents/rules/documentation_standards.md`](file:///Users/damiro/Development/sympose/.agents/rules/documentation_standards.md).
-- [x] Master journal index updated at [`docs/PROJECT_JOURNAL.md`](file:///Users/damiro/Development/sympose/docs/PROJECT_JOURNAL.md).
-- [x] Cleaned workspace drafts and generated master [`README.md`](file:///Users/damiro/Development/sympose/README.md).
-- [x] Initialized Git repository and pushed to `git@github.com:studiodamiro/sympose.git`.
-- [x] Created `requirements.txt` and `.env.example`.
-- [x] Populated starter profiles in `profiles/` (`samantha`, `grace`, `aurelius`).
-- [x] Implemented core runtime [`app.py`](file:///Users/damiro/Development/sympose/app.py):
-  - `ProfileManager`: Dynamic YAML loader & soul/memory builder.
-  - `VaultManager`: Sandboxed reading & writing with YAML frontmatter + `Daily Notes/` auto-formatting.
-  - `PersonaEngine`: Multi-model LiteLLM router, 15-turn sliding window, `/remember`, `/reset`, `/model`, `/vault`, `/note`, `/daily`, `/ask` delegation, and offline resilience.
-  - `TerminalInterface`: Real-time 60 FPS token-streaming CLI with persona-aware witty thinking statuses and live execution telemetry.
-- [x] Created quick-launcher script [`chat.sh`](file:///Users/damiro/Development/sympose/chat.sh).
-- [x] Tested and verified sub-agent delegation and vault note creation.
+- [x] Refactored Sympose into modular `sympose/` package structure.
+- [x] Streamlined `app.py` to 35 lines.
+- [x] Verified compilation and multi-turn execution.
+- [x] Synced changes to GitHub.
 
 ---
 
 ## 4. Next Immediate Objective
-* Test with local Ollama (`aurelius`) or Anthropic (`grace`).
-* Proceed to **Phase 2: Slack Socket Mode Integration**.
+* Test Grace (Claude 3.5 Sonnet / Gemini Pro) and Aurelius (Local Ollama).
+* Implement **Phase 2: Slack Socket Mode Integration** (`sympose/slack.py`).

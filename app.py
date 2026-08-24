@@ -10,15 +10,19 @@ import re
 import glob
 from pathlib import Path
 from typing import Dict, List, Optional, Any
+import logging
 import yaml
 from dotenv import load_dotenv
+
+# Suppress verbose LiteLLM and external logs
+logging.getLogger("LiteLLM").setLevel(logging.ERROR)
+logging.getLogger("litellm").setLevel(logging.ERROR)
 
 # Load environment variables from .env if present
 load_dotenv()
 
 try:
     import litellm
-    # Suppress verbose LiteLLM logs
     litellm.suppress_debug_info = True
 except ImportError:
     litellm = None
@@ -296,12 +300,12 @@ class PersonaEngine:
         if litellm is None:
             return "⚠️ LiteLLM is not installed. Please run `pip install -r requirements.txt`."
 
-        try:
             kwargs = {
                 "model": target_model,
                 "messages": active_messages,
-                "temperature": profile.get("temperature", 0.7),
             }
+            if "temperature" in profile:
+                kwargs["temperature"] = profile["temperature"]
             if api_base:
                 kwargs["api_base"] = api_base
 

@@ -239,43 +239,52 @@ class PersonaEngine:
     def reset_history(self, handle: str) -> None:
         self.histories[handle.lower()] = []
 
-    def chat(self, handle: str, user_message: str) -> str:
-        """Processes user message, executes commands, or calls LLM."""
+    def chat_stream(self, handle: str, user_message: str):
+        """Streams AI responses token-by-token or yields instant command replies."""
         profile = self.pm.get_profile(handle)
         if not profile:
-            return f"⚠️ Persona `@{handle}` not found."
+            yield f"⚠️ Persona `@{handle}` not found."
+            return
 
-        # Intercept tactical slash commands
         clean_input = user_message.strip()
 
+        # Intercept tactical slash commands
         if clean_input in ("/reset", "/new"):
             self.reset_history(handle)
-            return f"🔄 Reset conversation history for **{profile.get('name', handle)}**. Context refreshed."
+            yield f"🔄 Reset conversation history for **{profile.get('name', handle)}**. Context refreshed."
+            return
 
         if clean_input.startswith("/remember "):
             fact = clean_input[10:].strip()
             if not fact:
-                return "⚠️ Usage: `/remember <fact to save>`"
+                yield "⚠️ Usage: `/remember <fact to save>`"
+                return
             success = self.pm.append_memory(handle, fact)
             if success:
-                return f"🧠 **Saved to {profile.get('name', handle)}'s memory:**\n> {fact}"
-            return f"⚠️ Failed to save memory to {profile.get('name', handle)}."
+                yield f"🧠 **Saved to {profile.get('name', handle)}'s memory:**\n> {fact}"
+            else:
+                yield f"⚠️ Failed to save memory to {profile.get('name', handle)}."
+            return
 
         if clean_input.startswith("/model "):
             new_model = clean_input[7:].strip()
             if not new_model:
-                return "⚠️ Usage: `/model <provider/model_name>`"
+                yield "⚠️ Usage: `/model <provider/model_name>`"
+                return
             self.model_overrides[handle.lower()] = new_model
-            return f"🎛️ Model for **{profile.get('name', handle)}** temporarily set to `{new_model}` for this session."
+            yield f"🎛️ Model for **{profile.get('name', handle)}** temporarily set to `{new_model}` for this session."
+            return
 
         if clean_input.startswith("/vault "):
             query = clean_input[7:].strip()
             if not query:
-                return "⚠️ Usage: `/vault <search query>`"
-            return VaultSearcher.search(profile, query)
+                yield "⚠️ Usage: `/vault <search query>`"
+                return
+            yield VaultSearcher.search(profile, query)
+            return
 
         if clean_input == "/help":
-            return (
+            yield (
                 "**Available Slash Commands:**\n"
                 "- `/remember <fact>`: Save fact into persona's persistent `_memory.md`\n"
                 "- `/reset` or `/new`: Clear active conversation context\n"
@@ -283,26 +292,28 @@ class PersonaEngine:
                 "- `/vault <query>`: Query persona's sandboxed notes\n"
                 "- `/help`: Show this command list"
             )
+            return
 
         # Build dynamic system prompt
         system_prompt = self.pm.build_system_prompt(profile)
         history = self.get_history(handle)
 
-        # Construct messages payload with sliding window
         active_messages = [{"role": "system", "content": system_prompt}]
         active_messages.extend(history[-(self.max_turns * 2):])
         active_messages.append({"role": "user", "content": user_message})
 
-        # Determine target model
-        target_model = self.model_overrides.get(handle.lower(), profile.get("model", "gemini/gemini-2.5-flash"))
+        target_model = self.model_overrides.get(handle.lower(), profile.get("model", "gemini/gemini-3.6-flash"))
         api_base = profile.get("api_base")
 
         if litellm is None:
-            return "⚠️ LiteLLM is not installed. Please run `pip install -r requirements.txt`."
+            yield "⚠️ LiteLLM is not installed. Please run `pip install -r requirements.txt`."
+            return
 
+        try:
             kwargs = {
                 "model": target_model,
                 "messages": active_messages,
+                "stream": True,
             }
             if "temperature" in profile:
                 kwargs["temperature"] = profile["temperature"]
@@ -310,30 +321,31 @@ class PersonaEngine:
                 kwargs["api_base"] = api_base
 
             response = litellm.completion(**kwargs)
-            reply = response.choices[0].message.content
+            full_reply = []
 
-            # Record turn to history
+            for chunk in response:
+                delta = chunk.choices[0].delta.content or ""
+                if delta:
+                    full_reply.append(delta)
+                    yield delta
+
+            complete_text = "".join(full_reply)
             history.append({"role": "user", "content": user_message})
-            history.append({"role": "assistant", "content": reply})
-
-            # Trim history to maintain sliding context
+            history.append({"role": "assistant", "content": complete_text})
             self.histories[handle.lower()] = history[-(self.max_turns * 2):]
-
-            return reply
 
         except Exception as e:
             err_str = str(e)
-            # Graceful Ollama offline handling (ADR-001.3)
             if "11434" in err_str or "Connection refused" in err_str:
-                return (
+                yield (
                     f"⚠️ **Local Model Offline ({target_model})**\n\n"
                     f"Marcus Aurelius runs locally on your Mac. Please start the Ollama daemon by running:\n"
                     f"```bash\nollama serve\n```"
                 )
-            if "API key" in err_str or "AuthenticationError" in err_str:
-                return f"⚠️ **Authentication Error:** Missing or invalid API key for model `{target_model}`. Check `.env`."
-
-            return f"⚠️ **Runtime Error ({target_model}):** {err_str}"
+            elif "API key" in err_str or "AuthenticationError" in err_str:
+                yield f"⚠️ **Authentication Error:** Missing or invalid API key for model `{target_model}`. Check `.env`."
+            else:
+                yield f"⚠️ **Runtime Error ({target_model}):** {err_str}"
 
 
 # ==============================================================================
@@ -341,7 +353,7 @@ class PersonaEngine:
 # ==============================================================================
 
 class TerminalInterface:
-    """Rich interactive Terminal UI for Sympose."""
+    """Rich interactive Terminal UI for Sympose with smooth real-time streaming."""
 
     def __init__(self, engine: PersonaEngine):
         self.engine = engine
@@ -431,15 +443,17 @@ class TerminalInterface:
                     current_handle = self.select_persona(default_handle=current_handle)
                 continue
 
-            # Process input and generate response
+            # Stream response in real-time
             if self.console:
-                with self.console.status(f"[cyan]Thinking ({name})...[/cyan]", spinner="dots"):
-                    response = self.engine.chat(current_handle, user_input)
                 self.console.print(f"\n[bold cyan]🏛️ {name}:[/bold cyan]")
-                self.console.print(Markdown(response))
             else:
-                response = self.engine.chat(current_handle, user_input)
-                print(f"\n🏛️ {name}:\n{response}")
+                print(f"\n🏛️ {name}:")
+
+            for chunk in self.engine.chat_stream(current_handle, user_input):
+                sys.stdout.write(chunk)
+                sys.stdout.flush()
+
+            print("\n")
 
 
 # ==============================================================================

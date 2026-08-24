@@ -14,6 +14,16 @@ logging.getLogger("litellm").setLevel(logging.ERROR)
 # Load environment variables
 load_dotenv()
 
+# Prevent background Vertex ADC credential lookup timeouts
+os.environ.pop("GOOGLE_APPLICATION_CREDENTIALS", None)
+
+try:
+    import litellm
+    litellm.drop_params = True
+    litellm.request_timeout = 10.0
+except ImportError:
+    pass
+
 
 def is_safe_path(target_path: str, base_dir: str = ".") -> bool:
     """Prevents directory traversal attacks (e.g. ../../etc/passwd)."""

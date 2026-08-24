@@ -186,6 +186,7 @@ class PersonaEngine:
                 "model": target_model,
                 "messages": active_messages,
                 "stream": True,
+                "timeout": 10.0,
             }
             if target_model.startswith("gemini/") and os.getenv("GEMINI_API_KEY"):
                 kwargs["api_key"] = os.getenv("GEMINI_API_KEY")

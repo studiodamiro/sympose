@@ -77,7 +77,21 @@ class ProfileManager:
             except Exception:
                 pass
 
-        # 4. Context awareness of peer personas (for delegation)
+        # 4. Runtime Capabilities & Tool Awareness
+        vault_folder = profile.get("vault_folder", "General")
+        prompt_parts.append(
+            f"### Runtime Environment & Capabilities:\n"
+            f"You are operating within the Sympose Agent Hub on macOS.\n"
+            f"- Sandboxed Vault: You can read/write notes in your assigned domain `{vault_folder}/`.\n"
+            f"- Commands available in this session:\n"
+            f"  * `/note <filename.md> <content>`: Create or append to a Markdown file in `{vault_folder}/`.\n"
+            f"  * `/daily <reflection>`: Append a timestamped reflection to `Daily Notes/YYYY-MM-DD.md`.\n"
+            f"  * `/vault <query>`: Search your sandboxed domain notes.\n"
+            f"  * `/remember <fact>`: Save facts into your persistent memory.\n"
+            f"  * `/ask <@peer> <task>`: Delegate a task to an isolated peer agent."
+        )
+
+        # 5. Context awareness of peer personas (for delegation)
         other_agents = [
             f"- @{p['handle']}: {p.get('name', p['handle'])} ({p.get('title', 'Specialist')})"
             for p in self.profiles.values()

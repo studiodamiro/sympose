@@ -123,3 +123,54 @@ class VaultManager:
         note_name = os.path.join("Daily Notes", f"{date_str}.md")
         timestamp_header = f"\n### Reflection ({now.strftime('%H:%M')})\n"
         return cls.write_note(profile, note_name, timestamp_header + reflection)
+
+    @classmethod
+    def write_session_note(
+        cls,
+        profile: Dict[str, Any],
+        summary_md: str,
+        subfolder: str = "Sessions",
+        session_title: Optional[str] = None
+    ) -> str:
+        """Writes a structured session log markdown file into {allowed_dir}/{subfolder}/."""
+        allowed_dir = cls.get_allowed_dir(profile)
+        vault_folder = profile.get("vault_folder", "")
+        if not allowed_dir:
+            return "Warning: Master notes directory (`MASTER_VAULT_PATH`) not configured or path denied."
+
+        now = datetime.datetime.now()
+        date_str = now.strftime("%Y-%m-%d")
+        time_str = now.strftime("%Y-%m-%d %H:%M")
+        file_time_str = now.strftime("%Y-%m-%d_%H%M")
+        handle = profile.get("handle", "agent").lower()
+
+        title_slug = f"_{session_title.lower().replace(' ', '_')}" if session_title else ""
+        filename = f"{file_time_str}_{handle}{title_slug}_session.md"
+        target_dir = os.path.join(allowed_dir, subfolder)
+        target_file = os.path.join(target_dir, filename)
+
+        if not is_safe_path(target_file, allowed_dir):
+            return "Security Error: Target file path is outside assigned sandbox."
+
+        try:
+            os.makedirs(target_dir, exist_ok=True)
+            with open(target_file, "w", encoding="utf-8") as f:
+                # Write standard Obsidian YAML frontmatter
+                f.write(
+                    f"---\n"
+                    f"entry: {date_str}\n"
+                    f"created: {time_str}\n"
+                    f"type: session-log\n"
+                    f"project: sympose\n"
+                    f"author: {profile.get('name', handle)}\n"
+                    f"tags:\n"
+                    f"  - session/log\n"
+                    f"  - sympose/{handle}\n"
+                    f"---\n\n"
+                    f"# Session Log: {profile.get('name', handle)} ({time_str})\n\n"
+                    f"{summary_md.strip()}\n"
+                )
+            rel_path = f"{vault_folder}/{subfolder}/{filename}" if vault_folder else f"{subfolder}/{filename}"
+            return f"Saved session note to Obsidian: `{rel_path}`"
+        except Exception as e:
+            return f"Error: Failed to write session note: {e}"

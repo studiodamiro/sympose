@@ -1,0 +1,29 @@
+# ==============================================================================
+# 🏛️ SYMPOSE: Master Runtime, Performance & Infrastructure Configuration
+# ==============================================================================
+
+# ⚡ Performance & Latency Tuning
+performance:
+  request_timeout: 10.0          # HTTP connection & socket timeout in seconds
+  max_context_turns: 15          # Sliding window (prevents pre-fill latency)
+  drop_unsupported_params: true  # Discards invalid vendor flags, preventing retry loops
+  stream: true                   # Enable 60 FPS token-by-token streaming
+
+# 💾 Session Lifecycle & Exit Flow
+session:
+  exit_behavior:
+    auto_save: false             # false = prompt interactively on /exit; true = auto-save seamlessly
+    default_target: "both"       # "memory" | "obsidian" | "both" | "discard"
+    clear_terminal: true         # Clears screen on exit for clean terminal reset
+    obsidian_subfolder: "Sessions" # Subfolder in persona vault (e.g. Engineering/Sessions/)
+    summarization_model: "gemini/gemini-3.5-flash-lite" # Fast sub-second model for synthesis
+
+# 🏛️ Runtime Defaults
+runtime:
+  default_persona: "samantha"
+  profiles_dir: "profiles"
+
+# 📚 Sandboxed Obsidian Vault
+vault:
+  daily_notes_folder: "Daily Notes"
+  search_mode: "direct"          # "direct" | "sqlite_fts" | "semantic"

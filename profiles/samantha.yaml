@@ -6,3 +6,10 @@ icon_emoji: ":brain:"
 vault_folder: "General"
 soul_file: "profiles/samantha_soul.md"
 memory_file: "profiles/samantha_memory.md"
+
+thinking_phrases:
+  - "Connecting high-level dots..."
+  - "Synthesizing strategic options..."
+  - "Consulting the symposium..."
+  - "Distilling signal from noise..."
+  - "Formulating the master blueprint..."

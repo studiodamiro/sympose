@@ -3,104 +3,77 @@ Interactive Terminal UI for Sympose.
 """
 
 import sys
+import os
 import time
 import random
 from typing import Optional
 
 try:
     from rich.console import Console
-    from rich.panel import Panel
     from rich.prompt import Prompt
-    from rich.table import Table
-    from rich.text import Text
 except ImportError:
     Console = None
 
 from sympose.engine import PersonaEngine
+from sympose.ui import TerminalUI
 
 
 class TerminalInterface:
     """Rich interactive Terminal UI for Sympose with smooth real-time streaming."""
 
-    THINKING_PHRASES = {
-        "samantha": [
-            "Connecting high-level dots...",
-            "Synthesizing strategic options...",
-            "Consulting the symposium...",
-            "Distilling signal from noise...",
-            "Formulating the master blueprint...",
-            "Aligning architecture and goals...",
-        ],
-        "grace": [
-            "Decompiling assumptions...",
-            "Eliminating unnecessary abstractions...",
-            "Refactoring the logic paths...",
-            "Inspecting compiler circuits...",
-            "Hunting for zero-bloat solutions...",
-            "Verifying system constraints...",
-        ],
-        "aurelius": [
-            "Reflecting stoically...",
-            "Examining what is within our control...",
-            "Weighing the inner citadel...",
-            "Contemplating the nature of things...",
-            "Distilling clarity from chaos...",
-            "Cultivating steady wisdom...",
-        ],
-    }
-
     def __init__(self, engine: PersonaEngine):
         self.engine = engine
         self.pm = engine.pm
+        self.config = engine.config
         self.console = Console() if Console else None
 
     def display_banner(self) -> None:
-        if not self.console:
-            print("=== sympose // multi-model agent hub ===")
-            return
-
-        banner_text = Text()
-        banner_text.append("sympose // multi-model agent hub\n", style="bold cyan")
-        banner_text.append("minimalist runtime for macos & slack\n", style="dim white")
-        banner_text.append("commands: /help  |  switch: /switch  |  exit: quit", style="dim cyan")
-
-        self.console.print(Panel(banner_text, border_style="dim cyan", padding=(1, 2)))
+        TerminalUI.display_banner(self.console)
 
     def select_persona(self, default_handle: str = "samantha") -> str:
-        profiles = self.pm.list_personas()
-        if not profiles:
+        return TerminalUI.select_persona(self.console, self.pm.list_personas(), default_handle=default_handle)
+
+    def handle_exit(self, handle: str) -> None:
+        """Handles session exit: offers summarization, saves memory/obsidian, and clears terminal."""
+        history = self.engine.get_history(handle)
+        profile = self.pm.get_profile(handle)
+        name = profile.get("name", handle) if profile else handle
+
+        auto_save = bool(self.config.get("session.exit_behavior.auto_save", False))
+        default_target = str(self.config.get("session.exit_behavior.default_target", "both")).lower()
+        clear_term = bool(self.config.get("session.exit_behavior.clear_terminal", True))
+
+        if history:
+            target_to_save = default_target if auto_save else TerminalUI.prompt_exit_choice(self.console, handle, default_target)
+            if target_to_save:
+                status = None
+                if self.console:
+                    status = self.console.status(f"[dim italic cyan]{name} is synthesizing session takeaways...[/dim italic cyan]", spinner="dots")
+                    status.start()
+
+                try:
+                    res = self.engine.summarize_session(handle, target=target_to_save)
+                finally:
+                    if status:
+                        status.stop()
+
+                if self.console and res.get("status") == "success":
+                    self.console.print("\n[bold green]✓ Session successfully archived:[/bold green]")
+                    for saved in res.get("targets_saved", []):
+                        self.console.print(f"  • {saved}")
+
+        self.engine.reset_history(handle)
+
+        if clear_term:
+            time.sleep(0.8)
             if self.console:
-                self.console.print("[bold red]No profiles found in profiles/ directory.[/bold red]")
-            return default_handle
-
-        if not self.console:
-            return default_handle
-
-        table = Table(title="Personas", border_style="dim cyan", show_header=True)
-        table.add_column("Handle", style="bold yellow")
-        table.add_column("Name", style="bold white")
-        table.add_column("Role / Title", style="cyan")
-        table.add_column("Default Model", style="green")
-        table.add_column("Sandbox", style="magenta")
-
-        for p in profiles:
-            table.add_row(
-                f"@{p.get('handle')}",
-                p.get("name", ""),
-                p.get("title", ""),
-                p.get("model", ""),
-                f"{p.get('vault_folder', 'none')}/"
-            )
-
-        self.console.print(table)
-        valid_handles = [p["handle"].lower() for p in profiles]
-        raw_choice = Prompt.ask(
-            "\nSelect persona handle",
-            default=default_handle,
-            choices=valid_handles,
-            case_sensitive=False
-        )
-        return raw_choice.lower().replace("@", "").strip()
+                self.console.clear()
+                self.console.print("[dim cyan]sympose • session ended cleanly[/dim cyan]")
+            else:
+                os.system("clear")
+                print("=== sympose session ended cleanly ===")
+        elif self.console:
+            self.console.print("[dim cyan]Session ended.[/dim cyan]")
 
     def run(self, initial_handle: str = "samantha") -> None:
         self.display_banner()
@@ -113,64 +86,59 @@ class TerminalInterface:
             profile = self.pm.get_profile(current_handle)
             name = profile.get("name", current_handle) if profile else current_handle
             model = self.engine.model_overrides.get(current_handle, profile.get("model", "")) if profile else ""
-
             prompt_label = f"\n[bold yellow]You[/bold yellow] (to [bold cyan]@{current_handle}[/bold cyan] | [dim]{model}[/dim])"
 
             try:
-                if self.console:
-                    user_input = Prompt.ask(prompt_label).strip()
-                else:
-                    user_input = input(f"\nYou (to @{current_handle}): ").strip()
+                user_input = Prompt.ask(prompt_label).strip() if self.console else input(f"\nYou (to @{current_handle}): ").strip()
             except (KeyboardInterrupt, EOFError):
-                print("\nExiting sympose.")
+                self.handle_exit(current_handle)
                 break
 
             if not user_input:
                 continue
 
-            if user_input.lower() in ("exit", "quit", ":q"):
-                if self.console:
-                    self.console.print("[dim cyan]Session ended.[/dim cyan]")
+            if user_input.lower() in ("exit", "quit", ":q", "/exit", "/quit"):
+                self.handle_exit(current_handle)
                 break
 
-            if user_input.startswith("/switch"):
-                parts = user_input.split()
-                if len(parts) > 1 and parts[1].replace("@", "") in self.pm.profiles:
-                    current_handle = parts[1].replace("@", "").lower()
+            if user_input.startswith("/switch") or (user_input.startswith("@") and len(user_input.split()) == 1):
+                target = user_input.split()[1].replace("@", "").lower() if user_input.startswith("/switch") and len(user_input.split()) > 1 else user_input.replace("@", "").lower()
+                if target in self.pm.profiles:
+                    current_handle = target
                     if self.console:
-                        self.console.print(f"[bold green]Switched to @{current_handle}[/bold green]")
+                        self.console.print(f"[bold green]Switched active persona to @{current_handle}[/bold green]")
                 else:
                     current_handle = self.select_persona(default_handle=current_handle)
                 continue
 
-            # Bare @handle switching (e.g. "@grace" or "@aurelius" alone)
-            if user_input.startswith("@") and len(user_input.split()) == 1:
-                candidate = user_input.replace("@", "").lower()
-                if candidate in self.pm.profiles:
-                    current_handle = candidate
-                    if self.console:
-                        self.console.print(f"[bold green]Switched active persona to @{current_handle}[/bold green]")
-                    continue
-
             is_command = user_input.startswith("/")
             start_time = time.time()
-
-            # For regular prompts, show active thinking spinner until first token streams
             status = None
+
             if self.console and not is_command:
-                phrases = self.THINKING_PHRASES.get(current_handle.lower(), ["Thinking..."])
-                witty_phrase = random.choice(phrases)
-                status = self.console.status(f"[dim italic cyan]{name} is {witty_phrase.lower()}[/dim italic cyan]", spinner="dots")
+                phrases = profile.get("thinking_phrases", ["Thinking..."]) if profile else ["Thinking..."]
+                chosen_phrase = random.choice(phrases) if phrases else "Thinking..."
+                status = self.console.status(f"[dim italic cyan]{name} is {chosen_phrase.lower()}[/dim italic cyan]", spinner="dots")
                 status.start()
 
-            first_chunk_received = False
-            first_token_time = 0.0
+            first_chunk, first_time, cleared = False, 0.0, False
 
             try:
                 for chunk in self.engine.chat_stream(current_handle, user_input):
-                    if not first_chunk_received:
-                        first_chunk_received = True
-                        first_token_time = time.time() - start_time
+                    if chunk == "CLEARED_SESSION":
+                        cleared = True
+                        if self.console:
+                            self.console.clear()
+                        else:
+                            os.system("clear")
+                        self.display_banner()
+                        if self.console:
+                            self.console.print(f"[bold green]✓ Context cleared for @{current_handle}.[/bold green]")
+                        break
+
+                    if not first_chunk:
+                        first_chunk = True
+                        first_time = time.time() - start_time
                         if status:
                             status.stop()
                             status = None
@@ -185,15 +153,16 @@ class TerminalInterface:
                 if status:
                     status.stop()
 
-            total_elapsed = time.time() - start_time
+            if cleared:
+                continue
 
-            # Print clean telemetry badge with TTFT and Total Duration
-            if first_chunk_received and not is_command:
-                short_model = model.split("/")[-1] if "/" in model else model
-                telemetry_badge = f"\n\n[dim cyan][{first_token_time:.2f}s TTFT | {total_elapsed:.2f}s total | {short_model}][/dim cyan]\n"
+            elapsed = time.time() - start_time
+            if first_chunk and not is_command:
+                short_m = model.split("/")[-1] if "/" in model else model
+                badge = f"\n\n[dim cyan][{first_time:.2f}s TTFT | {elapsed:.2f}s total | {short_m}][/dim cyan]\n"
                 if self.console:
-                    self.console.print(telemetry_badge)
+                    self.console.print(badge)
                 else:
-                    print(f"\n[{first_token_time:.2f}s TTFT | {total_elapsed:.2f}s total | {short_model}]\n")
+                    print(f"\n[{first_time:.2f}s TTFT | {elapsed:.2f}s total | {short_m}]\n")
             else:
                 print("\n")

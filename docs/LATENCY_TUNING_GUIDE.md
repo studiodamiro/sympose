@@ -20,27 +20,30 @@ This reference lists all key configuration variables, system flags, and architec
 
 ## 🎛️ Master Tuning Parameters
 
-| Parameter | Location | Default / Recommended | Purpose & Latency Impact |
-| :--- | :--- | :--- | :--- |
-| **`timeout`** | [`sympose/engine.py`](file:///Users/damiro/Development/sympose/sympose/engine.py#L189) | `10.0` (seconds) | Hard ceiling on HTTP connection. Prevents API endpoints from hanging when rate-limited. |
-| **`litellm.request_timeout`** | [`sympose/config.py`](file:///Users/damiro/Development/sympose/sympose/config.py#L23) | `10.0` (seconds) | Global library timeout for network sockets. |
-| **`litellm.drop_params`** | [`sympose/config.py`](file:///Users/damiro/Development/sympose/sympose/config.py#L22) | `True` | Silently discards unsupported vendor flags (e.g. deprecated temperature on Gemini 3+), preventing retry loops. |
-| **`max_turns`** | [`sympose/engine.py`](file:///Users/damiro/Development/sympose/sympose/engine.py#L17) | `15` (30 messages) | Sliding context window. Limits prompt history payload to under ~2,000 tokens, eliminating pre-fill latency. |
-| **`stream`** | [`sympose/engine.py`](file:///Users/damiro/Development/sympose/sympose/engine.py#L188) | `True` | Streams tokens via HTTP chunking at 60 FPS, reducing perceived wait time from 10s to **0.8s TTFT**. |
-| **`temperature`** | [`profiles/*.yaml`](file:///Users/damiro/Development/sympose/profiles/grace.yaml#L5) | `0.1` (Code) / `0.7` (Creative) | Lower temperature reduces token branch sampling latency and ensures deterministic code. |
-| **`model`** | [`profiles/*.yaml`](file:///Users/damiro/Development/sympose/profiles/samantha.yaml#L4) | `gemini/gemini-3.5-flash-lite` | Selects backend engine. Flash-Lite yields **0.7s TTFT**, Sonnet yields **1.4s**, local Gemma2 yields **0.5s**. |
-| **`api_base`** | [`profiles/*.yaml`](file:///Users/damiro/Development/sympose/profiles/aurelius.yaml#L5) | `http://localhost:11434` | Direct localhost loopback for Ollama (0ms DNS lookup time). |
+All performance, latency, and context parameters are now centrally managed in [`config.yaml`](file:///Users/damiro/Development/sympose/config.yaml) and can be adjusted statically or tuned live in the CLI session using `/config set <key> <val>`.
+
+| Parameter | Primary Location | CLI Dynamic Override | Default / Recommended | Purpose & Latency Impact |
+| :--- | :--- | :--- | :--- | :--- |
+| **`performance.request_timeout`** | [`config.yaml`](file:///Users/damiro/Development/sympose/config.yaml#L6) | `/config set performance.request_timeout 10.0` | `10.0` (seconds) | Hard ceiling on HTTP connection & socket timeout. |
+| **`performance.max_context_turns`** | [`config.yaml`](file:///Users/damiro/Development/sympose/config.yaml#L7) | `/config set performance.max_context_turns 15` | `15` (30 messages) | Sliding context window. Limits prompt history payload under ~2,000 tokens, eliminating pre-fill latency. |
+| **`performance.drop_unsupported_params`** | [`config.yaml`](file:///Users/damiro/Development/sympose/config.yaml#L8) | `/config set performance.drop_unsupported_params true` | `true` | Silently discards unsupported vendor flags, preventing retry loops. |
+| **`performance.stream`** | [`config.yaml`](file:///Users/damiro/Development/sympose/config.yaml#L9) | `/config set performance.stream true` | `true` | Streams tokens via HTTP chunking at 60 FPS, achieving **0.8s TTFT**. |
+| **`session.exit_behavior.summarization_model`** | [`config.yaml`](file:///Users/damiro/Development/sympose/config.yaml#L17) | `/config set session.exit_behavior.summarization_model <model>` | `gemini/gemini-3.5-flash-lite` | Dedicated ultra-fast model for near-instant session summarization. |
+| **`temperature`** | [`profiles/*.yaml`](file:///Users/damiro/Development/sympose/profiles/grace.yaml#L5) | N/A (per-persona) | `0.1` (Code) / `0.7` (Creative) | Lower temperature reduces token branch sampling latency and ensures deterministic code. |
+| **`model`** | [`profiles/*.yaml`](file:///Users/damiro/Development/sympose/profiles/samantha.yaml#L4) | `/model <provider/name>` | `gemini/gemini-3.5-flash-lite` | Flash-Lite yields **0.7s TTFT**, Sonnet yields **1.4s**, local Gemma2 yields **0.5s**. |
+| **`api_base`** | [`profiles/*.yaml`](file:///Users/damiro/Development/sympose/profiles/aurelius.yaml#L5) | N/A (per-persona) | `http://localhost:11434` | Direct localhost loopback for Ollama (0ms DNS lookup time). |
 
 ---
 
 ## 🔍 Deep-Dive: Latency Gotchas & Resolutions
 
-### 1. The 75-Second Google Cloud Vertex ADC Hang
-* **The Problem:** When calling Google Gemini via LiteLLM without explicit API key injection, LiteLLM probes the local machine for Google Cloud Vertex Application Default Credentials (`~/.config/gcloud/`). If unauthenticated, it hangs for Google's default 75s auth timeout before falling back to `.env`.
+### 1. The GCE Metadata Probe & Vertex ADC Hang (30s – 300s Timeout)
+* **The Problem:** Python Google Cloud libraries automatically probe `http://169.254.169.254` (the internal Google Compute Engine metadata server) and Vertex ADC credentials. On macOS / non-cloud machines, `169.254.169.254` is unroutable, causing TCP SYN socket hangs for 10s to 300s before falling back to `GEMINI_API_KEY`.
 * **The Resolution in Sympose:**
-  1. [`sympose/config.py`](file:///Users/damiro/Development/sympose/sympose/config.py#L18) runs `os.environ.pop("GOOGLE_APPLICATION_CREDENTIALS", None)`.
-  2. [`sympose/engine.py`](file:///Users/damiro/Development/sympose/sympose/engine.py#L192) explicitly injects `kwargs["api_key"] = os.getenv("GEMINI_API_KEY")`.
-  3. **Result:** First token drops from **76.0s ➔ 0.85s**.
+  1. [`sympose/config.py`](file:///Users/damiro/Development/sympose/sympose/config.py#L20) sets `os.environ["NO_GCE_CHECK"] = "True"`, `os.environ["GOOGLE_CLOUD_DISABLE_METADATA"] = "true"`, and purges `GOOGLE_APPLICATION_CREDENTIALS`, `VERTEXAI_PROJECT`, and `GOOGLE_CLOUD_PROJECT`.
+  2. [`sympose/__init__.py`](file:///Users/damiro/Development/sympose/sympose/__init__.py) imports `sympose.config` first to guarantee environment variables are active before LiteLLM or Google SDK initializes.
+  3. [`sympose/engine.py`](file:///Users/damiro/Development/sympose/sympose/engine.py#L140) explicitly injects `kwargs["api_key"] = os.getenv("GEMINI_API_KEY")`.
+  4. **Result:** First token consistently streams in **0.75s – 0.85s TTFT** on initial call!
 
 ---
 

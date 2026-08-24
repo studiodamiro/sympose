@@ -7,3 +7,11 @@ icon_emoji: ":computer:"
 vault_folder: "Engineering"
 soul_file: "profiles/grace_soul.md"
 memory_file: "profiles/grace_memory.md"
+
+thinking_phrases:
+  - "Decompiling assumptions..."
+  - "Eliminating unnecessary abstractions..."
+  - "Refactoring logic paths..."
+  - "Inspecting compiler circuits..."
+  - "Hunting for zero-bloat solutions..."
+  - "Verifying system constraints..."

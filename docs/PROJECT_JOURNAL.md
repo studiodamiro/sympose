@@ -42,8 +42,26 @@ This master document serves as the top-level index and Table of Contents.
   * Configurable search mode: `direct` (Pure Python), `sqlite_fts` (Ranked BM25), `semantic` (Local Vector Embeddings).
 * **[ADR-004 (2026-08-24): Industry-Standard Modular Package Architecture](file:///Users/damiro/Development/sympose/docs/journal/2026-08-24_foundation_review.md#adr-004-industry-standard-modular-package-architecture):**
   * Segregated monolithic runtime into a clean `sympose/` package (`config`, `profiles`, `vault`, `engine`, `cli`), reducing `app.py` to a lean 35-line entry point.
+* **[ADR-005 (2026-08-24): Centralized `config.yaml`, Session Summarization & Memory Consolidation](file:///Users/damiro/Development/sympose/docs/journal/2026-08-24_foundation_review.md#adr-005-centralized-configyaml-session-summarization--memory-consolidation):**
+  * Root `config.yaml` for performance and exit flow tuning.
+  * Automated session distillation on `/exit` and on-demand `/save`.
+  * Dynamic in-session `/config` and `/config set` parameter inspection and live override.
+  * Clean terminal reset and memory consolidation into `_memory.md` and Obsidian.
+* **[ADR-006 (2026-08-24): Autonomous Soul & Memory Bootstrapping](file:///Users/damiro/Development/sympose/docs/journal/2026-08-24_foundation_review.md#adr-006-autonomous-soul--memory-bootstrapping-zero-friction-agent-creation):**
+  * Moved `thinking_phrases` to YAML manifests (zero prompt token overhead).
+  * Auto-generation of `_soul.md`, `_memory.md`, and spinner phrases from a minimal 4-line YAML manifest on initial launch.
+* **[ADR-007 (2026-08-24): Strict Memory Grounding & GCE Metadata Probe Bypass](file:///Users/damiro/Development/sympose/docs/journal/2026-08-24_foundation_review.md#adr-007-strict-memory-grounding-anti-hallucination--honest-ignorance-standard):**
+  * Zero-tolerance anti-hallucination protocol for working memory truthfulness.
+  * `NO_GCE_CHECK=True` & `GOOGLE_CLOUD_DISABLE_METADATA=true` to eliminate the 10s–300s socket hang on macOS.
+* **[ADR-008 (2026-08-24): Heuristic Gated Shadow Memory Extractor](file:///Users/damiro/Development/sympose/docs/journal/2026-08-24_foundation_review.md#adr-008-heuristic-gated-shadow-memory-extractor):**
+  * Asynchronous, non-blocking background daemon thread for silent user intent and plan extraction.
+  * Dual-filter regex gate skipping 80%+ of chit-chat turns for near-zero token overhead.
+  * Automatic deduplication preventing redundant memory line writes.
 
 ---
 
-## Technical Guides
+## Technical Standards & Guides
+* **[Autonomous Agent Memory Architecture Standard](file:///Users/damiro/Development/sympose/docs/MEMORY_ARCHITECTURE_STANDARD.md):** The definitive standard for triad memory management, anti-hallucination grounding, shadow extraction, and Obsidian integration.
 * **[Latency & Performance Tuning Guide](file:///Users/damiro/Development/sympose/docs/LATENCY_TUNING_GUIDE.md):** Complete catalog of knobs, timeouts, context windows, and model configurations governing sub-second SLA.
+
+

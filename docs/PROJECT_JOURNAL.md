@@ -27,6 +27,7 @@ This master document serves as the top-level index and Table of Contents.
 | **2026-08-24** | Autonomous Agent Vault Read/Write Access & Action Protocols (ADR-009) | Complete | [`2026-08-24_agent_vault_access.md`](file:///Users/damiro/Development/sympose/docs/journal/2026-08-24_agent_vault_access.md) |
 | **2026-08-24** | Selective Memory Sharing & Universal User Profile Architecture (ADR-010) | Complete | [`2026-08-24_selective_memory_sharing.md`](file:///Users/damiro/Development/sympose/docs/journal/2026-08-24_selective_memory_sharing.md) |
 | **2026-08-24** | Multi-Folder Vault Access & Flexible Domain Whitelists (ADR-011) | Complete | [`2026-08-24_multi_folder_vault.md`](file:///Users/damiro/Development/sympose/docs/journal/2026-08-24_multi_folder_vault.md) |
+| **2026-08-24** | Modular Skills (`SKILL.md`) & MCP Ephemeral Sub-Agent Workers (ADR-012, ADR-013, ADR-014) | Complete | [`2026-08-24_skills_and_mcp_workers.md`](file:///Users/damiro/Development/sympose/docs/journal/2026-08-24_skills_and_mcp_workers.md) |
 
 ---
 
@@ -72,6 +73,25 @@ This master document serves as the top-level index and Table of Contents.
   * Multi-Folder Whitelist (`vault_folders: [...]`) allowing agents to access multiple directories in existing Obsidian vaults.
   * Full-vault root access (`vault_folders: ["*"]` or `vault_folder: ""`) for unrestricted domain coverage.
   * Cross-directory note reading, searching, and sandboxed security enforcement.
+* **[ADR-012 (2026-08-24): Modular Procedural Skills System (`SKILL.md`)](file:///Users/damiro/Development/sympose/docs/journal/2026-08-24_skills_and_mcp_workers.md#adr-012-modular-procedural-skills-system-skillmd):**
+  * Standard open format `skills/<name>/SKILL.md` (frontmatter metadata + markdown instructions).
+  * Auto-mounting in agent manifests (`skills: [...]`) and dynamic prompt compilation via `sympose/skills.py`.
+  * Mandatory deliverable schemas for non-code and strategic analysis skills.
+* **[ADR-013 (2026-08-24): Model Context Protocol (MCP) & Ephemeral Sub-Agent Workers](file:///Users/damiro/Development/sympose/docs/journal/2026-08-24_skills_and_mcp_workers.md#adr-013-model-context-protocol-mcp--ephemeral-sub-agent-worker-sandbox):**
+  * Standard-library JSON-RPC 2.0 stdio client bridge (`sympose/mcp.py`) for community MCP tool servers.
+  * Isolated sub-agent sandbox (`sympose/workers.py`) preventing chat context pollution and saving 5,000+ tokens per turn.
+  * Autonomic delegation tag `[SPAWN_WORKER: ... | ...]` and configurable `performance.max_worker_tool_turns: 8`.
+* **[ADR-014 (2026-08-24): Deterministic Native Execution Tools & In-Turn Proactive Synthesis](file:///Users/damiro/Development/sympose/docs/journal/2026-08-24_skills_and_mcp_workers.md#adr-014-deterministic-native-tools--in-turn-proactive-synthesis):**
+  * Real macOS execution (`subprocess.run`, file I/O) in `sympose/native_tools.py`, eliminating worker simulation/hallucination.
+  * In-turn proactive synthesis loop in `sympose/engine.py` delivering instant executive summaries right after tool execution in a single conversational turn.
+* **[ADR-015 (2026-08-24): Autonomic Runtime Configuration & Master 7-Point Agent Prerequisite Standard](file:///Users/damiro/Development/sympose/docs/journal/2026-08-24_skills_and_mcp_workers.md#adr-015-autonomic-runtime-configuration--master-7-point-agent-prerequisite-standard):**
+  * Autonomic tag `[CONFIG_SET: <key> | <value>]` in `sympose/actions.py` to persist `config.yaml` updates live from conversational natural language.
+  * `skills/sympose_mastery/SKILL.md` turning the default orchestrator (Samantha) into a full runtime concierge and sysadmin.
+  * Master 7-Point Agent Prerequisite Standard governing complete, zero-defect agent creation.
+* **[ADR-016 (2026-08-24): Complete Agent Lifecycle: Autonomic Genesis & Defensive Retirement Archiving](file:///Users/damiro/Development/sympose/docs/journal/2026-08-24_skills_and_mcp_workers.md#adr-016-complete-agent-lifecycle-autonomic-genesis--defensive-retirement-archiving):**
+  * Autonomic tag `[CREATE_PERSONA: <handle> | <yaml>]` for instant declarative agent onboarding.
+  * Autonomic tag `[DELETE_PERSONA: <handle>]` and slash command `/delete @<handle>` / `/retire @<handle>` implementing defensive soft-delete archiving to `profiles/_archived/<handle>/` while preserving Obsidian notes.
+  * Dynamic `reload_profiles()` on `/switch` and `list_personas()`.
 
 ---
 

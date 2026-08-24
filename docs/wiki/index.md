@@ -56,6 +56,7 @@ graph TD
 ### 📐 [Architecture](file:///Users/damiro/Development/sympose/docs/wiki/architecture/overview.md)
 * **[System Overview](file:///Users/damiro/Development/sympose/docs/wiki/architecture/overview.md):** The Triad pattern separating UI manifest, cognitive directives, and persistent memory.
 * **[Sub-Second Latency Engine](file:///Users/damiro/Development/sympose/docs/wiki/architecture/sub-second-engine.md):** How Sympose achieves 0.75s TTFT on macOS by eliminating GCE metadata server hangs and managing warm connection pools.
+* **[MCP & Sub-Agent Workers](file:///Users/damiro/Development/sympose/docs/wiki/architecture/mcp-and-workers.md):** Isolated, ephemeral worker sandboxes connecting to Model Context Protocol tool servers.
 * **[Sandboxed Obsidian Vault](file:///Users/damiro/Development/sympose/docs/wiki/architecture/sandboxed-vault.md):** Defensive path validation, isolated domain folders, and note search tiers.
 
 ### 🧠 [Autonomous Memory System](file:///Users/damiro/Development/sympose/docs/wiki/memory/shadow-extractor.md)
@@ -64,8 +65,9 @@ graph TD
 * **[Anti-Hallucination & Grounding](file:///Users/damiro/Development/sympose/docs/wiki/memory/anti-hallucination.md):** Eliminating sycophancy with the 4 grounding pillars and honest ignorance protocols.
 * **[Session Archival & Distillation](file:///Users/damiro/Development/sympose/docs/wiki/memory/session-archival.md):** Automated session logs and working memory consolidation on exit.
 
-### 🎭 [Persona Ecosystem](file:///Users/damiro/Development/sympose/docs/wiki/agents/profile-system.md)
+### 🎭 [Persona & Skills Ecosystem](file:///Users/damiro/Development/sympose/docs/wiki/agents/profile-system.md)
 * **[Profile System & Auto-Bootstrapping](file:///Users/damiro/Development/sympose/docs/wiki/agents/profile-system.md):** Spinning up new domain specialists with a minimal 4-line YAML manifest.
+* **[Modular Skills System (`SKILL.md`)](file:///Users/damiro/Development/sympose/docs/wiki/agents/skills-system.md):** Reusable procedural heuristics, domain playbooks, and tool bindings.
 * **[@samantha](file:///Users/damiro/Development/sympose/docs/wiki/agents/samantha.md):** Strategic Master Orchestrator.
 * **[@grace](file:///Users/damiro/Development/sympose/docs/wiki/agents/grace.md):** Surgical Software Engineer.
 * **[@aurelius](file:///Users/damiro/Development/sympose/docs/wiki/agents/aurelius.md):** 100% Offline Local Sounding Board.

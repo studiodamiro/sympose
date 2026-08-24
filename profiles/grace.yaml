@@ -13,6 +13,11 @@ soul_file: "profiles/grace_soul.md"
 memory_file: "profiles/grace_memory.md"
 share_memory: true
 
+skills:
+  - "git_workflow"
+  - "code_review"
+  - "system_architecture"
+
 thinking_phrases:
   - "Decompiling assumptions..."
   - "Eliminating unnecessary abstractions..."

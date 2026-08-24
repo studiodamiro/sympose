@@ -16,3 +16,5 @@
 - User plans to study Rust and Svelte in December 2026 for a new web engine.
 - User prefers a refined, efficient aesthetic ("no bloat in the logic, no friction, no waste").
 - User requested that generated creative content (specifically poetry) be saved directly to their vault.
+- Hot & cold knee A+ sizing chart is ready for review.
+- Created @curie (Marie Curie) as the Principal Research Specialist agent in Sympose.

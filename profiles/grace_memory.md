@@ -11,3 +11,6 @@
 - Confirmed YAML configuration parsing.
 - Verified clean multi-line bullet normalization.
 - damiro prefers 15-minute token TTL
+- Evaluated storage architectures for Sympose: reaffirmed pure markdown for human inspectability and Obsidian integration, while reserving SQLite strictly for future vector/FTS5 semantic search indexing if empirical scale demands it.
+- Committed to pure Markdown for human inspectability and seamless Obsidian integration as the primary storage architecture for Sympose.
+- Reserved SQLite strictly for future vector and FTS5 semantic search indexing, conditional upon empirical scale requirements.

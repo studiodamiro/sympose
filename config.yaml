@@ -18,6 +18,11 @@ session:
     obsidian_subfolder: "Sessions" # Subfolder in persona vault (e.g. Engineering/Sessions/)
     summarization_model: "gemini/gemini-3.5-flash-lite" # Fast sub-second model for synthesis
 
+# 🧠 Memory & Selective Sharing
+memory:
+  user_profile_file: "profiles/user_profile.md"   # Universal profile read by all agents
+  shared_memory_file: "profiles/_shared_memory.md" # Shared pool for collaborative agents
+
 # 🏛️ Runtime Defaults
 runtime:
   default_persona: "samantha"

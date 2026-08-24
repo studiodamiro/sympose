@@ -53,6 +53,10 @@ class ConfigManager:
                 "summarization_model": "gemini/gemini-3.5-flash-lite",
             }
         },
+        "memory": {
+            "user_profile_file": "profiles/user_profile.md",
+            "shared_memory_file": "profiles/_shared_memory.md",
+        },
         "runtime": {
             "default_persona": "samantha",
             "profiles_dir": "profiles",

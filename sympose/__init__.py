@@ -8,6 +8,7 @@ import sympose.config  # noqa: F401
 from sympose.config import config_manager, ConfigManager
 from sympose.profiles import ProfileManager
 from sympose.vault import VaultManager
+from sympose.actions import ActionProcessor
 from sympose.engine import PersonaEngine
 from sympose.cli import TerminalInterface
 
@@ -16,6 +17,7 @@ __all__ = [
     "ConfigManager",
     "ProfileManager",
     "VaultManager",
+    "ActionProcessor",
     "PersonaEngine",
     "TerminalInterface",
 ]

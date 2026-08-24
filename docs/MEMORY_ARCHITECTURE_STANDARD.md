@@ -54,13 +54,15 @@ graph TD
     end
 ```
 
-### The 3 Core Components
+### The Core Memory Hierarchy (ADR-010)
 
-| Artifact | Location | Responsibility | Token Cost |
-| :--- | :--- | :--- | :--- |
-| **Profile Manifest** | `profiles/{handle}.yaml` | Machine-readable identity metadata & UI spinner phrases (`thinking_phrases`). | 0 prompt tokens |
-| **Agent Soul** | `profiles/{handle}_soul.md` | Inflexible cognitive directives, tone, analytical heuristics, and strict anti-hallucination boundaries. | ~200 prompt tokens |
-| **Working Memory** | `profiles/{handle}_memory.md` | Dynamically updated, high-signal bullet points representing permanent user facts, preferences, and stack constraints. | ~150–300 tokens |
+| Artifact | Location | Responsibility | Injected To | Token Cost |
+| :--- | :--- | :--- | :--- | :--- |
+| **Profile Manifest** | `profiles/{handle}.yaml` | Machine-readable identity metadata & `share_memory` flag. | N/A (Config) | 0 prompt tokens |
+| **Universal User Card** | `profiles/user_profile.md` | Universal user identity (`Name: damiro`, OS, core preferences). | **All Agents** | ~40 tokens |
+| **Shared Team Memory** | `profiles/_shared_memory.md` | Collaborative project stack, architecture decisions, and roadmap. | Agents with `share_memory: true` | ~100–250 tokens |
+| **Persona Working Memory** | `profiles/{handle}_memory.md` | Persona-specific directives, private reflections (Air-Gapped for Aurelius). | Assigned Agent | ~100–250 tokens |
+| **Agent Soul** | `profiles/{handle}_soul.md` | Inflexible cognitive directives, tone, analytical heuristics, and anti-hallucination boundaries. | Assigned Agent | ~200 prompt tokens |
 
 ---
 

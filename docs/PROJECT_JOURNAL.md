@@ -23,7 +23,10 @@ This master document serves as the top-level index and Table of Contents.
 
 | Date | Topic / Focus | Status | Daily Log File |
 | :--- | :--- | :--- | :--- |
-| **2026-08-24** | Foundation Review, Phase 1A/1B Delivery & ADR-001 through ADR-004 | Complete | [`2026-08-24_foundation_review.md`](file:///Users/damiro/Development/sympose/docs/journal/2026-08-24_foundation_review.md) |
+| **2026-08-24** | Foundation Review, Phase 1A/1B Delivery & ADR-001 through ADR-008 | Complete | [`2026-08-24_foundation_review.md`](file:///Users/damiro/Development/sympose/docs/journal/2026-08-24_foundation_review.md) |
+| **2026-08-24** | Autonomous Agent Vault Read/Write Access & Action Protocols (ADR-009) | Complete | [`2026-08-24_agent_vault_access.md`](file:///Users/damiro/Development/sympose/docs/journal/2026-08-24_agent_vault_access.md) |
+| **2026-08-24** | Selective Memory Sharing & Universal User Profile Architecture (ADR-010) | Complete | [`2026-08-24_selective_memory_sharing.md`](file:///Users/damiro/Development/sympose/docs/journal/2026-08-24_selective_memory_sharing.md) |
+| **2026-08-24** | Multi-Folder Vault Access & Flexible Domain Whitelists (ADR-011) | Complete | [`2026-08-24_multi_folder_vault.md`](file:///Users/damiro/Development/sympose/docs/journal/2026-08-24_multi_folder_vault.md) |
 
 ---
 
@@ -57,11 +60,21 @@ This master document serves as the top-level index and Table of Contents.
   * Asynchronous, non-blocking background daemon thread for silent user intent and plan extraction.
   * Dual-filter regex gate skipping 80%+ of chit-chat turns for near-zero token overhead.
   * Automatic deduplication preventing redundant memory line writes.
+* **[ADR-009 (2026-08-24): Autonomous Agent Vault Read/Write Access & Action Protocols](file:///Users/damiro/Development/sympose/docs/journal/2026-08-24_agent_vault_access.md#adr-009-autonomous-agent-vault-readwrite-access--action-protocol):**
+  * Zero-latency autonomic action tags (`[WRITE_NOTE]`, `[APPEND_NOTE]`, `[DAILY_NOTE]`, `[REMEMBER]`).
+  * Dedicated `ActionProcessor` module (`sympose/actions.py`) for parsing and badging file operations.
+  * Instantaneous (<3ms) pre-turn grounded retrieval for note reading and vault searches.
+* **[ADR-010 (2026-08-24): Selective Memory Sharing & Universal User Profile Architecture](file:///Users/damiro/Development/sympose/docs/journal/2026-08-24_selective_memory_sharing.md#adr-010-selective-memory-sharing--universal-user-profile-architecture):**
+  * Universal User Card (`profiles/user_profile.md`) loaded by all personas for zero-friction identity awareness.
+  * Configurable `share_memory: true | false` per profile manifest.
+  * Shared team memory pool (`profiles/_shared_memory.md`) for collaborative agents (Samantha & Grace) while keeping offline agents (Aurelius) 100% private and air-gapped.
+* **[ADR-011 (2026-08-24): Multi-Folder Vault Access & Flexible Domain Whitelists](file:///Users/damiro/Development/sympose/docs/journal/2026-08-24_multi_folder_vault.md#adr-011-multi-folder-vault-whitelisting--full-vault-access-architecture):**
+  * Multi-Folder Whitelist (`vault_folders: [...]`) allowing agents to access multiple directories in existing Obsidian vaults.
+  * Full-vault root access (`vault_folders: ["*"]` or `vault_folder: ""`) for unrestricted domain coverage.
+  * Cross-directory note reading, searching, and sandboxed security enforcement.
 
 ---
 
 ## Technical Standards & Guides
 * **[Autonomous Agent Memory Architecture Standard](file:///Users/damiro/Development/sympose/docs/MEMORY_ARCHITECTURE_STANDARD.md):** The definitive standard for triad memory management, anti-hallucination grounding, shadow extraction, and Obsidian integration.
 * **[Latency & Performance Tuning Guide](file:///Users/damiro/Development/sympose/docs/LATENCY_TUNING_GUIDE.md):** Complete catalog of knobs, timeouts, context windows, and model configurations governing sub-second SLA.
-
-

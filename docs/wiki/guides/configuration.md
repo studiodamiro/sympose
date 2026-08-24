@@ -7,6 +7,7 @@ tags:
   - sympose/guides
   - configuration
   - live-tuning
+  - adr
 ---
 
 # ⚙️ Configuration & Live Tuning
@@ -32,16 +33,24 @@ session:
     obsidian_subfolder: "Sessions" # Subfolder in persona domain folder
     summarization_model: "gemini/gemini-3.5-flash-lite" # Fast distillation model
 
+memory:
+  user_profile_file: "profiles/user_profile.md"    # Universal user identity
+  shared_memory_file: "profiles/_shared_memory.md"  # Collaborative team pool
+
+runtime:
+  default_persona: "samantha"
+  profiles_dir: "profiles"
+
 vault:
-  search_tier: "direct"          # Options: "direct" (Pure Python), "sqlite_fts", "semantic"
-  max_search_results: 5
+  daily_notes_folder: "Daily Notes"
+  search_mode: "direct"          # Options: "direct" (Pure Python), "sqlite_fts", "semantic"
 ```
 
 ---
 
 ## 2. In-Session Live CLI Tuning
 
-You can inspect and update any configuration parameter dynamically without restarting the application:
+You can inspect and update configuration parameters dynamically without restarting the application:
 
 ```bash
 # View active configuration

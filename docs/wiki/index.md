@@ -59,6 +59,7 @@ graph TD
 * **[Sandboxed Obsidian Vault](file:///Users/damiro/Development/sympose/docs/wiki/architecture/sandboxed-vault.md):** Defensive path validation, isolated domain folders, and note search tiers.
 
 ### 🧠 [Autonomous Memory System](file:///Users/damiro/Development/sympose/docs/wiki/memory/shadow-extractor.md)
+* **[Selective Memory Sharing & Privacy Rings](file:///Users/damiro/Development/sympose/docs/wiki/memory/selective-sharing.md):** Air-gapping private offline agents (Aurelius) while allowing cloud agents (Samantha & Grace) to share team project memory.
 * **[Heuristic Gated Shadow Extractor](file:///Users/damiro/Development/sympose/docs/wiki/memory/shadow-extractor.md):** Frictionless, zero-keyword memory capture running in detached background daemon threads.
 * **[Anti-Hallucination & Grounding](file:///Users/damiro/Development/sympose/docs/wiki/memory/anti-hallucination.md):** Eliminating sycophancy with the 4 grounding pillars and honest ignorance protocols.
 * **[Session Archival & Distillation](file:///Users/damiro/Development/sympose/docs/wiki/memory/session-archival.md):** Automated session logs and working memory consolidation on exit.

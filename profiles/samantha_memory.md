@@ -13,3 +13,6 @@
 - Active secret code on record is `qwertyzxcvbn123484`.
 - User plans to study Svelte and Rust in December 2026 for a new web engine.
 - Active secret code updated to qwertyzxcvbn
+- User plans to study Rust and Svelte in December 2026 for a new web engine.
+- User prefers a refined, efficient aesthetic ("no bloat in the logic, no friction, no waste").
+- User requested that generated creative content (specifically poetry) be saved directly to their vault.

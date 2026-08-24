@@ -12,10 +12,12 @@ import litellm
 from sympose.profiles import ProfileManager
 from sympose.memory import SessionArchivist
 from sympose.commands import CommandInterceptor
+from sympose.actions import ActionProcessor
+from sympose.vault import VaultManager
 
 
 class PersonaEngine:
-    """Executes multi-model AI completions with sliding context and autonomic tools."""
+    """Executes multi-model AI completions with sliding context, vault context injection, and autonomic actions."""
 
     def __init__(self, profile_manager: ProfileManager, max_turns: Optional[int] = None):
         self.pm = profile_manager
@@ -32,12 +34,24 @@ class PersonaEngine:
         self.histories[handle.lower()] = []
 
     def summarize_session(self, handle: str, target: str = "both") -> Dict[str, Any]:
-        """Delegates session synthesis to SessionArchivist."""
-        history = self.get_history(handle)
-        return self.archivist.summarize_session(handle, history, target=target)
+        return self.archivist.summarize_session(handle, self.get_history(handle), target=target)
+
+    def _resolve_vault_context(self, profile: Dict[str, Any], message: str) -> Optional[str]:
+        """Pre-fetches relevant vault notes or search matches if queried (<3ms local read)."""
+        read_match = re.search(r"(?:read|open|check|look\s+at|show\s+me)\s+(?:the\s+)?note\s+([a-zA-Z0-9_\-/\.]+)", message, re.I)
+        if read_match:
+            note_name = read_match.group(1).strip()
+            content = VaultManager.read_note(profile, note_name)
+            return f"### Sandboxed Vault Note (`{note_name}`):\n{content}"
+
+        search_match = re.search(r"(?:search|check|look\s+in|query)\s+(?:the\s+)?vault\s+(?:for\s+|about\s+)?(.+)", message, re.I)
+        if search_match:
+            query = search_match.group(1).strip()
+            res = VaultManager.search(profile, query)
+            return f"### Vault Search Results for '{query}':\n{res}"
+        return None
 
     def spawn_sub_agent(self, target_handle: str, sub_prompt: str):
-        """Spawns an isolated single-turn sub-call to a specialist peer agent."""
         target_profile = self.pm.get_profile(target_handle)
         if not target_profile:
             yield f"⚠️ Specialist agent `@{target_handle}` not found in profiles."
@@ -45,12 +59,7 @@ class PersonaEngine:
 
         system_prompt = self.pm.build_system_prompt(target_profile)
         target_model = self.model_overrides.get(target_handle.lower(), target_profile.get("model", "gemini/gemini-3.5-flash-lite"))
-        api_base = target_profile.get("api_base")
-
-        active_messages = [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": sub_prompt}
-        ]
+        active_messages = [{"role": "system", "content": system_prompt}, {"role": "user", "content": sub_prompt}]
 
         if litellm is None:
             yield "⚠️ LiteLLM is not installed."
@@ -72,8 +81,8 @@ class PersonaEngine:
 
             if "temperature" in target_profile:
                 kwargs["temperature"] = target_profile["temperature"]
-            if api_base:
-                kwargs["api_base"] = api_base
+            if target_profile.get("api_base"):
+                kwargs["api_base"] = target_profile["api_base"]
 
             response = litellm.completion(**kwargs)
             for chunk in response:
@@ -82,21 +91,19 @@ class PersonaEngine:
                     yield delta
         except Exception as e:
             err_str = str(e)
-            if "11434" in err_str or "Connection refused" in err_str:
-                yield f"⚠️ **Local Model Offline ({target_model}):** Run `ollama serve` to enable @{target_handle}."
-            else:
-                yield f"⚠️ Delegation error ({target_model}): {err_str}"
+            yield (
+                f"⚠️ **Local Model Offline ({target_model}):** Run `ollama serve` to enable @{target_handle}."
+                if ("11434" in err_str or "Connection refused" in err_str)
+                else f"⚠️ Delegation error ({target_model}): {err_str}"
+            )
 
     def chat_stream(self, handle: str, user_message: str):
-        """Streams AI responses or executes command interceptors."""
         profile = self.pm.get_profile(handle)
         if not profile:
             yield f"⚠️ Persona `@{handle}` not found."
             return
 
         clean_input = user_message.strip()
-
-        # Check slash commands first
         cmd_gen = CommandInterceptor.intercept(self, handle, clean_input)
         if cmd_gen is not None:
             for item in cmd_gen:
@@ -106,8 +113,7 @@ class PersonaEngine:
         # Check Natural Language Memory intent
         nat_match = re.search(
             r"^(?:(?:hey|hi|hello)?\s*(?:@?\w+[,:]?\s*)?)?(?:please\s+)?remember\s+(?:that\s+|to\s+|:\s+)?(.+)$",
-            clean_input,
-            re.IGNORECASE
+            clean_input, re.I
         )
         if nat_match and not clean_input.startswith("/"):
             extracted_fact = nat_match.group(1).strip()
@@ -116,19 +122,20 @@ class PersonaEngine:
                 mem_file = profile.get("memory_file", f"profiles/{handle}_memory.md")
                 yield f"> 🧠 **Persisted to {profile.get('name', handle)}'s memory (`{mem_file}`):**\n> *{extracted_fact}*\n\n"
 
-        # Build dynamic composite prompt
+        # Build dynamic composite prompt & inject pre-turn vault context if requested
         system_prompt = self.pm.build_system_prompt(profile)
-        history = self.get_history(handle)
+        vault_ctx = self._resolve_vault_context(profile, clean_input)
+        if vault_ctx:
+            system_prompt += f"\n\n{vault_ctx}"
 
+        history = self.get_history(handle)
         active_messages = [{"role": "system", "content": system_prompt}]
         active_messages.extend(history[-(self.max_turns * 2):])
         active_messages.append({"role": "user", "content": user_message})
 
         target_model = self.model_overrides.get(handle.lower(), profile.get("model", "gemini/gemini-3.5-flash-lite"))
-        api_base = profile.get("api_base")
-
         if litellm is None:
-            yield "⚠️ LiteLLM is not installed. Please run `pip install -r requirements.txt`."
+            yield "⚠️ LiteLLM is not installed. Run `pip install -r requirements.txt`."
             return
 
         try:
@@ -147,12 +154,11 @@ class PersonaEngine:
 
             if "temperature" in profile:
                 kwargs["temperature"] = profile["temperature"]
-            if api_base:
-                kwargs["api_base"] = api_base
+            if profile.get("api_base"):
+                kwargs["api_base"] = profile["api_base"]
 
             response = litellm.completion(**kwargs)
             full_reply = []
-
             for chunk in response:
                 delta = chunk.choices[0].delta.content or ""
                 if delta:
@@ -160,28 +166,21 @@ class PersonaEngine:
                     yield delta
 
             complete_text = "".join(full_reply)
-
-            # Check if model autonomously emitted a [REMEMBER: <fact>] action tag
-            model_rem_match = re.search(r"\[(?:ACTION:)?REMEMBER:\s*([^\]]+)\]", complete_text, re.IGNORECASE)
-            if model_rem_match:
-                extracted_fact = model_rem_match.group(1).strip()
-                self.pm.append_memory(handle, extracted_fact)
-                mem_file = profile.get("memory_file", f"profiles/{handle}_memory.md")
-                yield f"\n\n> 🧠 *@{handle} updated working memory (`{mem_file}`): {extracted_fact}*"
+            clean_text, badges = ActionProcessor.execute_actions(self.pm, handle, complete_text)
+            if badges:
+                yield "\n\n" + "\n".join(badges)
 
             history.append({"role": "user", "content": user_message})
-            history.append({"role": "assistant", "content": complete_text})
+            history.append({"role": "assistant", "content": clean_text})
             self.histories[handle.lower()] = history[-(self.max_turns * 2):]
 
-            # Trigger non-blocking async heuristic shadow extraction in background
+            # Trigger non-blocking shadow extraction in background
             self.archivist.trigger_background_extraction(handle, user_message, complete_text)
-
-
         except Exception as e:
             err_str = str(e)
             if "11434" in err_str or "Connection refused" in err_str:
                 yield f"⚠️ **Local Model Offline ({target_model}):** Run `ollama serve` to enable @{handle}."
             elif "API key" in err_str or "AuthenticationError" in err_str:
-                yield f"⚠️ **Authentication Error:** Missing or invalid API key for model `{target_model}`. Check `.env`."
+                yield f"⚠️ **Authentication Error:** Missing/invalid API key for `{target_model}`. Check `.env`."
             else:
                 yield f"⚠️ **Runtime Error ({target_model}):** {err_str}"

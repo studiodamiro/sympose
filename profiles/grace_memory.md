@@ -10,3 +10,4 @@
 - Tested automated session summarization logic.
 - Confirmed YAML configuration parsing.
 - Verified clean multi-line bullet normalization.
+- damiro prefers 15-minute token TTL

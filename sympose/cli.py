@@ -93,8 +93,14 @@ class TerminalInterface:
             )
 
         self.console.print(table)
-        choice = Prompt.ask("\nSelect persona handle", default=default_handle, choices=[p["handle"] for p in profiles])
-        return choice.lower()
+        valid_handles = [p["handle"].lower() for p in profiles]
+        raw_choice = Prompt.ask(
+            "\nSelect persona handle",
+            default=default_handle,
+            choices=valid_handles,
+            case_sensitive=False
+        )
+        return raw_choice.lower().replace("@", "").strip()
 
     def run(self, initial_handle: str = "samantha") -> None:
         self.display_banner()
@@ -137,30 +143,36 @@ class TerminalInterface:
                     current_handle = self.select_persona(default_handle=current_handle)
                 continue
 
-            # Pick witty persona thinking message
-            phrases = self.THINKING_PHRASES.get(current_handle.lower(), ["Thinking..."])
-            witty_phrase = random.choice(phrases)
-
-            if self.console and not user_input.startswith("/"):
-                self.console.print(f"[dim italic cyan]* {name} is {witty_phrase.lower()}[/dim italic cyan]", end="")
-
-            start_time = time.time()
-            first_chunk_received = False
             is_command = user_input.startswith("/")
+            start_time = time.time()
 
-            for chunk in self.engine.chat_stream(current_handle, user_input):
-                if not first_chunk_received:
-                    first_chunk_received = True
-                    # Clear thinking status line
-                    sys.stdout.write("\r\033[K")
+            # For regular prompts, show active thinking spinner until first token streams
+            status = None
+            if self.console and not is_command:
+                phrases = self.THINKING_PHRASES.get(current_handle.lower(), ["Thinking..."])
+                witty_phrase = random.choice(phrases)
+                status = self.console.status(f"[dim italic cyan]{name} is {witty_phrase.lower()}[/dim italic cyan]", spinner="dots")
+                status.start()
+
+            first_chunk_received = False
+
+            try:
+                for chunk in self.engine.chat_stream(current_handle, user_input):
+                    if not first_chunk_received:
+                        first_chunk_received = True
+                        if status:
+                            status.stop()
+                            status = None
+                        if self.console:
+                            self.console.print(f"\n[bold cyan]{name}:[/bold cyan]")
+                        else:
+                            print(f"\n{name}:")
+
+                    sys.stdout.write(chunk)
                     sys.stdout.flush()
-                    if self.console:
-                        self.console.print(f"\n[bold cyan]{name}:[/bold cyan]")
-                    else:
-                        print(f"\n{name}:")
-
-                sys.stdout.write(chunk)
-                sys.stdout.flush()
+            finally:
+                if status:
+                    status.stop()
 
             total_elapsed = time.time() - start_time
 

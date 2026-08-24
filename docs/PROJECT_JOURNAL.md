@@ -8,25 +8,26 @@ tags:
   - sympose/master-journal
 ---
 
-# 🏛️ Sympose Master Architecture & Engineering Journal
+# Sympose Master Journal Index
 
 > **Project:** Sympose Multi-Model Agent Hub  
-> **Lead Architect / User:** damiro  
+> **Lead Architect:** damiro  
 > **Engineering Partner:** Grace (Rear Admiral Grace Hopper Persona)  
 
-This master document serves as the table of contents and index for daily engineering logs and architectural decisions recorded in `docs/journal/`.
+This master document serves as the top-level index and Table of Contents.  
+**Daily logs are kept in dedicated individual files inside [`docs/journal/`](file:///Users/damiro/Development/sympose/docs/journal) under `YYYY-MM-DD_topic_slug.md`.**
 
 ---
 
-## 📚 Daily Engineering Logs
+## Daily Engineering Entries
 
-| Date | Title / Focus | Status | Log File |
+| Date | Topic / Focus | Status | Daily Log File |
 | :--- | :--- | :--- | :--- |
-| **2026-08-24** | Foundation Review, ADR-001 through ADR-004 & Phase 1 Delivery | ✅ Complete | [2026-08-24_foundation_review.md](file:///Users/damiro/Development/sympose/docs/journal/2026-08-24_foundation_review.md) |
+| **2026-08-24** | Foundation Review, Phase 1A/1B Delivery & ADR-001 through ADR-004 | Complete | [`2026-08-24_foundation_review.md`](file:///Users/damiro/Development/sympose/docs/journal/2026-08-24_foundation_review.md) |
 
 ---
 
-## 🏛️ Architectural Decision Records (ADR Index)
+## Architectural Decision Records (ADR Index)
 
 * **[ADR-001 (2026-08-24): Core Runtime Resilience](file:///Users/damiro/Development/sympose/docs/journal/2026-08-24_foundation_review.md#adr-001-core-runtime--execution-resilience):**
   * *ADR-001.1:* Smart Sliding Window (15–20 Turns) vs. 6-Turn Truncation
@@ -44,5 +45,5 @@ This master document serves as the table of contents and index for daily enginee
 
 ---
 
-## ⚡ Engineering & Performance Guides
+## Technical Guides
 * **[Latency & Performance Tuning Guide](file:///Users/damiro/Development/sympose/docs/LATENCY_TUNING_GUIDE.md):** Complete catalog of knobs, timeouts, context windows, and model configurations governing sub-second SLA.

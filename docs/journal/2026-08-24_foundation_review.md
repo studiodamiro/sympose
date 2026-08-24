@@ -9,7 +9,7 @@ tags:
   - adr
 ---
 
-# 🏛️ Sympose Engineering Log: Foundation Review & Modular Architecture Refactor
+# Sympose Engineering Log: Foundation Review & Modular Architecture Refactor
 
 > **Date:** Monday, August 24, 2026  
 > **Topic:** Phase 1B Delivery & ADR-004 Modular Package Refactoring  

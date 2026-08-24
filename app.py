@@ -410,7 +410,37 @@ class TerminalInterface:
         choice = Prompt.ask("\nSelect persona handle", default=default_handle, choices=[p["handle"] for p in profiles])
         return choice.lower()
 
+    THINKING_PHRASES = {
+        "samantha": [
+            "Connecting high-level dots...",
+            "Synthesizing strategic options...",
+            "Consulting the symposium...",
+            "Distilling signal from noise...",
+            "Formulating the master blueprint...",
+            "Aligning architecture and goals...",
+        ],
+        "grace": [
+            "Decompiling assumptions...",
+            "Eliminating unnecessary abstractions...",
+            "Refactoring the logic paths...",
+            "Inspecting compiler circuits...",
+            "Hunting for zero-bloat solutions...",
+            "Verifying system constraints...",
+        ],
+        "aurelius": [
+            "Reflecting stoically...",
+            "Examining what is within our control...",
+            "Weighing the inner citadel...",
+            "Contemplating the nature of things...",
+            "Distilling clarity from chaos...",
+            "Cultivating steady wisdom...",
+        ],
+    }
+
     def run(self, initial_handle: str = "samantha") -> None:
+        import random
+        import time
+
         self.display_banner()
         current_handle = initial_handle
 
@@ -451,17 +481,43 @@ class TerminalInterface:
                     current_handle = self.select_persona(default_handle=current_handle)
                 continue
 
-            # Stream response in real-time
-            if self.console:
-                self.console.print(f"\n[bold cyan]🏛️ {name}:[/bold cyan]")
-            else:
-                print(f"\n🏛️ {name}:")
+            # Pick witty persona thinking message
+            phrases = self.THINKING_PHRASES.get(current_handle.lower(), ["Thinking..."])
+            witty_phrase = random.choice(phrases)
+
+            if self.console and not user_input.startswith("/"):
+                self.console.print(f"[dim italic cyan]💭 {name} is {witty_phrase.lower()}[/dim italic cyan]", end="")
+
+            start_time = time.time()
+            first_chunk_received = False
+            is_command = user_input.startswith("/")
 
             for chunk in self.engine.chat_stream(current_handle, user_input):
+                if not first_chunk_received:
+                    first_chunk_received = True
+                    # Clear thinking status line
+                    sys.stdout.write("\r\033[K")
+                    sys.stdout.flush()
+                    if self.console:
+                        self.console.print(f"\n[bold cyan]🏛️ {name}:[/bold cyan]")
+                    else:
+                        print(f"\n🏛️ {name}:")
+
                 sys.stdout.write(chunk)
                 sys.stdout.flush()
 
-            print("\n")
+            total_elapsed = time.time() - start_time
+
+            # Print telemetry execution badge (only for AI turns, not instant slash commands)
+            if first_chunk_received and not is_command:
+                short_model = model.split("/")[-1] if "/" in model else model
+                telemetry_badge = f"\n\n[dim cyan]⚡ {total_elapsed:.2f}s | {short_model}[/dim cyan]\n"
+                if self.console:
+                    self.console.print(telemetry_badge)
+                else:
+                    print(f"\n(⚡ {total_elapsed:.2f}s | {short_model})\n")
+            else:
+                print("\n")
 
 
 # ==============================================================================

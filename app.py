@@ -164,27 +164,40 @@ class ProfileManager:
 
 
 # ==============================================================================
-# 3. Sandboxed Vault Searcher (ADR-002 & ADR-003)
+# 3. Sandboxed Vault Manager (ADR-002 & ADR-003)
 # ==============================================================================
 
-class VaultSearcher:
-    """Performs sandboxed search inside the persona's allowed domain directory."""
+class VaultManager:
+    """Manages sandboxed reading and writing inside the persona's allowed domain directory."""
 
     @staticmethod
-    def search(profile: Dict[str, Any], query: str) -> str:
+    def get_allowed_dir(profile: Dict[str, Any]) -> Optional[str]:
+        master_vault = os.getenv("MASTER_VAULT_PATH")
+        if not master_vault:
+            return None
+
+        try:
+            os.makedirs(master_vault, exist_ok=True)
+            vault_folder = profile.get("vault_folder", "")
+            allowed_dir = os.path.join(master_vault, vault_folder) if vault_folder else master_vault
+            os.makedirs(allowed_dir, exist_ok=True)
+
+            if not is_safe_path(allowed_dir, master_vault):
+                return None
+            return allowed_dir
+        except Exception:
+            return None
+
+    @classmethod
+    def search(cls, profile: Dict[str, Any], query: str) -> str:
         master_vault = os.getenv("MASTER_VAULT_PATH")
         if not master_vault or not os.path.exists(master_vault):
             return "⚠️ Master notes directory (`MASTER_VAULT_PATH`) is not configured or does not exist."
 
+        allowed_dir = cls.get_allowed_dir(profile)
         vault_folder = profile.get("vault_folder", "")
-        allowed_dir = os.path.join(master_vault, vault_folder) if vault_folder else master_vault
-
-        if not os.path.exists(allowed_dir):
-            return f"⚠️ Assigned folder `{vault_folder}` does not exist in master vault."
-
-        # Security check: sandboxing boundary
-        if not is_safe_path(allowed_dir, master_vault):
-            return "⚠️ Security violation: Target directory is outside sandbox root."
+        if not allowed_dir:
+            return f"⚠️ Access denied or folder `{vault_folder}` invalid."
 
         query_lower = query.lower()
         matches = []
@@ -194,11 +207,11 @@ class VaultSearcher:
                 for file in files:
                     if file.endswith(".md"):
                         file_path = os.path.join(root, file)
-                        # Check filename or content match
+                        rel_path = os.path.relpath(file_path, allowed_dir)
                         if query_lower in file.lower():
                             with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
                                 excerpt = f.read(1500).strip()
-                                matches.append(f"📄 **{file}** (Title match):\n{excerpt}")
+                                matches.append(f"📄 **{rel_path}** (Title match):\n{excerpt}")
                                 if len(matches) >= 2:
                                     break
                         else:
@@ -206,7 +219,7 @@ class VaultSearcher:
                                 content = f.read()
                                 if query_lower in content.lower():
                                     snippet = content[:1200].strip()
-                                    matches.append(f"📄 **{file}** (Content match):\n{snippet}")
+                                    matches.append(f"📄 **{rel_path}** (Content match):\n{snippet}")
                                     if len(matches) >= 2:
                                         break
                 if len(matches) >= 2:
@@ -218,6 +231,59 @@ class VaultSearcher:
             return f"No notes found matching `{query}` in `{vault_folder}/`."
 
         return "\n\n---\n\n".join(matches)
+
+    @classmethod
+    def write_note(cls, profile: Dict[str, Any], note_name: str, content: str) -> str:
+        """Writes or appends structured Markdown content inside the persona's sandboxed folder."""
+        import datetime
+        allowed_dir = cls.get_allowed_dir(profile)
+        vault_folder = profile.get("vault_folder", "")
+        if not allowed_dir:
+            return "⚠️ Master notes directory (`MASTER_VAULT_PATH`) not configured or path denied."
+
+        if not note_name.endswith(".md"):
+            note_name += ".md"
+
+        target_file = os.path.join(allowed_dir, note_name)
+        if not is_safe_path(target_file, allowed_dir):
+            return "⚠️ Security Error: Target file path is outside assigned sandbox."
+
+        now = datetime.datetime.now()
+        date_str = now.strftime("%Y-%m-%d")
+        time_str = now.strftime("%Y-%m-%d %H:%M")
+
+        try:
+            os.makedirs(os.path.dirname(target_file), exist_ok=True)
+            is_new = not os.path.exists(target_file)
+
+            with open(target_file, "a", encoding="utf-8") as f:
+                if is_new:
+                    # Write clean Obsidian YAML frontmatter
+                    f.write(
+                        f"---\n"
+                        f"entry: {date_str}\n"
+                        f"created: {time_str}\n"
+                        f"type: note\n"
+                        f"project: sympose\n"
+                        f"author: {profile.get('name', 'sympose')}\n"
+                        f"---\n\n"
+                        f"# {os.path.splitext(os.path.basename(note_name))[0]}\n\n"
+                    )
+                f.write(f"\n{content.strip()}\n")
+
+            return f"📝 **Saved to note:** `{vault_folder}/{note_name}`"
+        except Exception as e:
+            return f"⚠️ Failed to write note: {e}"
+
+    @classmethod
+    def write_daily_note(cls, profile: Dict[str, Any], reflection: str) -> str:
+        """Appends a daily reflection into Daily Notes/YYYY-MM-DD.md in the sandboxed folder."""
+        import datetime
+        now = datetime.datetime.now()
+        date_str = now.strftime("%Y-%m-%d")
+        note_name = os.path.join("Daily Notes", f"{date_str}.md")
+        timestamp_header = f"\n### Reflection ({now.strftime('%H:%M')})\n"
+        return cls.write_note(profile, note_name, timestamp_header + reflection)
 
 
 # ==============================================================================
@@ -238,6 +304,56 @@ class PersonaEngine:
 
     def reset_history(self, handle: str) -> None:
         self.histories[handle.lower()] = []
+
+    def spawn_sub_agent(self, target_handle: str, sub_prompt: str):
+        """Spawns an isolated single-turn sub-call to a specialist peer agent."""
+        target_profile = self.pm.get_profile(target_handle)
+        if not target_profile:
+            yield f"⚠️ Specialist agent `@{target_handle}` not found in profiles."
+            return
+
+        system_prompt = self.pm.build_system_prompt(target_profile)
+        target_model = self.model_overrides.get(target_handle.lower(), target_profile.get("model", "gemini/gemini-3.5-flash-lite"))
+        api_base = target_profile.get("api_base")
+
+        active_messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": sub_prompt}
+        ]
+
+        if litellm is None:
+            yield "⚠️ LiteLLM is not installed."
+            return
+
+        try:
+            kwargs = {
+                "model": target_model,
+                "messages": active_messages,
+                "stream": True,
+            }
+            if target_model.startswith("gemini/") and os.getenv("GEMINI_API_KEY"):
+                kwargs["api_key"] = os.getenv("GEMINI_API_KEY")
+            elif target_model.startswith("anthropic/") and os.getenv("ANTHROPIC_API_KEY"):
+                kwargs["api_key"] = os.getenv("ANTHROPIC_API_KEY")
+            elif target_model.startswith("openai/") and os.getenv("OPENAI_API_KEY"):
+                kwargs["api_key"] = os.getenv("OPENAI_API_KEY")
+
+            if "temperature" in target_profile:
+                kwargs["temperature"] = target_profile["temperature"]
+            if api_base:
+                kwargs["api_base"] = api_base
+
+            response = litellm.completion(**kwargs)
+            for chunk in response:
+                delta = chunk.choices[0].delta.content or ""
+                if delta:
+                    yield delta
+        except Exception as e:
+            err_str = str(e)
+            if "11434" in err_str or "Connection refused" in err_str:
+                yield f"⚠️ **Local Model Offline ({target_model}):** Run `ollama serve` to enable @{target_handle}."
+            else:
+                yield f"⚠️ Delegation error ({target_model}): {err_str}"
 
     def chat_stream(self, handle: str, user_message: str):
         """Streams AI responses token-by-token or yields instant command replies."""
@@ -280,12 +396,48 @@ class PersonaEngine:
             if not query:
                 yield "⚠️ Usage: `/vault <search query>`"
                 return
-            yield VaultSearcher.search(profile, query)
+            yield VaultManager.search(profile, query)
+            return
+
+        if clean_input.startswith("/note "):
+            parts = clean_input[6:].strip().split(maxsplit=1)
+            if len(parts) < 2:
+                yield "⚠️ Usage: `/note <filename.md> <content to write>`"
+                return
+            yield VaultManager.write_note(profile, parts[0], parts[1])
+            return
+
+        if clean_input.startswith("/daily "):
+            reflection = clean_input[7:].strip()
+            if not reflection:
+                yield "⚠️ Usage: `/daily <your reflection>`"
+                return
+            yield VaultManager.write_daily_note(profile, reflection)
+            return
+
+        if clean_input.startswith("/ask "):
+            parts = clean_input[5:].strip().split(maxsplit=1)
+            if len(parts) < 2:
+                yield "⚠️ Usage: `/ask <@persona> <task or question>`"
+                return
+            target = parts[0].replace("@", "").lower()
+            sub_prompt = parts[1]
+            target_profile = self.pm.get_profile(target)
+            if not target_profile:
+                yield f"⚠️ Specialist agent `@{target}` not found."
+                return
+
+            yield f"🤝 [bold cyan]Delegating to {target_profile.get('name', target)} ({target_profile.get('title', 'Specialist')}):[/bold cyan]\n\n"
+            for chunk in self.spawn_sub_agent(target, sub_prompt):
+                yield chunk
             return
 
         if clean_input == "/help":
             yield (
                 "**Available Slash Commands:**\n"
+                "- `/ask <@persona> <task>`: Delegate an isolated sub-task to a peer\n"
+                "- `/note <file.md> <content>`: Create or append to a sandboxed vault note\n"
+                "- `/daily <reflection>`: Append to Daily Notes/YYYY-MM-DD.md\n"
                 "- `/remember <fact>`: Save fact into persona's persistent `_memory.md`\n"
                 "- `/reset` or `/new`: Clear active conversation context\n"
                 "- `/model <name>`: Temporarily switch backend model\n"
@@ -302,7 +454,7 @@ class PersonaEngine:
         active_messages.extend(history[-(self.max_turns * 2):])
         active_messages.append({"role": "user", "content": user_message})
 
-        target_model = self.model_overrides.get(handle.lower(), profile.get("model", "gemini/gemini-3.6-flash"))
+        target_model = self.model_overrides.get(handle.lower(), profile.get("model", "gemini/gemini-3.5-flash-lite"))
         api_base = profile.get("api_base")
 
         if litellm is None:

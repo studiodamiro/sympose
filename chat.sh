@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# 🏛️ Sympose Quick Launcher
+# sympose // quick launcher
 # Usage: ./chat.sh [--slack | --persona grace | --persona aurelius]
 # ==============================================================================
 
@@ -19,7 +19,7 @@ fi
 
 # Route arguments
 if [ "$1" == "--slack" ]; then
-    echo "⚡ Launching Sympose Slack Socket Mode Daemon..."
+    echo "Starting Sympose Slack Socket Mode Daemon..."
     python3 app.py --slack
 else
     python3 app.py --cli "$@"

@@ -56,30 +56,30 @@ class TerminalInterface:
 
     def display_banner(self) -> None:
         if not self.console:
-            print("=== Sympose AI Agent Hub ===")
+            print("=== sympose // multi-model agent hub ===")
             return
 
         banner_text = Text()
-        banner_text.append("🏛️ SYMPOSE: Multi-Model Agent Hub\n", style="bold cyan")
-        banner_text.append("Zero-bloat orchestrator for macOS & Slack\n", style="dim white")
-        banner_text.append("Type /help for commands, /switch to change persona, or 'exit' to quit.", style="italic green")
+        banner_text.append("sympose // multi-model agent hub\n", style="bold cyan")
+        banner_text.append("minimalist runtime for macos & slack\n", style="dim white")
+        banner_text.append("commands: /help  |  switch: /switch  |  exit: quit", style="dim cyan")
 
-        self.console.print(Panel(banner_text, border_style="cyan", padding=(1, 2)))
+        self.console.print(Panel(banner_text, border_style="dim cyan", padding=(1, 2)))
 
     def select_persona(self, default_handle: str = "samantha") -> str:
         profiles = self.pm.list_personas()
         if not profiles:
             if self.console:
-                self.console.print("[bold red]⚠️ No profiles found in profiles/ directory![/bold red]")
+                self.console.print("[bold red]No profiles found in profiles/ directory.[/bold red]")
             return default_handle
 
         if not self.console:
             return default_handle
 
-        table = Table(title="Available Personas", border_style="dim cyan", show_header=True)
+        table = Table(title="Personas", border_style="dim cyan", show_header=True)
         table.add_column("Handle", style="bold yellow")
         table.add_column("Name", style="bold white")
-        table.add_column("Domain / Title", style="cyan")
+        table.add_column("Role / Title", style="cyan")
         table.add_column("Default Model", style="green")
         table.add_column("Sandbox", style="magenta")
 
@@ -89,7 +89,7 @@ class TerminalInterface:
                 p.get("name", ""),
                 p.get("title", ""),
                 p.get("model", ""),
-                f"{p.get('vault_folder', 'None')}/"
+                f"{p.get('vault_folder', 'none')}/"
             )
 
         self.console.print(table)
@@ -116,7 +116,7 @@ class TerminalInterface:
                 else:
                     user_input = input(f"\nYou (to @{current_handle}): ").strip()
             except (KeyboardInterrupt, EOFError):
-                print("\nExiting Sympose.")
+                print("\nExiting sympose.")
                 break
 
             if not user_input:
@@ -124,7 +124,7 @@ class TerminalInterface:
 
             if user_input.lower() in ("exit", "quit", ":q"):
                 if self.console:
-                    self.console.print("[dim cyan]Goodbye.[/dim cyan]")
+                    self.console.print("[dim cyan]Session ended.[/dim cyan]")
                 break
 
             if user_input.startswith("/switch"):
@@ -142,7 +142,7 @@ class TerminalInterface:
             witty_phrase = random.choice(phrases)
 
             if self.console and not user_input.startswith("/"):
-                self.console.print(f"[dim italic cyan]💭 {name} is {witty_phrase.lower()}[/dim italic cyan]", end="")
+                self.console.print(f"[dim italic cyan]* {name} is {witty_phrase.lower()}[/dim italic cyan]", end="")
 
             start_time = time.time()
             first_chunk_received = False
@@ -155,22 +155,22 @@ class TerminalInterface:
                     sys.stdout.write("\r\033[K")
                     sys.stdout.flush()
                     if self.console:
-                        self.console.print(f"\n[bold cyan]🏛️ {name}:[/bold cyan]")
+                        self.console.print(f"\n[bold cyan]{name}:[/bold cyan]")
                     else:
-                        print(f"\n🏛️ {name}:")
+                        print(f"\n{name}:")
 
                 sys.stdout.write(chunk)
                 sys.stdout.flush()
 
             total_elapsed = time.time() - start_time
 
-            # Print telemetry execution badge (only for AI turns, not instant slash commands)
+            # Print clean telemetry badge
             if first_chunk_received and not is_command:
                 short_model = model.split("/")[-1] if "/" in model else model
-                telemetry_badge = f"\n\n[dim cyan]⚡ {total_elapsed:.2f}s | {short_model}[/dim cyan]\n"
+                telemetry_badge = f"\n\n[dim cyan][{total_elapsed:.2f}s | {short_model}][/dim cyan]\n"
                 if self.console:
                     self.console.print(telemetry_badge)
                 else:
-                    print(f"\n(⚡ {total_elapsed:.2f}s | {short_model})\n")
+                    print(f"\n[{total_elapsed:.2f}s | {short_model}]\n")
             else:
                 print("\n")

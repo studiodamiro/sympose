@@ -87,34 +87,34 @@ class PersonaEngine:
         # Intercept tactical slash commands
         if clean_input in ("/reset", "/new"):
             self.reset_history(handle)
-            yield f"🔄 Reset conversation history for **{profile.get('name', handle)}**. Context refreshed."
+            yield f"Reset conversation history for {profile.get('name', handle)}. Context refreshed."
             return
 
         if clean_input.startswith("/remember "):
             fact = clean_input[10:].strip()
             if not fact:
-                yield "⚠️ Usage: `/remember <fact to save>`"
+                yield "Usage: `/remember <fact to save>`"
                 return
             success = self.pm.append_memory(handle, fact)
             if success:
-                yield f"🧠 **Saved to {profile.get('name', handle)}'s memory:**\n> {fact}"
+                yield f"Saved to {profile.get('name', handle)}'s memory:\n> {fact}"
             else:
-                yield f"⚠️ Failed to save memory to {profile.get('name', handle)}."
+                yield f"Error: Failed to save memory to {profile.get('name', handle)}."
             return
 
         if clean_input.startswith("/model "):
             new_model = clean_input[7:].strip()
             if not new_model:
-                yield "⚠️ Usage: `/model <provider/model_name>`"
+                yield "Usage: `/model <provider/model_name>`"
                 return
             self.model_overrides[handle.lower()] = new_model
-            yield f"🎛️ Model for **{profile.get('name', handle)}** temporarily set to `{new_model}` for this session."
+            yield f"Model for {profile.get('name', handle)} temporarily set to `{new_model}` for this session."
             return
 
         if clean_input.startswith("/vault "):
             query = clean_input[7:].strip()
             if not query:
-                yield "⚠️ Usage: `/vault <search query>`"
+                yield "Usage: `/vault <search query>`"
                 return
             yield VaultManager.search(profile, query)
             return
@@ -122,7 +122,7 @@ class PersonaEngine:
         if clean_input.startswith("/note "):
             parts = clean_input[6:].strip().split(maxsplit=1)
             if len(parts) < 2:
-                yield "⚠️ Usage: `/note <filename.md> <content to write>`"
+                yield "Usage: `/note <filename.md> <content to write>`"
                 return
             yield VaultManager.write_note(profile, parts[0], parts[1])
             return
@@ -130,7 +130,7 @@ class PersonaEngine:
         if clean_input.startswith("/daily "):
             reflection = clean_input[7:].strip()
             if not reflection:
-                yield "⚠️ Usage: `/daily <your reflection>`"
+                yield "Usage: `/daily <your reflection>`"
                 return
             yield VaultManager.write_daily_note(profile, reflection)
             return
@@ -138,16 +138,16 @@ class PersonaEngine:
         if clean_input.startswith("/ask "):
             parts = clean_input[5:].strip().split(maxsplit=1)
             if len(parts) < 2:
-                yield "⚠️ Usage: `/ask <@persona> <task or question>`"
+                yield "Usage: `/ask <@persona> <task or question>`"
                 return
             target = parts[0].replace("@", "").lower()
             sub_prompt = parts[1]
             target_profile = self.pm.get_profile(target)
             if not target_profile:
-                yield f"⚠️ Specialist agent `@{target}` not found."
+                yield f"Specialist agent `@{target}` not found."
                 return
 
-            yield f"🤝 [bold cyan]Delegating to {target_profile.get('name', target)} ({target_profile.get('title', 'Specialist')}):[/bold cyan]\n\n"
+            yield f"[Delegating to {target_profile.get('name', target)} ({target_profile.get('title', 'Specialist')}):]\n\n"
             for chunk in self.spawn_sub_agent(target, sub_prompt):
                 yield chunk
             return

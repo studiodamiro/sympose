@@ -52,7 +52,7 @@ class VaultManager:
                         if query_lower in file.lower():
                             with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
                                 excerpt = f.read(1500).strip()
-                                matches.append(f"📄 **{rel_path}** (Title match):\n{excerpt}")
+                                matches.append(f"**{rel_path}** (Title match):\n{excerpt}")
                                 if len(matches) >= 2:
                                     break
                         else:
@@ -60,13 +60,13 @@ class VaultManager:
                                 content = f.read()
                                 if query_lower in content.lower():
                                     snippet = content[:1200].strip()
-                                    matches.append(f"📄 **{rel_path}** (Content match):\n{snippet}")
+                                    matches.append(f"**{rel_path}** (Content match):\n{snippet}")
                                     if len(matches) >= 2:
                                         break
                 if len(matches) >= 2:
                     break
         except Exception as e:
-            return f"⚠️ Error searching vault: {e}"
+            return f"Error searching vault: {e}"
 
         if not matches:
             return f"No notes found matching `{query}` in `{vault_folder}/`."
@@ -79,14 +79,14 @@ class VaultManager:
         allowed_dir = cls.get_allowed_dir(profile)
         vault_folder = profile.get("vault_folder", "")
         if not allowed_dir:
-            return "⚠️ Master notes directory (`MASTER_VAULT_PATH`) not configured or path denied."
+            return "Warning: Master notes directory (`MASTER_VAULT_PATH`) not configured or path denied."
 
         if not note_name.endswith(".md"):
             note_name += ".md"
 
         target_file = os.path.join(allowed_dir, note_name)
         if not is_safe_path(target_file, allowed_dir):
-            return "⚠️ Security Error: Target file path is outside assigned sandbox."
+            return "Security Error: Target file path is outside assigned sandbox."
 
         now = datetime.datetime.now()
         date_str = now.strftime("%Y-%m-%d")
@@ -111,9 +111,9 @@ class VaultManager:
                     )
                 f.write(f"\n{content.strip()}\n")
 
-            return f"📝 **Saved to note:** `{vault_folder}/{note_name}`"
+            return f"Saved to note: `{vault_folder}/{note_name}`"
         except Exception as e:
-            return f"⚠️ Failed to write note: {e}"
+            return f"Error: Failed to write note: {e}"
 
     @classmethod
     def write_daily_note(cls, profile: Dict[str, Any], reflection: str) -> str:

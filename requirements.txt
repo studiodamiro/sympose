@@ -1,0 +1,6 @@
+litellm>=1.30.0
+pyyaml>=6.0
+rich>=13.0.0
+python-dotenv>=1.0.0
+slack-bolt>=1.18.0
+slack-sdk>=3.21.0

@@ -315,6 +315,14 @@ class PersonaEngine:
                 "messages": active_messages,
                 "stream": True,
             }
+            # Explicit API key injection eliminates 75s Vertex ADC discovery timeout
+            if target_model.startswith("gemini/") and os.getenv("GEMINI_API_KEY"):
+                kwargs["api_key"] = os.getenv("GEMINI_API_KEY")
+            elif target_model.startswith("anthropic/") and os.getenv("ANTHROPIC_API_KEY"):
+                kwargs["api_key"] = os.getenv("ANTHROPIC_API_KEY")
+            elif target_model.startswith("openai/") and os.getenv("OPENAI_API_KEY"):
+                kwargs["api_key"] = os.getenv("OPENAI_API_KEY")
+
             if "temperature" in profile:
                 kwargs["temperature"] = profile["temperature"]
             if api_base:

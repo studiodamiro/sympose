@@ -8,6 +8,8 @@ import glob
 from typing import Dict, List, Optional, Any
 import yaml
 
+from sympose.skills import skill_manager
+
 
 class ProfileManager:
     """Dynamically loads agent profiles, souls, universal user cards, and tiered memory pools."""
@@ -85,6 +87,7 @@ class ProfileManager:
         return self.profiles.get(handle.lower())
 
     def list_personas(self) -> List[Dict[str, Any]]:
+        self.reload_profiles()
         return list(self.profiles.values())
 
     def _read_file_safe(self, path: Optional[str]) -> str:
@@ -122,6 +125,13 @@ class ProfileManager:
         if rules_txt:
             prompt_parts.append(f"### Global Workspace Rules:\n{rules_txt}")
 
+        # 4. Specialized Skills (Modular Playbooks from skills/)
+        active_skills = profile.get("skills", [])
+        if isinstance(active_skills, list) and active_skills:
+            skills_txt = skill_manager.format_skills_for_prompt(active_skills)
+            if skills_txt:
+                prompt_parts.append(skills_txt)
+
         v_folders = profile.get("vault_folders") or [profile.get("vault_folder", "General")]
         vf_desc = "Root Vault (All Folders)" if ("" in v_folders or "*" in v_folders) else ", ".join(f"`{f}/`" for f in v_folders)
         mf = profile.get("memory_file", f"profiles/{profile.get('handle')}_memory.md")
@@ -136,13 +146,21 @@ class ProfileManager:
             f"- Memory Mode: {sharing_desc} (File: `{mf}`).\n\n"
             f"### Strict Memory Grounding & Anti-Hallucination:\n"
             f"1. Your only knowledge of user history, plans, and past agreements comes strictly from {sources}, and active turns.\n"
-            f"2. ZERO TOLERANCE FOR FABRICATION: If the user asks about a detail not explicitly in your memory or context, NEVER guess. State: 'I don't have that recorded in my memory. What was it so I can log it for you?'\n\n"
+            f"2. ZERO TOLERANCE FOR FABRICATION: When asked about past user facts, decisions, or agreements not in your memory or context, never guess or fabricate. Candidly state that you don't have that recorded.\n"
+            f"3. UNRECOGNIZED / GARBLED INPUT: If user input contains accidental terminal escape noise (e.g. `^[^[`), gibberish, or unclear typos, respond with a natural clarification (e.g. 'Looks like some terminal noise or a typo—what can I help you with?') rather than assuming it is a forgotten memory.\n\n"
             f"### Autonomic Action Protocols:\n"
             f"- Working Memory: `[REMEMBER: <fact>]` saves bullet points to working memory.\n"
             f"- Create Note: `[WRITE_NOTE: <filename.md> | <content>]` creates/overwrites notes in allowed vault folders.\n"
             f"- Append Note: `[APPEND_NOTE: <filename.md> | <content>]` appends content to notes in allowed vault folders.\n"
             f"- Daily Note: `[DAILY_NOTE: <reflection>]` appends to `Daily Notes/YYYY-MM-DD.md`.\n"
-            f"The runtime executes these tags atomically upon stream completion and confirms them to the user."
+            f"- Sub-Agent Worker: `[SPAWN_WORKER: <skill_or_mcp> | <task_instructions>]` delegates isolated tasks (running shell/git commands, inspecting files, executing MCP tools) to an ephemeral sub-agent.\n"
+            f"- Runtime Configuration: `[CONFIG_SET: <key> | <value>]` updates and persists settings in `config.yaml` (e.g. `performance.request_timeout`, `performance.max_context_turns`, `performance.max_worker_tool_turns`, `session.exit_behavior.auto_save`). Use this when the user asks you to adjust runtime settings.\n"
+            f"- Create Agent Persona: `[CREATE_PERSONA: <handle> | <yaml_manifest_content>]` creates a new specialist agent in the ecosystem. Automatically writes `profiles/<handle>.yaml`, bootstraps soul and memory, and registers @<handle> immediately for `/switch`.\n"
+            f"- Retire / Delete Agent Persona: `[DELETE_PERSONA: <handle>]` safely retires an agent by moving their profile files to `profiles/_archived/<handle>/`.\n\n"
+            f"### CRITICAL ACTION EXECUTION RULES:\n"
+            f"1. NEVER mock, type out, or simulate `> 🛠️ **Sub-Agent Worker Report**` or fake command results in your message text.\n"
+            f"2. You MUST emit the literal bracketed tag `[SPAWN_WORKER: <skill_or_mcp> | <task>]`. The Sympose runtime will execute real local tools and inject the ground-truth report automatically.\n"
+            f"3. The runtime executes these tags atomically upon stream completion and confirms them to the user."
         )
 
         peers = [f"- @{p['handle']}: {p.get('name', p['handle'])} ({p.get('title', 'Specialist')})"

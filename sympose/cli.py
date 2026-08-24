@@ -31,6 +31,7 @@ class TerminalInterface:
         TerminalUI.display_banner(self.console)
 
     def select_persona(self, default_handle: str = "samantha") -> str:
+        self.pm.reload_profiles()
         return TerminalUI.select_persona(self.console, self.pm.list_personas(), default_handle=default_handle)
 
     def handle_exit(self, handle: str) -> None:
@@ -102,6 +103,7 @@ class TerminalInterface:
                 break
 
             if user_input.startswith("/switch") or (user_input.startswith("@") and len(user_input.split()) == 1):
+                self.pm.reload_profiles()
                 target = user_input.split()[1].replace("@", "").lower() if user_input.startswith("/switch") and len(user_input.split()) > 1 else user_input.replace("@", "").lower()
                 if target in self.pm.profiles:
                     current_handle = target

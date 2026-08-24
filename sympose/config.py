@@ -41,6 +41,7 @@ class ConfigManager:
         "performance": {
             "request_timeout": 10.0,
             "max_context_turns": 15,
+            "max_worker_tool_turns": 8,
             "drop_unsupported_params": True,
             "stream": True,
         },
@@ -96,11 +97,17 @@ class ConfigManager:
                 base[key] = value
 
     def _apply_runtime_settings(self) -> None:
-        """Applies loaded performance knobs to third-party libraries like LiteLLM."""
+        """Applies loaded performance knobs to third-party libraries like LiteLLM and loads MCP registry."""
         if litellm is not None:
             perf = self.data.get("performance", {})
             litellm.request_timeout = float(perf.get("request_timeout", 10.0))
             litellm.drop_params = bool(perf.get("drop_unsupported_params", True))
+
+        try:
+            from sympose.mcp import mcp_registry
+            mcp_registry.load_from_config(self.data)
+        except Exception:
+            pass
 
     def get(self, dotpath: str, default: Any = None) -> Any:
         """Gets a configuration value using dot notation (e.g. 'performance.request_timeout')."""

@@ -167,11 +167,44 @@ class PersonaEngine:
 
             complete_text = "".join(full_reply)
             clean_text, badges = ActionProcessor.execute_actions(self.pm, handle, complete_text)
+            has_worker = any("Sub-Agent Worker Report" in b for b in badges)
+
             if badges:
-                yield "\n\n" + "\n".join(badges)
+                badge_text = "\n\n" + "\n".join(badges)
+                yield badge_text
+                assistant_record = (clean_text + badge_text).strip()
+            else:
+                assistant_record = clean_text
+
+            # Proactively trigger in-turn synthesis from primary agent if a worker executed
+            if has_worker:
+                yield "\n\n"
+                synth_messages = list(active_messages)
+                synth_messages.append({"role": "assistant", "content": assistant_record})
+                synth_messages.append({
+                    "role": "user",
+                    "content": "[System Directive: Synthesize the worker report above. Present a crisp executive summary of findings, implications, and recommended next steps to the user.]"
+                })
+
+                synth_kwargs = dict(kwargs)
+                synth_kwargs["messages"] = synth_messages
+                try:
+                    synth_resp = litellm.completion(**synth_kwargs)
+                    synth_reply = []
+                    for chunk in synth_resp:
+                        delta = chunk.choices[0].delta.content or ""
+                        if delta:
+                            synth_reply.append(delta)
+                            yield delta
+
+                    final_synth = "".join(synth_reply).strip()
+                    if final_synth:
+                        assistant_record += "\n\n" + final_synth
+                except Exception:
+                    pass
 
             history.append({"role": "user", "content": user_message})
-            history.append({"role": "assistant", "content": clean_text})
+            history.append({"role": "assistant", "content": assistant_record})
             self.histories[handle.lower()] = history[-(self.max_turns * 2):]
 
             # Trigger non-blocking shadow extraction in background

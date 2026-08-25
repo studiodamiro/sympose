@@ -1,0 +1,154 @@
+"""
+Interactive Tab Auto-Completer and Command History for Sympose CLI.
+"""
+
+import os
+import atexit
+from typing import List, Optional, Any
+from sympose.skills import skill_manager
+from sympose.mcp import mcp_registry
+
+try:
+    import readline
+except ImportError:
+    readline = None
+
+
+class SymposeCompleter:
+    """Provides context-aware Tab completion and history navigation for Sympose."""
+
+    ROOT_COMMANDS = [
+        "/switch",
+        "/worker",
+        "/config",
+        "/delete",
+        "/retire",
+        "/save",
+        "/vault",
+        "/note",
+        "/daily",
+        "/remember",
+        "/reset",
+        "/clear",
+        "/model",
+        "/skills",
+        "/tools",
+        "/help",
+        "/exit",
+        "exit",
+        "quit",
+    ]
+
+    SAVE_OPTIONS = ["both", "memory", "obsidian"]
+
+    CONFIG_KEYS = [
+        "performance.request_timeout",
+        "performance.max_context_turns",
+        "performance.max_worker_tool_turns",
+        "session.exit_behavior.auto_save",
+        "session.exit_behavior.default_target",
+        "session.exit_behavior.clear_terminal",
+        "session.exit_behavior.obsidian_subfolder",
+        "runtime.default_persona",
+    ]
+
+    def __init__(self, engine: Any):
+        self.engine = engine
+        self.matches: List[str] = []
+
+    def get_personas(self) -> List[str]:
+        """Returns list of active persona handles formatted with @ prefix."""
+        try:
+            self.engine.pm.reload_profiles()
+            return [f"@{h}" for h in self.engine.pm.profiles.keys()]
+        except Exception:
+            return ["@samantha", "@grace", "@aurelius"]
+
+    def get_worker_targets(self) -> List[str]:
+        """Returns combined list of procedural skills and MCP servers."""
+        targets = []
+        try:
+            skill_manager.reload_skills()
+            targets.extend(skill_manager.skills.keys())
+        except Exception:
+            pass
+        try:
+            targets.extend(mcp_registry.servers.keys())
+        except Exception:
+            pass
+        return targets
+
+    def get_completions(self, line: str, text: str) -> List[str]:
+        """Calculates completion candidates based on full line context and active word."""
+        line_l = line.lstrip()
+
+        # 1. Root Commands
+        if not line_l or (line_l.startswith("/") and " " not in line_l):
+            return [cmd for cmd in self.ROOT_COMMANDS if cmd.startswith(text)]
+
+        # 2. Command Sub-Arguments
+        tokens = line_l.split()
+        cmd = tokens[0].lower()
+
+        # /switch, /delete, /retire, /ask -> @persona handles
+        if cmd in ("/switch", "/delete", "/retire", "/ask"):
+            personas = self.get_personas()
+            return [p for p in personas if p.startswith(text) or p.lstrip("@").startswith(text)]
+
+        # /worker -> skills and mcp servers
+        if cmd == "/worker":
+            if len(tokens) == 1 or (len(tokens) == 2 and not line_l.endswith(" ")):
+                targets = self.get_worker_targets()
+                return [t for t in targets if t.startswith(text)]
+
+        # /save -> both, memory, obsidian
+        if cmd == "/save":
+            return [opt for opt in self.SAVE_OPTIONS if opt.startswith(text)]
+
+        # /config set -> config keys
+        if cmd == "/config" and "set" in tokens:
+            return [k for k in self.CONFIG_KEYS if k.startswith(text)]
+
+        # 3. Inline @mention completion
+        if text.startswith("@"):
+            return [p for p in self.get_personas() if p.startswith(text)]
+
+        return []
+
+    def complete(self, text: str, state: int) -> Optional[str]:
+        """Readline callback returning candidate matching index state."""
+        if state == 0:
+            line = readline.get_line_buffer() if readline else text
+            self.matches = self.get_completions(line, text)
+        if state < len(self.matches):
+            return self.matches[state]
+        return None
+
+    @classmethod
+    def setup_readline(cls, engine: Any) -> Optional["SymposeCompleter"]:
+        """Initializes readline bindings, completer, and persistent history."""
+        if not readline:
+            return None
+
+        completer = cls(engine)
+        readline.set_completer(completer.complete)
+        # Custom delimiters preserving / and @ inside words
+        readline.set_completer_delims(" \t\n`!#$%^&*()=+[{]}\\|;:'\",<>?")
+
+        # Configure tab completion for macOS (libedit) and Linux (GNU readline)
+        if "libedit" in (readline.__doc__ or ""):
+            readline.parse_and_bind("bind ^I rl_complete")
+        else:
+            readline.parse_and_bind("tab: complete")
+
+        # Load history
+        hist_path = os.path.expanduser("~/.sympose_history")
+        try:
+            if os.path.exists(hist_path):
+                readline.read_history_file(hist_path)
+            readline.set_history_length(1000)
+            atexit.register(readline.write_history_file, hist_path)
+        except Exception:
+            pass
+
+        return completer

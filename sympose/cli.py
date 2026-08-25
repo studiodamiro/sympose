@@ -16,6 +16,7 @@ except ImportError:
 
 from sympose.engine import PersonaEngine
 from sympose.ui import TerminalUI
+from sympose.completer import SymposeCompleter
 
 
 class TerminalInterface:
@@ -26,6 +27,7 @@ class TerminalInterface:
         self.pm = engine.pm
         self.config = engine.config
         self.console = Console() if Console else None
+        self.completer = SymposeCompleter.setup_readline(self.engine)
 
     def display_banner(self) -> None:
         TerminalUI.display_banner(self.console)

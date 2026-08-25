@@ -74,6 +74,7 @@ graph TD
 
 ### 🚀 [Guides & Getting Started](./docs/wiki/guides/quickstart.md)
 * **[Quickstart Guide](./docs/wiki/guides/quickstart.md):** Installation, API keys, and starting the interactive CLI.
+* **[Slack Integration & Setup](./docs/wiki/guides/slack-integration.md):** 1-Click App Manifest, Socket Mode, and multi-agent Slack deployment.
 * **[Configuration](./docs/wiki/guides/configuration.md):** Centralized `config.yaml` and dynamic in-session tuning.
 * **[Creating Custom Agents](./docs/wiki/guides/creating-agents.md):** Defining new persona models, prompts, and vault permissions.
 

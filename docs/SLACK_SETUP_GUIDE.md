@@ -157,6 +157,18 @@ When you launch `./chat.sh --slack`, Sympose auto-discovers all configured token
    @Aurelius Marcus reflect on handling unexpected delays
    ```
 
+### 3. Slack Command Ergonomics (`!` Prefix vs `/`)
+Slack intercepts leading `/` characters as Slack Workspace Commands before sending them over Socket Mode. To run commands reliably without registering workspace commands, use the **`!` prefix** or **mention the agent**:
+
+| Intent | Exclamation Command | Tagged Command | Natural Phrasing |
+| :--- | :--- | :--- | :--- |
+| **Delete Thread & Purge History** | `!clear` or `!delete` | `@agent /clear` | *"delete this thread"*, *"clear our chat"* |
+| **Reset Conversation Context** | `!reset` or `!new` | `@agent /reset` | *"start a new conversation"*, *"reset chat"* |
+| **Inspect / Switch Model** | `!model` or `!model <id>` | `@agent /model` | `!model openrouter/anthropic/claude-sonnet-4.5` |
+| **Compact Working Memory** | `!compact` | `@agent /compact` | `!compact shared` |
+| **Save Session to Vault** | `!save` | `@agent /save` | `!save obsidian` |
+| **Wipe Working Memory** | `!reset memory` | `@agent /reset memory` | *"wipe your memory"*, *"delete your memory"* |
+
 ---
 
 ## ❓ Troubleshooting & FAQs

@@ -33,6 +33,7 @@ This master document serves as the top-level index and Table of Contents.
 | **2026-08-25** | Hierarchical Daily Notes, Vault Agnosticism & Local-First Recall (ADR-021, ADR-022, ADR-023) | Complete | [`2026-08-25_vault_recall_and_hierarchical_daily_notes.md`](journal/2026-08-25_vault_recall_and_hierarchical_daily_notes.md) |
 | **2026-08-25** | Ground-Truth Sovereignty Axiom & Config-Driven Spatial Compass (ADR-024, ADR-025, ADR-026, ADR-027) | Complete | [`2026-08-25_ground_truth_sovereignty_and_spatial_compass.md`](journal/2026-08-25_ground_truth_sovereignty_and_spatial_compass.md) |
 | **2026-08-25** | Slack Socket Mode Integration & Thread-Bound Routing (ADR-028) | Complete | [`2026-08-25_slack_socket_mode_integration.md`](journal/2026-08-25_slack_socket_mode_integration.md) |
+| **2026-08-25** | Developer Workflows, IDE Ergonomics & Daemon Persistence Standard | Complete | [`2026-08-25_developer_workflows_and_daemon_persistence.md`](journal/2026-08-25_developer_workflows_and_daemon_persistence.md) |
 
 ---
 

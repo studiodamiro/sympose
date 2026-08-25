@@ -157,7 +157,7 @@ class WorkerEngine:
 
                         yield f"> ⚙️ *Worker calling tool:* `{t_name}`...\n"
 
-                        if t_name in ("run_command", "read_file"):
+                        if t_name in ("run_command", "read_file", "web_search"):
                             ok, tool_res = NativeTools.execute(t_name, args_dict, allowed_dirs=allowed_dirs)
                         else:
                             client = tool_to_client.get(t_name)

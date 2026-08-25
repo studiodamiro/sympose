@@ -37,6 +37,7 @@ This master document serves as the top-level index and Table of Contents.
 | **2026-08-25** | "Assume Interruption" & Proactive Write-Through State Memory (ADR-029) | Complete | [`2026-08-25_assume_interruption_and_write_through_memory.md`](journal/2026-08-25_assume_interruption_and_write_through_memory.md) |
 | **2026-08-26** | High-Density Folder Digests & Zero Time-Delay Simulation Standard (ADR-030) | Complete | [`2026-08-26_high_density_folder_digests_and_zero_delay_simulation.md`](journal/2026-08-26_high_density_folder_digests_and_zero_delay_simulation.md) |
 | **2026-08-26** | Slack Thread Deletion, Command Ergonomics & Memory Sovereignty (ADR-031) | Complete | [`2026-08-26_slack_thread_deletion_and_command_ergonomics.md`](journal/2026-08-26_slack_thread_deletion_and_command_ergonomics.md) |
+| **2026-08-26** | First-Class MCP Directory & Modular Hub Refactor (ADR-032) | Complete | [`2026-08-26_mcp_directory_segregation_and_modular_hub.md`](journal/2026-08-26_mcp_directory_segregation_and_modular_hub.md) |
 
 ---
 

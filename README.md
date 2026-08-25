@@ -44,9 +44,9 @@ Sympose separates agent intelligence into three specialized, file-based componen
 
 ## 🌟 Core Architectural Pillars
 
-1. **Agnostic Flat-File Engine:** Agent personalities (`_soul.md`), working memories (`_memory.md`), and settings (`.yaml`) are simple Markdown and YAML files in `profiles/`. Adding, customizing, or retiring agents requires zero Python changes.
-2. **Modular Skills Engine (`SKILL.md`):** Reusable, procedural domain playbooks with YAML frontmatter and mandatory deliverable schemas that eliminate vague hand-waving across code, research, and strategy tasks.
-3. **Model Context Protocol (MCP) & Ephemeral Workers:** Primary conversational agents remain fast and token-efficient (~400–800 tokens). Heavy tools (GitHub, Web Search, SQL, Shell) run in isolated child-process workers via standard MCP JSON-RPC over `stdio`, preventing context bloat and saving 5,000+ tokens per turn.
+1. **Agnostic Flat-File Engine (`profiles/`):** Agent personalities (`_soul.md`), working memories (`_memory.md`), and settings (`.yaml`) are simple Markdown and YAML files. Adding, customizing, or retiring agents requires zero Python changes.
+2. **Modular Skills Engine (`skills/`):** Reusable, procedural domain playbooks (`SKILL.md`) with YAML frontmatter and mandatory deliverable schemas that eliminate vague hand-waving.
+3. **Dedicated MCP Server Hub (`mcp/`):** First-class directory containing `servers.json` and custom tools. Primary conversational agents remain fast and token-efficient (~400–800 tokens), while heavy tools (GitHub, Web Search, SQL, Shell) run in isolated child-process workers via standard MCP JSON-RPC over `stdio`.
 4. **Sub-Second Performance SLA (<0.8s TTFT):** Smart sliding window memory, GCE probe bypasses, HTTP chunked streaming at 60 FPS, and deterministic native execution tools.
 5. **Autonomic Natural Language Lifecycle:** Non-technical users can tune runtime configuration (`[CONFIG_SET]`), spawn new specialist agents (`[CREATE_PERSONA]`), and safely retire agents (`[DELETE_PERSONA]`) purely through conversation.
 

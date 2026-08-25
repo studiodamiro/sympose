@@ -107,6 +107,12 @@ class TerminalInterface:
             if user_input.startswith("/switch") or (user_input.startswith("@") and len(user_input.split()) == 1):
                 self.pm.reload_profiles()
                 target = user_input.split()[1].replace("@", "").lower() if user_input.startswith("/switch") and len(user_input.split()) > 1 else user_input.replace("@", "").lower()
+                if target.isdigit():
+                    plist = self.pm.list_personas()
+                    idx = int(target) - 1
+                    if 0 <= idx < len(plist):
+                        target = plist[idx]["handle"].lower()
+
                 if target in self.pm.profiles:
                     current_handle = target
                     if self.console:

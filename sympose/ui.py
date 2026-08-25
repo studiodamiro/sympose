@@ -35,14 +35,27 @@ class TerminalUI:
             return default_handle
 
         table = Table(title="Personas", border_style="dim cyan", show_header=True)
+        table.add_column("#", style="bold yellow", justify="center", width=4)
         table.add_column("Handle", style="bold yellow")
         table.add_column("Name", style="bold white")
         table.add_column("Role / Title", style="cyan")
         table.add_column("Default Model", style="green")
         table.add_column("Sandbox", style="magenta")
 
-        for p in profiles:
+        index_map: Dict[str, str] = {}
+        handle_map: Dict[str, str] = {}
+        default_choice = default_handle
+
+        for i, p in enumerate(profiles, start=1):
+            h = p.get("handle", "").lower()
+            index_map[str(i)] = h
+            handle_map[h] = h
+            handle_map[f"@{h}"] = h
+            if h == default_handle.lower():
+                default_choice = str(i)
+
             table.add_row(
+                str(i),
                 f"@{p.get('handle')}",
                 p.get("name", ""),
                 p.get("title", ""),
@@ -51,9 +64,16 @@ class TerminalUI:
             )
 
         console.print(table)
-        valid = [p["handle"].lower() for p in profiles]
-        choice = Prompt.ask("\nSelect persona handle", default=default_handle, choices=valid, case_sensitive=False)
-        return choice.lower().replace("@", "").strip()
+        valid_choices = list(index_map.keys()) + [p["handle"].lower() for p in profiles]
+        prompt_label = f"\nSelect persona [1-{len(profiles)} or handle]"
+        raw_choice = Prompt.ask(prompt_label, default=default_choice, choices=valid_choices, case_sensitive=False)
+        cleaned = raw_choice.lower().replace("@", "").strip()
+
+        if cleaned in index_map:
+            return index_map[cleaned]
+        if cleaned in handle_map:
+            return handle_map[cleaned]
+        return default_handle
 
     @staticmethod
     def prompt_exit_choice(console: Optional[Any], handle: str, default_target: str = "both") -> Optional[str]:

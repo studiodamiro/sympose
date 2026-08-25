@@ -18,10 +18,13 @@ class CommandInterceptor:
 
     @staticmethod
     def intercept(engine: Any, handle: str, clean_input: str) -> Optional[Generator[str, None, None]]:
-        """Checks if input matches a slash command or natural intent, returning a generator if so."""
+        """Checks if input matches a slash/exclamation command or natural intent, returning a generator if so."""
         profile = engine.pm.get_profile(handle)
         if not profile:
             return None
+
+        if clean_input.startswith("!"):
+            clean_input = "/" + clean_input[1:]
 
         # 1. Reset / New Session / Delete Conversation
         if clean_input in ("/reset", "/new") or re.search(r"^(?:please\s+)?(?:delete|clear|reset|wipe|start\s+a\s+new)\s+(?:our\s+|the\s+|this\s+)?(?:chat|conversation|history|session)$", clean_input, re.I):

@@ -125,6 +125,13 @@ When you launch `./chat.sh --slack`, Sympose auto-discovers all configured token
   • @samantha listening on Socket Mode...
 ```
 
+> [!IMPORTANT]
+> **Checklist for each new agent app:**
+> 1. **App Home:** Check ☑️ **"Allow users to send Slash commands and messages from the messages tab"** (unlocks 1-on-1 DMs).
+> 2. **Event Subscriptions:** Ensure `app_mention` and `message.im` are added under **Subscribe to bot events**.
+> 3. **Reinstall App:** Click **Reinstall to Workspace** after updating scopes or events.
+> 4. **Local Models (Aurelius):** Ensure `ollama serve` is running for offline Ollama agents.
+
 ---
 
 ## 💬 How to Interact in Slack

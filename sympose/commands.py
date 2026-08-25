@@ -23,19 +23,35 @@ class CommandInterceptor:
         if not profile:
             return None
 
-        # 1. Reset / New Session
-        if clean_input in ("/reset", "/new"):
+        # 1. Reset / New Session / Delete Conversation
+        if clean_input in ("/reset", "/new") or re.search(r"^(?:please\s+)?(?:delete|clear|reset|wipe|start\s+a\s+new)\s+(?:our\s+|the\s+|this\s+)?(?:chat|conversation|history|session)$", clean_input, re.I):
             def _reset():
                 engine.reset_history(handle)
-                yield f"Reset conversation history for {profile.get('name', handle)}. Context refreshed."
+                yield f"🧹 Conversation history deleted for {profile.get('name', handle)}. Context refreshed."
             return _reset()
 
-        # 2. Clear Screen & History
+        # 2. Clear Screen & Terminal Session
         if clean_input in ("/clear", "/cls"):
             def _clear():
                 engine.reset_history(handle)
                 yield "CLEARED_SESSION"
             return _clear()
+
+        # 2b. Reset / Wipe Working Memory
+        if clean_input in ("/reset memory", "/clear memory") or re.search(r"^(?:please\s+)?(?:delete|clear|wipe|reset)\s+(?:your\s+|all\s+)?memory$", clean_input, re.I):
+            def _reset_mem():
+                mem_file = profile.get("memory_file", f"profiles/{handle}_memory.md")
+                p_name = profile.get("name", handle)
+                template_file = f"{mem_file}.example"
+                initial_content = f"# {p_name}: Persistent Working Memory\n\n"
+                if os.path.exists(template_file):
+                    try:
+                        with open(template_file, "r", encoding="utf-8") as tf: initial_content = tf.read()
+                    except Exception: pass
+                with open(mem_file, "w", encoding="utf-8") as f: f.write(initial_content)
+                engine.reset_history(handle)
+                yield f"🧠 Persistent working memory and active conversation deleted for {p_name}. Reset to clean template."
+            return _reset_mem()
 
         # 3. On-Demand Session Save
         if clean_input.startswith("/save"):

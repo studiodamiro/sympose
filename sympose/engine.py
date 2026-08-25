@@ -37,8 +37,9 @@ class PersonaEngine:
     def _resolve_vault_context(self, profile: Dict[str, Any], message: str) -> Optional[str]:
         msg = message.strip()
         # Direct note title lookup across allowed folders (e.g. Miro, Summit, Virginia)
+        stop_words = {"the", "and", "for", "with", "this", "that", "from", "when", "what", "where", "your", "have", "sure", "look", "tell", "about", "some", "here", "will", "does", "obsidian", "vault", "journal", "daily", "folder", "note", "notes", "please", "access", "format", "file", "files", "entry", "entries"}
         for w in re.findall(r"[a-zA-Z0-9_\-]+", msg):
-            if len(w) >= 3 and w.lower() not in {"the", "and", "for", "with", "this", "that", "from", "when", "what", "where", "your", "have", "sure", "look", "tell", "about", "some", "here", "will", "does"}:
+            if len(w) >= 3 and w.lower() not in stop_words:
                 content = VaultManager.read_note(profile, w)
                 if content and not content.startswith("Note `") and not content.startswith("⚠️"):
                     return f"### Sandboxed Vault Note (`{w}`):\n{content}"
@@ -57,17 +58,16 @@ class PersonaEngine:
         has_intent = any(k in msg.lower() for k in triggers)
 
         for folder in v_folders:
-            if not folder or folder in ("*", "", "all"):
-                continue
+            if not folder or folder in ("*", "", "all"): continue
             f_clean = folder.strip().lower()
             variants = {f_clean, f_clean[:-1] if f_clean.endswith("s") else f_clean + "s"}
-            if f_clean == "people":
-                variants.update({"person", "contact", "contacts", "friend", "friends", "family"})
-            elif f_clean == "movies":
-                variants.update({"film", "films", "cinema"})
+            if f_clean == "daily": variants.update({"journal", "journals", "diary", "reflection", "reflections", "log", "logs"})
+            elif f_clean == "people": variants.update({"person", "contact", "contacts", "friend", "friends", "family"})
+            elif f_clean == "movies": variants.update({"film", "films", "cinema"})
+            elif f_clean == "thoughts": variants.update({"thought", "essay", "essays", "musings"})
 
             if any(re.search(rf"\b{re.escape(v)}\b", msg, re.I) for v in variants) and has_intent:
-                if re.search(r"\b(scan|analyze|summarize|all|overview|entries|how\s+i|about\s+me|amuse|connections?)\b", msg, re.I):
+                if re.search(r"\b(scan|analyze|summarize|all|overview|entries|journals?|how\s+i|about\s+me|amuse|connections?|access)\b", msg, re.I):
                     return VaultManager.get_folder_digest(profile, folder)
                 res = VaultManager.search(profile, f_clean, target_folder=folder)
                 if res and not res.startswith("No notes found") and "not configured" not in res:

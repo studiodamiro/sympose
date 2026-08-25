@@ -1,6 +1,6 @@
-# 🏛️ Sympose: Multi-Model AI Agent Hub
+# Sympose: Multi-Model AI Agent Hub
 
-> **Sympose** (*from Symposium: a forum of gathering experts*) is a zero-bloat, sub-second latency (`<0.8s TTFT`), and local-first multi-agent ecosystem engineered for **macOS Terminal** and **Slack (Socket Mode)**.
+> **Sympose** (_from Symposium: a forum of gathering experts_) is a zero-bloat, sub-second latency (`<0.8s TTFT`), and local-first multi-agent ecosystem engineered for **macOS Terminal** and **Slack (Socket Mode)**.
 
 ---
 
@@ -16,35 +16,37 @@
 
 ## 🎭 Agent Specialists & Roster
 
-| Persona | Domain / Role | Default Model Backend | Obsidian Sandbox | Key Capabilities & Skills |
-| :--- | :--- | :--- | :--- | :--- |
-| **Samantha** (`@samantha`) | Polymath Strategic Master Orchestrator | **Gemini 3.5 Flash-Lite** | `General/`, `Strategy/` | High-level system architecture, task breakdown, Sympose concierge, and worker orchestration. Mounted: `sympose_mastery`, `strategic_analysis`, `system_architecture`. |
-| **Grace** (`@grace`) | Surgical Software & Systems Engineer | **Gemini 3.5 Flash-Lite** (`temp: 0.1`) | `Projects/`, `Architecture/` | Zero-bloat code reviews, atomic conventional commits, compiler heuristics, and deterministic systems design. Mounted: `code_review`, `git_workflow`, `system_architecture`. |
-| **Aurelius** (`@aurelius`) | Private Stoic Journal & Confidant | **Local Ollama (Gemma 2 / Qwen)** | `Journal/`, `Personal/` | 100% private, offline daily reflections, career clarity, and personal journaling ($0.00 cost, zero cloud transmission). |
+| Persona                    | Domain / Role                          | Default Model Backend                   | Obsidian Sandbox             | Key Capabilities & Skills                                                                                                                                                   |
+| :------------------------- | :------------------------------------- | :-------------------------------------- | :--------------------------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Samantha** (`@samantha`) | Polymath Strategic Master Orchestrator | **Gemini 3.5 Flash-Lite**               | `General/`, `Strategy/`      | High-level system architecture, task breakdown, Sympose concierge, and worker orchestration. Mounted: `sympose_mastery`, `strategic_analysis`, `system_architecture`.       |
+| **Grace** (`@grace`)       | Surgical Software & Systems Engineer   | **Gemini 3.5 Flash-Lite** (`temp: 0.1`) | `Projects/`, `Architecture/` | Zero-bloat code reviews, atomic conventional commits, compiler heuristics, and deterministic systems design. Mounted: `code_review`, `git_workflow`, `system_architecture`. |
+| **Aurelius** (`@aurelius`) | Private Stoic Journal & Confidant      | **Local Ollama (Gemma 2 / Qwen)**       | `Journal/`, `Personal/`      | 100% private, offline daily reflections, career clarity, and personal journaling ($0.00 cost, zero cloud transmission).                                                     |
 
 ---
 
 ## 🧠 Two-Tier Memory & Obsidian Vault Integration
 
-* **Tier 1: Hot / Working Memory (`profiles/*_memory.md`):** Lean, high-signal bullet points injected into the system prompt for immediate (<0.8s) recall.
-* **Tier 2: Deep Obsidian Vault Archives (`Projects/Sessions/...`):** Complete, formatted session logs and long-term research notes stored in your Obsidian vault for human browsing and on-demand `/vault` retrieval.
-* **Selective Sharing:** Collaborative team agents share project memory (`profiles/_shared_memory.md`), while private companions (`@aurelius`) remain 100% air-gapped (`share_memory: false`).
+- **Tier 1: Hot / Working Memory (`profiles/*_memory.md`):** Lean, high-signal bullet points injected into the system prompt for immediate (<0.8s) recall.
+- **Tier 2: Deep Obsidian Vault Archives (`Projects/Sessions/...`):** Complete, formatted session logs and long-term research notes stored in your Obsidian vault for human browsing and on-demand `/vault` retrieval.
+- **Selective Sharing:** Collaborative team agents share project memory (`profiles/_shared_memory.md`), while private companions (`@aurelius`) remain 100% air-gapped (`share_memory: false`).
 
 ---
 
 ## 🔌 Built-in Skills & MCP Servers
 
 ### Starter Skill Playbooks (`skills/`)
-* **`sympose_mastery`**: Runtime concierge for conversational config tuning, 7-point agent creation, and retirement.
-* **`code_review`**: Zero-bloat static analysis categorizing issues into Blockers, Warnings, and Suggestions.
-* **`git_workflow`**: Conventional commit formatting and atomic branch hygiene.
-* **`strategic_analysis`**: Reversibility tests (one-way/two-way doors), tradeoff matrices, and kill criteria.
-* **`system_architecture`**: Low-latency design, interface segregation, and `<200 LOC per file` modularity.
+
+- **`sympose_mastery`**: Runtime concierge for conversational config tuning, 7-point agent creation, and retirement.
+- **`code_review`**: Zero-bloat static analysis categorizing issues into Blockers, Warnings, and Suggestions.
+- **`git_workflow`**: Conventional commit formatting and atomic branch hygiene.
+- **`strategic_analysis`**: Reversibility tests (one-way/two-way doors), tradeoff matrices, and kill criteria.
+- **`system_architecture`**: Low-latency design, interface segregation, and `<200 LOC per file` modularity.
 
 ### Configured MCP Servers (`config.yaml`)
-* **`filesystem`**: Secure workspace directory traversal and file inspection.
-* **`github`**: Repository search, issue management, and pull request review.
-* **`brave_search`**: Real-time live web research and news verification.
+
+- **`filesystem`**: Secure workspace directory traversal and file inspection.
+- **`github`**: Repository search, issue management, and pull request review.
+- **`brave_search`**: Real-time live web research and news verification.
 
 ---
 
@@ -95,35 +97,37 @@ sympose/
 
 ## ⚡ Slash Commands Reference
 
-| Command | Purpose | Example |
-| :--- | :--- | :--- |
-| `/skills` (or `/tools`) | Inspect indexed skill playbooks and active MCP servers | `/skills` |
-| `/worker <skill\|mcp> <task>` | Dispatch an isolated sub-agent worker with tools/skills | `/worker git_workflow "Check branch status"` |
-| `/switch [@handle]` | Switch active conversation to another persona | `/switch @grace` |
-| `/config` | View active runtime, performance & session settings | `/config` |
-| `/config set <key> <val>` | Tune knobs live in the active terminal | `/config set performance.max_context_turns 20` |
-| `/delete @<handle>` | Safely retire and archive an agent persona | `/delete @curie` |
-| `/save [memory\|obsidian\|both]` | Synthesize and save session takeaways | `/save both` |
-| `/vault <query>` | Query persona's sandboxed Obsidian notes | `/vault architecture` |
-| `/note <file.md> <content>` | Create or append to a sandboxed vault note | `/note Ideas.md Roadmap items` |
-| `/daily <reflection>` | Append a thought to Daily Notes/YYYY-MM-DD.md | `/daily Completed worker refactor` |
-| `/remember <fact>` | Save a durable fact to working memory | `/remember Prefers vanilla CSS` |
-| `/reset` (or `/new`) | Reset active conversation context | `/reset` |
-| `/clear` | Clear terminal screen and reset context | `/clear` |
-| `/model <provider/name>` | Temporarily override backend model | `/model anthropic/claude-3-5-sonnet` |
-| `/help` | Show command reference | `/help` |
-| `exit` (or `quit`) | End session and trigger save flow | `/exit` |
+| Command                          | Purpose                                                 | Example                                        |
+| :------------------------------- | :------------------------------------------------------ | :--------------------------------------------- |
+| `/skills` (or `/tools`)          | Inspect indexed skill playbooks and active MCP servers  | `/skills`                                      |
+| `/worker <skill\|mcp> <task>`    | Dispatch an isolated sub-agent worker with tools/skills | `/worker git_workflow "Check branch status"`   |
+| `/switch [@handle]`              | Switch active conversation to another persona           | `/switch @grace`                               |
+| `/config`                        | View active runtime, performance & session settings     | `/config`                                      |
+| `/config set <key> <val>`        | Tune knobs live in the active terminal                  | `/config set performance.max_context_turns 20` |
+| `/delete @<handle>`              | Safely retire and archive an agent persona              | `/delete @curie`                               |
+| `/save [memory\|obsidian\|both]` | Synthesize and save session takeaways                   | `/save both`                                   |
+| `/vault <query>`                 | Query persona's sandboxed Obsidian notes                | `/vault architecture`                          |
+| `/note <file.md> <content>`      | Create or append to a sandboxed vault note              | `/note Ideas.md Roadmap items`                 |
+| `/daily <reflection>`            | Append a thought to Daily Notes/YYYY-MM-DD.md           | `/daily Completed worker refactor`             |
+| `/remember <fact>`               | Save a durable fact to working memory                   | `/remember Prefers vanilla CSS`                |
+| `/reset` (or `/new`)             | Reset active conversation context                       | `/reset`                                       |
+| `/clear`                         | Clear terminal screen and reset context                 | `/clear`                                       |
+| `/model <provider/name>`         | Temporarily override backend model                      | `/model anthropic/claude-3-5-sonnet`           |
+| `/help`                          | Show command reference                                  | `/help`                                        |
+| `exit` (or `quit`)               | End session and trigger save flow                       | `/exit`                                        |
 
 ---
 
 ## 🚀 Quickstart
 
 ### 1. Prerequisites
-* Python 3.11+
-* Node.js 18+ (for `npx` MCP servers)
-* (Optional) [Ollama](https://ollama.com/) for local offline models.
+
+- Python 3.11+
+- Node.js 18+ (for `npx` MCP servers)
+- (Optional) [Ollama](https://ollama.com/) for local offline models.
 
 ### 2. Installation
+
 ```bash
 # Clone the repository
 git clone https://github.com/studiodamiro/sympose.git
@@ -136,12 +140,15 @@ pip install -r requirements.txt
 ```
 
 ### 3. Environment Configuration
+
 Copy `.env.example` to `.env` and fill in your API keys:
+
 ```bash
 cp .env.example .env
 ```
 
 ### 4. Running Sympose
+
 ```bash
 # Launch interactive macOS Terminal Hub
 chmod +x chat.sh
@@ -154,7 +161,8 @@ chmod +x chat.sh
 ---
 
 ## 📜 Documentation & ADRs
-* **[Master Journal & ADR Index (`docs/PROJECT_JOURNAL.md`)](file:///Users/damiro/Development/sympose/docs/PROJECT_JOURNAL.md)**: Architectural Decision Records from ADR-001 through ADR-016.
-* **[Latency & Performance Tuning Guide (`docs/LATENCY_TUNING_GUIDE.md`)](file:///Users/damiro/Development/sympose/docs/LATENCY_TUNING_GUIDE.md)**: Complete parameter catalog governing sub-second SLA.
-* **[Autonomous Agent Memory Architecture Standard (`docs/MEMORY_ARCHITECTURE_STANDARD.md`)](file:///Users/damiro/Development/sympose/docs/MEMORY_ARCHITECTURE_STANDARD.md)**: Triad memory management, shadow extraction, and anti-hallucination grounding.
-* **[Wiki Documentation Hub (`docs/wiki/index.md`)](file:///Users/damiro/Development/sympose/docs/wiki/index.md)**: Comprehensive guide to skills, MCP workers, and profile systems.
+
+- **[Master Journal & ADR Index (`docs/PROJECT_JOURNAL.md`)](file:///Users/damiro/Development/sympose/docs/PROJECT_JOURNAL.md)**: Architectural Decision Records from ADR-001 through ADR-016.
+- **[Latency & Performance Tuning Guide (`docs/LATENCY_TUNING_GUIDE.md`)](file:///Users/damiro/Development/sympose/docs/LATENCY_TUNING_GUIDE.md)**: Complete parameter catalog governing sub-second SLA.
+- **[Autonomous Agent Memory Architecture Standard (`docs/MEMORY_ARCHITECTURE_STANDARD.md`)](file:///Users/damiro/Development/sympose/docs/MEMORY_ARCHITECTURE_STANDARD.md)**: Triad memory management, shadow extraction, and anti-hallucination grounding.
+- **[Wiki Documentation Hub (`docs/wiki/index.md`)](file:///Users/damiro/Development/sympose/docs/wiki/index.md)**: Comprehensive guide to skills, MCP workers, and profile systems.

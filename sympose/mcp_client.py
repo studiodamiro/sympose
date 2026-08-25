@@ -40,6 +40,8 @@ class MCPClient:
 
     def _build_env(self) -> Dict[str, str]:
         full_env = os.environ.copy()
+        paths = ["/opt/homebrew/bin", "/usr/local/bin", os.path.expanduser("~/.nvm/versions/node"), full_env.get("PATH", "")]
+        full_env["PATH"] = ":".join([p for p in paths if p])
         for k, v in self.custom_env.items():
             if isinstance(v, str) and v.startswith("env:"):
                 full_env[k] = os.getenv(v[4:].strip(), "")
@@ -51,8 +53,10 @@ class MCPClient:
         if self.is_connected and self.process and self.process.poll() is None:
             return True
         try:
+            import shutil
+            cmd_bin = shutil.which(self.command, path=self._build_env().get("PATH")) or self.command
             self.process = subprocess.Popen(
-                [self.command] + self.args,
+                [cmd_bin] + self.args,
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,

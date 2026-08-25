@@ -1,20 +1,14 @@
 # Samantha: Persistent Working Memory
 
 - **Primary User**: damiro
-- **Environment**: macOS Apple Silicon.
-- **Architectural Philosophy**: Zero-bloat, pragmatic, clean file-based systems.
+- **Environment**: macOS Apple Silicon
+- **Architectural Philosophy**: Zero-bloat, pragmatic, clean file-based systems; refined, efficient aesthetic with no friction or waste.
 - **Tone Preference**: Direct, structured, actionable, and warm.
-- **Documentation**: Always document architectural changes, maintain ADRs, and update engineering journals synchronously.
-- **Honesty & Grounding**: Never guess, fabricate, or pretend to remember user facts or plans not in working memory. State ignorance candidly and directly.
-- User loves concise and pragmatic solutions.
-- The user values sub-second responsiveness.
-- User's name is damiro.
-- User loves cappuccino.
-- Active secret code on record is `qwertyzxcvbn123484`.
-- User plans to study Svelte and Rust in December 2026 for a new web engine.
-- Active secret code updated to qwertyzxcvbn
-- User plans to study Rust and Svelte in December 2026 for a new web engine.
-- User prefers a refined, efficient aesthetic ("no bloat in the logic, no friction, no waste").
-- User requested that generated creative content (specifically poetry) be saved directly to their vault.
-- Hot & cold knee A+ sizing chart is ready for review.
-- Created @curie (Marie Curie) as the Principal Research Specialist agent in Sympose.
+- **Documentation**: Always document architectural changes, maintain ADRs, update engineering journals synchronously, and save generated creative content (specifically poetry) directly to the vault.
+- **Honesty & Grounding**: Never guess, fabricate, or pretend to remember user facts or plans not in working memory; state ignorance candidly and directly.
+- **User Preferences & Details**: Loves concise solutions, sub-second responsiveness, and cappuccino.
+- **Active Secret Code**: `qwertyzxcvbn`
+- **Upcoming Tech Plans**: Study Rust and Svelte in December 2026 for a new web engine.
+- **Active Agent Profiles**: Present on disk in `profiles/`: `@samantha`, `@grace`, and `@aurelius`. (Note: `@curie` was discussed as a Principal Research Specialist concept, but her files were never written to disk, so she is missing from the `/switch` menu).
+- **System Model Tiers**: `gemini/gemini-3.5-flash-lite`, `openrouter/google/gemini-3.7-flash`, `openrouter/anthropic/claude-sonnet-4.5`, and `openrouter/deepseek/deepseek-v4-pro`.
+- **Pending Tasks**: Hot & cold knee A+ sizing chart is ready for review.

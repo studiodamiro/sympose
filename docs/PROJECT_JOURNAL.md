@@ -92,16 +92,18 @@ This master document serves as the top-level index and Table of Contents.
   * Autonomic tag `[CREATE_PERSONA: <handle> | <yaml>]` for instant declarative agent onboarding.
   * Autonomic tag `[DELETE_PERSONA: <handle>]` and slash command `/delete @<handle>` / `/retire @<handle>` implementing defensive soft-delete archiving to `profiles/_archived/<handle>/` while preserving Obsidian notes.
   * Dynamic `reload_profiles()` on `/switch` and `list_personas()`.
-* **ADR-017 (2026-08-25): Zero-Dependency CLI Tab Auto-Completion & Cross-Session History:**
-  * Implemented standard library `readline` completer engine ([`sympose/completer.py`](file:///Users/damiro/Development/sympose/sympose/completer.py)) with zero external package dependencies.
-  * Dynamic context-aware completion for `/` commands, `@` personas, `/worker` skills/MCP tools, `/save` targets, and `/config set` parameters.
-  * Persistent command history saved to `~/.sympose_history`.
-* **ADR-018 (2026-08-25): Numbered Persona Switching & Expanded Milestone Extraction Heuristics:**
-  * Numbered index column (`#`) in the persona selection table supporting single-keystroke numeric switching (`1`, `2`, `3`) or direct CLI command `/switch 2`.
-  * Expanded `HeuristicGatedExtractor` triggers in [`sympose/memory.py`](file:///Users/damiro/Development/sympose/sympose/memory.py) covering personal milestones, birthdays, anniversaries, family members, and relationships without user prompts.
+* **[ADR-017 (2026-08-25): Multi-Provider Routing & Explicit OpenRouter Key Injection](file:///Users/damiro/Development/sympose/docs/journal/2026-08-25_openrouter_and_model_catalog.md#adr-015-multi-provider-routing--explicit-openrouter-key-injection):**
+  * Explicit OpenRouter API key routing and provider prefixes across engine, workers, and memory modules.
+* **[ADR-018 (2026-08-25): Skill-Driven Sub-Agent Worker Model Auto-Resolution](file:///Users/damiro/Development/sympose/docs/journal/2026-08-25_openrouter_and_model_catalog.md#adr-016-skill-driven-sub-agent-worker-model-auto-resolution):**
+  * 4-tier worker resolution hierarchy prioritizing `task.model` $\rightarrow$ `skill.recommended_models[0]` $\rightarrow$ `DEFAULT_MODEL` $\rightarrow$ system fallback.
+* **[ADR-019 (2026-08-25): Dynamic OpenRouter Model Discovery & Live Catalog Search](file:///Users/damiro/Development/sympose/docs/journal/2026-08-25_openrouter_and_model_catalog.md#adr-017-dynamic-openrouter-model-discovery--live-catalog-search-symposemodelspy):**
+  * `ModelCatalog` with 24-hour disk caching, `/model find <keyword>` search, `/model refresh`, and Readline Tab autocompletion.
+* **[ADR-020 (2026-08-25): The Zero-Maintenance Mandate & Automated Memory Compaction](file:///Users/damiro/Development/sympose/docs/journal/2026-08-25_automated_memory_compactor.md#adr-020-the-zero-maintenance-mandate--the-assistant-paradox):**
+  * Autonomous `MemoryCompactor` with configurable line threshold (default: 25 lines) for background deduplication and conflict resolution across persona and shared memory files.
 
 ---
 
 ## Technical Standards & Guides
 * **[Autonomous Agent Memory Architecture Standard](file:///Users/damiro/Development/sympose/docs/MEMORY_ARCHITECTURE_STANDARD.md):** The definitive standard for triad memory management, anti-hallucination grounding, shadow extraction, and Obsidian integration.
 * **[Latency & Performance Tuning Guide](file:///Users/damiro/Development/sympose/docs/LATENCY_TUNING_GUIDE.md):** Complete catalog of knobs, timeouts, context windows, and model configurations governing sub-second SLA.
+* **[Wiki Documentation Hub](file:///Users/damiro/Development/sympose/docs/wiki/index.md):** Comprehensive guide to skills, MCP workers, profile systems, and command references.

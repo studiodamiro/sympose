@@ -51,6 +51,9 @@ tags:
   - git
 mcp_servers:
   - "github"
+recommended_models:
+  - "openrouter/anthropic/claude-3.7-sonnet"
+  - "gemini/gemini-3.5-flash-lite"
 ---
 
 # 🌲 Git Workflow Playbook
@@ -69,6 +72,7 @@ When proposing git commits:
 | `description` | `string` | Short 1-sentence summary of the skill's purpose. |
 | `tags` | `list` | Categorization tags. |
 | `mcp_servers` | `list` | *(Optional)* MCP tool servers automatically paired with this skill. |
+| `recommended_models` | `list` | *(Optional)* Priority model list for ephemeral sub-agent workers executing this skill. |
 
 ---
 

@@ -78,6 +78,8 @@ class PersonaEngine:
                 kwargs["api_key"] = os.getenv("ANTHROPIC_API_KEY")
             elif target_model.startswith("openai/") and os.getenv("OPENAI_API_KEY"):
                 kwargs["api_key"] = os.getenv("OPENAI_API_KEY")
+            elif target_model.startswith("openrouter/") and os.getenv("OPENROUTER_API_KEY"):
+                kwargs["api_key"] = os.getenv("OPENROUTER_API_KEY")
 
             if "temperature" in target_profile:
                 kwargs["temperature"] = target_profile["temperature"]
@@ -151,6 +153,8 @@ class PersonaEngine:
                 kwargs["api_key"] = os.getenv("ANTHROPIC_API_KEY")
             elif target_model.startswith("openai/") and os.getenv("OPENAI_API_KEY"):
                 kwargs["api_key"] = os.getenv("OPENAI_API_KEY")
+            elif target_model.startswith("openrouter/") and os.getenv("OPENROUTER_API_KEY"):
+                kwargs["api_key"] = os.getenv("OPENROUTER_API_KEY")
 
             if "temperature" in profile:
                 kwargs["temperature"] = profile["temperature"]

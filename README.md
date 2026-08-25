@@ -4,6 +4,44 @@
 
 ---
 
+## 🏛️ System Architecture: The Triad Pattern
+
+Sympose separates agent intelligence into three specialized, file-based components:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│ 1. Profile Manifest (yaml)  ──>  RUNTIME / UI METADATA      │
+│    • Name, Handle, Title, Icon, Model, Vault Folder         │
+│    • thinking_phrases: UI spinner strings (0 token cost)    │
+└─────────────────────────────────────────────────────────────┘
+                               │
+┌─────────────────────────────────────────────────────────────┐
+│ 2. Agent Soul (_soul.md)   ──>  COGNITIVE DIRECTIVES        │
+│    • Injected into LLM System Prompt                        │
+│    • Inflexible tone, reasoning heuristics, boundaries      │
+└─────────────────────────────────────────────────────────────┘
+                               │
+┌─────────────────────────────────────────────────────────────┐
+│ 3. Working Memory (_memory)──>  DYNAMIC EVOLVING FACTS      │
+│    • Updated live by Shadow Extractor & Session Archival    │
+│    • Auto-compacted & conflict-resolved at >= 25 lines      │
+└─────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 🛡️ The Zero-Maintenance Mandate (The Assistant Paradox)
+
+> **"If the user has to become the sysadmin, curator, or custodian of their AI assistant, the system is actively working against its primary reason for existing."**
+
+1. **Autonomous Memory Hygiene**: Memory files are compacted, deduplicated, and pruned in non-blocking background daemon threads by the `MemoryCompactor` without requiring user curation.
+2. **Self-Healing & Auto-Bootstrapping**: If a new specialist profile is created with a minimal YAML manifest, missing soul and memory files are automatically generated on boot.
+3. **Dynamic Model Discovery**: `ModelCatalog` queries and caches OpenRouter's live catalog on-demand. There are zero hardcoded model dictionaries to manually maintain.
+4. **Zero Infrastructure Daemons**: Sympose runs directly on Python standard library primitives over local Markdown files. There are zero background Postgres, Redis, Docker, or vector database servers to maintain, crash, or migrate.
+5. **Self-Regulating Context**: Sliding context window governors automatically prevent token bloat without requiring manual `/clear` micromanagement.
+
+---
+
 ## 🌟 Core Architectural Pillars
 
 1. **Agnostic Flat-File Engine:** Agent personalities (`_soul.md`), working memories (`_memory.md`), and settings (`.yaml`) are simple Markdown and YAML files in `profiles/`. Adding, customizing, or retiring agents requires zero Python changes.
@@ -26,7 +64,7 @@
 
 ## 🧠 Two-Tier Memory & Obsidian Vault Integration
 
-- **Tier 1: Hot / Working Memory (`profiles/*_memory.md`):** Lean, high-signal bullet points injected into the system prompt for immediate (<0.8s) recall.
+- **Tier 1: Hot / Working Memory (`profiles/*_memory.md`):** Lean, high-signal bullet points injected into the system prompt for immediate (<0.8s) recall. Automatically pruned and compacted at $\ge 25$ lines.
 - **Tier 2: Deep Obsidian Vault Archives (`Projects/Sessions/...`):** Complete, formatted session logs and long-term research notes stored in your Obsidian vault for human browsing and on-demand `/vault` retrieval.
 - **Selective Sharing:** Collaborative team agents share project memory (`profiles/_shared_memory.md`), while private companions (`@aurelius`) remain 100% air-gapped (`share_memory: false`).
 
@@ -54,10 +92,10 @@
 
 ```text
 sympose/
-├── config.yaml               # Central runtime, performance & MCP configuration
+├── config.yaml               # Central runtime, performance, memory & MCP config
 ├── README.md                 # Master project overview & quickstart
 ├── requirements.txt          # Minimal, zero-bloat dependencies
-├── .env.example              # Environment variables template
+├── .env.example              # Multi-provider API keys template
 ├── app.py                    # 35-line entry point
 ├── chat.sh                   # macOS quick launcher script
 ├── skills/                   # Modular procedural skill playbooks
@@ -71,12 +109,15 @@ sympose/
 │   ├── profiles.py           # ProfileManager, auto-soul & auto-memory genesis
 │   ├── vault.py              # Multi-folder Obsidian sandboxing & search
 │   ├── engine.py             # Sliding window LLM engine & proactive synthesis
-│   ├── actions.py            # Autonomic action processor ([SPAWN_WORKER], [CONFIG_SET], etc.)
-│   ├── commands.py           # Tactical slash command interceptor
+│   ├── compactor.py          # Autonomous working memory compactor & deduplicator
+│   ├── models.py             # Live OpenRouter model catalog & disk cache
+│   ├── memory.py             # Heuristic gated shadow extraction & session archival
 │   ├── skills.py             # SKILL.md discovery and prompt compilation
 │   ├── mcp.py                # JSON-RPC 2.0 stdio client bridge & tool schema mapper
 │   ├── native_tools.py       # Deterministic subprocess execution (run_command, read_file)
 │   ├── workers.py            # Sub-agent worker sandbox & multi-turn tool loop
+│   ├── completer.py          # Readline tab auto-completion for commands, models & skills
+│   ├── commands.py           # Tactical slash command interceptor
 │   ├── ui.py                 # Rich terminal tables, banners & exit modals
 │   └── cli.py                # Interactive CLI loop & streaming controller
 ├── profiles/                 # Declarative agent manifests & working memory
@@ -87,7 +128,7 @@ sympose/
 │   ├── aurelius.yaml / _soul.md / _memory.md
 │   └── _archived/            # Defensive soft-delete directory for retired agents
 └── docs/                     # Documentation, wiki & architectural journals
-    ├── PROJECT_JOURNAL.md    # Master index & ADR records (ADR-001 to ADR-016)
+    ├── PROJECT_JOURNAL.md    # Master index & ADR records (ADR-001 to ADR-020)
     ├── LATENCY_TUNING_GUIDE.md # Performance parameters & latency SLAs
     ├── MEMORY_ARCHITECTURE_STANDARD.md # Triad memory & anti-hallucination standard
     └── wiki/                 # Structured Obsidian-ready documentation hub
@@ -104,15 +145,16 @@ sympose/
 | `/switch [@handle]`              | Switch active conversation to another persona           | `/switch @grace`                               |
 | `/config`                        | View active runtime, performance & session settings     | `/config`                                      |
 | `/config set <key> <val>`        | Tune knobs live in the active terminal                  | `/config set performance.max_context_turns 20` |
+| `/compact [shared\|@persona]`    | Consolidate duplicates, resolve conflicts & prune memory | `/compact shared`                              |
 | `/delete @<handle>`              | Safely retire and archive an agent persona              | `/delete @curie`                               |
 | `/save [memory\|obsidian\|both]` | Synthesize and save session takeaways                   | `/save both`                                   |
 | `/vault <query>`                 | Query persona's sandboxed Obsidian notes                | `/vault architecture`                          |
 | `/note <file.md> <content>`      | Create or append to a sandboxed vault note              | `/note Ideas.md Roadmap items`                 |
 | `/daily <reflection>`            | Append a thought to Daily Notes/YYYY-MM-DD.md           | `/daily Completed worker refactor`             |
 | `/remember <fact>`               | Save a durable fact to working memory                   | `/remember Prefers vanilla CSS`                |
+| `/model [list\|find\|reset]`     | Inspect active model, search live OpenRouter, or switch | `/model find sonnet`                           |
 | `/reset` (or `/new`)             | Reset active conversation context                       | `/reset`                                       |
 | `/clear`                         | Clear terminal screen and reset context                 | `/clear`                                       |
-| `/model <provider/name>`         | Temporarily override backend model                      | `/model anthropic/claude-3-5-sonnet`           |
 | `/help`                          | Show command reference                                  | `/help`                                        |
 | `exit` (or `quit`)               | End session and trigger save flow                       | `/exit`                                        |
 
@@ -141,7 +183,7 @@ pip install -r requirements.txt
 
 ### 3. Environment Configuration
 
-Copy `.env.example` to `.env` and fill in your API keys:
+Copy `.env.example` to `.env` and fill in your API keys (OpenRouter, Gemini, Anthropic, or OpenAI):
 
 ```bash
 cp .env.example .env
@@ -162,7 +204,8 @@ chmod +x chat.sh
 
 ## 📜 Documentation & ADRs
 
-- **[Master Journal & ADR Index (`docs/PROJECT_JOURNAL.md`)](file:///Users/damiro/Development/sympose/docs/PROJECT_JOURNAL.md)**: Architectural Decision Records from ADR-001 through ADR-016.
+- **[Master Journal & ADR Index (`docs/PROJECT_JOURNAL.md`)](file:///Users/damiro/Development/sympose/docs/PROJECT_JOURNAL.md)**: Architectural Decision Records from ADR-001 through ADR-020.
 - **[Latency & Performance Tuning Guide (`docs/LATENCY_TUNING_GUIDE.md`)](file:///Users/damiro/Development/sympose/docs/LATENCY_TUNING_GUIDE.md)**: Complete parameter catalog governing sub-second SLA.
 - **[Autonomous Agent Memory Architecture Standard (`docs/MEMORY_ARCHITECTURE_STANDARD.md`)](file:///Users/damiro/Development/sympose/docs/MEMORY_ARCHITECTURE_STANDARD.md)**: Triad memory management, shadow extraction, and anti-hallucination grounding.
 - **[Wiki Documentation Hub (`docs/wiki/index.md`)](file:///Users/damiro/Development/sympose/docs/wiki/index.md)**: Comprehensive guide to skills, MCP workers, and profile systems.
+

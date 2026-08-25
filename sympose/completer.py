@@ -7,6 +7,7 @@ import atexit
 from typing import List, Optional, Any
 from sympose.skills import skill_manager
 from sympose.mcp import mcp_registry
+from sympose.models import ModelCatalog
 
 try:
     import readline
@@ -28,6 +29,7 @@ class SymposeCompleter:
         "/note",
         "/daily",
         "/remember",
+        "/compact",
         "/reset",
         "/clear",
         "/model",
@@ -41,6 +43,25 @@ class SymposeCompleter:
 
     SAVE_OPTIONS = ["both", "memory", "obsidian"]
 
+    COMMON_MODELS = [
+        "list",
+        "find",
+        "refresh",
+        "reset",
+        "status",
+        "openrouter/anthropic/claude-sonnet-4.5",
+        "openrouter/~anthropic/claude-sonnet-latest",
+        "openrouter/deepseek/deepseek-v4-pro",
+        "openrouter/deepseek/deepseek-v3.2",
+        "openrouter/google/gemini-3.7-flash",
+        "openrouter/qwen/qwen3.8-27b",
+        "gemini/gemini-3.5-flash-lite",
+        "gemini/gemini-2.5-pro",
+        "anthropic/claude-3-5-sonnet-20241022",
+        "openai/gpt-4o",
+        "ollama/qwen2.5:7b",
+    ]
+
     CONFIG_KEYS = [
         "performance.request_timeout",
         "performance.max_context_turns",
@@ -49,6 +70,8 @@ class SymposeCompleter:
         "session.exit_behavior.default_target",
         "session.exit_behavior.clear_terminal",
         "session.exit_behavior.obsidian_subfolder",
+        "memory.compaction_threshold",
+        "memory.auto_compact",
         "runtime.default_persona",
     ]
 
@@ -108,6 +131,28 @@ class SymposeCompleter:
         # /config set -> config keys
         if cmd == "/config" and "set" in tokens:
             return [k for k in self.CONFIG_KEYS if k.startswith(text)]
+
+        # /compact -> shared, @personas
+        if cmd == "/compact":
+            compact_targets = ["shared"] + self.get_personas()
+            return [t for t in compact_targets if t.startswith(text) or t.lstrip("@").startswith(text)]
+
+        # /model -> model presets, actions, and dynamic candidates
+        if cmd == "/model":
+            if len(tokens) >= 2 and tokens[1].lower() == "find":
+                common_terms = ["sonnet", "deepseek", "flash", "qwen", "llama", "haiku", "opus", "gpt"]
+                return [t for t in common_terms if t.startswith(text)]
+
+            candidates = list(self.COMMON_MODELS)
+            if text.startswith("openrouter/") or (len(tokens) >= 2 and tokens[1].startswith("openrouter/")):
+                try:
+                    dyn = ModelCatalog.get_completion_candidates(text)
+                    for d in dyn:
+                        if d not in candidates:
+                            candidates.append(d)
+                except Exception:
+                    pass
+            return [m for m in candidates if m.startswith(text)]
 
         # 3. Inline @mention completion
         if text.startswith("@"):

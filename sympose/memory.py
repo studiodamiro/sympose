@@ -70,6 +70,8 @@ class HeuristicGatedExtractor:
                     kwargs["api_key"] = os.getenv("ANTHROPIC_API_KEY")
                 elif model.startswith("openai/") and os.getenv("OPENAI_API_KEY"):
                     kwargs["api_key"] = os.getenv("OPENAI_API_KEY")
+                elif model.startswith("openrouter/") and os.getenv("OPENROUTER_API_KEY"):
+                    kwargs["api_key"] = os.getenv("OPENROUTER_API_KEY")
 
                 resp = litellm.completion(**kwargs)
                 out = (resp.choices[0].message.content or "").strip()
@@ -148,6 +150,8 @@ class SessionArchivist:
                 kwargs["api_key"] = os.getenv("ANTHROPIC_API_KEY")
             elif summarization_model.startswith("openai/") and os.getenv("OPENAI_API_KEY"):
                 kwargs["api_key"] = os.getenv("OPENAI_API_KEY")
+            elif summarization_model.startswith("openrouter/") and os.getenv("OPENROUTER_API_KEY"):
+                kwargs["api_key"] = os.getenv("OPENROUTER_API_KEY")
 
             resp = litellm.completion(**kwargs)
             raw_text = resp.choices[0].message.content or ""

@@ -194,7 +194,22 @@ class ProfileManager:
             return False
 
         is_shared = profile.get("share_memory", False) if force_shared is None else force_shared
-        ok = self._append_to_file(profile.get("memory_file", f"profiles/{handle}_memory.md"), fact)
+        mem_file = profile.get("memory_file", f"profiles/{handle}_memory.md")
+        ok = self._append_to_file(mem_file, fact)
+
+        try:
+            from sympose.compactor import MemoryCompactor
+            MemoryCompactor.check_and_compact_async(mem_file, is_shared=False)
+        except Exception:
+            pass
+
         if is_shared:
-            self._append_to_file(os.path.join(self.profiles_dir, "_shared_memory.md"), fact)
+            shared_file = os.path.join(self.profiles_dir, "_shared_memory.md")
+            self._append_to_file(shared_file, fact)
+            try:
+                from sympose.compactor import MemoryCompactor
+                MemoryCompactor.check_and_compact_async(shared_file, is_shared=True)
+            except Exception:
+                pass
+
         return ok

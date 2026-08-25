@@ -101,7 +101,17 @@ You can also trigger workers directly in the terminal:
 
 ---
 
-## 4. Performance Tuning & Turn Limits
+## 4. Worker Model Resolution Hierarchy
+
+When a worker runs, its execution model is resolved in the following priority order:
+1. **Explicit Task Model**: `WorkerTask(..., model="...")` if specified in code.
+2. **Skill Recommendation**: The first entry in `recommended_models:` from the loaded skill's [`SKILL.md`](file:///Users/damiro/Development/sympose/docs/wiki/agents/skills-system.md) frontmatter.
+3. **Global Environment**: `DEFAULT_MODEL` specified in `.env` (e.g. `DEFAULT_MODEL=openrouter/anthropic/claude-3.7-sonnet`).
+4. **System Default**: Fallback to `gemini/gemini-3.5-flash-lite`.
+
+---
+
+## 5. Performance Tuning & Turn Limits
 
 | Parameter | Location | CLI Dynamic Override | Default | Purpose |
 | :--- | :--- | :--- | :--- | :--- |

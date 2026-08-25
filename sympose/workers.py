@@ -85,7 +85,15 @@ class WorkerEngine:
             system_prompt_parts.append(skills_text)
 
         system_prompt = "\n\n".join(system_prompt_parts)
-        target_model = task.model or os.getenv("DEFAULT_MODEL", "gemini/gemini-3.5-flash-lite")
+        target_model = task.model
+        if not target_model:
+            for s_name in task.skills:
+                s_obj = skill_manager.get_skill(s_name)
+                if s_obj and s_obj.recommended_models:
+                    target_model = s_obj.recommended_models[0]
+                    break
+        if not target_model:
+            target_model = os.getenv("DEFAULT_MODEL", "gemini/gemini-3.5-flash-lite")
 
         messages: List[Dict[str, Any]] = [
             {"role": "system", "content": system_prompt},
@@ -116,6 +124,8 @@ class WorkerEngine:
                     kwargs["api_key"] = os.getenv("ANTHROPIC_API_KEY")
                 elif target_model.startswith("openai/") and os.getenv("OPENAI_API_KEY"):
                     kwargs["api_key"] = os.getenv("OPENAI_API_KEY")
+                elif target_model.startswith("openrouter/") and os.getenv("OPENROUTER_API_KEY"):
+                    kwargs["api_key"] = os.getenv("OPENROUTER_API_KEY")
 
                 response = litellm.completion(**kwargs)
                 choice = response.choices[0]

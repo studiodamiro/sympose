@@ -10,6 +10,7 @@ from sympose.vault import VaultManager
 from sympose.skills import skill_manager
 from sympose.workers import WorkerEngine, WorkerTask
 from sympose.mcp import mcp_registry
+from sympose.models import ModelCatalog
 
 
 class CommandInterceptor:
@@ -69,8 +70,10 @@ class CommandInterceptor:
                         f"- `session.exit_behavior.default_target`: {cfg.get('session.exit_behavior.default_target')}\n"
                         f"- `session.exit_behavior.clear_terminal`: {cfg.get('session.exit_behavior.clear_terminal')}\n"
                         f"- `session.exit_behavior.summarization_model`: {cfg.get('session.exit_behavior.summarization_model')}\n"
+                        f"- `memory.compaction_threshold`: {cfg.get('memory.compaction_threshold', 25)} lines\n"
+                        f"- `memory.auto_compact`: {cfg.get('memory.auto_compact', True)}\n"
                         f"- `vault.search_mode`: {cfg.get('vault.search_mode')}\n\n"
-                        "Tip: Set values live with `/config set <key> <value>` (e.g. `/config set performance.max_context_turns 20`)."
+                        "Tip: Set values live with `/config set <key> <value>` (e.g. `/config set memory.compaction_threshold 25`)."
                     )
                 elif parts[1].lower() == "set" and len(parts) >= 4:
                     key, raw_val = parts[2], parts[3]
@@ -103,12 +106,109 @@ class CommandInterceptor:
                     yield f"Error: Failed to save memory to {profile.get('name', handle)}."
             return _rem()
 
+        # 5b. Memory Compactor (/compact)
+        if clean_input == "/compact" or clean_input.startswith("/compact "):
+            def _compact():
+                parts = clean_input.split()
+                target_arg = parts[1].lower().replace("@", "") if len(parts) > 1 else handle.lower()
+                from sympose.compactor import MemoryCompactor
+
+                if target_arg in ("shared", "all", "team"):
+                    shared_file = os.path.join(getattr(engine.pm, "profiles_dir", "profiles"), "_shared_memory.md")
+                    before_count = MemoryCompactor.count_bullet_lines(shared_file)
+                    yield f"🧹 **Compacting Shared Team Working Memory** (`{shared_file}`, {before_count} entries)..."
+                    ok = MemoryCompactor.compact_file(shared_file, is_shared=True)
+                    if ok:
+                        after_count = MemoryCompactor.count_bullet_lines(shared_file)
+                        yield f"\n\n✅ **Compaction Complete:** Shared memory consolidated from {before_count} to {after_count} high-density bullets."
+                    else:
+                        yield f"\n\n⚠️ Compaction failed or memory file is empty."
+                else:
+                    t_prof = engine.pm.get_profile(target_arg)
+                    if not t_prof:
+                        yield f"⚠️ Persona `@{target_arg}` not found. Usage: `/compact` or `/compact shared`."
+                        return
+                    mem_file = t_prof.get("memory_file", f"profiles/{target_arg}_memory.md")
+                    before_count = MemoryCompactor.count_bullet_lines(mem_file)
+                    p_name = t_prof.get("name", target_arg)
+                    yield f"🧹 **Compacting {p_name}'s Working Memory** (`{mem_file}`, {before_count} entries)..."
+                    ok = MemoryCompactor.compact_file(mem_file, is_shared=False)
+                    if ok:
+                        after_count = MemoryCompactor.count_bullet_lines(mem_file)
+                        yield f"\n\n✅ **Compaction Complete:** {p_name}'s memory consolidated from {before_count} to {after_count} high-density bullets."
+                    else:
+                        yield f"\n\n⚠️ Compaction failed or memory file is empty."
+            return _compact()
+
         # 6. Model & Vault Handlers
-        if clean_input.startswith("/model "):
+        if clean_input == "/model" or clean_input.startswith("/model "):
             def _model():
-                new_model = clean_input[7:].strip()
-                engine.model_overrides[handle.lower()] = new_model
-                yield f"Model for {profile.get('name', handle)} temporarily set to `{new_model}`."
+                parts = clean_input.split(maxsplit=1)
+                sub = parts[1].strip() if len(parts) > 1 else ""
+                sub_lower = sub.lower()
+                active_override = engine.model_overrides.get(handle.lower())
+                default_model = profile.get("model", "gemini/gemini-3.5-flash-lite")
+                current_model = active_override or default_model
+
+                if not sub or sub_lower in ("list", "help", "status", "ls"):
+                    or_key = "✅ Configured" if os.getenv("OPENROUTER_API_KEY") else "❌ Missing (add OPENROUTER_API_KEY to .env)"
+                    gem_key = "✅ Configured" if os.getenv("GEMINI_API_KEY") else "❌ Missing (add GEMINI_API_KEY to .env)"
+                    ant_key = "✅ Configured" if os.getenv("ANTHROPIC_API_KEY") else "❌ Missing (add ANTHROPIC_API_KEY to .env)"
+                    oai_key = "✅ Configured" if os.getenv("OPENAI_API_KEY") else "❌ Missing (add OPENAI_API_KEY to .env)"
+
+                    state_tag = f"`{current_model}` (Live Session Override)" if active_override else f"`{current_model}` (Profile Default)"
+
+                    lines = [
+                        f"**Active Model for {profile.get('name', handle)}:** {state_tag}",
+                        "\n**Configured Providers (.env):**",
+                        f"- OpenRouter: {or_key}",
+                        f"- Google Gemini: {gem_key}",
+                        f"- Anthropic Claude: {ant_key}",
+                        f"- OpenAI: {oai_key}",
+                        "\n**Recommended Models to Test:**",
+                        "- **OpenRouter:**",
+                        "  - `openrouter/anthropic/claude-sonnet-4.5` (Surgical coding & architecture)",
+                        "  - `openrouter/deepseek/deepseek-v4-pro` (Deep reasoning & fullstack)",
+                        "  - `openrouter/google/gemini-3.7-flash` (Fast, multimodal agentic worker)",
+                        "  - `openrouter/qwen/qwen3.8-27b` (High-density coding & tool calling)",
+                        "- **Direct Cloud (Requires Direct Key):**",
+                        "  - `gemini/gemini-3.5-flash-lite` (Sub-second low latency)",
+                        "  - `anthropic/claude-3-5-sonnet-20241022` (Direct Anthropic key)",
+                        "- **Local Ollama:**",
+                        "  - `ollama/qwen2.5:7b`",
+                        "\n**Usage:**",
+                        "- Search catalog: `/model find <keyword>` (e.g. `/model find sonnet`, `/model find deepseek`)",
+                        "- Switch model: `/model <model_id>` (e.g. `/model openrouter/anthropic/claude-sonnet-4.5`)",
+                        "- Refresh cache: `/model refresh`",
+                        "- Revert to default: `/model reset`",
+                    ]
+                    yield "\n".join(lines)
+                elif sub_lower.startswith(("find ", "search ")):
+                    query = sub.split(maxsplit=1)[1].strip() if len(sub.split()) > 1 else ""
+                    if not query:
+                        yield "Usage: `/model find <keyword>` (e.g. `/model find sonnet`, `/model find deepseek`)"
+                        return
+                    matches = ModelCatalog.search_models(query, limit=10)
+                    if matches:
+                        res = [f"**OpenRouter Models Matching '{query}':**"]
+                        for m in matches:
+                            ctx_str = f"({m.get('context_length', 0) // 1000}k ctx)" if m.get("context_length") else ""
+                            res.append(f"- **`openrouter/{m['id']}`** {ctx_str} — *{m.get('name', '')}*")
+                        res.append(f"\n*To switch:* `/model openrouter/{matches[0]['id']}`")
+                        yield "\n".join(res)
+                    else:
+                        yield f"No models found matching `{query}` in OpenRouter catalog. Run `/model refresh` to update."
+                elif sub_lower == "refresh":
+                    fresh = ModelCatalog.get_cached_models(force_refresh=True)
+                    yield f"🔄 **Refreshed OpenRouter Catalog:** {len(fresh)} models indexed in local cache."
+                elif sub_lower == "reset":
+                    if handle.lower() in engine.model_overrides:
+                        del engine.model_overrides[handle.lower()]
+                    yield f"Reset model for {profile.get('name', handle)} back to profile default: `{default_model}`."
+                else:
+                    new_model = sub
+                    engine.model_overrides[handle.lower()] = new_model
+                    yield f"Model for {profile.get('name', handle)} temporarily set to `{new_model}`.\n*(Run `/model reset` to restore default)*"
             return _model()
 
         if clean_input.startswith("/vault "):
@@ -260,8 +360,9 @@ class CommandInterceptor:
                     "- `/note <file.md> <content>`: Create or append to a sandboxed vault note\n"
                     "- `/daily <reflection>`: Append to Daily Notes/YYYY-MM-DD.md\n"
                     "- `/remember <fact>`: Save fact into persona's persistent `_memory.md`\n"
+                    "- `/compact [shared|@persona]`: Consolidate duplicates, resolve conflicts, and prune memory\n"
                     "- `/reset` or `/new`: Clear active conversation context\n"
-                    "- `/model <name>`: Temporarily switch backend model\n"
+                    "- `/model [name|reset]`: View active model, provider health, or switch/reset backend model\n"
                     "- `/vault <query>`: Query persona's sandboxed notes\n"
                     "- `/help`: Show this command list\n"
                     "- `quit` or `exit`: End session (triggers save options)"

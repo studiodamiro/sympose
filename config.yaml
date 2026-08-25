@@ -14,6 +14,8 @@ session:
 memory:
   user_profile_file: profiles/user_profile.md
   shared_memory_file: profiles/_shared_memory.md
+  compaction_threshold: 25
+  auto_compact: true
 runtime:
   default_persona: samantha
   profiles_dir: profiles

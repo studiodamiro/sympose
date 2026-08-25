@@ -18,7 +18,7 @@ Get up and running with Sympose in less than 2 minutes.
 ## 1. Prerequisites
 
 - **macOS** (or Linux) with Python 3.10+
-- A Google Gemini API Key (`GEMINI_API_KEY`) or Anthropic Claude Key (`ANTHROPIC_API_KEY`)
+- An API Key: **OpenRouter** (`OPENROUTER_API_KEY`), **Google Gemini** (`GEMINI_API_KEY`), or **Anthropic Claude** (`ANTHROPIC_API_KEY`)
 - *(Optional)* [Ollama](https://ollama.com/) running locally for `@aurelius` (`ollama run qwen2.5:7b`)
 
 ---
@@ -46,9 +46,13 @@ pip install -r requirements.txt
 Create a `.env` file in the project root:
 
 ```bash
-# Cloud LLM API Keys
-GEMINI_API_KEY="your-gemini-api-key-here"
-ANTHROPIC_API_KEY="your-anthropic-api-key-here"
+# Cloud LLM API Keys (Set at least one)
+OPENROUTER_API_KEY="your-openrouter-api-key"
+GEMINI_API_KEY="your-gemini-api-key"
+ANTHROPIC_API_KEY="your-anthropic-api-key"
+
+# Default Sub-Agent Worker Model (Optional fallback)
+DEFAULT_MODEL="gemini/gemini-3.5-flash-lite"
 
 # Path to your local Obsidian Vault (Optional)
 MASTER_VAULT_PATH="/Users/yourname/Documents/ObsidianVault"

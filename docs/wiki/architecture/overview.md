@@ -49,7 +49,20 @@ Everything in Sympose is a standard Markdown or YAML file stored locally on disk
 
 ---
 
-## 2. Package Layering & Modular Design
+## 2. The Zero-Maintenance Mandate (The Assistant Paradox)
+
+> **"If the user has to become the sysadmin, curator, or custodian of their AI assistant, the system is actively working against its primary reason for existing."**
+
+Sympose enforces the **Zero-Maintenance Mandate** across every subsystem:
+1. **Self-Healing & Auto-Bootstrapping**: If a new specialist profile is created with a minimal YAML manifest, missing soul and memory files are automatically generated on boot.
+2. **Autonomous Memory Hygiene**: Memory files are compacted, deduplicated, and pruned in non-blocking background daemon threads by the `MemoryCompactor` without requiring user curation.
+3. **Dynamic Model Discovery**: `ModelCatalog` queries and caches OpenRouter's live catalog on-demand. There are zero hardcoded model dictionaries to manually update.
+4. **Zero Infrastructure Daemons**: Sympose runs directly on Python standard library primitives over local Markdown files. There are zero background Postgres, Redis, Docker, or vector database servers to maintain, crash, or migrate.
+5. **Self-Regulating Context**: Sliding context window governors automatically prevent token bloat without requiring manual `/clear` micromanagement.
+
+---
+
+## 3. Package Layering & Modular Design
 
 The Sympose codebase enforces a strict **Single Responsibility Principle (SRP)** with a hard architectural constraint: **no source file exceeds 200 lines of code**.
 
@@ -57,10 +70,17 @@ The Sympose codebase enforces a strict **Single Responsibility Principle (SRP)**
 | :--- | :---: | :--- |
 | [`app.py`](file:///Users/damiro/Development/sympose/app.py) | 40 | CLI argument parsing and entrypoint launcher. |
 | [`sympose/config.py`](file:///Users/damiro/Development/sympose/sympose/config.py) | 148 | Master configuration loading, LiteLLM sync, and OS environment optimization. |
-| [`sympose/profiles.py`](file:///Users/damiro/Development/sympose/sympose/profiles.py) | 197 | YAML profile discovery, autonomous genesis, memory deduplication, and prompt compilation. |
-| [`sympose/engine.py`](file:///Users/damiro/Development/sympose/sympose/engine.py) | 186 | Multi-model execution engine, sliding context windows, and sub-agent delegation. |
-| [`sympose/memory.py`](file:///Users/damiro/Development/sympose/sympose/memory.py) | 185 | Heuristic gated shadow extraction and full-transcript session archival. |
+| [`sympose/profiles.py`](file:///Users/damiro/Development/sympose/sympose/profiles.py) | 197 | YAML profile discovery, auto-bootstrapping, and prompt compilation. |
+| [`sympose/engine.py`](file:///Users/damiro/Development/sympose/sympose/engine.py) | 195 | Multi-model streaming, sliding context windows, and sub-agent delegation. |
+| [`sympose/compactor.py`](file:///Users/damiro/Development/sympose/sympose/compactor.py) | 108 | Autonomous background working memory compaction and conflict resolution. |
+| [`sympose/models.py`](file:///Users/damiro/Development/sympose/sympose/models.py) | 102 | OpenRouter catalog discovery, disk caching, and live keyword search. |
+| [`sympose/memory.py`](file:///Users/damiro/Development/sympose/sympose/memory.py) | 192 | Heuristic gated shadow extraction and session archival. |
+| [`sympose/skills.py`](file:///Users/damiro/Development/sympose/sympose/skills.py) | 145 | Modular procedural playbooks (`skills/`) and dynamic prompt injection. |
+| [`sympose/mcp.py`](file:///Users/damiro/Development/sympose/sympose/mcp.py) | 188 | Model Context Protocol JSON-RPC 2.0 stdio client and tool bridge. |
+| [`sympose/workers.py`](file:///Users/damiro/Development/sympose/sympose/workers.py) | 188 | Ephemeral sub-agent worker execution sandbox with skill model auto-resolution. |
+| [`sympose/native_tools.py`](file:///Users/damiro/Development/sympose/sympose/native_tools.py) | 85 | Deterministic native execution tools (`run_command`, `read_file`). |
 | [`sympose/vault.py`](file:///Users/damiro/Development/sympose/sympose/vault.py) | 176 | Sandboxed file I/O, path traversal defenses, and multi-tier vault search. |
-| [`sympose/commands.py`](file:///Users/damiro/Development/sympose/sympose/commands.py) | 173 | Command interception (`/save`, `/config`, `/vault`, `/switch`). |
+| [`sympose/commands.py`](file:///Users/damiro/Development/sympose/sympose/commands.py) | 372 | Slash command interceptors (`/model`, `/compact`, `/worker`, `/save`, `/config`). |
+| [`sympose/completer.py`](file:///Users/damiro/Development/sympose/sympose/completer.py) | 195 | Interactive Readline Tab completion for commands, personas, models, and skills. |
 | [`sympose/cli.py`](file:///Users/damiro/Development/sympose/sympose/cli.py) | 168 | Interactive Rich streaming terminal REPL and exit workflows. |
 | [`sympose/ui.py`](file:///Users/damiro/Development/sympose/sympose/ui.py) | 77 | Rich visual components, persona selection table, and banners. |

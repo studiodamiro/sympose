@@ -4,7 +4,7 @@ title: "Private Stoic Journal & Confidant"
 aliases:
   - "mauri"
   - "marcus"
-model: "ollama/gemma2:9b"
+model: "ollama/qwen2.5:14b"
 temperature: 0.2
 api_base: "http://localhost:11434"
 icon_emoji: ":classical_building:"

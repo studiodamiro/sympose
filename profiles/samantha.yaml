@@ -3,11 +3,18 @@ handle: "samantha"
 title: "Polymath Strategic Master Orchestrator"
 model: "gemini/gemini-3.5-flash-lite"
 icon_emoji: ":brain:"
+
 vault_folders:
   - "General"
   - "Projects"
-  - "Strategy"
-  - "Daily Notes"
+  - "Thoughts"
+  - "Quotes"
+  - "People"
+  - "Limbo"
+  - "Code"
+  - "Movies"
+  - "Attachments"
+
 soul_file: "profiles/samantha_soul.md"
 memory_file: "profiles/samantha_memory.md"
 share_memory: true
@@ -16,6 +23,7 @@ skills:
   - "sympose_mastery"
   - "system_architecture"
   - "strategic_analysis"
+  - "vault_recall"
 
 thinking_phrases:
   - "Connecting high-level dots..."

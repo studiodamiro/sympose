@@ -56,7 +56,7 @@ Completed the implementation and verification of **Phase 1B** (Sub-Agent Delegat
 ### ADR-005: Centralized `config.yaml`, Session Summarization & Memory Consolidation
 * **Context:** Need automated session summarization on exit (`/exit`) and on demand (`/save`), persistent memory consolidation into `_memory.md`, structured Obsidian session logging, and live CLI accessibility for latency parameters without hardcoded settings.
 * **Decision:**
-  * Created root [`config.yaml`](file:///Users/damiro/Development/sympose/config.yaml) segregating runtime/latency infrastructure from agent personas (`profiles/*.yaml`).
+  * Created root [`config.yaml`](./config.yaml) segregating runtime/latency infrastructure from agent personas (`profiles/*.yaml`).
   * Implemented `ConfigManager` in `sympose/config.py` with dot-notation access and dynamic LiteLLM synchronization.
   * Implemented `summarize_session()` in `SessionArchivist` (`sympose/memory.py`) using a dedicated fast model (`gemini/gemini-3.5-flash-lite`) to distill persistent memory bullets and markdown session logs.
   * Implemented natural language memory capture and autonomic `[REMEMBER: <fact>]` model tag protocol in `sympose/commands.py` & `sympose/engine.py`.
@@ -78,7 +78,7 @@ Completed the implementation and verification of **Phase 1B** (Sub-Agent Delegat
   * **Heuristic Regex Filter Gate:** Evaluates incoming user turns in <0.01ms. Bypasses greetings, short Q&A, and casual chatter with 0 extra tokens.
   * **Detached Async Daemon Thread:** Spawns `threading.Thread(daemon=True)` for detected intent signals, executing background distillation via `gemini-3.5-flash-lite` without adding any latency to the primary stream (0.00s added TTFT).
   * **Memory Deduplication & Hygiene:** Added line deduplication to `append_memory()` in `sympose/profiles.py` to prevent redundant facts from cluttering working memory.
-  * **Documentation Standard:** Published comprehensive Obsidian-ready [`docs/MEMORY_ARCHITECTURE_STANDARD.md`](file:///Users/damiro/Development/sympose/docs/MEMORY_ARCHITECTURE_STANDARD.md).
+  * **Documentation Standard:** Published comprehensive Obsidian-ready [`docs/MEMORY_ARCHITECTURE_STANDARD.md`](./docs/MEMORY_ARCHITECTURE_STANDARD.md).
 
 ---
 

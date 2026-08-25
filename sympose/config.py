@@ -40,6 +40,7 @@ class ConfigManager:
     DEFAULT_CONFIG: Dict[str, Any] = {
         "performance": {
             "request_timeout": 10.0,
+            "local_request_timeout": 60.0,
             "max_context_turns": 15,
             "max_worker_tool_turns": 8,
             "drop_unsupported_params": True,
@@ -63,8 +64,18 @@ class ConfigManager:
             "profiles_dir": "profiles",
         },
         "vault": {
-            "daily_notes_folder": "Daily Notes",
+            "daily_notes_folder": "Daily",
+            "daily_notes_format": "Daily/%Y/%m-%B/%Y-%m-%d.md",
             "search_mode": "direct",
+            "ignore_folders": [
+                ".obsidian",
+                ".git",
+                "Attachments",
+                "Drawings",
+                "Movies",
+                ".trash",
+                "dot-files",
+            ],
         },
     }
 

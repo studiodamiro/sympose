@@ -42,7 +42,7 @@ Sympose supports existing Obsidian vault structures without requiring file reorg
 
 ## 2. Defensive Path Validation (`is_safe_path`)
 
-To prevent Path Traversal attacks (e.g. `../../etc/passwd` or accessing another agent's private vault domain), every file read and write operation is verified through [`sympose/config.py:is_safe_path()`](file:///Users/damiro/Development/sympose/sympose/config.py):
+To prevent Path Traversal attacks (e.g. `../../etc/passwd` or accessing another agent's private vault domain), every file read and write operation is verified through [`sympose/config.py:is_safe_path()`](./sympose/config.py):
 
 ```python
 def is_safe_path(target_path: str, base_dir: str) -> bool:
@@ -93,7 +93,7 @@ sequenceDiagram
 
 ## 4. Pre-Turn Grounded Vault Retrieval
 
-When a user asks an agent to inspect a past note (e.g. *"Grace, check what we wrote in `specs/cache.md`"* or *"Search vault for OAuth"*), [`PersonaEngine._resolve_vault_context()`](file:///Users/damiro/Development/sympose/sympose/engine.py) performs a `<3ms` local read/search across the agent's sandboxed domain and injects the excerpt into the turn's prompt before streaming.
+When a user asks an agent to inspect a past note (e.g. *"Grace, check what we wrote in `specs/cache.md`"* or *"Search vault for OAuth"*), [`PersonaEngine._resolve_vault_context()`](./sympose/engine.py) performs a `<3ms` local read/search across the agent's sandboxed domain and injects the excerpt into the turn's prompt before streaming.
 
 This delivers instant, grounded contextual awareness without additional network roundtrips.
 
@@ -101,7 +101,7 @@ This delivers instant, grounded contextual awareness without additional network 
 
 ## 5. Pluggable Search Tiers (ADR-003)
 
-[`VaultManager.search()`](file:///Users/damiro/Development/sympose/sympose/vault.py) supports modular search backends configured in `config.yaml`:
+[`VaultManager.search()`](./sympose/vault.py) supports modular search backends configured in `config.yaml`:
 
 - **Tier 1: `direct` (Default / Pure Python)**: Zero dependencies, ultra-fast regex/substring scan over domain notes.
 - **Tier 2: `sqlite_fts`**: Ranked BM25 full-text search indexed in SQLite.

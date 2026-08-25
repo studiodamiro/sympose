@@ -1,5 +1,6 @@
 performance:
   request_timeout: 10.0
+  local_request_timeout: 60.0
   max_context_turns: 15
   max_worker_tool_turns: 8
   drop_unsupported_params: true
@@ -20,26 +21,33 @@ runtime:
   default_persona: samantha
   profiles_dir: profiles
 vault:
-  daily_notes_folder: Daily Notes
+  daily_notes_folder: Daily
+  daily_notes_format: "Daily/%Y/%m-%B/%Y-%m-%d.md"
   search_mode: direct
+  ignore_folders:
+    - .obsidian
+    - .git
+    - .gitignore
+    - Attachments
+    - Drawings
 mcp_servers:
   filesystem:
     command: npx
     args:
-    - -y
-    - '@modelcontextprotocol/server-filesystem'
-    - .
+      - -y
+      - "@modelcontextprotocol/server-filesystem"
+      - .
   github:
     command: npx
     args:
-    - -y
-    - '@modelcontextprotocol/server-github'
+      - -y
+      - "@modelcontextprotocol/server-github"
     env:
       GITHUB_PERSONAL_ACCESS_TOKEN: env:GITHUB_TOKEN
   brave_search:
     command: npx
     args:
-    - -y
-    - '@modelcontextprotocol/server-brave-search'
+      - -y
+      - "@modelcontextprotocol/server-brave-search"
     env:
       BRAVE_API_KEY: env:BRAVE_API_KEY

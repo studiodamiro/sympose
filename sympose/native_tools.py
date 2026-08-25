@@ -4,8 +4,9 @@ Provides safe local subprocess execution, file I/O, and tool schemas.
 """
 
 import os
+import re
 import subprocess
-from typing import Dict, Any, Tuple
+from typing import Dict, Any, Tuple, Optional, List
 
 
 class NativeTools:
@@ -49,17 +50,28 @@ class NativeTools:
     ]
 
     @classmethod
-    def execute(cls, tool_name: str, args: Dict[str, Any]) -> Tuple[bool, str]:
+    def execute(cls, tool_name: str, args: Dict[str, Any], allowed_dirs: Optional[List[str]] = None) -> Tuple[bool, str]:
         """Executes a built-in native tool and returns (success, output)."""
         if tool_name == "run_command":
             cmd = args.get("command", "").strip()
             if not cmd:
                 return False, "Error: No command provided."
 
-            # Prevent catastrophic destructive commands
             forbidden = ["rm -rf /", "mkfs", ":(){ :|:& };:"]
             if any(f in cmd for f in forbidden):
                 return False, f"Security Error: Command blocked by safety policy: {cmd}"
+
+            if allowed_dirs:
+                mv = os.getenv("MASTER_VAULT_PATH")
+                if mv and os.path.exists(mv):
+                    allowed_rel = {os.path.relpath(d, mv).lower() for d in allowed_dirs}
+                    try:
+                        all_subdirs = [d for d in os.listdir(mv) if os.path.isdir(os.path.join(mv, d)) and not d.startswith(".")]
+                        for f_sub in [d for d in all_subdirs if d.lower() not in allowed_rel]:
+                            if re.search(rf"(?:^|[/\\s\"']){re.escape(f_sub.lower())}(?:[/\\s\"'\.]|$)", cmd.lower()):
+                                return False, f"Security Error: Command targets `{f_sub}/` which is outside assigned vault sandbox."
+                    except Exception:
+                        pass
 
             try:
                 res = subprocess.run(
@@ -84,13 +96,31 @@ class NativeTools:
                 return False, f"Error executing command: {e}"
 
         elif tool_name == "read_file":
-            path = args.get("path", "").strip()
-            if not path or not os.path.exists(path):
-                return False, f"File not found: `{path}`"
+            raw_path = args.get("path", "").strip()
+            if not raw_path:
+                return False, "File path is required."
+            mv = os.getenv("MASTER_VAULT_PATH")
+            target = raw_path
+            if not os.path.exists(target) and mv:
+                vault_candidate = os.path.join(mv, raw_path)
+                if os.path.exists(vault_candidate):
+                    target = vault_candidate
+            if not os.path.exists(target):
+                return False, f"File not found: `{raw_path}`"
+
+            # Check sandbox boundary if allowed_dirs is enforced
+            if allowed_dirs:
+                from sympose.config import is_safe_path
+                target_abs = os.path.abspath(target)
+                is_in_workspace = is_safe_path(target_abs, os.getcwd())
+                is_in_allowed_vault = any(is_safe_path(target_abs, d) for d in allowed_dirs)
+                if not (is_in_workspace or is_in_allowed_vault):
+                    return False, f"Security Error: Access to `{raw_path}` is outside assigned vault sandbox."
+
             try:
-                with open(path, "r", encoding="utf-8", errors="ignore") as f:
+                with open(target, "r", encoding="utf-8", errors="ignore") as f:
                     return True, f.read()
             except Exception as e:
-                return False, f"Error reading `{path}`: {e}"
+                return False, f"Error reading `{raw_path}`: {e}"
 
         return False, f"Unknown native tool: `{tool_name}`"

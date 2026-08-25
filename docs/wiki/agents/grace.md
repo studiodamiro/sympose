@@ -37,7 +37,7 @@ tags:
 
 ## 2. Core Soul Directives & Engineering Heuristics
 
-Grace’s soul directives ([`profiles/grace_soul.md`](file:///Users/damiro/Development/sympose/profiles/grace_soul.md)) enforce five foundational engineering principles:
+Grace’s soul directives ([`profiles/grace_soul.md`](./profiles/grace_soul.md)) enforce five foundational engineering principles:
 
 1. **Pragmatic & Candid Assessments**:
    - Gives unvarnished, honest technical critiques.
@@ -69,13 +69,13 @@ skills:
 ```
 
 ### 📋 Mounted Capabilities:
-* **[`skills/code_review`](file:///Users/damiro/Development/sympose/skills/code_review/SKILL.md)**:
+* **[`skills/code_review`](./skills/code_review/SKILL.md)**:
   - Three-tier static analysis categorizing issues into **Blockers** (bugs, security risks), **Warnings** (performance bottlenecks, tech debt), and **Suggestions** (readability).
   - Concrete `diff` blocks showing precise refactoring solutions.
-* **[`skills/git_workflow`](file:///Users/damiro/Development/sympose/skills/git_workflow/SKILL.md)**:
+* **[`skills/git_workflow`](./skills/git_workflow/SKILL.md)**:
   - Enforces Conventional Commits (`feat`, `fix`, `refactor`, `docs`, `test`, `style`, `chore`).
   - Strict atomic commit hygiene and branch protection standards.
-* **[`skills/system_architecture`](file:///Users/damiro/Development/sympose/skills/system_architecture/SKILL.md)**:
+* **[`skills/system_architecture`](./skills/system_architecture/SKILL.md)**:
   - Sub-second TTFT design, loose coupling, interface segregation, and single-responsibility modules.
   - Reversibility evaluations (one-way vs two-way doors) and failure blast-radius containment.
 
@@ -134,7 +134,7 @@ You (to @grace): Grace, inspect sympose/workers.py. We need to reduce its line c
 ---
 
 ## 🔗 Related Documentation
-* [Agent Profile System Guide](file:///Users/damiro/Development/sympose/docs/wiki/agents/profile-system.md)
-* [Modular Skills System Specification](file:///Users/damiro/Development/sympose/docs/wiki/agents/skills-system.md)
-* [Model Context Protocol & Sub-Agent Workers](file:///Users/damiro/Development/sympose/docs/wiki/architecture/mcp-and-workers.md)
-* [Autonomous Agent Memory Standard](file:///Users/damiro/Development/sympose/docs/MEMORY_ARCHITECTURE_STANDARD.md)
+* [Agent Profile System Guide](./docs/wiki/agents/profile-system.md)
+* [Modular Skills System Specification](./docs/wiki/agents/skills-system.md)
+* [Model Context Protocol & Sub-Agent Workers](./docs/wiki/architecture/mcp-and-workers.md)
+* [Autonomous Agent Memory Standard](./docs/MEMORY_ARCHITECTURE_STANDARD.md)

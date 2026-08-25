@@ -204,8 +204,8 @@ chmod +x chat.sh
 
 ## 📜 Documentation & ADRs
 
-- **[Master Journal & ADR Index (`docs/PROJECT_JOURNAL.md`)](file:///Users/damiro/Development/sympose/docs/PROJECT_JOURNAL.md)**: Architectural Decision Records from ADR-001 through ADR-020.
-- **[Latency & Performance Tuning Guide (`docs/LATENCY_TUNING_GUIDE.md`)](file:///Users/damiro/Development/sympose/docs/LATENCY_TUNING_GUIDE.md)**: Complete parameter catalog governing sub-second SLA.
-- **[Autonomous Agent Memory Architecture Standard (`docs/MEMORY_ARCHITECTURE_STANDARD.md`)](file:///Users/damiro/Development/sympose/docs/MEMORY_ARCHITECTURE_STANDARD.md)**: Triad memory management, shadow extraction, and anti-hallucination grounding.
-- **[Wiki Documentation Hub (`docs/wiki/index.md`)](file:///Users/damiro/Development/sympose/docs/wiki/index.md)**: Comprehensive guide to skills, MCP workers, and profile systems.
+- **[Master Journal & ADR Index (`docs/PROJECT_JOURNAL.md`)](docs/PROJECT_JOURNAL.md)**: Architectural Decision Records from ADR-001 through ADR-027.
+- **[Latency & Performance Tuning Guide (`docs/LATENCY_TUNING_GUIDE.md`)](docs/LATENCY_TUNING_GUIDE.md)**: Complete parameter catalog governing sub-second SLA.
+- **[Autonomous Agent Memory Architecture Standard (`docs/MEMORY_ARCHITECTURE_STANDARD.md`)](docs/MEMORY_ARCHITECTURE_STANDARD.md)**: Triad memory management, shadow extraction, and anti-hallucination grounding.
+- **[Wiki Documentation Hub (`docs/wiki/index.md`)](docs/wiki/index.md)**: Comprehensive guide to skills, MCP workers, and profile systems.
 

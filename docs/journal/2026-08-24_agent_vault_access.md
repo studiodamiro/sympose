@@ -86,7 +86,7 @@ sequenceDiagram
 
 ## 4. Verification & Benchmarks
 
-* **Unit Test Suite ([`scratch/test_vault_actions.py`](file:///Users/damiro/Development/sympose/scratch/test_vault_actions.py))**:
+* **Unit Test Suite ([`scratch/test_vault_actions.py`](./scratch/test_vault_actions.py))**:
   * Direct note creation with Obsidian YAML frontmatter: **PASSED**
   * Note appending to existing sandboxed files: **PASSED**
   * Path traversal attack prevention (`../../etc/passwd` rejection): **PASSED**

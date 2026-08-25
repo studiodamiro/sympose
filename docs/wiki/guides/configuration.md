@@ -12,7 +12,7 @@ tags:
 
 # ⚙️ Configuration & Live Tuning
 
-Sympose separates system performance and exit policies from agent manifests using a centralized [`config.yaml`](file:///Users/damiro/Development/sympose/config.yaml) file.
+Sympose separates system performance and exit policies from agent manifests using a centralized [`config.yaml`](./config.yaml) file.
 
 ---
 
@@ -104,15 +104,15 @@ flowchart TD
 ```
 
 1. **Primary Agents (`@grace`, `@samantha`, `@aurelius`)**:
-   - Specified via the `model:` attribute in [`profiles/<handle>.yaml`](file:///Users/damiro/Development/sympose/profiles/grace.yaml).
+   - Specified via the `model:` attribute in [`profiles/<handle>.yaml`](./profiles/grace.yaml).
    - Can be temporarily swapped live in the terminal using `/model <model_name>`.
 2. **Ephemeral Sub-Agent Workers (`/worker` or `[SPAWN_WORKER]`)**:
    - **Step 1:** Explicit `model` parameter if dispatched programmatically in code.
-   - **Step 2:** `recommended_models` list declared in [`skills/<skill>/SKILL.md`](file:///Users/damiro/Development/sympose/skills/code_review/SKILL.md) frontmatter.
+   - **Step 2:** `recommended_models` list declared in [`skills/<skill>/SKILL.md`](./skills/code_review/SKILL.md) frontmatter.
    - **Step 3:** `DEFAULT_MODEL` declared in `.env`.
    - **Step 4:** System fallback (`gemini/gemini-3.5-flash-lite`).
 3. **Session Archivist & Distillation**:
-   - Specified via `session.exit_behavior.summarization_model` in [`config.yaml`](file:///Users/damiro/Development/sympose/config.yaml).
+   - Specified via `session.exit_behavior.summarization_model` in [`config.yaml`](./config.yaml).
 
 ### In-Session `/model` CLI Tooling & Dynamic Discovery
 

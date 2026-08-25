@@ -5,7 +5,7 @@ Sandboxed Vault & Markdown Note Manager for Sympose.
 import os
 import datetime
 from typing import Dict, Any, Optional, List
-from sympose.config import is_safe_path
+from sympose.config import is_safe_path, config_manager
 
 
 class VaultManager:
@@ -82,35 +82,39 @@ class VaultManager:
 
     @classmethod
     def search(cls, profile: Dict[str, Any], query: str) -> str:
-        """Searches for notes matching query across all allowed directories."""
+        """Searches for notes matching query across all allowed directories, pruning noise folders."""
         mv = cls._get_master_vault()
         allowed_dirs = cls.get_allowed_dirs(profile)
         if not mv or not allowed_dirs:
             return "⚠️ Master notes directory (`MASTER_VAULT_PATH`) not configured or access denied."
 
         query_lower = query.lower()
-        matches = []
+        title_matches, content_matches = [], []
+        raw_ignore = config_manager.get("vault.ignore_folders") or [".obsidian", ".git", "Attachments", ".trash"]
+        ignore_dirs = {str(d).lower().strip() for d in raw_ignore}
         try:
             for allowed in allowed_dirs:
-                for root, _, files in os.walk(allowed):
+                for root, dirs, files in os.walk(allowed):
+                    dirs[:] = [d for d in dirs if d.lower() not in ignore_dirs and not d.startswith(".")]
                     for file in files:
-                        if file.endswith(".md"):
+                        if file.endswith((".md", ".markdown", ".txt")):
                             file_path = os.path.join(root, file)
                             rel_path = os.path.relpath(file_path, mv)
                             with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
                                 content = f.read()
-                                if query_lower in file.lower():
-                                    matches.append(f"**{rel_path}** (Title match):\n{content[:1200].strip()}")
+                                if query_lower in file.lower() or query_lower in rel_path.lower():
+                                    title_matches.append(f"**{rel_path}** (Title/Path match):\n{content[:1200].strip()}")
                                 elif query_lower in content.lower():
-                                    matches.append(f"**{rel_path}** (Content match):\n{content[:1200].strip()}")
-                            if len(matches) >= 4:
+                                    content_matches.append(f"**{rel_path}** (Content match):\n{content[:1200].strip()}")
+                            if len(title_matches) >= 4:
                                 break
-                    if len(matches) >= 4:
+                    if len(title_matches) >= 4:
                         break
         except Exception as e:
             return f"Error searching vault: {e}"
 
-        return "\n\n---\n\n".join(matches) if matches else f"No notes found matching `{query}` in allowed vault folders."
+        all_matches = (title_matches + content_matches)[:4]
+        return "\n\n---\n\n".join(all_matches) if all_matches else f"No notes found matching `{query}` in allowed vault folders."
 
     @classmethod
     def write_note(cls, profile: Dict[str, Any], note_name: str, content: str) -> str:
@@ -160,7 +164,8 @@ class VaultManager:
     @classmethod
     def write_daily_note(cls, profile: Dict[str, Any], reflection: str) -> str:
         now = datetime.datetime.now()
-        note_name = os.path.join("Daily Notes", f"{now.strftime('%Y-%m-%d')}.md")
+        daily_fmt = os.getenv("DAILY_NOTES_FORMAT", "Daily/%Y/%m-%B/%Y-%m-%d.md")
+        note_name = now.strftime(daily_fmt)
         return cls.write_note(profile, note_name, f"\n### Reflection ({now.strftime('%H:%M')})\n{reflection}")
 
     @classmethod

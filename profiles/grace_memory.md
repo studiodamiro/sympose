@@ -14,3 +14,6 @@
 - Evaluated storage architectures for Sympose: reaffirmed pure markdown for human inspectability and Obsidian integration, while reserving SQLite strictly for future vector/FTS5 semantic search indexing if empirical scale demands it.
 - Committed to pure Markdown for human inspectability and seamless Obsidian integration as the primary storage architecture for Sympose.
 - Reserved SQLite strictly for future vector and FTS5 semantic search indexing, conditional upon empirical scale requirements.
+- User's Obsidian vault projects directory contains `Revwr` and `Damiro .dev`, among other folders.
+- `Revwr` is identified as a comprehensive, production-ready blueprint for a React Native (Expo) + Supabase + WatermelonDB app featuring full documentation, database schemas, and commercial strategies.
+- `Damiro .dev` contains lightweight personal content, site mapping, and musings on SSG and `.mdx` content management.

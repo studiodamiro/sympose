@@ -62,7 +62,7 @@ To seamlessly integrate with existing Obsidian vaults without requiring users to
 
 ```mermaid
 graph TD
-    Vault[Obsidian Master Vault /Users/damiro/obsidian]
+    Vault[Obsidian Master Vault ~/obsidian]
     
     Vault --> Projects[Projects/]
     Vault --> Arch[Architecture/]
@@ -90,7 +90,7 @@ graph TD
 
 ## 4. Verification & Benchmarks
 
-* **Automated Test Suite ([`scratch/test_multi_folder_vault.py`](file:///Users/damiro/Development/sympose/scratch/test_multi_folder_vault.py))**:
+* **Automated Test Suite ([`scratch/test_multi_folder_vault.py`](./scratch/test_multi_folder_vault.py))**:
   * Multi-folder whitelist resolution (`Projects`, `Architecture`, `Reference`): **PASSED**
   * Cross-folder reading: **PASSED**
   * Security rejection on unlisted folders (`Personal/`, `Finances/`): **PASSED**

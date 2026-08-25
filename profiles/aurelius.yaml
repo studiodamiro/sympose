@@ -4,13 +4,22 @@ title: "Private Stoic Journal & Confidant"
 model: "ollama/gemma2:9b"
 api_base: "http://localhost:11434"
 icon_emoji: ":classical_building:"
+
 vault_folders:
-  - "Journal"
-  - "Personal"
-  - "Daily Notes"
+  - "General"
+  - "Daily"
+  - "Thoughts"
+  - "Quotes"
+  - "People"
+  - "Limbo"
+  - "Movies"
+
 soul_file: "profiles/aurelius_soul.md"
 memory_file: "profiles/aurelius_memory.md"
 share_memory: false
+
+skills:
+  - "vault_recall"
 
 thinking_phrases:
   - "Reflecting stoically..."

@@ -58,11 +58,11 @@ graph TD
 
 | Artifact | Location | Responsibility | Injected To | Token Cost |
 | :--- | :--- | :--- | :--- | :--- |
-| **Profile Manifest** | `profiles/{handle}.yaml` | Machine-readable identity metadata & `share_memory` flag. | N/A (Config) | 0 prompt tokens |
-| **Universal User Card** | `profiles/user_profile.md` | Universal user identity (`Name: damiro`, OS, core preferences). | **All Agents** | ~40 tokens |
-| **Shared Team Memory** | `profiles/_shared_memory.md` | Collaborative project stack, architecture decisions, and roadmap. | Agents with `share_memory: true` | ~100–250 tokens |
-| **Persona Working Memory** | `profiles/{handle}_memory.md` | Persona-specific directives, private reflections (Air-Gapped for Aurelius). | Assigned Agent | ~100–250 tokens |
-| **Agent Soul** | `profiles/{handle}_soul.md` | Inflexible cognitive directives, tone, analytical heuristics, and anti-hallucination boundaries. | Assigned Agent | ~200 prompt tokens |
+| **Profile Manifest** | `profiles/{handle}.yaml` | Declarative identity manifest, model, tool, and `share_memory` flags. | N/A (Config) | 0 prompt tokens |
+| **Universal User Card** | `profiles/user_profile.md` | Universal user identity (`Name: <user>`, OS, workflow philosophy). | **All Personas** | ~40 tokens |
+| **Shared Team Memory** | `profiles/_shared_memory.md` | Collaborative project stack, architecture decisions, and roadmap. | Personas with `share_memory: true` | ~100–250 tokens |
+| **Persona Working Memory** | `profiles/{handle}_memory.md` | Persona-specific directives and private memories (Air-gapped when `share_memory: false`). | Assigned Persona | ~100–250 tokens |
+| **Agent Soul** | `profiles/{handle}_soul.md` | Cognitive directives, domain heuristics, tone, and anti-hallucination rules. | Assigned Persona | ~200 prompt tokens |
 
 ---
 
@@ -176,9 +176,39 @@ Brief summary of the discussion.
 ## Key Decisions & Architecture Highlights
 - Architectural choices made during the session.
 
-## Action Items & Next Steps
-- [ ] Next action item.
-```
+## 8. Hierarchical Daily Notes & Vault Agnosticism (ADR-021)
+
+Sympose strictly enforces **Vault Agnosticism**: it adapts to any user-chosen directory structure without forcing rigid storage schemas.
+* **Hierarchical Daily Resolution**: Automatically formats daily notes to match Obsidian's Periodic Notes standard (`Daily/YYYY/MM-Month/YYYY-MM-DD.md`, e.g. `Daily/2026/08-August/2026-08-25.md`) or custom patterns defined in `config.yaml` (`vault.daily_notes_format`).
+* **Noise Directory Pruning (ADR-023)**: `VaultManager.search` dynamically prunes non-text and system directories (`.obsidian`, `Attachments`, `Drawings`, `.git`, `.trash`) defined in `config.yaml` (`vault.ignore_folders`) to eliminate traversal latency and token waste.
 
 ---
-*Standard ratified on 2026-08-24. Implemented in Sympose Core Package (`sympose/`).*
+
+## 9. Tiered Local-First Vault Recall (ADR-022)
+
+To avoid burning frontier cloud tokens and leaking personal reflections, historical recall operates on a **3-Tier Funnel**:
+1. **Tier 0 (Deterministic Filter)**: Mechanical file/path matching and regex (`<0.005s`, 0 tokens).
+2. **Tier 1 (Local LLM Triage / $0.00)**: Sub-agent worker running `ollama/qwen2.5:14b` or `ollama/gemma2:9b` (or `gemini/gemini-3.5-flash-lite`) executes `skills/vault_recall/SKILL.md` to parse YAML frontmatter and extract `## Key Decisions` and `## Action Items`.
+3. **Tier 2 (Frontier Deep Synthesis - Optional)**: Paid models (Claude Sonnet 4.5 / Gemini 3.7) receive only the isolated high-signal excerpts when complex code synthesis or architecture refactoring is required.
+
+---
+
+## 10. The Ground-Truth Sovereignty Axiom & Anti-Simulation Directives (ADR-024)
+
+Markdown documents stored on physical disk are the **sovereign single source of ground truth**. AI models are transient, swappable cognitive processors (ALUs) reading the file data bus.
+* **Strict Verbatim Fidelity**: When presenting or synthesizing past notes, models must quote the user's exact written words verbatim using blockquotes (`>`).
+* **Complete Prohibition of Action Roleplaying**: Models must never emit fake progress markers (`*[Begins retrieval]*`, `*Outputs text*`) or invent fictional filenames/dates (`2017-10-26`). If a note is absent, the model must immediately state its honest ignorance.
+* **Multi-Turn Persistent Context (`self.active_vault_ctx`) (ADR-025)**: Notes retrieved on Turn 1 persist across conversational follow-ups (*"just pick one"*, *"show me the text"*) to prevent prompt context wiping and hallucination fallbacks.
+
+---
+
+## 11. Config-Driven Spatial Compass & Complete Vault Agnosticism (ADR-027)
+
+To ensure universal portability across any operating system and vault layout:
+* **Separation of Logic from Environment**: Codebase modules (`sympose/`) contain zero hardcoded absolute directory paths. All locations are defined centrally in `.env` (`MASTER_VAULT_PATH`) and `config.yaml`.
+* **Worker & Tool Propagation (ADR-026)**: When sub-agents and tools (`run_command`, `read_file`) execute, the runtime dynamically passes the configured vault root, ensuring workers never get trapped in the application codebase.
+* **Inherited Worker Sandboxing (ADR-026)**: Sub-agent workers strictly inherit the parent agent's `vault_folders` whitelist. Unauthorized workers (e.g. spawned by `@samantha` or `@grace`) are hard-blocked from inspecting private reflection domains (`Daily/`) via `read_file` or shell tools (`run_command`).
+* **Universal Structure Compatibility**: Supports Flat, PARA (`01_Projects`, `02_Areas`), Johnny Decimal, and Zettelkasten systems seamlessly.
+
+---
+*Standard ratified on 2026-08-24. Updated with Ground-Truth Sovereignty & Inherited Sandboxing Standards on 2026-08-25. Implemented in Sympose Core Package (`sympose/`).*

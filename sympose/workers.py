@@ -12,6 +12,8 @@ from sympose.config import config_manager
 from sympose.skills import skill_manager
 from sympose.mcp import mcp_registry, MCPClient
 from sympose.native_tools import NativeTools
+from sympose.profiles import ProfileManager
+from sympose.vault import VaultManager
 
 MAX_TOOL_OUTPUT_CHARS = 20000
 
@@ -47,6 +49,10 @@ class WorkerEngine:
         """Streams the worker execution, tool calling status, and final synthesized output."""
         skills_text = skill_manager.format_skills_for_prompt(task.skills)
 
+        # Resolve parent agent sandbox whitelist
+        parent_prof = ProfileManager().get_profile(task.parent_agent)
+        allowed_dirs = VaultManager.get_allowed_dirs(parent_prof) if parent_prof else None
+
         # Resolve MCP Clients & Tools + Native Built-in Tools
         active_clients: Dict[str, MCPClient] = {}
         tool_to_client: Dict[str, MCPClient] = {}
@@ -71,16 +77,17 @@ class WorkerEngine:
             elif server_name not in ("shell", "git", "native"):
                 yield f"> ⚠️ Could not connect to MCP server `[{server_name}]`.\n"
 
+        mv = os.getenv("MASTER_VAULT_PATH")
+        env_lines = [f"- Workspace Directory: `{os.getcwd()}`"] + ([f"- Obsidian Vault Directory: `{mv}`"] if mv else [])
         system_prompt_parts = [
-            "You are an ephemeral, high-precision Sub-Agent Worker in Sympose running on macOS.",
-            f"You were dispatched by parent agent @{task.parent_agent} to execute an isolated task.",
-            "### UNIVERSAL OPERATIONAL DIRECTIVES:",
-            "1. GROUND-TRUTH EXECUTION: Use available tools (`run_command`, `read_file`, MCP tools) to inspect actual state. Never simulate or invent outputs or file contents.",
-            "2. ZERO HAND-WAVING: Never return empty placeholders ('Here is the code/data') without the actual payload. Deliver complete structural breakdowns or data directly.",
-            "3. PARALLEL EXECUTION: When inspecting multiple files or commands, request all tools in parallel rather than sequential single turns.",
-            "4. HIGH-DENSITY SYNTHESIS: Structure deliverables with clear headers, key facts, tradeoffs, and concrete takeaways.",
+            f"You are an ephemeral Sub-Agent Worker in Sympose on macOS dispatched by parent agent @{task.parent_agent}.",
+            "### RUNTIME ENVIRONMENT:\n" + "\n".join(env_lines),
+            "### UNIVERSAL OPERATIONAL DIRECTIVES:\n"
+            "1. GROUND-TRUTH EXECUTION: Use tools (run_command, read_file, MCP) to inspect actual state. Never simulate or invent outputs.\n"
+            "2. ZERO HAND-WAVING: Deliver concrete, verbatim data directly.\n"
+            "3. RAPID COMPLETION: Execute file inspections swiftly in 1-3 tool turns, then deliver final synthesis directly.\n"
+            "4. HIGH-DENSITY SYNTHESIS: Structure deliverables with primary sources, exact quotes, and takeaways."
         ]
-
         if skills_text:
             system_prompt_parts.append(skills_text)
 
@@ -92,8 +99,7 @@ class WorkerEngine:
                 if s_obj and s_obj.recommended_models:
                     target_model = s_obj.recommended_models[0]
                     break
-        if not target_model:
-            target_model = os.getenv("DEFAULT_MODEL", "gemini/gemini-3.5-flash-lite")
+        target_model = target_model or os.getenv("DEFAULT_MODEL", "gemini/gemini-3.5-flash-lite")
 
         messages: List[Dict[str, Any]] = [
             {"role": "system", "content": system_prompt},
@@ -152,7 +158,7 @@ class WorkerEngine:
                         yield f"> ⚙️ *Worker calling tool:* `{t_name}`...\n"
 
                         if t_name in ("run_command", "read_file"):
-                            ok, tool_res = NativeTools.execute(t_name, args_dict)
+                            ok, tool_res = NativeTools.execute(t_name, args_dict, allowed_dirs=allowed_dirs)
                         else:
                             client = tool_to_client.get(t_name)
                             if client:

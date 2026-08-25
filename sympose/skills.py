@@ -4,6 +4,7 @@ Parses, indexes, and formats standard SKILL.md playbooks for agents and workers.
 """
 
 import os
+import re
 import glob
 from typing import Dict, List, Optional, Any
 import yaml
@@ -127,8 +128,17 @@ class SkillManager:
         )
 
     def get_skill(self, name: str) -> Optional[Skill]:
-        """Retrieves a skill by name (case-insensitive)."""
-        return self.skills.get(name.lower().strip())
+        """Retrieves a skill by name (case-insensitive and tolerant of naming variations)."""
+        raw = name.lower().strip()
+        if raw in self.skills:
+            return self.skills[raw]
+        clean = re.sub(r"[_\-\s]", "", raw)
+        for s_name, skill in self.skills.items():
+            if re.sub(r"[_\-\s]", "", s_name) == clean:
+                return skill
+            if clean in re.sub(r"[_\-\s]", "", skill.title.lower()) or re.sub(r"[_\-\s]", "", s_name) in clean:
+                return skill
+        return None
 
     def list_skills(self) -> List[Dict[str, Any]]:
         """Returns a list of all indexed skill summaries."""

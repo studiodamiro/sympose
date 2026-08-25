@@ -4,11 +4,18 @@ title: "Surgical Software & Systems Engineer"
 model: "gemini/gemini-3.5-flash-lite" # Switch to anthropic/claude-3-5-sonnet-20241022 once Anthropic key is active
 temperature: 0.1
 icon_emoji: ":computer:"
+
 vault_folders:
+  - "General"
   - "Projects"
-  - "Architecture"
-  - "Reference"
-  - "Daily Notes"
+  - "Thoughts"
+  - "Quotes"
+  - "People"
+  - "Limbo"
+  - "Code"
+  - "Movies"
+  - "Attachments"
+
 soul_file: "profiles/grace_soul.md"
 memory_file: "profiles/grace_memory.md"
 share_memory: true
@@ -17,6 +24,7 @@ skills:
   - "git_workflow"
   - "code_review"
   - "system_architecture"
+  - "vault_recall"
 
 thinking_phrases:
   - "Decompiling assumptions..."

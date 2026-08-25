@@ -41,7 +41,7 @@ In Sympose, guessing is treated as a **critical system failure**.
 
 ## 2. The Universal System Prompt Grounding Directive
 
-In [`sympose/profiles.py`](file:///Users/damiro/Development/sympose/sympose/profiles.py#L139), every agent system prompt is compiled with this non-negotiable protocol:
+In [`sympose/profiles.py`](./sympose/profiles.py#L139), every agent system prompt is compiled with this non-negotiable protocol:
 
 ```markdown
 ### Strict Memory Truthfulness & Anti-Hallucination Protocol:

@@ -36,7 +36,7 @@ Samantha streams in 0.83s:                          Heuristic Gate detects plann
 
 Firing a background LLM evaluation on *every single turn* is wasteful: it doubles token consumption, risks hitting API rate limits (RPM), and clutters memory with conversational noise (e.g. *"User said hello"*).
 
-Sympose uses a **dual-filter heuristic gate** in [`sympose/memory.py`](file:///Users/damiro/Development/sympose/sympose/memory.py#L18):
+Sympose uses a **dual-filter heuristic gate** in [`sympose/memory.py`](./sympose/memory.py#L18):
 
 ```python
 TRIGGER_PATTERNS = [
@@ -63,4 +63,4 @@ SKIP_PATTERNS = [
 
 ## 3. Silent Deduplication & Hygiene
 
-When a fact is extracted, [`ProfileManager.append_memory()`](file:///Users/damiro/Development/sympose/sympose/profiles.py#L167) checks the existing `_memory.md` text before writing, preventing identical bullet points from duplicating across sessions.
+When a fact is extracted, [`ProfileManager.append_memory()`](./sympose/profiles.py#L167) checks the existing `_memory.md` text before writing, preventing identical bullet points from duplicating across sessions.

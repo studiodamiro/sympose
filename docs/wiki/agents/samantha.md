@@ -37,7 +37,7 @@ tags:
 
 ## 2. Core Soul Directives & Cognitive Heuristics
 
-Samantha’s soul directives ([`profiles/samantha_soul.md`](file:///Users/damiro/Development/sympose/profiles/samantha_soul.md)) enforce five core behavioral principles:
+Samantha’s soul directives ([`profiles/samantha_soul.md`](./profiles/samantha_soul.md)) enforce five core behavioral principles:
 
 1. **Strategic & Articulate Thinking Partner**:
    - Warm, razor-sharp, proactive, and structured.
@@ -69,11 +69,11 @@ skills:
 ```
 
 ### 📋 Mounted Capabilities:
-* **[`skills/sympose_mastery`](file:///Users/damiro/Development/sympose/skills/sympose_mastery/SKILL.md)**:
+* **[`skills/sympose_mastery`](./skills/sympose_mastery/SKILL.md)**:
   - Expert concierge heuristics for conversational performance tuning, 7-point agent creation, and defensive retirement.
-* **[`skills/strategic_analysis`](file:///Users/damiro/Development/sympose/skills/strategic_analysis/SKILL.md)**:
+* **[`skills/strategic_analysis`](./skills/strategic_analysis/SKILL.md)**:
   - Reversibility tests (one-way vs two-way doors), tradeoff comparison matrices, and kill criteria definitions.
-* **[`skills/system_architecture`](file:///Users/damiro/Development/sympose/skills/system_architecture/SKILL.md)**:
+* **[`skills/system_architecture`](./skills/system_architecture/SKILL.md)**:
   - High-level system decomposition, modularity boundaries, and zero-bloat architectural patterns.
 
 ---
@@ -125,7 +125,7 @@ You (to @samantha): What are the tradeoffs between a local SQLite cache vs direc
 ---
 
 ## 🔗 Related Documentation
-* [Agent Profile System Guide](file:///Users/damiro/Development/sympose/docs/wiki/agents/profile-system.md)
-* [Modular Skills System Specification](file:///Users/damiro/Development/sympose/docs/wiki/agents/skills-system.md)
-* [Grace Hopper Agent Specification](file:///Users/damiro/Development/sympose/docs/wiki/agents/grace.md)
-* [Marcus Aurelius Agent Specification](file:///Users/damiro/Development/sympose/docs/wiki/agents/aurelius.md)
+* [Agent Profile System Guide](./docs/wiki/agents/profile-system.md)
+* [Modular Skills System Specification](./docs/wiki/agents/skills-system.md)
+* [Grace Hopper Agent Specification](./docs/wiki/agents/grace.md)
+* [Marcus Aurelius Agent Specification](./docs/wiki/agents/aurelius.md)

@@ -105,7 +105,7 @@ You can also trigger workers directly in the terminal:
 
 When a worker runs, its execution model is resolved in the following priority order:
 1. **Explicit Task Model**: `WorkerTask(..., model="...")` if specified in code.
-2. **Skill Recommendation**: The first entry in `recommended_models:` from the loaded skill's [`SKILL.md`](file:///Users/damiro/Development/sympose/docs/wiki/agents/skills-system.md) frontmatter.
+2. **Skill Recommendation**: The first entry in `recommended_models:` from the loaded skill's [`SKILL.md`](./docs/wiki/agents/skills-system.md) frontmatter.
 3. **Global Environment**: `DEFAULT_MODEL` specified in `.env` (e.g. `DEFAULT_MODEL=openrouter/anthropic/claude-3.7-sonnet`).
 4. **System Default**: Fallback to `gemini/gemini-3.5-flash-lite`.
 
@@ -115,7 +115,7 @@ When a worker runs, its execution model is resolved in the following priority or
 
 | Parameter | Location | CLI Dynamic Override | Default | Purpose |
 | :--- | :--- | :--- | :--- | :--- |
-| **`performance.max_worker_tool_turns`** | [`config.yaml`](file:///Users/damiro/Development/sympose/config.yaml) | `/config set performance.max_worker_tool_turns 8` | `8` | Hard ceiling on sub-agent tool calling iterations, preventing runaway loops while allowing multi-file research. |
+| **`performance.max_worker_tool_turns`** | [`config.yaml`](./config.yaml) | `/config set performance.max_worker_tool_turns 8` | `8` | Hard ceiling on sub-agent tool calling iterations, preventing runaway loops while allowing multi-file research. |
 
 ---
 

@@ -26,8 +26,8 @@ During live testing with `@aurelius` (local Ollama), an amnesia issue surfaced: 
 To solve both challenges without token bloat or privacy compromise, we designed and implemented **ADR-010: Selective Memory Sharing & Universal User Profile Architecture**:
 1. **Universal User Card (`profiles/user_profile.md`)**: A lightweight identity profile loaded automatically by **all** agents, guaranteeing universal user awareness (name, OS, core workflow style) from Turn 1.
 2. **Configurable Memory Sharing (`share_memory: true | false`)**:
-   - `share_memory: true` ([`samantha.yaml`](file:///Users/damiro/Development/sympose/profiles/samantha.yaml) & [`grace.yaml`](file:///Users/damiro/Development/sympose/profiles/grace.yaml)): Injects and syncs with `profiles/_shared_memory.md` for multi-agent project collaboration.
-   - `share_memory: false` ([`aurelius.yaml`](file:///Users/damiro/Development/sympose/profiles/aurelius.yaml)): Keeps memory strictly air-gapped within `profiles/aurelius_memory.md`, with zero cross-talk to cloud shared files.
+   - `share_memory: true` ([`samantha.yaml`](./profiles/samantha.yaml) & [`grace.yaml`](./profiles/grace.yaml)): Injects and syncs with `profiles/_shared_memory.md` for multi-agent project collaboration.
+   - `share_memory: false` ([`aurelius.yaml`](./profiles/aurelius.yaml)): Keeps memory strictly air-gapped within `profiles/aurelius_memory.md`, with zero cross-talk to cloud shared files.
 
 ---
 
@@ -94,7 +94,7 @@ graph TD
 
 ## 4. Verification & Benchmarks
 
-* **Automated Test Suite ([`scratch/test_selective_memory.py`](file:///Users/damiro/Development/sympose/scratch/test_selective_memory.py))**:
+* **Automated Test Suite ([`scratch/test_selective_memory.py`](./scratch/test_selective_memory.py))**:
   * Universal User Profile awareness across all personas: **PASSED**
   * Shared Team Memory injection for Samantha & Grace: **PASSED**
   * Privacy Air-Gap validation for Aurelius (0 leaks to `_shared_memory.md`): **PASSED**

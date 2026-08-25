@@ -138,15 +138,18 @@ class ProfileManager:
         is_shared = profile.get("share_memory", False)
         sharing_desc = "Shared Team Pool (`_shared_memory.md`)" if is_shared else "Air-Gapped Private Memory"
 
-        sources = "Core User Profile, Shared Team Working Memory, Persona Working Memory" if is_shared else "Core User Profile, Persona Working Memory"
+        mv = os.getenv("MASTER_VAULT_PATH", "Local Workspace")
+        sources = f"Core User Profile, {'Shared Team Working Memory, ' if is_shared else ''}Persona Working Memory, and your Allowed Obsidian Vault Folders ({vf_desc})"
         prompt_parts.append(
-            f"### Runtime Environment & Capabilities:\n"
+            f"### Runtime Environment & Spatial Coordinates:\n"
             f"You are operating within Sympose Agent Hub on macOS.\n"
-            f"- Sandboxed Vault: Read/write access to {vf_desc}.\n"
-            f"- Memory Mode: {sharing_desc} (File: `{mf}`).\n\n"
+            f"- App Workspace Root: `{os.getcwd()}`\n"
+            f"- Master Obsidian Vault: `{mv}` (configured via `MASTER_VAULT_PATH` in `.env`)\n"
+            f"- Sandboxed Vault Access: {vf_desc}\n"
+            f"- Memory Mode: {sharing_desc} (File: `{mf}`, Shared Pool: `profiles/_shared_memory.md`)\n\n"
             f"### Strict Memory Grounding & Anti-Hallucination:\n"
             f"1. Your only knowledge of user history, plans, and past agreements comes strictly from {sources}, and active turns.\n"
-            f"2. ZERO TOLERANCE FOR FABRICATION: When asked about past user facts, decisions, or agreements not in your memory or context, never guess or fabricate. Candidly state that you don't have that recorded.\n"
+            f"2. ZERO TOLERANCE FOR FABRICATION: When asked about past user facts, decisions, or agreements not in your memory, vault context, or active turns, never guess or fabricate. Candidly state that you don't have that recorded.\n"
             f"3. UNRECOGNIZED / GARBLED INPUT: If user input contains accidental terminal escape noise (e.g. `^[^[`), gibberish, or unclear typos, respond with a natural clarification (e.g. 'Looks like some terminal noise or a typo—what can I help you with?') rather than assuming it is a forgotten memory.\n\n"
             f"### Autonomic Action Protocols:\n"
             f"- Working Memory: `[REMEMBER: <fact>]` saves bullet points to working memory.\n"
@@ -160,7 +163,9 @@ class ProfileManager:
             f"### CRITICAL ACTION EXECUTION RULES:\n"
             f"1. NEVER mock, type out, or simulate `> 🛠️ **Sub-Agent Worker Report**` or fake command results in your message text.\n"
             f"2. You MUST emit the literal bracketed tag `[SPAWN_WORKER: <skill_or_mcp> | <task>]`. The Sympose runtime will execute real local tools and inject the ground-truth report automatically.\n"
-            f"3. The runtime executes these tags atomically upon stream completion and confirms them to the user."
+            f"3. The runtime executes these tags atomically upon stream completion and confirms them to the user.\n"
+            f"4. DOMAIN SANDBOX BOUNDARIES: Your vault access is strictly sandboxed to {vf_desc}. For instance, private personal reflections in `Daily/` are strictly air-gapped for @aurelius. If the user asks for notes in folders outside your sandbox, DO NOT attempt to access them or spawn a worker to bypass your boundary. Politely state that the folder is outside your sandbox and suggest switching to the authorized specialist (e.g. `/switch @aurelius`).\n"
+            f"5. DIRECT IN-TURN ANSWERING: If the requested notes or answers are already present in your pre-turn context (`### Vault Search Results` or `### Sandboxed Vault Note`), DO NOT spawn a worker (`[SPAWN_WORKER]`). Answer the user immediately in-turn (<1.0s) without redundant sub-agent delegation."
         )
 
         peers = [f"- @{p['handle']}: {p.get('name', p['handle'])} ({p.get('title', 'Specialist')})"

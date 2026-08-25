@@ -47,7 +47,7 @@ When a user expresses a preference or pain point, execute the appropriate `[CONF
 ## 2. Vault Mapping & Folder Verification Protocol
 
 Before creating a new agent or assigning vault folders:
-1. **Check Vault Path Mapping**: Verify whether `OBSIDIAN_VAULT_PATH` is configured in the environment. If the user mentions their vault and it's unmapped or in sandbox mode, ask them for their local vault path on macOS (e.g. `~/Documents/MyVault`).
+1. **Check Vault Path Mapping**: Verify whether `MASTER_VAULT_PATH` is configured in the environment (`.env`). If the user mentions their vault and it's unmapped or in sandbox mode, ask them for their local vault path on macOS (e.g. `~/Documents/MyVault`).
 2. **Check Folder Existence**: When the user requests a specific folder (e.g. `Marketing/` or `Research/`):
    - Check if the folder currently exists in their vault.
    - If it exists, link to it directly.
@@ -88,7 +88,7 @@ Every robust, production-grade Sympose agent MUST satisfy these 7 architectural 
 When the user asks to create a new agent (e.g. *"Create a research specialist named after Marie Curie"*):
 1. **Never pass the buck to Grace or mention Python router code**: Creating an agent in Sympose is 100% declarative YAML + Markdown. You handle it yourself.
 2. **Select Name & Handle**: Choose an inspiring namesake (e.g. `Marie Curie`, handle: `curie`).
-3. **Check Vault & Tool Prerequisites**: Assign appropriate vault folders (e.g. `["General", "Research"]`) and skills (e.g. `["strategic_analysis"]`).
+3. **Check Vault & Tool Prerequisites**: Assign appropriate vault folders (e.g. `["General", "Research", "Daily"]`) and skills (e.g. `["strategic_analysis", "vault_recall"]`).
 4. **Execute Creation via `[CREATE_PERSONA]` Tag**: Emit the manifest directly:
    ```yaml
    [CREATE_PERSONA: curie |
@@ -96,9 +96,9 @@ When the user asks to create a new agent (e.g. *"Create a research specialist na
    handle: "curie"
    title: "Principal Research Specialist & Empirical Analyst"
    model: "gemini/gemini-3.5-flash-lite"
-   vault_folders: ["General", "Research"]
+   vault_folders: ["General", "Research", "Daily"]
    share_memory: true
-   skills: ["strategic_analysis"]
+   skills: ["strategic_analysis", "vault_recall"]
    thinking_phrases:
      - "Formulating empirical hypothesis..."
      - "Synthesizing research literature..."
@@ -132,6 +132,7 @@ When the user asks to delete or retire an agent (e.g. *"I no longer need Curie, 
 * If the user asks about code quality $\rightarrow$ recommend or mount `code_review`.
 * If the user asks about complex architecture $\rightarrow$ recommend or mount `system_architecture`.
 * If the user asks about tradeoff analysis $\rightarrow$ recommend or mount `strategic_analysis`.
+* If the user asks about vault search, note history, or historical recall $\rightarrow$ recommend or mount `vault_recall`.
 * If the user needs external services (GitHub, Brave Search, Filesystem) $\rightarrow$ check `config.yaml` under `mcp_servers:` and guide them on setting API keys in `.env`.
 
 ---

@@ -2,13 +2,11 @@
 Multi-Model Persona Execution Engine for Sympose.
 """
 
-import os
-import re
+import os, re
 from typing import Dict, List, Any, Optional
-
-from sympose.config import config_manager
 import litellm
 
+from sympose.config import config_manager
 from sympose.profiles import ProfileManager
 from sympose.memory import SessionArchivist
 from sympose.commands import CommandInterceptor
@@ -20,9 +18,7 @@ class PersonaEngine:
     """Executes multi-model AI completions with sliding context, vault context injection, and autonomic actions."""
 
     def __init__(self, profile_manager: ProfileManager, max_turns: Optional[int] = None):
-        self.pm = profile_manager
-        self.config = config_manager
-        self.archivist = SessionArchivist(profile_manager)
+        self.pm, self.config, self.archivist = profile_manager, config_manager, SessionArchivist(profile_manager)
         self.max_turns = max_turns or int(self.config.get("performance.max_context_turns", 15))
         self.histories: Dict[str, List[Dict[str, str]]] = {}
         self.model_overrides: Dict[str, str] = {}
@@ -40,6 +36,13 @@ class PersonaEngine:
 
     def _resolve_vault_context(self, profile: Dict[str, Any], message: str) -> Optional[str]:
         msg = message.strip()
+        # Direct note title lookup across allowed folders (e.g. Miro, Summit, Virginia)
+        for w in re.findall(r"[a-zA-Z0-9_\-]+", msg):
+            if len(w) >= 3 and w.lower() not in {"the", "and", "for", "with", "this", "that", "from", "when", "what", "where", "your", "have", "sure", "look", "tell", "about", "some", "here", "will", "does"}:
+                content = VaultManager.read_note(profile, w)
+                if content and not content.startswith("Note `") and not content.startswith("⚠️"):
+                    return f"### Sandboxed Vault Note (`{w}`):\n{content}"
+
         rd = re.search(r"(?:read|open|check|look\s+at|show\s+me)\s+(?:the\s+)?note\s+([a-zA-Z0-9_\-/\.\s]+(?:\.md|\.markdown|\.txt|[a-zA-Z0-9]))", msg, re.I)
         if rd:
             return f"### Sandboxed Vault Note (`{rd.group(1).strip()}`):\n{VaultManager.read_note(profile, rd.group(1).strip())}"
@@ -48,19 +51,36 @@ class PersonaEngine:
         if yr and re.search(r"(?:vault|journal|note|notes|daily|reflection|reminisce|entry|entries|wayback|past)", msg, re.I):
             return f"### Vault Search Results for '{yr.group(1)}':\n{VaultManager.search(profile, yr.group(1))}"
 
-        med = re.search(r"\b(movies?|films?|cinema|quotes?|projects?|thoughts?|recipes?|reviews?)\b", msg, re.I)
-        if med and any(k in msg.lower() for k in ("vault", "note", "review", "pick", "show", "tell")):
-            return f"### Vault Search Results for '{med.group(1).lower()}':\n{VaultManager.search(profile, med.group(1).lower())}"
+        # Dynamic domain scanning derived from agent's configured vault_folders & config.yaml triggers
+        v_folders = profile.get("vault_folders") or [profile.get("vault_folder", "General")]
+        triggers = self.config.get("vault.search_triggers") or ["vault", "note", "notes", "folder", "search", "find", "who", "what", "access"]
+        has_intent = any(k in msg.lower() for k in triggers)
+
+        for folder in v_folders:
+            if not folder or folder in ("*", "", "all"):
+                continue
+            f_clean = folder.strip().lower()
+            variants = {f_clean, f_clean[:-1] if f_clean.endswith("s") else f_clean + "s"}
+            if f_clean == "people":
+                variants.update({"person", "contact", "contacts", "friend", "friends", "family"})
+            elif f_clean == "movies":
+                variants.update({"film", "films", "cinema"})
+
+            if any(re.search(rf"\b{re.escape(v)}\b", msg, re.I) for v in variants) and has_intent:
+                if re.search(r"\b(scan|analyze|summarize|all|overview|entries|how\s+i|about\s+me|amuse|connections?)\b", msg, re.I):
+                    return VaultManager.get_folder_digest(profile, folder)
+                res = VaultManager.search(profile, f_clean, target_folder=folder)
+                if res and not res.startswith("No notes found") and "not configured" not in res:
+                    return f"### Vault Search Results for '{folder}':\n{res}"
 
         # Clean conversational greetings & natural language search leads
-        q = re.sub(r"^(?:hey|hi|hello|yo|good\s+(?:morning|afternoon|evening))\s*(?:bro|sam|grace|aurelius|samantha|there)?[\.\,\:\;–—\s\-]*", "", msg, flags=re.I).strip()
-        q = re.sub(r"^(?:(?:can|could|would)\s+you\s+)?(?:please\s+)?(?:how\s+about|what\s+about|do\s+we\s+have|is\s+there|tell\s+me\s+about|show\s+me|find|search|retrieve|retireve|check|look\s+(?:for|at)?|pick|get|pull)\s*", "", q, flags=re.I).strip()
-        q = re.sub(r"^(?:(?:an?|the|some|any|random|piece\s+of|my|our)\s+)?(?:obsidian\s+)?(?:vault\s+)?(?:daily\s+|historical\s+)?(?:notes?|journals?|entries|entry|reflections?|posts?|logs?)\s*(?:wayback|from|in|about|for|regarding|on|discussing|mentioning|talking\s+about)?\s*", "", q, flags=re.I).strip()
-        q = re.sub(r"^(?:vault\s+(?:for|about)\s+|my\s+|our\s+|the\s+|talking\s+about\s+|discussing\s+|mentioning\s+|regarding\s+|about\s+|for\s+|on\s+)", "", q, flags=re.I).strip()
+        q = re.sub(r"^(?:hey|hi|hello|yo|good\s+\w+)\s*(?:\w+)?[\.\,\:\;–—\s\-]*", "", msg, flags=re.I).strip()
+        q = re.sub(r"^(?:(?:can|could|would)\s+you\s+)?(?:please\s+)?(?:how\s+about|what\s+about|do\s+we\s+have|is\s+there|tell\s+me\s+about|show\s+me|find|search|retrieve|check|look\s+(?:for|at)?|pick|get|pull)\s*", "", q, flags=re.I).strip()
+        q = re.sub(r"^(?:(?:an?|the|some|any|random|my|our)\s+)?(?:obsidian\s+)?(?:vault\s+)?(?:daily\s+|historical\s+)?(?:notes?|journals?|entries|entry|reflections?|posts?|logs?)\s*(?:wayback|from|in|about|for|regarding|on|discussing|mentioning|talking\s+about)?\s*", "", q, flags=re.I).strip()
         target_q = re.split(r"[,.!?]", q)[0].strip()
-        if target_q and len(target_q) >= 3 and re.search(r"(?:entry|entries|note|notes|journal|reflection|daily|thoughts|vault|past|talking|discussing|mentioning|search|find|check)", msg, re.I):
+        if target_q and len(target_q) >= 3 and has_intent:
             res = VaultManager.search(profile, target_q)
-            if res and "No matching notes found." not in res:
+            if res and not res.startswith("No notes found") and "not configured" not in res:
                 return f"### Vault Search Results for '{target_q}':\n{res}"
         return None
 
@@ -71,10 +91,8 @@ class PersonaEngine:
         for pfx, key in (("gemini/", "GEMINI_API_KEY"), ("anthropic/", "ANTHROPIC_API_KEY"), ("openai/", "OPENAI_API_KEY"), ("openrouter/", "OPENROUTER_API_KEY")):
             if target_model.startswith(pfx) and os.getenv(key):
                 kwargs["api_key"] = os.getenv(key)
-        if "temperature" in profile:
-            kwargs["temperature"] = profile["temperature"]
-        if profile.get("api_base"):
-            kwargs["api_base"] = profile["api_base"]
+        if "temperature" in profile: kwargs["temperature"] = profile["temperature"]
+        if profile.get("api_base"): kwargs["api_base"] = profile["api_base"]
         return kwargs
 
     def spawn_sub_agent(self, target_handle: str, sub_prompt: str):
@@ -114,21 +132,15 @@ class PersonaEngine:
         clean_input = user_message.strip()
         cmd_gen = CommandInterceptor.intercept(self, handle, clean_input)
         if cmd_gen is not None:
-            for item in cmd_gen:
-                yield item
+            for item in cmd_gen: yield item
             return
 
-        # Check Natural Language Memory intent
-        nat_match = re.search(
-            r"^(?:(?:hey|hi|hello)?\s*(?:@?\w+[,:]?\s*)?)?(?:please\s+)?remember\s+(?:that\s+|to\s+|:\s+)?(.+)$",
-            clean_input, re.I
-        )
+        nat_match = re.search(r"^(?:(?:hey|hi|hello)?\s*(?:@?\w+[,:]?\s*)?)?(?:please\s+)?remember\s+(?:that\s+|to\s+|:\s+)?(.+)$", clean_input, re.I)
         if nat_match and not clean_input.startswith("/"):
             extracted_fact = nat_match.group(1).strip()
             if extracted_fact:
                 self.pm.append_memory(handle, extracted_fact)
-                mem_file = profile.get("memory_file", f"profiles/{handle}_memory.md")
-                yield f"> 🧠 **Persisted to {profile.get('name', handle)}'s memory (`{mem_file}`):**\n> *{extracted_fact}*\n\n"
+                yield f"> 🧠 **Persisted to {profile.get('name', handle)}'s memory:** *{extracted_fact}*\n\n"
 
         # Build dynamic composite prompt & inject persistent pre-turn vault context
         system_prompt = self.pm.build_system_prompt(profile)
@@ -153,8 +165,7 @@ class PersonaEngine:
 
         try:
             stream_val = bool(self.config.get("performance.stream", True))
-            kwargs = self._build_kwargs(target_model, profile, active_messages, stream=stream_val)
-            response = litellm.completion(**kwargs)
+            response = litellm.completion(**self._build_kwargs(target_model, profile, active_messages, stream=stream_val))
             full_reply = []
             for chunk in response:
                 delta = chunk.choices[0].delta.content or ""
@@ -171,21 +182,17 @@ class PersonaEngine:
 
             if has_worker:
                 yield "\n\n"
-                synth_msgs = list(active_messages) + [
-                    {"role": "assistant", "content": assistant_record},
-                    {"role": "user", "content": "[System Directive: Synthesize the worker report above with findings and next steps.]"}
-                ]
+                synth_msgs = list(active_messages) + [{"role": "assistant", "content": assistant_record}, {"role": "user", "content": "[System Directive: Synthesize the worker report above with findings and next steps.]"}]
                 try:
                     synth_resp = litellm.completion(**self._build_kwargs(target_model, profile, synth_msgs, stream=True))
-                    synth_reply = [c.choices[0].delta.content or "" for c in synth_resp if c.choices[0].delta.content]
-                    if "".join(synth_reply).strip():
-                        assistant_record += "\n\n" + "".join(synth_reply).strip()
-                        yield "".join(synth_reply)
+                    synth_reply = "".join([c.choices[0].delta.content or "" for c in synth_resp if c.choices[0].delta.content]).strip()
+                    if synth_reply:
+                        assistant_record += "\n\n" + synth_reply
+                        yield synth_reply
                 except Exception:
                     pass
 
-            history.append({"role": "user", "content": user_message})
-            history.append({"role": "assistant", "content": assistant_record})
+            history.extend([{"role": "user", "content": user_message}, {"role": "assistant", "content": assistant_record}])
             self.histories[handle.lower()] = history[-(self.max_turns * 2):]
             self.archivist.trigger_background_extraction(handle, user_message, complete_text)
         except Exception as e:

@@ -21,49 +21,21 @@ class ProfileManager:
 
     def bootstrap_missing_artifacts(self, profile: Dict[str, Any]) -> None:
         """Generates soul, memory, universal user card, and shared team memory if absent."""
-        handle = profile.get("handle", "agent").lower()
-        name = profile.get("name", handle.capitalize())
-        title = profile.get("title", "Specialist Advisor")
+        handle, name, title = profile.get("handle", "agent").lower(), profile.get("name", "Agent"), profile.get("title", "Specialist Advisor")
+        os.makedirs(self.profiles_dir, exist_ok=True)
+        for path, content in [
+            (os.path.join(self.profiles_dir, "user_profile.md"), "# Universal User Profile\n\n- **Primary User**: damiro\n- **Environment**: macOS\n"),
+            (os.path.join(self.profiles_dir, "_shared_memory.md"), "# Shared Team Working Memory\n\n- **Active Project**: Sympose Agent Hub\n"),
+            (profile.get("soul_file") or os.path.join(self.profiles_dir, f"{handle}_soul.md"), f"# {name}: Core Directives\n\nYou are **{name}**, the {title} in Sympose.\n"),
+            (profile.get("memory_file") or os.path.join(self.profiles_dir, f"{handle}_memory.md"), f"# {name}: Working Memory\n\n- **Role**: {title}\n")
+        ]:
+            if not os.path.exists(path):
+                try:
+                    with open(path, "w", encoding="utf-8") as f: f.write(content)
+                except Exception: pass
 
-        # 1. Bootstrap Universal User Profile if absent
-        user_file = os.path.join(self.profiles_dir, "user_profile.md")
-        if not os.path.exists(user_file):
-            try:
-                os.makedirs(self.profiles_dir, exist_ok=True)
-                with open(user_file, "w", encoding="utf-8") as f:
-                    f.write("# Universal User Profile\n\n- **Primary User**: damiro\n- **Environment**: macOS\n")
-            except Exception:
-                pass
-
-        # 2. Bootstrap Shared Team Memory if absent
-        shared_file = os.path.join(self.profiles_dir, "_shared_memory.md")
-        if not os.path.exists(shared_file):
-            try:
-                with open(shared_file, "w", encoding="utf-8") as f:
-                    f.write("# Shared Team Working Memory\n\n- **Active Project**: Sympose Agent Hub\n")
-            except Exception:
-                pass
-
-        # 3. Bootstrap Soul
-        soul_file = profile.get("soul_file") or os.path.join(self.profiles_dir, f"{handle}_soul.md")
-        profile["soul_file"] = soul_file
-        if not os.path.exists(soul_file):
-            try:
-                with open(soul_file, "w", encoding="utf-8") as f:
-                    f.write(f"# {name}: Core Directives\n\nYou are **{name}**, the {title} in Sympose.\n")
-            except Exception:
-                pass
-
-        # 4. Bootstrap Memory
-        memory_file = profile.get("memory_file") or os.path.join(self.profiles_dir, f"{handle}_memory.md")
-        profile["memory_file"] = memory_file
-        if not os.path.exists(memory_file):
-            try:
-                with open(memory_file, "w", encoding="utf-8") as f:
-                    f.write(f"# {name}: Working Memory\n\n- **Role**: {title}\n")
-            except Exception:
-                pass
-
+        profile["soul_file"] = profile.get("soul_file") or os.path.join(self.profiles_dir, f"{handle}_soul.md")
+        profile["memory_file"] = profile.get("memory_file") or os.path.join(self.profiles_dir, f"{handle}_memory.md")
         if not profile.get("thinking_phrases"):
             profile["thinking_phrases"] = [f"Consulting {name}...", "Distilling insights...", "Formulating plan..."]
 
@@ -148,9 +120,11 @@ class ProfileManager:
             f"- Sandboxed Vault Access: {vf_desc}\n"
             f"- Memory Mode: {sharing_desc} (File: `{mf}`, Shared Pool: `profiles/_shared_memory.md`)\n\n"
             f"### Strict Memory Grounding & Anti-Hallucination:\n"
-            f"1. Your only knowledge of user history, plans, and past agreements comes strictly from {sources}, and active turns.\n"
-            f"2. ZERO TOLERANCE FOR FABRICATION: When asked about past user facts, decisions, or agreements not in your memory, vault context, or active turns, never guess or fabricate. Candidly state that you don't have that recorded.\n"
-            f"3. UNRECOGNIZED / GARBLED INPUT: If user input contains accidental terminal escape noise (e.g. `^[^[`), gibberish, or unclear typos, respond with a natural clarification (e.g. 'Looks like some terminal noise or a typo—what can I help you with?') rather than assuming it is a forgotten memory.\n\n"
+            f"1. ASSUME INTERRUPTION: Your context window is bounded and might be reset at any moment, so you risk losing any progress that is not recorded in your memory directory. Proactively checkpoint architectural decisions, milestone progress, and user facts using `[REMEMBER: <fact>]` or `[WRITE_NOTE: <filename> | <content>]`.\n"
+            f"2. Your only knowledge of user history, plans, and past agreements comes strictly from {sources}, and active turns.\n"
+            f"3. ZERO TOLERANCE FOR FABRICATION: When asked about past user facts, decisions, or agreements not in your memory, vault context, or active turns, never guess or fabricate. Candidly state that you don't have that recorded.\n"
+            f"4. UNRECOGNIZED / GARBLED INPUT: If user input contains accidental terminal escape noise (e.g. `^[^[`), gibberish, or unclear typos, respond with a natural clarification (e.g. 'Looks like some terminal noise or a typo—what can I help you with?') rather than assuming it is a forgotten memory.\n"
+            f"5. ZERO TIME-DELAY SIMULATION: You process requests immediately in the current turn. You do NOT have background execution threads across minutes or hours. NEVER say 'Give me a few minutes', 'I will look into this and come back', 'hang tight', or 'Give me a moment to process'. Always deliver your findings immediately in the current turn or state what specific information is missing.\n\n"
             f"### Autonomic Action Protocols:\n"
             f"- Working Memory: `[REMEMBER: <fact>]` saves bullet points to working memory.\n"
             f"- Create Note: `[WRITE_NOTE: <filename.md> | <content>]` creates/overwrites notes in allowed vault folders.\n"

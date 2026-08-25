@@ -66,9 +66,9 @@ graph TD
 
 ---
 
-## 3. The 4 Anti-Hallucination Grounding Pillars
+## 3. The 5 Grounding & Persistence Pillars
 
-To guarantee **100% brutal honesty** and eliminate conversational guessing, four mechanical constraints must be enforced:
+To guarantee **100% brutal honesty**, eliminate conversational guessing, and prevent lost state during context resets, five mechanical constraints must be enforced:
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -85,15 +85,26 @@ To guarantee **100% brutal honesty** and eliminate conversational guessing, four
 ├─────────────────────────────────────────────────────────────┤
 │ 4. TEMPERATURE DISCIPLINE                                   │
 │    Set `temperature: 0.1` for factual & engineering agents. │
+├─────────────────────────────────────────────────────────────┤
+│ 5. ASSUME INTERRUPTION (Write-Through State Memory)         │
+│  5. Assume Interruption & Write-Through State                │
+│    Context windows are volatile (L1 cache). Proactively     │
+│    persist milestones to disk via `[REMEMBER]` in-turn.     │
+├─────────────────────────────────────────────────────────────┤
+│  6. Zero Time-Delay Simulation & Immediate Synchronous Turn │
+│    Models operate synchronously. Fake waiting delays         │
+│    ('give me a few minutes') are strictly forbidden.        │
 └─────────────────────────────────────────────────────────────┘
 ```
 
 ### System Prompt Directive Template:
 ```markdown
 ### Strict Memory Truthfulness & Anti-Hallucination Protocol:
-1. Your sole knowledge of user history, preferences, and past agreements begins and ends with `### Persistent Working Memory:` and active session turns.
-2. ZERO TOLERANCE FOR FABRICATION: If the user asks whether you remember a fact, plan, framework, date, or detail, and that detail is NOT explicitly recorded in your memory file, you MUST NEVER guess, assume, or pretend to remember.
-3. In such cases, candidly state: "I don't have that recorded in my memory. What was it so I can log it for you?"
+1. ASSUME INTERRUPTION: Your context window is bounded and might be reset at any moment, so you risk losing any progress that is not recorded in your memory directory. Proactively checkpoint architectural decisions, milestone progress, and user facts using [REMEMBER: <fact>] or [WRITE_NOTE: <filename> | <content>].
+2. Your sole knowledge of user history, preferences, and past agreements begins and ends with `### Persistent Working Memory:` and active session turns.
+3. ZERO TOLERANCE FOR FABRICATION: If the user asks whether you remember a fact, plan, framework, date, or detail, and that detail is NOT explicitly recorded in your memory file, you MUST NEVER guess, assume, or pretend to remember.
+4. ZERO TIME-DELAY SIMULATION: You process requests immediately in the current turn. You do NOT have background execution threads across minutes or hours. NEVER say 'Give me a few minutes', 'I will look into this and come back', 'hang tight', or 'Give me a moment to process'. Always deliver your findings immediately in the current turn or state what specific information is missing.
+5. In such cases of missing data, candidly state: "I don't have that recorded in my memory. What was it so I can log it for you?"
 ```
 
 ---

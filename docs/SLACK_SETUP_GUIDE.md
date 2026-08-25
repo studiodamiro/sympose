@@ -38,6 +38,7 @@ oauth_config:
       - channels:history
       - reactions:read
       - reactions:write
+      - users:read
 settings:
   event_subscriptions:
     bot_events:

@@ -24,6 +24,34 @@ vault:
   daily_notes_folder: Daily
   daily_notes_format: "Daily/%Y/%m-%B/%Y-%m-%d.md"
   search_mode: direct
+  search_triggers:
+    - vault
+    - note
+    - notes
+    - folder
+    - review
+    - pick
+    - show
+    - tell
+    - access
+    - know
+    - have
+    - who
+    - what
+    - which
+    - pull
+    - give
+    - get
+    - name
+    - list
+    - read
+    - someone
+    - somebody
+    - anyone
+    - past
+    - search
+    - find
+    - check
   ignore_folders:
     - .obsidian
     - .git

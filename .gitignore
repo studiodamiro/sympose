@@ -40,3 +40,13 @@ wheels/
 scratch/
 artifacts/*.html
 artifacts/*.svg
+
+# Private User Data & Live Working Memory (Local Sovereignty)
+profiles/*_memory.md
+profiles/_shared_memory.md
+profiles/user_profile.md
+profiles/_archived/
+profiles/samantha_memory.md
+profiles/grace_memory.md
+profiles/aurelius_memory.md
+!*.example

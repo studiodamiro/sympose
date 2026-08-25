@@ -34,6 +34,8 @@ This master document serves as the top-level index and Table of Contents.
 | **2026-08-25** | Ground-Truth Sovereignty Axiom & Config-Driven Spatial Compass (ADR-024, ADR-025, ADR-026, ADR-027) | Complete | [`2026-08-25_ground_truth_sovereignty_and_spatial_compass.md`](journal/2026-08-25_ground_truth_sovereignty_and_spatial_compass.md) |
 | **2026-08-25** | Slack Socket Mode Integration & Thread-Bound Routing (ADR-028) | Complete | [`2026-08-25_slack_socket_mode_integration.md`](journal/2026-08-25_slack_socket_mode_integration.md) |
 | **2026-08-25** | Developer Workflows, IDE Ergonomics & Daemon Persistence Standard | Complete | [`2026-08-25_developer_workflows_and_daemon_persistence.md`](journal/2026-08-25_developer_workflows_and_daemon_persistence.md) |
+| **2026-08-25** | "Assume Interruption" & Proactive Write-Through State Memory (ADR-029) | Complete | [`2026-08-25_assume_interruption_and_write_through_memory.md`](journal/2026-08-25_assume_interruption_and_write_through_memory.md) |
+| **2026-08-26** | High-Density Folder Digests & Zero Time-Delay Simulation Standard (ADR-030) | Complete | [`2026-08-26_high_density_folder_digests_and_zero_delay_simulation.md`](journal/2026-08-26_high_density_folder_digests_and_zero_delay_simulation.md) |
 
 ---
 

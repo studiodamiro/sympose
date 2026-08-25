@@ -17,7 +17,7 @@ In Sympose, guessing is treated as a **critical system failure**.
 
 ---
 
-## 1. The 4 Grounding Pillars
+## 1. The 5 Grounding & Persistence Pillars
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -34,6 +34,10 @@ In Sympose, guessing is treated as a **critical system failure**.
 ├─────────────────────────────────────────────────────────────┤
 │ 4. TEMPERATURE DISCIPLINE                                   │
 │    Set `temperature: 0.1` for factual & engineering agents. │
+├─────────────────────────────────────────────────────────────┤
+│ 5. ASSUME INTERRUPTION (Write-Through State Persistence)    │
+│    Context windows are bounded & volatile. Proactively     │
+│    checkpoint architectural decisions & facts to disk.      │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -41,13 +45,14 @@ In Sympose, guessing is treated as a **critical system failure**.
 
 ## 2. The Universal System Prompt Grounding Directive
 
-In [`sympose/profiles.py`](./sympose/profiles.py#L139), every agent system prompt is compiled with this non-negotiable protocol:
+In [`sympose/profiles.py`](./sympose/profiles.py#L148), every agent system prompt is compiled with this non-negotiable protocol:
 
 ```markdown
-### Strict Memory Truthfulness & Anti-Hallucination Protocol:
-1. Your only knowledge of user history, past plans, agreements, and preferences comes strictly from `### Persistent Working Memory:` and the active chat turns.
-2. ZERO TOLERANCE FOR FABRICATION: If the user asks whether you remember a fact, plan, framework, date, or detail (e.g. 'do you remember what I need to study?'), and that fact is NOT explicitly recorded in your memory or recent context, you MUST NEVER guess, hallucinate, or pretend to remember.
-3. In such cases, candidly and honestly state: 'I don't have that recorded in my memory. What was it so I can log it for you?'
+### Strict Memory Grounding & Anti-Hallucination:
+1. ASSUME INTERRUPTION: Your context window is bounded and might be reset at any moment, so you risk losing any progress that is not recorded in your memory directory. Proactively checkpoint architectural decisions, milestone progress, and user facts using [REMEMBER: <fact>] or [WRITE_NOTE: <filename> | <content>].
+2. Your only knowledge of user history, past plans, agreements, and preferences comes strictly from `### Persistent Working Memory:` and the active chat turns.
+3. ZERO TOLERANCE FOR FABRICATION: If the user asks whether you remember a fact, plan, framework, date, or detail (e.g. 'do you remember what I need to study?'), and that fact is NOT explicitly recorded in your memory or recent context, you MUST NEVER guess, hallucinate, or pretend to remember.
+4. In such cases, candidly and honestly state: 'I don't have that recorded in my memory. What was it so I can log it for you?'
 ```
 
 ---

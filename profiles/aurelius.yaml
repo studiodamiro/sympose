@@ -5,6 +5,7 @@ aliases:
   - "mauri"
   - "marcus"
 model: "ollama/gemma2:9b"
+temperature: 0.2
 api_base: "http://localhost:11434"
 icon_emoji: ":classical_building:"
 

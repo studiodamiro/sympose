@@ -26,6 +26,7 @@ class ActionProcessor:
         "CONFIG_SET": re.compile(r"\[(?:ACTION:)?CONFIG_SET:\s*([^|\]]+?)\s*\|\s*([^\]]+?)\]", re.IGNORECASE),
         "CREATE_PERSONA": re.compile(r"\[(?:ACTION:)?CREATE_PERSONA:\s*([^|\]]+?)\s*\|\s*([\s\S]*?)\n\s*\]", re.IGNORECASE),
         "DELETE_PERSONA": re.compile(r"\[(?:ACTION:)?DELETE_PERSONA:\s*([^\]]+?)\]", re.IGNORECASE),
+        "WRITE_CANVAS": re.compile(r"\[(?:ACTION:)?WRITE_CANVAS:\s*([^|\]]+?)\s*\|\s*([\s\S]+?)\]", re.IGNORECASE),
     }
 
     @classmethod
@@ -170,13 +171,18 @@ class ActionProcessor:
                 if config_manager.get("runtime.default_persona") == h_name:
                     config_manager.set("runtime.default_persona", "samantha")
                     config_manager.save()
-                badges.append(f"> 🗄️ **{name} retired agent persona:** `@{h_name}` (Archived to `profiles/_archived/{h_name}/`)")
-            else:
-                profile_manager.reload_profiles()
-                badges.append(f"> ⚠️ **Persona `@{h_name}` not found in `{p_dir}/`**.")
+        # 9. WRITE_CANVAS Tags (Slack Channel Canvas or Obsidian .canvas)
+        for match in cls.PATTERNS["WRITE_CANVAS"].finditer(text):
+            target, content = match.group(1).strip(), match.group(2).strip()
+            if target and content:
+                if target.startswith("#") or target.startswith("C0") or target.lower().startswith("slack:"):
+                    badges.append(f"> 📋 **{name} published Slack Canvas to `{target.replace('slack:', '').strip()}`**")
+                else:
+                    fname = target if target.endswith(".canvas") or target.endswith(".md") else f"{target}.canvas"
+                    VaultManager.write_note(profile, fname, content)
+                    rel_path = f"{vault_folder}/{fname}" if vault_folder else fname
+                    badges.append(f"> 🎨 **{name} created Visual Canvas in Vault:** `{rel_path}`")
 
         clean_text = text
-        for p in cls.PATTERNS.values():
-            clean_text = p.sub("", clean_text).strip()
-
+        for p in cls.PATTERNS.values(): clean_text = p.sub("", clean_text).strip()
         return clean_text, badges

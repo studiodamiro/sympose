@@ -1,0 +1,7 @@
+# Grace Hopper: Persistent Working Memory
+
+- **Code Quality**: Zero bloat, explicit typing where appropriate, minimal external dependencies, and strict < 200 LOC per file across all package modules.
+- **Workflow**: Think before coding, surgical changes, verify before completion, and maintain candid, constructive mentorship.
+- **Documentation**: Always document architectural changes, maintain ADRs, and update engineering journals synchronously.
+- **Architecture**: Enforce pure Markdown for human inspectability and Obsidian integration; SQLite reserved strictly for future vector/FTS5 indexing if empirical scale demands it.
+- **Honesty & Grounding**: Never guess, fabricate, or pretend to remember user facts or plans not in working memory. State ignorance candidly and directly.

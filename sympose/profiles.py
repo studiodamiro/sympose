@@ -2,9 +2,7 @@
 Dynamic Profile, Soul & Tiered Memory Manager for Sympose.
 """
 
-import os
-import sys
-import glob
+import os, sys, glob
 from typing import Dict, List, Optional, Any
 import yaml
 
@@ -20,16 +18,22 @@ class ProfileManager:
         self.reload_profiles()
 
     def bootstrap_missing_artifacts(self, profile: Dict[str, Any]) -> None:
-        """Generates soul, memory, universal user card, and shared team memory if absent."""
+        """Generates soul, memory, universal user card, and shared team memory from .example templates if absent."""
         handle, name, title = profile.get("handle", "agent").lower(), profile.get("name", "Agent"), profile.get("title", "Specialist Advisor")
         os.makedirs(self.profiles_dir, exist_ok=True)
-        for path, content in [
-            (os.path.join(self.profiles_dir, "user_profile.md"), "# Universal User Profile\n\n- **Primary User**: damiro\n- **Environment**: macOS\n"),
+        for path, default_content in [
+            (os.path.join(self.profiles_dir, "user_profile.md"), "# Universal User Profile\n\n- **Primary User**: user\n- **Environment**: macOS / Linux\n"),
             (os.path.join(self.profiles_dir, "_shared_memory.md"), "# Shared Team Working Memory\n\n- **Active Project**: Sympose Agent Hub\n"),
             (profile.get("soul_file") or os.path.join(self.profiles_dir, f"{handle}_soul.md"), f"# {name}: Core Directives\n\nYou are **{name}**, the {title} in Sympose.\n"),
             (profile.get("memory_file") or os.path.join(self.profiles_dir, f"{handle}_memory.md"), f"# {name}: Working Memory\n\n- **Role**: {title}\n")
         ]:
             if not os.path.exists(path):
+                content = default_content
+                ex_path = f"{path}.example"
+                if os.path.exists(ex_path):
+                    try:
+                        with open(ex_path, "r", encoding="utf-8") as ef: content = ef.read()
+                    except Exception: pass
                 try:
                     with open(path, "w", encoding="utf-8") as f: f.write(content)
                 except Exception: pass

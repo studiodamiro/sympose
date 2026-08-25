@@ -47,6 +47,27 @@ class NativeTools:
                 },
             },
         },
+        {
+            "type": "function",
+            "function": {
+                "name": "web_search",
+                "description": "Search the live internet for articles, documentation, news, and technical questions ($0 / zero API key required).",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "query": {
+                            "type": "string",
+                            "description": "The search keywords or question.",
+                        },
+                        "max_results": {
+                            "type": "integer",
+                            "description": "Number of results (default 5).",
+                        }
+                    },
+                    "required": ["query"],
+                },
+            },
+        },
     ]
 
     @classmethod
@@ -122,5 +143,20 @@ class NativeTools:
                     return True, f.read()
             except Exception as e:
                 return False, f"Error reading `{raw_path}`: {e}"
+
+        elif tool_name == "web_search":
+            query = args.get("query", "").strip()
+            max_results = int(args.get("max_results", 5))
+            if not query:
+                return False, "Search query is required."
+            try:
+                from ddgs import DDGS
+                results = list(DDGS().text(query, max_results=max_results))
+                if not results:
+                    return True, "No search results found."
+                formatted = [f"- **{r.get('title', 'Result')}**: {r.get('body', '')} (URL: {r.get('href', '')})" for r in results]
+                return True, "\n".join(formatted)
+            except Exception as e:
+                return False, f"Web search error: {e}"
 
         return False, f"Unknown native tool: `{tool_name}`"

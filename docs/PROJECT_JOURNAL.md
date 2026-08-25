@@ -92,6 +92,13 @@ This master document serves as the top-level index and Table of Contents.
   * Autonomic tag `[CREATE_PERSONA: <handle> | <yaml>]` for instant declarative agent onboarding.
   * Autonomic tag `[DELETE_PERSONA: <handle>]` and slash command `/delete @<handle>` / `/retire @<handle>` implementing defensive soft-delete archiving to `profiles/_archived/<handle>/` while preserving Obsidian notes.
   * Dynamic `reload_profiles()` on `/switch` and `list_personas()`.
+* **ADR-017 (2026-08-25): Zero-Dependency CLI Tab Auto-Completion & Cross-Session History:**
+  * Implemented standard library `readline` completer engine ([`sympose/completer.py`](file:///Users/damiro/Development/sympose/sympose/completer.py)) with zero external package dependencies.
+  * Dynamic context-aware completion for `/` commands, `@` personas, `/worker` skills/MCP tools, `/save` targets, and `/config set` parameters.
+  * Persistent command history saved to `~/.sympose_history`.
+* **ADR-018 (2026-08-25): Numbered Persona Switching & Expanded Milestone Extraction Heuristics:**
+  * Numbered index column (`#`) in the persona selection table supporting single-keystroke numeric switching (`1`, `2`, `3`) or direct CLI command `/switch 2`.
+  * Expanded `HeuristicGatedExtractor` triggers in [`sympose/memory.py`](file:///Users/damiro/Development/sympose/sympose/memory.py) covering personal milestones, birthdays, anniversaries, family members, and relationships without user prompts.
 
 ---
 

@@ -109,6 +109,7 @@ class HeuristicGatedExtractor:
         r"\b(we\s+decided|we\s+are\s+using|we\s+switched|let\'?s\s+use|our\s+stack|our\s+database)\b",
         r"\b(on\s+(?:january|february|march|april|may|june|july|august|september|october|november|december))\b",
         r"\b(my\s+name\s+is|my\s+favorite|my\s+timezone|my\s+role|i\s+live\s+in)\b",
+        r"\b(birthday|anniversary|born|married|wife|husband|kid|kids|son|daughter|family|partner|friend)\b",
         r"\b(rule|constraint|never\s+use|always\s+use|deploy\s+to|secret|credential)\b",
     ]
 

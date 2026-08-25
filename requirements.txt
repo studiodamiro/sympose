@@ -4,3 +4,4 @@ rich>=13.0.0
 python-dotenv>=1.0.0
 slack-bolt>=1.18.0
 slack-sdk>=3.21.0
+ddgs>=9.0.0

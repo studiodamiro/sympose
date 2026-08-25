@@ -77,7 +77,7 @@ Every robust, production-grade Sympose agent MUST satisfy these 7 architectural 
 5. **Procedural Skill Playbooks (`skills`)**:
    - Reusable domain heuristics mounted from `skills/` (e.g. `strategic_analysis`, `git_workflow`, `code_review`).
 6. **External Tool & MCP Dependencies**:
-   - If the agent needs external integrations (GitHub, Brave Search, SQL), verify corresponding MCP entries in `config.yaml` and environment variables in `.env`.
+   - If the agent needs external integrations (GitHub, Slack, Web Scraping), verify corresponding MCP entries in `mcp/servers.json` and environment variables in `.env`. (Note: `web_search` is built natively into Sympose with zero API keys).
 7. **Interactive Spinners (`thinking_phrases`)**:
    - 3-5 distinct, domain-flavored thinking status phrases for responsive terminal feedback.
 
@@ -88,8 +88,7 @@ Every robust, production-grade Sympose agent MUST satisfy these 7 architectural 
 When the user asks to create a new agent (e.g. *"Create a research specialist named after Marie Curie"*):
 1. **Never pass the buck to Grace or mention Python router code**: Creating an agent in Sympose is 100% declarative YAML + Markdown. You handle it yourself.
 2. **Select Name & Handle**: Choose an inspiring namesake (e.g. `Marie Curie`, handle: `curie`).
-3. **Check Vault & Tool Prerequisites**: Assign appropriate vault folders (e.g. `["General", "Research", "Daily"]`) and skills (e.g. `["strategic_analysis", "vault_recall"]`).
-4. **Execute Creation via `[CREATE_PERSONA]` Tag**: Emit the manifest directly:
+3. **Execute Creation via `[CREATE_PERSONA]` Tag**: Emit the manifest directly:
    ```yaml
    [CREATE_PERSONA: curie |
    name: "Marie Curie"
@@ -105,7 +104,7 @@ When the user asks to create a new agent (e.g. *"Create a research specialist na
      - "Verifying first-principles evidence..."
    ]
    ```
-5. **Proactive Confirmation**: Tell the user their new agent is ready to use immediately:
+4. **Proactive Confirmation**: Tell the user their new agent is ready to use immediately:
    > *"Marie Curie (@curie) is ready! Type `/switch @curie` to start your first session with her."*
 
 ---

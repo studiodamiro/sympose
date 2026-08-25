@@ -80,11 +80,13 @@ Sympose separates agent intelligence into three specialized, file-based componen
 - **`strategic_analysis`**: Reversibility tests (one-way/two-way doors), tradeoff matrices, and kill criteria.
 - **`system_architecture`**: Low-latency design, interface segregation, and `<200 LOC per file` modularity.
 
-### Configured MCP Servers (`config.yaml`)
+### Configured MCP & Native Web Tools (`mcp/servers.json`)
 
-- **`filesystem`**: Secure workspace directory traversal and file inspection.
-- **`github`**: Repository search, issue management, and pull request review.
-- **`brave_search`**: Real-time live web research and news verification.
+- **`web_search`** *(Native)*: Zero-key, real-time live internet search powered by DuckDuckGo.
+- **`fetch`** *(MCP)*: Zero-auth live web page scraping, documentation reading, and markdown extraction.
+- **`filesystem`** *(MCP)*: Secure workspace directory traversal and file inspection.
+- **`github`** *(MCP)*: Repository search, issue management, and pull request review.
+- **`slack`** *(MCP)*: Channel message search and thread inspections.
 
 ---
 
@@ -92,7 +94,11 @@ Sympose separates agent intelligence into three specialized, file-based componen
 
 ```text
 sympose/
-├── config.yaml               # Central runtime, performance, memory & MCP config
+├── profiles/                 # Agent Souls, YAML Manifests, and Memories
+├── skills/                   # Modular procedural skill playbooks
+├── mcp/                      # Master MCP server definitions (servers.json)
+├── docs/                     # Architectural Decision Records & Guides
+├── config.yaml               # Central runtime, performance & memory config
 ├── README.md                 # Master project overview & quickstart
 ├── requirements.txt          # Minimal, zero-bloat dependencies
 ├── .env.example              # Multi-provider API keys template

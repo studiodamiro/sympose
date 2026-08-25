@@ -204,7 +204,8 @@ chmod +x chat.sh
 
 ## 📜 Documentation & ADRs
 
-- **[Master Journal & ADR Index (`docs/PROJECT_JOURNAL.md`)](docs/PROJECT_JOURNAL.md)**: Architectural Decision Records from ADR-001 through ADR-027.
+- **[Master Journal & ADR Index (`docs/PROJECT_JOURNAL.md`)](docs/PROJECT_JOURNAL.md)**: Architectural Decision Records from ADR-001 through ADR-028.
+- **[Slack Socket Mode Setup Guide (`docs/SLACK_SETUP_GUIDE.md`)](docs/SLACK_SETUP_GUIDE.md)**: Step-by-step 1-click App Manifest and multi-agent setup guide for Slack.
 - **[Latency & Performance Tuning Guide (`docs/LATENCY_TUNING_GUIDE.md`)](docs/LATENCY_TUNING_GUIDE.md)**: Complete parameter catalog governing sub-second SLA.
 - **[Autonomous Agent Memory Architecture Standard (`docs/MEMORY_ARCHITECTURE_STANDARD.md`)](docs/MEMORY_ARCHITECTURE_STANDARD.md)**: Triad memory management, shadow extraction, and anti-hallucination grounding.
 - **[Wiki Documentation Hub (`docs/wiki/index.md`)](docs/wiki/index.md)**: Comprehensive guide to skills, MCP workers, and profile systems.

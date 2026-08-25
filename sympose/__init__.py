@@ -11,6 +11,7 @@ from sympose.vault import VaultManager
 from sympose.actions import ActionProcessor
 from sympose.engine import PersonaEngine
 from sympose.cli import TerminalInterface
+from sympose.slack import SlackDaemon, MultiAgentSlackRunner
 
 __all__ = [
     "config_manager",
@@ -20,4 +21,6 @@ __all__ = [
     "ActionProcessor",
     "PersonaEngine",
     "TerminalInterface",
+    "SlackDaemon",
+    "MultiAgentSlackRunner",
 ]

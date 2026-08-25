@@ -32,6 +32,7 @@ This master document serves as the top-level index and Table of Contents.
 | **2026-08-25** | Autonomous Memory Compactor & Zero-Maintenance Mandate (ADR-020) | Complete | [`2026-08-25_automated_memory_compactor.md`](journal/2026-08-25_automated_memory_compactor.md) |
 | **2026-08-25** | Hierarchical Daily Notes, Vault Agnosticism & Local-First Recall (ADR-021, ADR-022, ADR-023) | Complete | [`2026-08-25_vault_recall_and_hierarchical_daily_notes.md`](journal/2026-08-25_vault_recall_and_hierarchical_daily_notes.md) |
 | **2026-08-25** | Ground-Truth Sovereignty Axiom & Config-Driven Spatial Compass (ADR-024, ADR-025, ADR-026, ADR-027) | Complete | [`2026-08-25_ground_truth_sovereignty_and_spatial_compass.md`](journal/2026-08-25_ground_truth_sovereignty_and_spatial_compass.md) |
+| **2026-08-25** | Slack Socket Mode Integration & Thread-Bound Routing (ADR-028) | Complete | [`2026-08-25_slack_socket_mode_integration.md`](journal/2026-08-25_slack_socket_mode_integration.md) |
 
 ---
 
@@ -126,6 +127,10 @@ This master document serves as the top-level index and Table of Contents.
 * **[ADR-027 (2026-08-25): Config-Driven Spatial Compass & Complete Vault Agnosticism](journal/2026-08-25_ground_truth_sovereignty_and_spatial_compass.md#adr-027-config-driven-spatial-compass--complete-vault-agnosticism):**
   * Zero hardcoded folder paths in codebase or skills. Centralized path configuration in `.env` and `config.yaml`.
   * Multi-dimensional dynamic discovery supporting Flat, PARA, Johnny Decimal, and Zettelkasten structures.
+* **[ADR-028 (2026-08-25): Slack Socket Mode Integration & Thread Context Isolation](journal/2026-08-25_slack_socket_mode_integration.md#adr-028-slack-socket-mode-integration--thread-context-isolation):**
+  * Zero inbound ports using `slack-bolt` and `SocketModeHandler`.
+  * Thread-bound multi-agent session isolation preventing conversational crosstalk across channels.
+  * Intelligent `@handle` mention parsing, automatic persona routing, and instant reaction SLA feedback.
 
 ---
 

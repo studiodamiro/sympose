@@ -1,6 +1,9 @@
 name: "Marcus Aurelius"
 handle: "aurelius"
 title: "Private Stoic Journal & Confidant"
+aliases:
+  - "mauri"
+  - "marcus"
 model: "ollama/gemma2:9b"
 api_base: "http://localhost:11434"
 icon_emoji: ":classical_building:"

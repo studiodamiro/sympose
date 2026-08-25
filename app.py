@@ -10,6 +10,7 @@ from sympose.config import ConfigManager
 from sympose.profiles import ProfileManager
 from sympose.engine import PersonaEngine
 from sympose.cli import TerminalInterface
+from sympose.slack import MultiAgentSlackRunner
 
 
 def main():
@@ -28,9 +29,7 @@ def main():
     default_persona = args.persona or config.get("runtime.default_persona", "samantha")
 
     if args.slack:
-        print("⚡ Starting Slack Socket Mode Daemon...")
-        print("⚠️ Slack Daemon module will initialize in Phase 2.")
-        sys.exit(0)
+        MultiAgentSlackRunner.run_all(engine, persona_override=args.persona)
     else:
         cli = TerminalInterface(engine)
         cli.run(initial_handle=default_persona)

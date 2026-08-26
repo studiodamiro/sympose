@@ -3,7 +3,7 @@
 Multi-agent concurrent router, thread context fetcher & event dispatcher.
 """
 
-import os, re, sys, logging, threading
+import os, re, sys, time, logging, threading
 from typing import Dict, List, Tuple, Any, Optional, Set
 
 try: from slack_bolt import App; from slack_bolt.adapter.socket_mode import SocketModeHandler
@@ -26,7 +26,7 @@ class SlackDaemon:
         p = f"SLACK_{self.default_persona.upper()}_"
         self.bot_token = (bot_token or os.getenv(f"{p}BOT_TOKEN") or os.getenv("SLACK_BOT_TOKEN", "")).strip()
         self.app_token = (app_token or os.getenv(f"{p}APP_TOKEN") or os.getenv("SLACK_APP_TOKEN", "")).strip()
-        self.thread_personas, self.thread_histories, self.app, self.handler, self.bot_user_id, self.bot_id = {}, {}, None, None, "", ""
+        self.thread_personas, self.thread_histories, self.app, self.handler, self.bot_user_id, self.bot_id, self.boot_ts = {}, {}, None, None, "", "", time.time()
         u_card = self.pm._read_file_safe(os.path.join(getattr(self.pm, "profiles_dir", "profiles"), "user_profile.md"))
         m = re.search(r"(?:Primary\s+User|User|Name):\s*([a-zA-Z0-9_\-]+)", u_card, re.I)
         self.primary_user = m.group(1).strip() if m else (os.getenv("USER") or "User")
@@ -101,7 +101,7 @@ class SlackDaemon:
 
     def _process_message(self, client: Any, event: Dict[str, Any], say: Any) -> None:
         channel_id, msg_ts, raw_text = event.get("channel", ""), event.get("ts", ""), event.get("text", "")
-        if not raw_text.strip(): return
+        if not raw_text.strip() or float(msg_ts or 0) < (getattr(self, "boot_ts", 0) - 5.0): return
         sender = event.get("user") or ""
         sender_bot = event.get("bot_id") or ""
         if (getattr(self, "bot_user_id", "") and sender == self.bot_user_id) or (getattr(self, "bot_id", "") and sender_bot == self.bot_id): return

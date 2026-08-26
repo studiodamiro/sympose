@@ -3,6 +3,7 @@ performance:
   local_request_timeout: 60.0
   max_context_turns: 15
   max_worker_tool_turns: 8
+  slack_thread_context_limit: 12
   drop_unsupported_params: true
   stream: true
 session:

@@ -92,7 +92,7 @@ class SlackDaemon:
         lines: List[str] = []
         if thread_ts:
             try:
-                res = client.conversations_replies(channel=channel_id, ts=thread_ts, limit=50)
+                res = client.conversations_replies(channel=channel_id, ts=thread_ts, limit=int(self.config.get("performance.slack_thread_context_limit", 12)))
                 lines = [f"- {self._resolve_user_name(client, m.get('user') or m.get('username') or '')}: {self._clean_mentions(client, m.get('text', '').strip())}" for m in res.get("messages", []) if m.get("ts") != current_ts and m.get("text", "").strip()]
                 if lines: return "### Slack Thread Context (Preceding Messages in this Thread):\n" + "\n".join(lines)
             except Exception as e: logging.debug(f"Thread context: {e}")

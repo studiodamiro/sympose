@@ -55,7 +55,14 @@ class SlackDaemon:
         return self.primary_user
 
     def _clean_mentions(self, client: Any, text: str) -> str: return re.sub(r"<@([A-Z0-9]+)>", lambda m: f"@{self._resolve_user_name(client, m.group(1))}", text)
-    def _format_outgoing_mentions(self, text: str) -> str: return re.sub(r"@([a-zA-Z0-9_\-]+)", lambda m: f"<@{self.name_to_id[m.group(1).lower()]}>" if m.group(1).lower() in self.name_to_id else m.group(0), text)
+    def _format_outgoing_mentions(self, text: str) -> str:
+        def replace_tag(m):
+            tag = m.group(1).lower()
+            if tag in self.name_to_id: return f"<@{self.name_to_id[tag]}>"
+            if tag in ("user", "human", "primary_user") and self.primary_user.lower() in self.name_to_id:
+                return f"<@{self.name_to_id[self.primary_user.lower()]}>"
+            return m.group(0)
+        return re.sub(r"@([a-zA-Z0-9_\-]+)", replace_tag, text)
 
     def _resolve_persona_and_prompt(self, text: str, thread_id: str) -> Tuple[str, str]:
         cleaned, personas = re.sub(r"<@[A-Z0-9]+>", "", text).strip(), self.pm.list_personas()

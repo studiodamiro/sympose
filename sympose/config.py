@@ -170,4 +170,8 @@ def convert_md_to_slack_mrkdwn(text: str) -> str:
     text = re.sub(r"^#{1,6}\s+(.+)$", r"*\1*", text, flags=re.MULTILINE)
     text = re.sub(r"\*\*(.*?)\*\*", r"*\1*", text)
     text = re.sub(r"```[a-zA-Z]+\n", "```\n", text)
+    # Strip backticks around #channel names so Slack renders native clickable channel links
+    text = re.sub(r"`(#[\w\-]+)`", r"\1", text)
+    # Strip backticks around @mentions
+    text = re.sub(r"`(@[\w\-]+)`", r"\1", text)
     return text

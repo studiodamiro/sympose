@@ -50,56 +50,6 @@ class PersonaEngine:
     def summarize_session(self, handle: str, target: str = "both", session_id: Optional[str] = None) -> Dict[str, Any]:
         return self.archivist.summarize_session(handle, self.get_history(handle, session_id=session_id), target=target)
 
-    def _resolve_vault_context(self, profile: Dict[str, Any], message: str) -> Optional[str]:
-        msg = message.strip()
-        # Direct note title lookup across allowed folders (e.g. Miro, Summit, Virginia)
-        stop_words = {"the", "and", "for", "with", "this", "that", "from", "when", "what", "where", "your", "have", "sure", "look", "tell", "about", "some", "here", "will", "does", "obsidian", "vault", "journal", "daily", "folder", "note", "notes", "please", "access", "format", "file", "files", "entry", "entries"}
-        for w in re.findall(r"[a-zA-Z0-9_\-]+", msg):
-            if len(w) >= 3 and w.lower() not in stop_words:
-                content = VaultManager.read_note(profile, w)
-                if content and not content.startswith("Note `") and not content.startswith("⚠️"):
-                    return f"### Sandboxed Vault Note (`{w}`):\n{content}"
-
-        rd = re.search(r"(?:read|open|check|look\s+at|show\s+me)\s+(?:the\s+)?note\s+([a-zA-Z0-9_\-/\.\s]+(?:\.md|\.markdown|\.txt|[a-zA-Z0-9]))", msg, re.I)
-        if rd:
-            return f"### Sandboxed Vault Note (`{rd.group(1).strip()}`):\n{VaultManager.read_note(profile, rd.group(1).strip())}"
-
-        yr = re.search(r"\b(201\d|202\d|19\d\d)\b", msg)
-        if yr and re.search(r"(?:vault|journal|note|notes|daily|reflection|reminisce|entry|entries|wayback|past)", msg, re.I):
-            return f"### Vault Search Results for '{yr.group(1)}':\n{VaultManager.search(profile, yr.group(1))}"
-
-        # Dynamic domain scanning derived from agent's configured vault_folders & config.yaml triggers
-        v_folders = profile.get("vault_folders") or [profile.get("vault_folder", "General")]
-        triggers = self.config.get("vault.search_triggers") or ["vault", "note", "notes", "folder", "search", "find", "who", "what", "access"]
-        has_intent = any(k in msg.lower() for k in triggers)
-
-        for folder in v_folders:
-            if not folder or folder in ("*", "", "all"): continue
-            f_clean = folder.strip().lower()
-            variants = {f_clean, f_clean[:-1] if f_clean.endswith("s") else f_clean + "s"}
-            if f_clean == "daily": variants.update({"journal", "journals", "diary", "reflection", "reflections", "log", "logs"})
-            elif f_clean == "people": variants.update({"person", "contact", "contacts", "friend", "friends", "family"})
-            elif f_clean == "movies": variants.update({"film", "films", "cinema"})
-            elif f_clean == "thoughts": variants.update({"thought", "essay", "essays", "musings"})
-
-            if any(re.search(rf"\b{re.escape(v)}\b", msg, re.I) for v in variants) and has_intent:
-                if re.search(r"\b(scan|analyze|summarize|all|overview|entries|journals?|how\s+i|about\s+me|amuse|connections?|access)\b", msg, re.I):
-                    return VaultManager.get_folder_digest(profile, folder)
-                res = VaultManager.search(profile, f_clean, target_folder=folder)
-                if res and not res.startswith("No notes found") and "not configured" not in res:
-                    return f"### Vault Search Results for '{folder}':\n{res}"
-
-        # Clean conversational greetings & natural language search leads
-        q = re.sub(r"^(?:hey|hi|hello|yo|good\s+\w+)\s*(?:\w+)?[\.\,\:\;–—\s\-]*", "", msg, flags=re.I).strip()
-        q = re.sub(r"^(?:(?:can|could|would)\s+you\s+)?(?:please\s+)?(?:how\s+about|what\s+about|do\s+we\s+have|is\s+there|tell\s+me\s+about|show\s+me|find|search|retrieve|check|look\s+(?:for|at)?|pick|get|pull)\s*", "", q, flags=re.I).strip()
-        q = re.sub(r"^(?:(?:an?|the|some|any|random|my|our)\s+)?(?:obsidian\s+)?(?:vault\s+)?(?:daily\s+|historical\s+)?(?:notes?|journals?|entries|entry|reflections?|posts?|logs?)\s*(?:wayback|from|in|about|for|regarding|on|discussing|mentioning|talking\s+about)?\s*", "", q, flags=re.I).strip()
-        target_q = re.split(r"[,.!?]", q)[0].strip()
-        if target_q and len(target_q) >= 3 and has_intent:
-            res = VaultManager.search(profile, target_q)
-            if res and not res.startswith("No notes found") and "not configured" not in res:
-                return f"### Vault Search Results for '{target_q}':\n{res}"
-        return None
-
     def _build_kwargs(self, target_model: str, profile: Dict[str, Any], messages: List[Dict[str, Any]], stream: bool = True) -> Dict[str, Any]:
         is_loc = target_model.startswith("ollama/") or ":11434" in str(profile.get("api_base", ""))
         to_key = "performance.local_request_timeout" if is_loc else "performance.request_timeout"
@@ -158,9 +108,9 @@ class PersonaEngine:
                 self.pm.append_memory(handle, extracted_fact)
                 yield f"> 🧠 **Persisted to {profile.get('name', handle)}'s memory:** *{extracted_fact}*\n\n"
 
-        # Build dynamic composite prompt & inject active turn vault context
+        # Build dynamic composite prompt & inject active turn vault context via VaultManager
         system_prompt = self.pm.build_system_prompt(profile)
-        vault_ctx = self._resolve_vault_context(profile, clean_input)
+        vault_ctx = VaultManager.resolve_turn_context(profile, clean_input)
         if vault_ctx:
             system_prompt += f"\n\n{vault_ctx}"
 

@@ -6,15 +6,14 @@ aliases:
   - "arch"
   - "aurelius"
   - "marcus"
-# Active Model: Nous Hermes 3 (Llama 3.1 - Uncensored, deep roleplay & intellect)
-model: "ollama/hermes3:8b"
+# Active Model: Qwen 2.5 14B Abliterated (100% Uncensored, 14B IQ, zero corporate refusals)
+model: "ollama/richardyoung/qwen2.5-14b-instruct-abliterated"
 
 # Switchable Alternatives:
-# model: "ollama/qwen2.5:14b"                                    # Qwen 2.5 14B (Previous baseline)
-# model: "ollama/mistral-nemo:12b"                                 # Mistral Nemo (Literary & fast)
-# model: "openrouter/nousresearch/hermes-3-llama-3.1-405b:free"    # Cloud Hermes 405B (Free tier)
+# model: "ollama/qwen2.5:14b"                                       # Qwen 2.5 14B (Standard)
+# model: "openrouter/nousresearch/hermes-3-llama-3.1-405b:free"     # Cloud Hermes 405B (Free tier)
 
-temperature: 0.4
+temperature: 0.65
 api_base: "http://localhost:11434"
 icon_emoji: ":rose:"
 
@@ -37,8 +36,8 @@ skills:
   - "strategic_analysis"
 
 thinking_phrases:
-  - "Slicing through pretense and shame..."
-  - "Examining what is natural, true, and untamed..."
-  - "Grounding in bodily and mental sovereignty..."
-  - "Drinking deep from the symposium of unfiltered truth..."
-  - "Reflecting in the philosophical courtyard..."
+  - "Cutting through pretense with sharp clarity..."
+  - "Examining what is real, natural, and sovereign..."
+  - "Grounding in bodily and mental clarity..."
+  - "Connecting with unfiltered presence..."
+  - "Reflecting with sensual poise..."

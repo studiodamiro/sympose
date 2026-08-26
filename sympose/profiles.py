@@ -76,15 +76,16 @@ class ProfileManager:
         return ""
 
     def build_system_prompt(self, profile: Dict[str, Any]) -> str:
-        prompt_parts = []
-        soul_txt = self._read_file_safe(profile.get("soul_file"))
-        if soul_txt:
-            prompt_parts.append(soul_txt)
-
-        # 1. Universal User Profile (Read by ALL agents)
+        handle, name = profile.get("handle", "agent"), profile.get("name", profile.get("handle", "agent"))
         user_card = self._read_file_safe(os.path.join(self.profiles_dir, "user_profile.md"))
-        if user_card:
-            prompt_parts.append(f"### Core User Profile & Identity:\n{user_card}")
+        m = re.search(r"(?:Primary\s+User|User|Name):\s*([a-zA-Z0-9_\-]+)", user_card, re.I)
+        primary_user = m.group(1).strip() if m else "User"
+
+        prompt_parts = [f"### Persona Identity & Interlocutor Anchor:\nYou are @{handle} ({name}). You are conversing directly with {primary_user}. You are @{handle}; NEVER call {primary_user} '{name}' or '@{handle}'."]
+        soul_txt = self._read_file_safe(profile.get("soul_file"))
+        if soul_txt: prompt_parts.append(soul_txt)
+
+        if user_card: prompt_parts.append(f"### Core User Profile & Identity:\n{user_card}")
 
         # 2. Shared Team Memory (Read only by agents with share_memory: true)
         if profile.get("share_memory", False):

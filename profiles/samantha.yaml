@@ -16,6 +16,7 @@ vault_folders:
   - "Code"
   - "Movies"
   - "Attachments"
+  - "Templates"
 
 soul_file: "profiles/samantha_soul.md"
 memory_file: "profiles/samantha_memory.md"
@@ -28,6 +29,8 @@ skills:
   - "strategic_analysis"
   - "discussion_moderation"
   - "vault_recall"
+  - "vault_write"
+  - "web_search"
 
 thinking_phrases:
   - "Connecting high-level dots..."

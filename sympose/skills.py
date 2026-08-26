@@ -138,6 +138,16 @@ class SkillManager:
                 return skill
             if clean in re.sub(r"[_\-\s]", "", skill.title.lower()) or re.sub(r"[_\-\s]", "", s_name) in clean:
                 return skill
+
+        # Dynamic hot-reload check if new skill was added at runtime
+        self.reload_skills()
+        if raw in self.skills:
+            return self.skills[raw]
+        for s_name, skill in self.skills.items():
+            if re.sub(r"[_\-\s]", "", s_name) == clean:
+                return skill
+            if clean in re.sub(r"[_\-\s]", "", skill.title.lower()) or re.sub(r"[_\-\s]", "", s_name) in clean:
+                return skill
         return None
 
     def list_skills(self) -> List[Dict[str, Any]]:

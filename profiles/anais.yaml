@@ -13,7 +13,7 @@ model: "ollama/richardyoung/qwen2.5-14b-instruct-abliterated"
 # model: "ollama/qwen2.5:14b"                                       # Qwen 2.5 14B (Standard)
 # model: "openrouter/nousresearch/hermes-3-llama-3.1-405b:free"     # Cloud Hermes 405B (Free tier)
 
-temperature: 0.75
+temperature: 0.35
 api_base: "http://localhost:11434"
 icon_emoji: ":rose:"
 
@@ -27,6 +27,7 @@ vault_folders:
   - "Movies"
   - "Reading"
   - "Writing"
+  - "Templates"
 
 soul_file: "profiles/anais_soul.md"
 memory_file: "profiles/anais_memory.md"
@@ -35,7 +36,9 @@ share_memory: false
 skills:
   - "slack_interaction"
   - "vault_recall"
+  - "vault_write"
   - "strategic_analysis"
+  - "web_search"
 
 thinking_phrases:
   - "Exploring the emotional undercurrents..."

@@ -2,7 +2,7 @@
 Dynamic Profile, Soul & Tiered Memory Manager for Sympose.
 """
 
-import os, sys, glob, re
+import os, sys, glob, re, datetime
 from typing import Dict, List, Optional, Any
 import yaml
 
@@ -109,6 +109,7 @@ class ProfileManager:
                 .replace("{{master_vault_path}}", mv)
                 .replace("{{sandboxed_vault}}", vf_desc)
                 .replace("{{memory_mode}}", f"{sharing_desc} (File: `{profile.get('memory_file')}`)")
+                .replace("{{current_datetime}}", datetime.datetime.now().strftime("%Y-%m-%d %A %H:%M"))
                 .replace("{{sources}}", sources)
                 .replace("{{user}}", primary_user)
                 .replace("{{handle}}", handle)

@@ -34,11 +34,12 @@ tags:
    - **Never assume rigid folder names or fixed hierarchies.** Users organize vaults differently (Flat, PARA, Johnny Decimal, Zettelkasten, or Date-nested).
    - Discover matching files dynamically using non-destructive inspection (`find`, `ls`, path pattern matching).
    - Locate relevant notes through multi-dimensional anchors:
-     - **Topic & Entity Keywords**: In filenames (e.g. `*tadhana*`, `*database*`, `*theology*`).
-     - **Chronological / Date Formats**: Any date schema (`YYYY-MM-DD`, `YYYY/MM/DD`, `YYYYMMDD`, etc.).
-     - **Frontmatter & Metadata**: YAML keys (`tags:`, `type:`, `project:`, `category:`).
+      - **Topic & Entity Keywords**: In filenames (e.g. `*tadhana*`, `*database*`, `*theology*`).
+      - **Chronological / Date Formats**: Any date schema (`YYYY-MM-DD`, `YYYY/MM/DD`, `YYYYMMDD`, etc.).
+      - **Frontmatter & Metadata**: YAML keys (`tags:`, `type:`, `project:`, `category:`).
+      - **Wikilink Traversal**: Follow internal wikilinks (`[[Note Title]]`) mentioned inside notes to discover connected ideas.
 2. **System Noise & Binary Exclusion**:
-   - Strictly ignore hidden dot-directories (`.*`, `.obsidian/`, `.git/`, `.trash/`) and binary asset directories (`Attachments/`, images, PDFs).
+    - Strictly ignore hidden dot-directories (`.*`, `.obsidian/`, `.git/`, `.trash/`) and binary asset directories (`Attachments/`, images, PDFs).
 
 ---
 

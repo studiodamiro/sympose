@@ -109,8 +109,14 @@ class PersonaEngine:
                 yield f"> 🧠 **Persisted to {profile.get('name', handle)}'s memory:** *{extracted_fact}*\n\n"
 
         # Build dynamic composite prompt & inject active turn vault context via VaultManager
-        system_prompt = self.pm.build_system_prompt(profile)
+        h_key = self._get_history_key(handle, session_id)
         vault_ctx = VaultManager.resolve_turn_context(profile, clean_input)
+        if vault_ctx:
+            self.active_vault_ctx[h_key] = vault_ctx
+        elif h_key in self.active_vault_ctx and self.active_vault_ctx[h_key]:
+            vault_ctx = self.active_vault_ctx[h_key]
+
+        system_prompt = self.pm.build_system_prompt(profile)
         if vault_ctx:
             system_prompt += f"\n\n{vault_ctx}"
 
@@ -135,15 +141,15 @@ class PersonaEngine:
                     yield delta
 
             complete_text = "".join(full_reply)
-            clean_text, badges = ActionProcessor.execute_actions(self.pm, handle, complete_text)
-            has_worker = any("Sub-Agent Worker Report" in b for b in badges)
+            clean_text, badges = ActionProcessor.execute_actions(self.pm, handle, complete_text, user_prompt=clean_input)
+            has_worker = any("Sub-Agent Worker Report" in b or "Live Web Search Report" in b for b in badges)
             assistant_record = (clean_text + ("\n\n" + "\n".join(badges) if badges else "")).strip()
             if badges:
                 yield "\n\n" + "\n".join(badges)
 
             if has_worker:
                 yield "\n\n"
-                synth_msgs = list(active_messages) + [{"role": "assistant", "content": assistant_record}, {"role": "user", "content": "[System Directive: Synthesize the worker report above with findings and next steps.]"}]
+                synth_msgs = list(active_messages) + [{"role": "assistant", "content": assistant_record}, {"role": "user", "content": "[System Directive: Synthesize the live data / report above to provide the direct calculation and final answer to the user.]"}]
                 try:
                     synth_resp = litellm.completion(**self._build_kwargs(target_model, profile, synth_msgs, stream=True))
                     synth_reply = "".join([c.choices[0].delta.content or "" for c in synth_resp if c.choices[0].delta.content]).strip()

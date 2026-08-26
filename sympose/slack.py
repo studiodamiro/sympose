@@ -151,8 +151,7 @@ class SlackDaemon:
             chunks = [c for c in self.engine.chat_stream(handle, full_prompt, session_id=th_key) if c != "CLEARED_SESSION"]
             self.thread_histories[th_key] = self.engine.get_history(handle, session_id=th_key)
             raw_text = "".join(chunks).strip()
-            clean_text, badges = ActionProcessor.execute_actions(self.pm, handle, raw_text)
-            if badges: clean_text = (clean_text + "\n\n" + "\n".join(badges)).strip()
+            clean_text = ActionProcessor.strip_action_tags(raw_text)
             is_silent = not clean_text or clean_text.strip().lower() in ("(no response)", "no response", "(silence)", "...", "no response.")
             if not is_silent: say(text=self._format_outgoing_mentions(convert_md_to_slack_mrkdwn(clean_text)), thread_ts=thread_ts)
             try: client.reactions_remove(channel=channel_id, timestamp=msg_ts, name="eyes")

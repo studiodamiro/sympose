@@ -42,26 +42,46 @@ class VaultManager:
     def read_note(cls, profile: Dict[str, Any], note_name: str) -> str:
         mv, allowed_dirs = cls._get_master_vault(), cls.get_allowed_dirs(profile)
         if not mv or not allowed_dirs: return "⚠️ Master notes directory not configured or access denied."
-        if not note_name.endswith(".md"): note_name += ".md"
+        clean_name = note_name.strip().strip("\"'")
+        if not clean_name.endswith(".md"): clean_name += ".md"
 
-        direct_target = os.path.join(mv, note_name)
+        direct_target = os.path.join(mv, clean_name)
         for allowed in allowed_dirs:
             if is_safe_path(direct_target, allowed) and os.path.exists(direct_target):
                 try:
                     with open(direct_target, "r", encoding="utf-8", errors="ignore") as f:
                         return f.read().strip()
                 except Exception as e:
-                    return f"Error reading note `{note_name}`: {e}"
+                    return f"Error reading note `{clean_name}`: {e}"
 
         for allowed in allowed_dirs:
-            target = os.path.join(allowed, os.path.basename(note_name))
+            target = os.path.join(allowed, os.path.basename(clean_name))
             if is_safe_path(target, allowed) and os.path.exists(target):
                 try:
                     with open(target, "r", encoding="utf-8", errors="ignore") as f:
                         return f.read().strip()
                 except Exception as e:
-                    return f"Error reading note `{note_name}`: {e}"
-        return f"Note `{note_name}` not found in allowed vault folders."
+                    return f"Error reading note `{clean_name}`: {e}"
+
+        # Recursive case-insensitive / title lookup in allowed folders
+        stem_target = os.path.splitext(os.path.basename(clean_name))[0].lower()
+        raw_ignore = config_manager.get("vault.ignore_folders") or [".obsidian", ".git", "Attachments", ".trash"]
+        ignore_dirs = {str(d).lower().strip() for d in raw_ignore}
+        for allowed in allowed_dirs:
+            for root, dirs, files in os.walk(allowed):
+                dirs[:] = [d for d in dirs if d.lower() not in ignore_dirs and not d.startswith(".")]
+                for fn in files:
+                    if fn.endswith((".md", ".markdown", ".txt")):
+                        if os.path.splitext(fn)[0].lower() == stem_target:
+                            fp = os.path.join(root, fn)
+                            if is_safe_path(fp, allowed):
+                                try:
+                                    with open(fp, "r", encoding="utf-8", errors="ignore") as f:
+                                        return f.read().strip()
+                                except Exception as e:
+                                    return f"Error reading note `{clean_name}`: {e}"
+
+        return f"Note `{clean_name}` not found in allowed vault folders."
 
     @classmethod
     def get_folder_digest(cls, profile: Dict[str, Any], folder_name: str, max_files: int = 50) -> str:
@@ -143,7 +163,7 @@ class VaultManager:
                 with open(fp, "r", encoding="utf-8", errors="ignore") as f:
                     body = f.read().strip()
                 if body:
-                    payloads.append(f"### Real Sandboxed Note Payload (`{rel}`):\n{body[:2500]}")
+                    payloads.append(f"### Ground-Truth Sandboxed Vault Note (`{rel}` - Exact Content):\n{body[:2500]}")
             except Exception:
                 pass
         return "\n\n---\n\n".join(payloads)
@@ -181,36 +201,176 @@ class VaultManager:
         return "\n\n---\n\n".join(all_matches) if all_matches else f"No notes found matching `{query}` in allowed vault folders."
 
     @classmethod
+    def get_template_for_path(cls, mv: str, note_name: str) -> Optional[str]:
+        """Resolves the user's authentic Obsidian template from Templates/ folder if present."""
+        if not mv or not os.path.exists(os.path.join(mv, "Templates")):
+            return None
+
+        tmpl_dir = os.path.join(mv, "Templates")
+        norm = note_name.lower().replace("\\", "/")
+
+        mapping = {
+            "daily/": "Daily template.md",
+            "thoughts/": "Thoughts template.md",
+            "people/": "People template.md",
+            "movies/": "Movie template.md",
+            "quotes/": "Quote template.md",
+        }
+
+        matched_file = None
+        for prefix, tmpl_name in mapping.items():
+            if norm.startswith(prefix):
+                matched_file = os.path.join(tmpl_dir, tmpl_name)
+                break
+
+        if not matched_file or not os.path.exists(matched_file):
+            matched_file = os.path.join(tmpl_dir, "Note template.md")
+
+        if os.path.exists(matched_file):
+            try:
+                with open(matched_file, "r", encoding="utf-8") as f:
+                    return f.read()
+            except Exception:
+                pass
+        return None
+
+    @classmethod
     def write_note(cls, profile: Dict[str, Any], note_name: str, content: str) -> str:
         mv, allowed_dirs, primary_dir = cls._get_master_vault(), cls.get_allowed_dirs(profile), cls.get_primary_dir(profile)
         if not mv or not primary_dir: return "Warning: Master notes directory not configured or path denied."
-        if not note_name.endswith(".md"): note_name += ".md"
+        if not (note_name.endswith(".md") or note_name.endswith(".canvas")):
+            note_name += ".md"
         target_file = os.path.join(mv, note_name) if ("/" in note_name or "\\" in note_name) else os.path.join(primary_dir, note_name)
         if not any(is_safe_path(target_file, allowed) for allowed in allowed_dirs):
             return f"Security Error: Target path `{note_name}` is outside assigned sandbox."
 
         now = datetime.datetime.now()
         date_str, time_str, rel_display = now.strftime("%Y-%m-%d"), now.strftime("%Y-%m-%d %H:%M"), os.path.relpath(target_file, mv)
+        clean_content = content.strip()
+
         try:
             os.makedirs(os.path.dirname(target_file), exist_ok=True)
-            is_new = not os.path.exists(target_file)
-            with open(target_file, "a", encoding="utf-8") as f:
-                if is_new:
-                    f.write(f"---\nentry: {date_str}\ncreated: {time_str}\ntype: note\nproject: sympose\nauthor: {profile.get('name', 'sympose')}\n---\n\n# {os.path.splitext(os.path.basename(note_name))[0]}\n\n")
-                f.write(f"\n{content.strip()}\n")
+            # If model already provided YAML frontmatter, write clean content directly
+            if clean_content.startswith("---"):
+                final_content = clean_content + "\n"
+            else:
+                title_heading = os.path.splitext(os.path.basename(note_name))[0].replace("_", " ").title()
+                raw_tmpl = cls.get_template_for_path(mv, note_name)
+                if raw_tmpl and raw_tmpl.strip().startswith("---"):
+                    rendered_tmpl = (
+                        raw_tmpl.replace("{{date}}", date_str)
+                        .replace("{{time}}", time_str)
+                        .replace("{{title}}", title_heading)
+                        .replace("{{date:YYYY}}", now.strftime("%Y"))
+                    ).strip()
+                    final_content = f"{rendered_tmpl}\n\n# {title_heading}\n\n{clean_content}\n"
+                else:
+                    final_content = (
+                        f"---\n"
+                        f"title: {title_heading}\n"
+                        f"created: {date_str} {time_str}\n"
+                        f"tags: []\n"
+                        f"---\n\n"
+                        f"# {title_heading}\n\n"
+                        f"{clean_content}\n"
+                    )
+
+            with open(target_file, "w", encoding="utf-8") as f:
+                f.write(final_content)
             return f"Saved to note: `{rel_display}`"
         except Exception as e:
             return f"Error: Failed to write note: {e}"
 
     @classmethod
     def append_note(cls, profile: Dict[str, Any], note_name: str, content: str) -> str:
-        return cls.write_note(profile, note_name, content)
+        mv, allowed_dirs, primary_dir = cls._get_master_vault(), cls.get_allowed_dirs(profile), cls.get_primary_dir(profile)
+        if not mv or not primary_dir: return "Warning: Master notes directory not configured or path denied."
+        if not (note_name.endswith(".md") or note_name.endswith(".canvas")):
+            note_name += ".md"
+        target_file = os.path.join(mv, note_name) if ("/" in note_name or "\\" in note_name) else os.path.join(primary_dir, note_name)
+        if not any(is_safe_path(target_file, allowed) for allowed in allowed_dirs):
+            return f"Security Error: Target path `{note_name}` is outside assigned sandbox."
+
+        rel_display = os.path.relpath(target_file, mv)
+        try:
+            os.makedirs(os.path.dirname(target_file), exist_ok=True)
+            if not os.path.exists(target_file):
+                return cls.write_note(profile, note_name, content)
+
+            with open(target_file, "a", encoding="utf-8") as f:
+                f.write(f"\n{content.strip()}\n")
+            return f"Appended to note: `{rel_display}`"
+        except Exception as e:
+            return f"Error: Failed to append note: {e}"
+
+    @classmethod
+    def _sync_frontmatter_tags(cls, file_path: str, new_tags: List[str]) -> None:
+        """Dynamically merges new tags into the file's YAML frontmatter block."""
+        if not os.path.exists(file_path) or not new_tags:
+            return
+        try:
+            with open(file_path, "r", encoding="utf-8") as f:
+                doc = f.read()
+
+            m = re.match(r"^---\s*\n([\s\S]*?)\n---\s*\n", doc)
+            if not m:
+                return
+            fm_body = m.group(1)
+
+            existing_tags = []
+            m_tags = re.search(r"tags:\s*\n((?:\s*-\s*[^\n]+\n*)*)", fm_body)
+            m_inline = re.search(r"tags:\s*\[(.*?)\]", fm_body)
+
+            if m_tags:
+                existing_tags = [re.sub(r"^\s*-\s*", "", l).strip() for l in m_tags.group(1).splitlines() if l.strip()]
+            elif m_inline:
+                existing_tags = [t.strip().strip("\"'") for t in m_inline.group(1).split(",") if t.strip()]
+
+            merged = list(dict.fromkeys(existing_tags + [t.lower() for t in new_tags if t]))
+            tags_yaml = "tags:\n" + "\n".join([f"  - {t}" for t in merged])
+
+            if m_tags:
+                new_fm = fm_body[:m_tags.start()] + tags_yaml + fm_body[m_tags.end():]
+            elif m_inline:
+                new_fm = re.sub(r"tags:\s*\[.*?\]", tags_yaml, fm_body)
+            elif "tags:" in fm_body:
+                new_fm = re.sub(r"tags:.*", tags_yaml, fm_body)
+            else:
+                new_fm = fm_body.strip() + "\n" + tags_yaml
+
+            updated_doc = f"---\n{new_fm.strip()}\n---\n" + doc[m.end():]
+            with open(file_path, "w", encoding="utf-8") as f:
+                f.write(updated_doc)
+        except Exception:
+            pass
 
     @classmethod
     def write_daily_note(cls, profile: Dict[str, Any], reflection: str) -> str:
         now = datetime.datetime.now()
         daily_fmt = os.getenv("DAILY_NOTES_FORMAT", "Daily/%Y/%m-%B/%Y-%m-%d.md")
-        return cls.write_note(profile, now.strftime(daily_fmt), f"\n### Reflection ({now.strftime('%H:%M')})\n{reflection}")
+        clean_ref = reflection.strip()
+
+        # Extract tags from reflection
+        found_tags = list(dict.fromkeys(re.findall(r"#([a-zA-Z0-9_\-]+)", clean_ref)))
+        if not found_tags:
+            found_tags = ["jour", "reflection"]
+        elif "jour" not in [t.lower() for t in found_tags]:
+            found_tags.insert(0, "jour")
+
+        # Guarantee that daily entries always possess Obsidian tags footer
+        if not re.search(r"(?:tags:|\b#jour\b)", clean_ref, re.I):
+            clean_ref = f"{clean_ref}\n\nTags: " + " ".join(f"#{t}" for t in found_tags)
+
+        note_rel_path = now.strftime(daily_fmt)
+        res = cls.append_note(profile, note_rel_path, f"\n### Reflection ({now.strftime('%H:%M')})\n{clean_ref}")
+
+        # Sync frontmatter tags at top of the file
+        mv = cls._get_master_vault()
+        if mv:
+            target_file = os.path.join(mv, note_rel_path)
+            cls._sync_frontmatter_tags(target_file, found_tags)
+
+        return res
 
     @classmethod
     def write_session_note(cls, profile: Dict[str, Any], summary_md: str, subfolder: str = "Sessions", session_title: Optional[str] = None) -> str:
@@ -233,25 +393,65 @@ class VaultManager:
         """Tier-0 Pre-Inference Heuristic Retrieval: inspects turn message and retrieves notes before LLM call."""
         msg = message.strip()
 
-        # 1. Direct note title lookup across allowed folders (e.g. Miro, Summit, Virginia)
-        stop_words = {"the", "and", "for", "with", "this", "that", "from", "when", "what", "where", "your", "have", "sure", "look", "tell", "about", "some", "here", "will", "does", "obsidian", "vault", "journal", "daily", "folder", "note", "notes", "please", "access", "format", "file", "files", "entry", "entries"}
+        # 1. Quoted note title lookup (e.g. "If I Stay", 'If I Stay')
+        for q_match in re.findall(r"[\"']([^\"']+)[\"']", msg):
+            q_clean = q_match.strip()
+            if len(q_clean) >= 2:
+                content = cls.read_note(profile, q_clean)
+                if content and not content.startswith("Note `") and not content.startswith("⚠️"):
+                    return f"### Ground-Truth Sandboxed Vault Note (`{q_clean}` - Exact Content):\n{content}"
+
+        # 2. Explicit note reading requests ("read note X", "look at note X")
+        rd = re.search(r"(?:read|open|check|look\s+at|show\s+me)\s+(?:the\s+)?note\s+([a-zA-Z0-9_\-/\.\s]+(?:\.md|\.markdown|\.txt|[a-zA-Z0-9]))", msg, re.I)
+        if rd:
+            note_target = rd.group(1).strip()
+            c = cls.read_note(profile, note_target)
+            if c and not c.startswith("Note `") and not c.startswith("⚠️"):
+                return f"### Ground-Truth Sandboxed Vault Note (`{note_target}` - Exact Content):\n{c}"
+
+        # 3. Known note title lookup across allowed vault folders (multi-word titles, e.g. "If I Stay")
+        mv, allowed_dirs = cls._get_master_vault(), cls.get_allowed_dirs(profile)
+        if mv and allowed_dirs:
+            stop_titles = {"daily", "note", "notes", "entry", "entries", "general", "today", "yesterday", "tomorrow", "summary", "log", "logs", "todo", "thoughts", "quotes", "people", "movies", "reading", "writing"}
+            msg_lower = msg.lower()
+            raw_ignore = config_manager.get("vault.ignore_folders") or [".obsidian", ".git", "Attachments", ".trash"]
+            ignore_dirs = {str(d).lower().strip() for d in raw_ignore}
+            for allowed in allowed_dirs:
+                if not os.path.exists(allowed): continue
+                for root, dirs, files in os.walk(allowed):
+                    dirs[:] = [d for d in dirs if not d.startswith(".") and d.lower() not in ignore_dirs]
+                    for fn in files:
+                        if fn.endswith((".md", ".markdown", ".txt")):
+                            stem = os.path.splitext(fn)[0]
+                            if len(stem) >= 3 and stem.lower() not in stop_titles:
+                                if re.search(rf"\b{re.escape(stem.lower())}\b", msg_lower):
+                                    fp = os.path.join(root, fn)
+                                    if is_safe_path(fp, allowed):
+                                        try:
+                                            with open(fp, "r", encoding="utf-8", errors="ignore") as f:
+                                                content = f.read().strip()
+                                            if content:
+                                                rel = os.path.relpath(fp, mv)
+                                                return f"### Ground-Truth Sandboxed Vault Note (`{rel}` - Exact Content):\n{content}"
+                                        except Exception:
+                                            pass
+
+        # 4. Direct single-word note title lookup (e.g. Miro, Summit, Virginia)
+        stop_words = {"the", "and", "for", "with", "this", "that", "from", "when", "what", "where", "your", "have", "sure", "look", "tell", "about", "some", "here", "will", "does", "obsidian", "vault", "journal", "daily", "folder", "note", "notes", "please", "access", "format", "file", "files", "entry", "entries", "what", "why", "who", "how", "did", "say", "said", "made", "pick", "picked", "choose", "chose", "movie", "film"}
         for w in re.findall(r"[a-zA-Z0-9_\-]+", msg):
             if len(w) >= 3 and w.lower() not in stop_words:
                 content = cls.read_note(profile, w)
                 if content and not content.startswith("Note `") and not content.startswith("⚠️"):
-                    return f"### Sandboxed Vault Note (`{w}`):\n{content}"
+                    return f"### Ground-Truth Sandboxed Vault Note (`{w}` - Exact Content):\n{content}"
 
-        # 2. Explicit note reading requests ("read note X")
-        rd = re.search(r"(?:read|open|check|look\s+at|show\s+me)\s+(?:the\s+)?note\s+([a-zA-Z0-9_\-/\.\s]+(?:\.md|\.markdown|\.txt|[a-zA-Z0-9]))", msg, re.I)
-        if rd:
-            return f"### Sandboxed Vault Note (`{rd.group(1).strip()}`):\n{cls.read_note(profile, rd.group(1).strip())}"
-
-        # 3. Year-based chronological queries ("2020 journal entry")
+        # 5. Year-based chronological queries ("2020 journal entry")
         yr = re.search(r"\b(201\d|202\d|19\d\d)\b", msg)
         if yr and re.search(r"(?:vault|journal|note|notes|daily|reflection|reminisce|entry|entries|wayback|past)", msg, re.I):
-            return f"### Vault Search Results for '{yr.group(1)}':\n{cls.search(profile, yr.group(1))}"
+            res = cls.search(profile, yr.group(1))
+            if res and not res.startswith("No notes found") and "not configured" not in res:
+                return f"### Ground-Truth Vault Search Results for '{yr.group(1)}':\n{res}"
 
-        # 4. Dynamic domain scanning derived from agent's configured vault_folders & config.yaml triggers
+        # 6. Dynamic domain scanning derived from agent's configured vault_folders & config.yaml triggers
         v_folders = profile.get("vault_folders") or [profile.get("vault_folder", "General")]
         triggers = config_manager.get("vault.search_triggers") or ["vault", "note", "notes", "folder", "search", "find", "who", "what", "access"]
         has_intent = any(k in msg.lower() for k in triggers)
@@ -274,9 +474,9 @@ class VaultManager:
                     return cls.get_folder_digest(profile, folder)
                 res = cls.search(profile, f_clean, target_folder=folder)
                 if res and not res.startswith("No notes found") and "not configured" not in res:
-                    return f"### Vault Search Results for '{folder}':\n{res}"
+                    return f"### Ground-Truth Vault Search Results for '{folder}':\n{res}"
 
-        # 5. Clean conversational greetings & natural language search leads
+        # 7. Clean conversational greetings & natural language search leads
         q = re.sub(r"^(?:hey|hi|hello|yo|good\s+\w+)\s*(?:\w+)?[\.\,\:\;–—\s\-]*", "", msg, flags=re.I).strip()
         q = re.sub(r"^(?:(?:can|could|would)\s+you\s+)?(?:please\s+)?(?:how\s+about|what\s+about|do\s+we\s+have|is\s+there|tell\s+me\s+about|show\s+me|find|search|retrieve|check|look\s+(?:for|at)?|pick|get|pull)\s*", "", q, flags=re.I).strip()
         q = re.sub(r"^(?:(?:an?|the|some|any|random|my|our)\s+)?(?:obsidian\s+)?(?:vault\s+)?(?:daily\s+|historical\s+)?(?:notes?|journals?|entries|entry|reflections?|posts?|logs?)\s*(?:wayback|from|in|about|for|regarding|on|discussing|mentioning|talking\s+about)?\s*", "", q, flags=re.I).strip()
@@ -284,6 +484,6 @@ class VaultManager:
         if target_q and len(target_q) >= 3 and has_intent:
             res = cls.search(profile, target_q)
             if res and not res.startswith("No notes found") and "not configured" not in res:
-                return f"### Vault Search Results for '{target_q}':\n{res}"
+                return f"### Ground-Truth Vault Search Results for '{target_q}':\n{res}"
 
         return None

@@ -151,9 +151,9 @@ class NativeTools:
                 return False, "Search query is required."
             try:
                 try:
-                    from duckduckgo_search import DDGS
-                except ImportError:
                     from ddgs import DDGS
+                except ImportError:
+                    from duckduckgo_search import DDGS
                 results = list(DDGS().text(query, max_results=max_results))
                 if not results:
                     return True, "No search results found."

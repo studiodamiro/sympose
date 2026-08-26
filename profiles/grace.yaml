@@ -15,6 +15,7 @@ vault_folders:
   - "Code"
   - "Movies"
   - "Attachments"
+  - "Templates"
 
 soul_file: "profiles/grace_soul.md"
 memory_file: "profiles/grace_memory.md"
@@ -26,6 +27,8 @@ skills:
   - "slack_interaction"
   - "system_architecture"
   - "vault_recall"
+  - "vault_write"
+  - "web_search"
 
 thinking_phrases:
   - "Decompiling assumptions..."

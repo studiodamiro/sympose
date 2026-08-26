@@ -18,6 +18,7 @@ class SlackDaemon:
     """Slack Socket Mode integration with thread-isolated sessions and human-readable context."""
 
     user_cache: Dict[str, str] = {}
+    name_to_id: Dict[str, str] = {}
 
     def __init__(self, engine: PersonaEngine, default_persona: Optional[str] = None, bot_token: Optional[str] = None, app_token: Optional[str] = None):
         self.engine, self.pm, self.config = engine, engine.pm, engine.config
@@ -45,17 +46,22 @@ class SlackDaemon:
             name = u_info.get("profile", {}).get("display_name") or u_info.get("real_name") or u_info.get("name")
             if name:
                 self.user_cache[user_id] = name
+                self.name_to_id[name.lower()] = user_id
+                self.name_to_id[u_info.get("name", "").lower()] = user_id
                 return name
         except Exception: pass
         self.user_cache[user_id] = self.primary_user
+        self.name_to_id[self.primary_user.lower()] = user_id
         return self.primary_user
 
     def _clean_mentions(self, client: Any, text: str) -> str:
         return re.sub(r"<@([A-Z0-9]+)>", lambda m: f"@{self._resolve_user_name(client, m.group(1))}", text)
 
+    def _format_outgoing_mentions(self, text: str) -> str:
+        return re.sub(r"@([a-zA-Z0-9_\-]+)", lambda m: f"<@{self.name_to_id[m.group(1).lower()]}>" if m.group(1).lower() in self.name_to_id else m.group(0), text)
+
     def _resolve_persona_and_prompt(self, text: str, thread_id: str) -> Tuple[str, str]:
-        cleaned = re.sub(r"<@[A-Z0-9]+>", "", text).strip()
-        personas = self.pm.list_personas()
+        cleaned, personas = re.sub(r"<@[A-Z0-9]+>", "", text).strip(), self.pm.list_personas()
         alias_map = {"mauri": "aurelius", "marcus": "aurelius", "sam": "samantha"}
         for p in personas:
             h = p["handle"].lower()
@@ -66,22 +72,16 @@ class SlackDaemon:
 
         gm = re.match(r"^(?:hi|hey|hello|good\s+morning|morning|good\s+afternoon|good\s+evening)\s+@?([a-zA-Z0-9_\-]+)[,:\s]*(.*)$", cleaned, re.I | re.DOTALL)
         if gm and gm.group(1).lower() in alias_map:
-            target = alias_map[gm.group(1).lower()]
-            self.thread_personas[thread_id] = target
-            rest = gm.group(2).strip()
-            return target, (rest if rest else cleaned)
+            t = alias_map[gm.group(1).lower()]; self.thread_personas[thread_id] = t; return t, (gm.group(2).strip() or cleaned)
 
-        match = re.match(r"^@?([a-zA-Z0-9_\-]+)[:,\s]+(.*)$", cleaned, re.DOTALL)
-        if match and match.group(1).lower() in alias_map:
-            target = alias_map[match.group(1).lower()]
-            self.thread_personas[thread_id] = target
-            return target, match.group(2).strip()
+        m = re.match(r"^@?([a-zA-Z0-9_\-]+)[:,\s]+(.*)$", cleaned, re.DOTALL)
+        if m and m.group(1).lower() in alias_map:
+            t = alias_map[m.group(1).lower()]; self.thread_personas[thread_id] = t; return t, m.group(2).strip()
 
         if cleaned.startswith("/switch"):
             parts = cleaned.split()
             if len(parts) > 1 and parts[1].replace("@", "").lower() in alias_map:
-                target = alias_map[parts[1].replace("@", "").lower()]
-                self.thread_personas[thread_id] = target; return target, f"Switched active persona to @{target}."
+                t = alias_map[parts[1].replace("@", "").lower()]; self.thread_personas[thread_id] = t; return t, f"Switched active persona to @{t}."
 
         active = self.thread_personas.get(thread_id, self.default_persona)
         return (active if active in [p["handle"].lower() for p in personas] else self.default_persona), cleaned
@@ -132,8 +132,7 @@ class SlackDaemon:
             self.thread_histories.pop(th_key, None); self.engine.reset_history(handle); deleted = 0
             if event.get("thread_ts"):
                 try:
-                    res = client.conversations_replies(channel=channel_id, ts=event.get("thread_ts"), limit=100)
-                    for m in res.get("messages", []):
+                    for m in client.conversations_replies(channel=channel_id, ts=event.get("thread_ts"), limit=100).get("messages", []):
                         try: client.chat_delete(channel=channel_id, ts=m.get("ts")); deleted += 1
                         except Exception: pass
                 except Exception: pass
@@ -148,15 +147,14 @@ class SlackDaemon:
             reacts = [m.group(1).strip().strip(":") for m in re.finditer(r"\[(?:ACTION:)?REACT:\s*([a-zA-Z0-9_\-+:]+?)\]", raw_text, re.I)] or ["white_check_mark"]
             clean_text, badges = ActionProcessor.execute_actions(self.pm, handle, raw_text)
             if badges: clean_text = (clean_text + "\n\n" + "\n".join(badges)).strip()
-            say(text=convert_md_to_slack_mrkdwn(clean_text or f"*{name} acknowledged your message.*"), thread_ts=thread_ts)
+            say(text=self._format_outgoing_mentions(convert_md_to_slack_mrkdwn(clean_text or f"*{name} acknowledged your message.*")), thread_ts=thread_ts)
             try: client.reactions_remove(channel=channel_id, timestamp=msg_ts, name="eyes")
             except Exception: pass
             for em in reacts:
                 try: client.reactions_add(channel=channel_id, timestamp=msg_ts, name=em)
                 except Exception: pass
         except Exception as e:
-            print(f"⚠️ [Slack Error] @{handle}: {e}", file=sys.stderr)
-            say(text=f"⚠️ *{name} encountered an error:* `{e}`", thread_ts=thread_ts)
+            print(f"⚠️ [Slack Error] @{handle}: {e}", file=sys.stderr); say(text=f"⚠️ *{name} encountered an error:* `{e}`", thread_ts=thread_ts)
 
     def setup(self) -> bool:
         if not self._validate_tokens(): return False
@@ -164,6 +162,12 @@ class SlackDaemon:
             self.app = App(token=self.bot_token)
             auth = self.app.client.auth_test()
             self.bot_user_id, self.bot_id = auth.get("user_id", ""), auth.get("bot_id", "")
+            self.name_to_id[self.default_persona] = self.bot_user_id
+            try:
+                for u in self.app.client.users_list().get("members", []):
+                    for k in [u.get("name"), u.get("real_name"), u.get("profile", {}).get("display_name")]:
+                        if k and u.get("id"): self.name_to_id[k.lower()] = u.get("id")
+            except Exception: pass
             self.app.event("app_mention")(lambda client, event, say: self._process_message(client, event, say))
             self.app.event("message")(lambda client, event, say: self._process_message(client, event, say) if (event.get("channel_type") == "im" or event.get("thread_ts")) else None)
             self.handler = SocketModeHandler(self.app, self.app_token); return True
@@ -182,14 +186,8 @@ class MultiAgentSlackRunner:
 
     @classmethod
     def run_all(cls, engine: PersonaEngine, persona_override: Optional[str] = None) -> None:
-        daemons: List[SlackDaemon] = []
-        handles = [persona_override.lower()] if persona_override else [p["handle"].lower() for p in engine.pm.list_personas()]
-        for h in handles:
-            d = SlackDaemon(engine, default_persona=h)
-            if d._validate_tokens() and not any(x.bot_token == d.bot_token for x in daemons) and d.setup(): daemons.append(d)
-
+        daemons = [d for h in ([persona_override.lower()] if persona_override else [p["handle"].lower() for p in engine.pm.list_personas()]) if (d := SlackDaemon(engine, default_persona=h))._validate_tokens() and d.setup()]
         if not daemons: sys.exit("⚠️ [Sympose Slack] Missing or invalid Slack tokens in .env.")
-
         print(f"🚀 [Sympose] Launching {len(daemons)} Slack Agent(s)...")
         threads = [threading.Thread(target=d.start, daemon=True) for d in daemons]
         for t in threads: t.start()

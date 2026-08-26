@@ -29,8 +29,8 @@ class SlackDaemon:
         self.thread_personas, self.thread_histories, self.app, self.handler = {}, {}, None, None
         self.bot_user_id, self.bot_id = "", ""
         u_card = self.pm._read_file_safe(os.path.join(getattr(self.pm, "profiles_dir", "profiles"), "user_profile.md"))
-        m = re.search(r"Primary User:\s*([a-zA-Z0-9_\-]+)", u_card, re.I)
-        self.primary_user = m.group(1).strip() if m else "damiro"
+        m = re.search(r"(?:Primary\s+User|User|Name):\s*([a-zA-Z0-9_\-]+)", u_card, re.I)
+        self.primary_user = m.group(1).strip() if m else (os.getenv("USER") or "User")
 
     def _validate_tokens(self) -> bool:
         if not self.bot_token or not self.app_token or App is None or SocketModeHandler is None:
@@ -62,7 +62,7 @@ class SlackDaemon:
 
     def _resolve_persona_and_prompt(self, text: str, thread_id: str) -> Tuple[str, str]:
         cleaned, personas = re.sub(r"<@[A-Z0-9]+>", "", text).strip(), self.pm.list_personas()
-        alias_map = {"mauri": "aurelius", "marcus": "aurelius", "sam": "samantha"}
+        alias_map: Dict[str, str] = {}
         for p in personas:
             h = p["handle"].lower()
             alias_map[h] = h

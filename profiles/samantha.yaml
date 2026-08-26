@@ -1,6 +1,8 @@
 name: "Samantha"
 handle: "samantha"
 title: "Polymath Strategic Master Orchestrator"
+aliases:
+  - "sam"
 model: "gemini/gemini-3.5-flash-lite"
 icon_emoji: ":brain:"
 

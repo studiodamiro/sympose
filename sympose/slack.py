@@ -24,8 +24,8 @@ class SlackDaemon:
         self.engine, self.pm, self.config = engine, engine.pm, engine.config
         self.default_persona = default_persona or self.config.get("runtime.default_persona", "samantha").lower()
         p = f"SLACK_{self.default_persona.upper()}_"
-        self.bot_token = (bot_token or os.getenv(f"{p}BOT_TOKEN") or os.getenv("SLACK_BOT_TOKEN", "")).strip()
-        self.app_token = (app_token or os.getenv(f"{p}APP_TOKEN") or os.getenv("SLACK_APP_TOKEN", "")).strip()
+        self.bot_token = (bot_token or os.getenv(f"{p}BOT_TOKEN") or (os.getenv("SLACK_AURELIUS_BOT_TOKEN") if self.default_persona == "archia" else None) or os.getenv("SLACK_BOT_TOKEN", "")).strip()
+        self.app_token = (app_token or os.getenv(f"{p}APP_TOKEN") or (os.getenv("SLACK_AURELIUS_APP_TOKEN") if self.default_persona == "archia" else None) or os.getenv("SLACK_APP_TOKEN", "")).strip()
         self.thread_personas, self.thread_histories, self.app, self.handler, self.bot_user_id, self.bot_id, self.boot_ts = {}, {}, None, None, "", "", time.time()
         u_card = self.pm._read_file_safe(os.path.join(getattr(self.pm, "profiles_dir", "profiles"), "user_profile.md"))
         m = re.search(r"(?:Primary\s+User|User|Name):\s*([a-zA-Z0-9_\-]+)", u_card, re.I)

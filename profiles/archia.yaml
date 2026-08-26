@@ -32,6 +32,7 @@ memory_file: "profiles/archia_memory.md"
 share_memory: false
 
 skills:
+  - "slack_interaction"
   - "vault_recall"
   - "strategic_analysis"
 

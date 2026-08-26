@@ -23,6 +23,7 @@ share_memory: true
 
 skills:
   - "sympose_mastery"
+  - "slack_interaction"
   - "system_architecture"
   - "strategic_analysis"
   - "discussion_moderation"

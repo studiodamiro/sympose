@@ -23,6 +23,7 @@ share_memory: true
 skills:
   - "git_workflow"
   - "code_review"
+  - "slack_interaction"
   - "system_architecture"
   - "vault_recall"
 

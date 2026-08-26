@@ -14,34 +14,41 @@ from sympose.profiles import ProfileManager
 from sympose.vault import VaultManager
 
 
+def _load_prompt_tmpl(name: str, fallback: str) -> str:
+    p = os.path.join("prompts", name)
+    if os.path.exists(p):
+        try:
+            with open(p, "r", encoding="utf-8") as f: return f.read().strip()
+        except Exception: pass
+    return fallback
+
+
 class HeuristicGatedExtractor:
     """Evaluates turns for durable facts and triggers background extraction without blocking."""
 
     TRIGGER_PATTERNS = [
-        r"\b(i\s+will|i\s+plan|i\s+need|i\s+want|i\s+am\s+going\s+to|i\s+prefer)\b",
-        r"\b(we\s+decided|we\s+are\s+using|we\s+switched|let\'?s\s+use|our\s+stack|our\s+database)\b",
-        r"\b(on\s+(?:january|february|march|april|may|june|july|august|september|october|november|december))\b",
-        r"\b(my\s+name\s+is|my\s+favorite|my\s+timezone|my\s+role|i\s+live\s+in)\b",
-        r"\b(birthday|anniversary|born|married|wife|husband|kid|kids|son|daughter|family|partner|friend)\b",
-        r"\b(rule|constraint|never\s+use|always\s+use|deploy\s+to|secret|credential)\b",
+        r"\b(?:my\s+name\s+is|i\s+am|i'm|call\s+me)\b",
+        r"\b(?:i\s+live\s+in|my\s+timezone\s+is|i\s+work\s+at|my\s+job\s+is|i\s+am\s+a)\b",
+        r"\b(?:i\s+prefer|i\s+like|i\s+dislike|i\s+hate|always\s+use|never\s+use|my\s+favorite)\b",
+        r"\b(?:remember\s+that|keep\s+in\s+mind|don't\s+forget|note\s+that|save\s+this)\b",
+        r"\b(?:we\s+decided|the\s+architecture\s+is|we\s+are\s+building|the\s+stack\s+is)\b",
+        r"\b(?:my\s+goal\s+is|the\s+deadline\s+is|we\s+need\s+to\s+ship)\b",
     ]
 
     SKIP_PATTERNS = [
-        r"^(hi|hello|hey|thanks|thank you|ok|okay|cool|great|bye|quit|exit|ping)\b",
-        r"^(what is|who is|how do i|explain|summarize|convert)\b",
+        r"^(?:hi|hello|hey|yo|thanks|thank\s+you|ok|okay|cool|nice|yes|no|yep|nope)[\.\!\?]?$",
+        r"^(?:clear|reset|delete|help|exit|quit|status|\/switch|\/save|\/clear|\/reset)",
+        r"^\[SPAWN_WORKER:",
     ]
 
     @classmethod
     def should_extract(cls, user_message: str) -> bool:
         clean = user_message.strip().lower()
-        if len(clean) < 12 or clean.startswith("/"):
-            return False
+        if len(clean) < 8: return False
         for skip in cls.SKIP_PATTERNS:
-            if re.search(skip, clean):
-                return False
+            if re.search(skip, clean): return False
         for pat in cls.TRIGGER_PATTERNS:
-            if re.search(pat, clean):
-                return True
+            if re.search(pat, clean): return True
         return False
 
     @classmethod
@@ -50,92 +57,39 @@ class HeuristicGatedExtractor:
         def _worker():
             try:
                 model = config.get("session.exit_behavior.summarization_model", "gemini/gemini-3.5-flash-lite")
-                prompt = (
-                    "You are the silent memory archivist for Sympose AI.\n"
-                    f"User message: {user_message}\n"
-                    f"Assistant reply: {assistant_reply}\n\n"
-                    "Evaluate if the user shared a DURABLE, permanent fact, project decision, technical constraint, schedule, or personal preference that must be remembered in future sessions.\n"
-                    "If NO: Output strictly 'NONE'.\n"
-                    "If YES: Output exactly 1 concise bullet point starting with '- ' summarizing the enduring fact."
-                )
-                kwargs = {
-                    "model": model,
-                    "messages": [{"role": "user", "content": prompt}],
-                    "stream": False,
-                    "timeout": 5.0,
-                }
-                if model.startswith("gemini/") and os.getenv("GEMINI_API_KEY"):
-                    kwargs["api_key"] = os.getenv("GEMINI_API_KEY")
-                elif model.startswith("anthropic/") and os.getenv("ANTHROPIC_API_KEY"):
-                    kwargs["api_key"] = os.getenv("ANTHROPIC_API_KEY")
-                elif model.startswith("openai/") and os.getenv("OPENAI_API_KEY"):
-                    kwargs["api_key"] = os.getenv("OPENAI_API_KEY")
-                elif model.startswith("openrouter/") and os.getenv("OPENROUTER_API_KEY"):
-                    kwargs["api_key"] = os.getenv("OPENROUTER_API_KEY")
+                tmpl = _load_prompt_tmpl("memory_extraction.md", "You are the silent memory archivist for Sympose AI.\nUser message: {{user_message}}\nAssistant reply: {{assistant_reply}}\n\nEvaluate if the user shared a DURABLE fact.\nIf NO: Output 'NONE'.\nIf YES: Output 1 bullet point '- '.")
+                prompt = tmpl.replace("{{user_message}}", user_message).replace("{{assistant_reply}}", assistant_reply)
+                kwargs = {"model": model, "messages": [{"role": "user", "content": prompt}], "stream": False, "timeout": 5.0}
+                for pfx, key in (("gemini/", "GEMINI_API_KEY"), ("anthropic/", "ANTHROPIC_API_KEY"), ("openai/", "OPENAI_API_KEY"), ("openrouter/", "OPENROUTER_API_KEY")):
+                    if model.startswith(pfx) and os.getenv(key): kwargs["api_key"] = os.getenv(key)
 
                 resp = litellm.completion(**kwargs)
                 out = (resp.choices[0].message.content or "").strip()
-                if out and out.upper() != "NONE" and out.startswith("-"):
-                    pm.append_memory(handle, out)
-            except Exception:
-                pass
+                if out and out.upper() != "NONE" and out.startswith("-"): pm.append_memory(handle, out)
+            except Exception: pass
 
-        thread = threading.Thread(target=_worker, daemon=True)
-        thread.start()
+        threading.Thread(target=_worker, daemon=True).start()
 
 
 class SessionArchivist:
     """Handles LLM-driven session summarization, memory extraction, and note persistence."""
 
     def __init__(self, profile_manager: ProfileManager):
-        self.pm = profile_manager
-        self.config = config_manager
+        self.pm, self.config = profile_manager, config_manager
 
     def trigger_background_extraction(self, handle: str, user_message: str, assistant_reply: str) -> None:
-        """Evaluates heuristic gate and triggers async shadow extraction."""
         if HeuristicGatedExtractor.should_extract(user_message):
             HeuristicGatedExtractor.extract_async(handle, user_message, assistant_reply, self.pm, self.config)
 
-    def summarize_session(
-        self,
-        handle: str,
-        history: List[Dict[str, str]],
-        target: str = "both"
-    ) -> Dict[str, Any]:
-        """Synthesizes conversation history and saves to persistent memory and/or Obsidian."""
+    def summarize_session(self, handle: str, history: List[Dict[str, str]], target: str = "both") -> Dict[str, Any]:
         profile = self.pm.get_profile(handle)
-        if not profile:
-            return {"status": "error", "message": f"Persona @{handle} not found."}
+        if not profile: return {"status": "error", "message": f"Persona @{handle} not found."}
+        if not history: return {"status": "empty", "message": "No active conversation turns to summarize."}
 
-        if not history:
-            return {"status": "empty", "message": "No active conversation turns to summarize."}
-
-        transcript_lines = [
-            f"{msg.get('role', 'unknown').capitalize()}: {msg.get('content', '')}"
-            for msg in history
-        ]
-        transcript = "\n\n".join(transcript_lines)
-
-        summarization_model = self.config.get(
-            "session.exit_behavior.summarization_model",
-            "gemini/gemini-3.5-flash-lite"
-        )
-
-        prompt = (
-            f"You are the session archivist for Sympose Agent Hub. "
-            f"Analyze the following conversation session with agent @{handle} ({profile.get('name')}) "
-            f"and produce two structured sections separated exactly as shown below.\n\n"
-            f"### SECTION 1: PERSISTENT MEMORY BULLETS\n"
-            f"Provide 2-4 concise, high-signal bullet points of durable facts, technical decisions, or user preferences "
-            f"that should be remembered in future sessions. Format every line starting with '- '.\n\n"
-            f"### SECTION 2: OBSIDIAN SESSION LOG\n"
-            f"Provide a structured Markdown session log covering:\n"
-            f"## Overview & Intent\n"
-            f"## Decisions & Code Highlights\n"
-            f"## Action Items & Next Steps\n\n"
-            f"CONVERSATION TRANSCRIPT:\n"
-            f"{transcript}"
-        )
+        transcript = "\n\n".join(f"{msg.get('role', 'unknown').capitalize()}: {msg.get('content', '')}" for msg in history)
+        summarization_model = self.config.get("session.exit_behavior.summarization_model", "gemini/gemini-3.5-flash-lite")
+        tmpl = _load_prompt_tmpl("session_summary.md", "You are the session archivist for Sympose Agent Hub.\nAnalyze session with @{{handle}} ({{name}}):\n\n### SECTION 1: PERSISTENT MEMORY BULLETS\n- Facts\n\n### SECTION 2: OBSIDIAN SESSION LOG\n## Overview\n\nCONVERSATION TRANSCRIPT:\n{{transcript}}")
+        prompt = tmpl.replace("{{handle}}", handle).replace("{{name}}", str(profile.get("name", handle))).replace("{{transcript}}", transcript)
 
         try:
             kwargs: Dict[str, Any] = {

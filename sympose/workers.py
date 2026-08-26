@@ -79,19 +79,16 @@ class WorkerEngine:
 
         mv = os.getenv("MASTER_VAULT_PATH")
         env_lines = [f"- Workspace Directory: `{os.getcwd()}`"] + ([f"- Obsidian Vault Directory: `{mv}`"] if mv else [])
-        system_prompt_parts = [
-            f"You are an ephemeral Sub-Agent Worker in Sympose on macOS dispatched by parent agent @{task.parent_agent}.",
-            "### RUNTIME ENVIRONMENT:\n" + "\n".join(env_lines),
-            "### UNIVERSAL OPERATIONAL DIRECTIVES:\n"
-            "1. GROUND-TRUTH EXECUTION: Use tools (run_command, read_file, MCP) to inspect actual state. Never simulate or invent outputs.\n"
-            "2. ZERO HAND-WAVING: Deliver concrete, verbatim data directly.\n"
-            "3. RAPID COMPLETION: Execute file inspections swiftly in 1-3 tool turns, then deliver final synthesis directly.\n"
-            "4. HIGH-DENSITY SYNTHESIS: Structure deliverables with primary sources, exact quotes, and takeaways."
-        ]
-        if skills_text:
-            system_prompt_parts.append(skills_text)
+        tmpl_path = os.path.join("prompts", "worker_system.md")
+        tmpl = ""
+        if os.path.exists(tmpl_path):
+            try:
+                with open(tmpl_path, "r", encoding="utf-8") as f: tmpl = f.read().strip()
+            except Exception: pass
+        if not tmpl: tmpl = "You are an ephemeral Sub-Agent Worker in Sympose on macOS dispatched by parent agent @{{parent_agent}}.\n\n### RUNTIME ENVIRONMENT:\n{{environment}}\n\n### UNIVERSAL OPERATIONAL DIRECTIVES:\n1. GROUND-TRUTH EXECUTION: Use tools directly.\n2. ZERO HAND-WAVING: Output factual deliverables.\n3. RAPID COMPLETION."
 
-        system_prompt = "\n\n".join(system_prompt_parts)
+        system_prompt = tmpl.replace("{{parent_agent}}", task.parent_agent).replace("{{environment}}", "\n".join(env_lines))
+        if skills_text: system_prompt += f"\n\n{skills_text}"
         target_model = task.model
         if not target_model:
             for s_name in task.skills:

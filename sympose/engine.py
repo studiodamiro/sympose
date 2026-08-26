@@ -24,15 +24,9 @@ class PersonaEngine:
         self.model_overrides: Dict[str, str] = {}
         self.active_vault_ctx: Dict[str, str] = {}
 
-    def get_history(self, handle: str) -> List[Dict[str, str]]:
-        return self.histories.setdefault(handle.lower(), [])
-
-    def reset_history(self, handle: str) -> None:
-        self.histories[handle.lower()] = []
-        self.active_vault_ctx.pop(handle.lower(), None)
-
-    def summarize_session(self, handle: str, target: str = "both") -> Dict[str, Any]:
-        return self.archivist.summarize_session(handle, self.get_history(handle), target=target)
+    def get_history(self, handle: str) -> List[Dict[str, str]]: return self.histories.setdefault(handle.lower(), [])
+    def reset_history(self, handle: str) -> None: self.histories[handle.lower()] = []; self.active_vault_ctx.pop(handle.lower(), None)
+    def summarize_session(self, handle: str, target: str = "both") -> Dict[str, Any]: return self.archivist.summarize_session(handle, self.get_history(handle), target=target)
 
     def _resolve_vault_context(self, profile: Dict[str, Any], message: str) -> Optional[str]:
         msg = message.strip()

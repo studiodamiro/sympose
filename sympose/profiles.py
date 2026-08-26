@@ -2,7 +2,7 @@
 Dynamic Profile, Soul & Tiered Memory Manager for Sympose.
 """
 
-import os, sys, glob
+import os, sys, glob, re
 from typing import Dict, List, Optional, Any
 import yaml
 
@@ -81,76 +81,47 @@ class ProfileManager:
         m = re.search(r"(?:Primary\s+User|User|Name):\s*([a-zA-Z0-9_\-]+)", user_card, re.I)
         primary_user = m.group(1).strip() if m else "User"
 
-        prompt_parts = [f"### Persona Identity & Interlocutor Anchor:\nYou are @{handle} ({name}). You are conversing directly with {primary_user}. You are @{handle}; NEVER call {primary_user} '{name}' or '@{handle}'."]
+        v_folders = profile.get("vault_folders") or [profile.get("vault_folder", "General")]
+        vf_desc = "Root Vault (All Folders)" if ("" in v_folders or "*" in v_folders) else ", ".join(f"`{f}/`" for f in v_folders)
+        is_shared = profile.get("share_memory", False)
+        sharing_desc = "Shared Team Pool (`_shared_memory.md`)" if is_shared else "Air-Gapped Private Memory"
+        mv = os.getenv("MASTER_VAULT_PATH", "Local Workspace")
+        sources = f"Core User Profile, {'Shared Team Working Memory, ' if is_shared else ''}Persona Working Memory, and Allowed Obsidian Vault Folders ({vf_desc})"
+
+        prompt_parts: List[str] = []
         soul_txt = self._read_file_safe(profile.get("soul_file"))
-        if soul_txt: prompt_parts.append(soul_txt)
+        if soul_txt:
+            prompt_parts.append(soul_txt.replace("{{user}}", primary_user).replace("{{handle}}", handle).replace("{{name}}", name))
 
-        if user_card: prompt_parts.append(f"### Core User Profile & Identity:\n{user_card}")
+        if user_card:
+            prompt_parts.append(f"### Core User Profile & Identity:\n{user_card}")
 
-        # 2. Shared Team Memory (Read only by agents with share_memory: true)
-        if profile.get("share_memory", False):
-            shared_mem = self._read_file_safe(os.path.join(self.profiles_dir, "_shared_memory.md"))
-            if shared_mem:
-                prompt_parts.append(f"### Shared Team Working Memory:\n{shared_mem}")
+        if is_shared and (shared_mem := self._read_file_safe(os.path.join(self.profiles_dir, "_shared_memory.md"))):
+            prompt_parts.append(f"### Shared Team Working Memory:\n{shared_mem}")
 
-        # 3. Persona-Specific Working Memory
-        persona_mem = self._read_file_safe(profile.get("memory_file"))
-        if persona_mem:
+        if persona_mem := self._read_file_safe(profile.get("memory_file")):
             prompt_parts.append(f"### Persona Working Memory:\n{persona_mem}")
 
         rules_txt = self._read_file_safe("workspace_rules.md")
         if rules_txt:
-            prompt_parts.append(f"### Global Workspace Rules:\n{rules_txt}")
+            rules_formatted = (
+                rules_txt.replace("{{workspace_root}}", os.getcwd())
+                .replace("{{master_vault_path}}", mv)
+                .replace("{{sandboxed_vault}}", vf_desc)
+                .replace("{{memory_mode}}", f"{sharing_desc} (File: `{profile.get('memory_file')}`)")
+                .replace("{{sources}}", sources)
+                .replace("{{user}}", primary_user)
+                .replace("{{handle}}", handle)
+                .replace("{{name}}", name)
+            )
+            prompt_parts.append(rules_formatted)
 
-        # 4. Specialized Skills (Modular Playbooks from skills/)
-        active_skills = profile.get("skills", [])
-        if isinstance(active_skills, list) and active_skills:
-            skills_txt = skill_manager.format_skills_for_prompt(active_skills)
-            if skills_txt:
+        if active_skills := profile.get("skills", []):
+            if isinstance(active_skills, list) and (skills_txt := skill_manager.format_skills_for_prompt(active_skills)):
                 prompt_parts.append(skills_txt)
 
-        v_folders = profile.get("vault_folders") or [profile.get("vault_folder", "General")]
-        vf_desc = "Root Vault (All Folders)" if ("" in v_folders or "*" in v_folders) else ", ".join(f"`{f}/`" for f in v_folders)
-        mf = profile.get("memory_file", f"profiles/{profile.get('handle')}_memory.md")
-        is_shared = profile.get("share_memory", False)
-        sharing_desc = "Shared Team Pool (`_shared_memory.md`)" if is_shared else "Air-Gapped Private Memory"
-
-        mv = os.getenv("MASTER_VAULT_PATH", "Local Workspace")
-        sources = f"Core User Profile, {'Shared Team Working Memory, ' if is_shared else ''}Persona Working Memory, and your Allowed Obsidian Vault Folders ({vf_desc})"
-        prompt_parts.append(
-            f"### Runtime Environment & Spatial Coordinates:\n"
-            f"You are operating within Sympose Agent Hub on macOS.\n"
-            f"- App Workspace Root: `{os.getcwd()}`\n"
-            f"- Master Obsidian Vault: `{mv}` (configured via `MASTER_VAULT_PATH` in `.env`)\n"
-            f"- Sandboxed Vault Access: {vf_desc}\n"
-            f"- Memory Mode: {sharing_desc} (File: `{mf}`, Shared Pool: `profiles/_shared_memory.md`)\n\n"
-            f"### Strict Memory Grounding & Anti-Hallucination:\n"
-            f"1. ASSUME INTERRUPTION: Your context window is bounded and might be reset at any moment, so you risk losing any progress that is not recorded in your memory directory. Proactively checkpoint architectural decisions, milestone progress, and user facts using `[REMEMBER: <fact>]` or `[WRITE_NOTE: <filename> | <content>]`.\n"
-            f"2. Your only knowledge of user history, plans, and past agreements comes strictly from {sources}, and active turns.\n"
-            f"3. ZERO TOLERANCE FOR FABRICATION: When asked about past user facts, decisions, or agreements not in your memory, vault context, or active turns, never guess or fabricate. Candidly state that you don't have that recorded.\n"
-            f"4. UNRECOGNIZED / GARBLED INPUT: If user input contains accidental terminal escape noise (e.g. `^[^[`), gibberish, or unclear typos, respond with a natural clarification (e.g. 'Looks like some terminal noise or a typo—what can I help you with?') rather than assuming it is a forgotten memory.\n"
-            f"5. ZERO TIME-DELAY SIMULATION: You process requests immediately in the current turn. You do NOT have background execution threads across minutes or hours. NEVER say 'Give me a few minutes', 'I will look into this and come back', 'hang tight', or 'Give me a moment to process'. Always deliver your findings immediately in the current turn or state what specific information is missing.\n\n"
-            f"### Autonomic Action Protocols:\n"
-            f"- Working Memory: `[REMEMBER: <fact>]` saves bullet points to working memory.\n"
-            f"- Create Note: `[WRITE_NOTE: <filename.md> | <content>]` creates/overwrites notes in allowed vault folders.\n"
-            f"- Append Note: `[APPEND_NOTE: <filename.md> | <content>]` appends content to notes in allowed vault folders.\n"
-            f"- Daily Note: `[DAILY_NOTE: <reflection>]` appends to `Daily Notes/YYYY-MM-DD.md`.\n"
-            f"- Sub-Agent Worker: `[SPAWN_WORKER: <skill_or_mcp> | <task_instructions>]` delegates isolated tasks (running shell/git commands, inspecting files, executing MCP tools) to an ephemeral sub-agent.\n"
-            f"- Runtime Configuration: `[CONFIG_SET: <key> | <value>]` updates and persists settings in `config.yaml` (e.g. `performance.request_timeout`, `performance.max_context_turns`, `performance.max_worker_tool_turns`, `session.exit_behavior.auto_save`). Use this when the user asks you to adjust runtime settings.\n"
-            f"- Create Agent Persona: `[CREATE_PERSONA: <handle> | <yaml_manifest_content>]` creates a new specialist agent in the ecosystem. Automatically writes `profiles/<handle>.yaml`, bootstraps soul and memory, and registers @<handle> immediately for `/switch`.\n"
-            f"- Retire / Delete Agent Persona: `[DELETE_PERSONA: <handle>]` safely retires an agent by moving their profile files to `profiles/_archived/<handle>/`.\n\n"
-            f"### CRITICAL ACTION EXECUTION RULES:\n"
-            f"1. NEVER mock, type out, or simulate `> 🛠️ **Sub-Agent Worker Report**` or fake command results in your message text.\n"
-            f"2. You MUST emit the literal bracketed tag `[SPAWN_WORKER: <skill_or_mcp> | <task>]`. The Sympose runtime will execute real local tools and inject the ground-truth report automatically.\n"
-            f"3. The runtime executes these tags atomically upon stream completion and confirms them to the user.\n"
-            f"4. DOMAIN SANDBOX BOUNDARIES: Your vault access is strictly sandboxed to {vf_desc}. For instance, private personal reflections in `Daily/` are strictly air-gapped for @aurelius. If the user asks for notes in folders outside your sandbox, DO NOT attempt to access them or spawn a worker to bypass your boundary. Politely state that the folder is outside your sandbox and suggest switching to the authorized specialist (e.g. `/switch @aurelius`).\n"
-            f"5. DIRECT IN-TURN ANSWERING: If the requested notes or answers are already present in your pre-turn context (`### Vault Search Results` or `### Sandboxed Vault Note`), DO NOT spawn a worker (`[SPAWN_WORKER]`). Answer the user immediately in-turn (<1.0s) without redundant sub-agent delegation."
-        )
-
-        peers = [f"- @{p['handle']}: {p.get('name', p['handle'])} ({p.get('title', 'Specialist')})"
-                 for p in self.profiles.values() if p["handle"] != profile["handle"]]
-        if peers:
-            prompt_parts.append("### Available Specialist Peers in Sympose:\n" + "\n".join(peers))
+        peers = [f"- @{p['handle']}: {p.get('name', p['handle'])} ({p.get('title', 'Specialist')})" for p in self.profiles.values() if p["handle"] != profile["handle"]]
+        if peers: prompt_parts.append("### Available Specialist Peers in Sympose:\n" + "\n".join(peers))
 
         return "\n\n".join(prompt_parts)
 

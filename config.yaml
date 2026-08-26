@@ -24,6 +24,10 @@ performance:
   # Range: 3 - 50 replies (6-12 is ideal for speed & token efficiency) | Default: 12
   slack_thread_context_limit: 12
 
+  # Maximum consecutive bot-to-bot replies in a Slack thread before circuit breaker halts loop
+  # Prevents runaway multi-agent infinite discussion loops | Range: 1 - 5 | Default: 3
+  max_consecutive_bot_turns: 3
+
   # Automatically drop unsupported provider parameters during model fallbacks (LiteLLM)
   # Default: true
   drop_unsupported_params: true

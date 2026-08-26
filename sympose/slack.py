@@ -98,11 +98,8 @@ class SlackDaemon:
 
         if re.search(r"\b(summarize|summary|catch\s*up|recap|what\s+happened|this\s+(?:thread|channel|conversation))\b", prompt, re.I):
             try:
-                res = client.conversations_history(channel=channel_id, limit=25)
-                for m in reversed(res.get("messages", [])):
-                    if m.get("ts") != current_ts and m.get("text", "").strip():
-                        lines.append(f"- {self._resolve_user_name(client, m.get('user') or m.get('username') or '')}: {self._clean_mentions(client, m.get('text', '').strip())}")
-                if lines: return "### Recent Slack Channel History:\n" + "\n".join(lines)
+                cl = [f"- {self._resolve_user_name(client, m.get('user') or m.get('username') or '')}: {self._clean_mentions(client, m.get('text', '').strip())}" for m in reversed(client.conversations_history(channel=channel_id, limit=25).get("messages", [])) if m.get("ts") != current_ts and m.get("text", "").strip()]
+                if cl: return "### Recent Slack Channel History:\n" + "\n".join(cl)
             except Exception as e: logging.debug(f"Channel context: {e}")
         return ""
 
@@ -118,8 +115,15 @@ class SlackDaemon:
         handle, prompt = self._resolve_persona_and_prompt(raw_text, thread_id)
         if bool(os.getenv(f"SLACK_{handle.upper()}_BOT_TOKEN")) and handle != self.default_persona: return
 
-        profile = self.pm.get_profile(handle)
-        name = profile.get("name", handle) if profile else handle
+        if bool(event.get("bot_id") or event.get("subtype") == "bot_message") and event.get("thread_ts"):
+            try:
+                msgs = client.conversations_replies(channel=channel_id, ts=event.get("thread_ts"), limit=8).get("messages", [])
+                if sum(1 for m in reversed(msgs) if (m.get("bot_id") or m.get("subtype") == "bot_message")) >= int(self.config.get("performance.max_consecutive_bot_turns", 3)):
+                    if handle != "samantha": return
+                    prompt += "\n\n[SYSTEM: Discussion turn limit reached. Synthesize final plan for the user without tagging other bots.]"
+            except Exception: pass
+
+        name = self.pm.get_profile(handle).get("name", handle) if self.pm.get_profile(handle) else handle
         slack_ctx = self._fetch_slack_context(client, channel_id, event.get("thread_ts"), msg_ts, prompt)
         full_prompt = f"{slack_ctx}\n\nUser Request: {prompt}" if slack_ctx else prompt
 
@@ -136,21 +140,19 @@ class SlackDaemon:
                         try: client.chat_delete(channel=channel_id, ts=m.get("ts")); deleted += 1
                         except Exception: pass
                 except Exception: pass
-            if deleted == 0: say(text=f"🧹 Conversation history deleted for @{handle}.", thread_ts=thread_ts)
-            return
+            if deleted == 0: say(text=f"🧹 Conversation history deleted for @{handle}.", thread_ts=thread_ts); return
 
         self.engine.histories[handle] = self.thread_histories.get(th_key, [])
         try:
             chunks = [c for c in self.engine.chat_stream(handle, full_prompt) if c != "CLEARED_SESSION"]
             self.thread_histories[th_key] = self.engine.get_history(handle)
             raw_text = "".join(chunks).strip()
-            reacts = [m.group(1).strip().strip(":") for m in re.finditer(r"\[(?:ACTION:)?REACT:\s*([a-zA-Z0-9_\-+:]+?)\]", raw_text, re.I)] or ["white_check_mark"]
             clean_text, badges = ActionProcessor.execute_actions(self.pm, handle, raw_text)
             if badges: clean_text = (clean_text + "\n\n" + "\n".join(badges)).strip()
             say(text=self._format_outgoing_mentions(convert_md_to_slack_mrkdwn(clean_text or f"*{name} acknowledged your message.*")), thread_ts=thread_ts)
             try: client.reactions_remove(channel=channel_id, timestamp=msg_ts, name="eyes")
             except Exception: pass
-            for em in reacts:
+            for em in ([m.group(1).strip().strip(":") for m in re.finditer(r"\[(?:ACTION:)?REACT:\s*([a-zA-Z0-9_\-+:]+?)\]", raw_text, re.I)] or ["white_check_mark"]):
                 try: client.reactions_add(channel=channel_id, timestamp=msg_ts, name=em)
                 except Exception: pass
         except Exception as e:

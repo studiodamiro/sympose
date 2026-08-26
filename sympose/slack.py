@@ -25,9 +25,8 @@ class SlackDaemon:
         p = f"SLACK_{self.default_persona.upper()}_"
         self.bot_token = (bot_token or os.getenv(f"{p}BOT_TOKEN") or os.getenv("SLACK_BOT_TOKEN", "")).strip()
         self.app_token = (app_token or os.getenv(f"{p}APP_TOKEN") or os.getenv("SLACK_APP_TOKEN", "")).strip()
-        self.thread_personas: Dict[str, str] = {}
-        self.thread_histories: Dict[str, List[Dict[str, str]]] = {}
-        self.app, self.handler = None, None
+        self.thread_personas, self.thread_histories, self.app, self.handler = {}, {}, None, None
+        self.bot_user_id, self.bot_id = "", ""
         u_card = self.pm._read_file_safe(os.path.join(getattr(self.pm, "profiles_dir", "profiles"), "user_profile.md"))
         m = re.search(r"Primary User:\s*([a-zA-Z0-9_\-]+)", u_card, re.I)
         self.primary_user = m.group(1).strip() if m else "damiro"
@@ -109,7 +108,9 @@ class SlackDaemon:
 
     def _process_message(self, client: Any, event: Dict[str, Any], say: Any) -> None:
         channel_id, msg_ts, raw_text = event.get("channel", ""), event.get("ts", ""), event.get("text", "")
-        if not raw_text.strip() or event.get("bot_id") or event.get("subtype") == "bot_message": return
+        if not raw_text.strip(): return
+        if (getattr(self, "bot_user_id", "") and event.get("user") == self.bot_user_id) or (getattr(self, "bot_id", "") and event.get("bot_id") == self.bot_id): return
+
         is_dm = (event.get("channel_type") == "im")
         thread_ts = event.get("thread_ts") if is_dm else (event.get("thread_ts") or event.get("ts", ""))
         thread_id = f"{channel_id}:{event.get('thread_ts') or event.get('ts') or channel_id}"
@@ -161,20 +162,19 @@ class SlackDaemon:
         if not self._validate_tokens(): return False
         try:
             self.app = App(token=self.bot_token)
+            auth = self.app.client.auth_test()
+            self.bot_user_id, self.bot_id = auth.get("user_id", ""), auth.get("bot_id", "")
             self.app.event("app_mention")(lambda client, event, say: self._process_message(client, event, say))
             self.app.event("message")(lambda client, event, say: self._process_message(client, event, say) if (event.get("channel_type") == "im" or event.get("thread_ts")) else None)
-            self.handler = SocketModeHandler(self.app, self.app_token)
-            return True
+            self.handler = SocketModeHandler(self.app, self.app_token); return True
         except Exception as e:
             print(f"⚠️ [Sympose Slack] Failed to start @{self.default_persona}: {e}", file=sys.stderr); return False
 
     def start(self) -> None:
         while True:
             try:
-                if self.setup() and self.handler:
-                    print(f"⚡ [Sympose] Slack Bot active for @{self.default_persona}"); self.handler.start()
-            except Exception as e:
-                print(f"⚠️ [Slack Reconnect] @{self.default_persona}: {e}. Reconnecting in 3s...", file=sys.stderr); import time; time.sleep(3)
+                if self.setup() and self.handler: print(f"⚡ [Sympose] Slack Bot active for @{self.default_persona}"); self.handler.start()
+            except Exception as e: print(f"⚠️ [Slack Reconnect] @{self.default_persona}: {e}. Retrying in 3s...", file=sys.stderr); import time; time.sleep(3)
 
 
 class MultiAgentSlackRunner:
@@ -186,8 +186,7 @@ class MultiAgentSlackRunner:
         handles = [persona_override.lower()] if persona_override else [p["handle"].lower() for p in engine.pm.list_personas()]
         for h in handles:
             d = SlackDaemon(engine, default_persona=h)
-            if d._validate_tokens() and not any(x.bot_token == d.bot_token for x in daemons):
-                if d.setup(): daemons.append(d)
+            if d._validate_tokens() and not any(x.bot_token == d.bot_token for x in daemons) and d.setup(): daemons.append(d)
 
         if not daemons: sys.exit("⚠️ [Sympose Slack] Missing or invalid Slack tokens in .env.")
 

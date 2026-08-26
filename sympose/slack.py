@@ -120,6 +120,9 @@ class SlackDaemon:
         full_prompt = f"{slack_ctx}\n\nUser Request: {prompt}" if slack_ctx else prompt
 
         print(f"📥 [Slack Event] @{handle} ({name}) handling message: {prompt[:60]}")
+        try: client.reactions_add(channel=channel_id, timestamp=msg_ts, name="eyes")
+        except Exception: pass
+
         th_key = f"{thread_id}:{handle}"
         # Direct Slack Thread Deletion & In-Memory Reset
         if bool(re.search(r"^(?:please\s+)?(?:delete|clear|wipe|erase|purge)\s+(?:our\s+|the\s+|this\s+)?(?:thread|chat|conversation|history|messages?)$", prompt.strip(), re.I)) or prompt.strip() in ("/clear", "/delete", "/wipe", "/reset"):
@@ -130,13 +133,10 @@ class SlackDaemon:
                 try:
                     res = client.conversations_replies(channel=channel_id, ts=event.get("thread_ts"), limit=100)
                     for m in res.get("messages", []):
-                        try:
-                            client.chat_delete(channel=channel_id, ts=m.get("ts"))
-                            deleted += 1
+                        try: client.chat_delete(channel=channel_id, ts=m.get("ts")); deleted += 1
                         except Exception: pass
                 except Exception: pass
-            if deleted == 0:
-                say(text=f"🧹 Conversation history deleted for @{handle}.", thread_ts=thread_ts)
+            if deleted == 0: say(text=f"🧹 Conversation history deleted for @{handle}.", thread_ts=thread_ts)
             return
 
         self.engine.histories[handle] = self.thread_histories.get(th_key, [])
@@ -144,9 +144,9 @@ class SlackDaemon:
             chunks = [c for c in self.engine.chat_stream(handle, full_prompt) if c != "CLEARED_SESSION"]
             self.thread_histories[th_key] = self.engine.get_history(handle)
             say(text=convert_md_to_slack_mrkdwn("".join(chunks).strip()), thread_ts=thread_ts)
-            try:
-                client.reactions_remove(channel=channel_id, timestamp=msg_ts, name="eyes")
-                client.reactions_add(channel=channel_id, timestamp=msg_ts, name="white_check_mark")
+            try: client.reactions_remove(channel=channel_id, timestamp=msg_ts, name="eyes")
+            except Exception: pass
+            try: client.reactions_add(channel=channel_id, timestamp=msg_ts, name="white_check_mark")
             except Exception: pass
         except Exception as e:
             logging.error(f"Error handling Slack event: {e}")

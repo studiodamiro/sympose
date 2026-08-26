@@ -166,13 +166,15 @@ class SlackDaemon:
             self.handler = SocketModeHandler(self.app, self.app_token)
             return True
         except Exception as e:
-            print(f"⚠️ [Sympose Slack] Failed to start @{self.default_persona}: {e}", file=sys.stderr)
-            return False
+            print(f"⚠️ [Sympose Slack] Failed to start @{self.default_persona}: {e}", file=sys.stderr); return False
 
     def start(self) -> None:
-        if self.setup() and self.handler:
-            print(f"⚡ [Sympose] Slack Bot active for @{self.default_persona}")
-            self.handler.start()
+        while True:
+            try:
+                if self.setup() and self.handler:
+                    print(f"⚡ [Sympose] Slack Bot active for @{self.default_persona}"); self.handler.start()
+            except Exception as e:
+                print(f"⚠️ [Slack Reconnect] @{self.default_persona}: {e}. Reconnecting in 3s...", file=sys.stderr); import time; time.sleep(3)
 
 
 class MultiAgentSlackRunner:
@@ -190,9 +192,8 @@ class MultiAgentSlackRunner:
         if not daemons: sys.exit("⚠️ [Sympose Slack] Missing or invalid Slack tokens in .env.")
 
         print(f"🚀 [Sympose] Launching {len(daemons)} Slack Agent(s)...")
-        threads = [threading.Thread(target=d.handler.start, daemon=True) for d in daemons if d.handler]
+        threads = [threading.Thread(target=d.start, daemon=True) for d in daemons]
         for t in threads: t.start()
         try:
             for t in threads: t.join()
-        except (KeyboardInterrupt, SystemExit):
-            print("\n🛑 [Sympose] All Slack Daemons terminated gracefully.")
+        except (KeyboardInterrupt, SystemExit): pass

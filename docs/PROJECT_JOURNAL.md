@@ -44,6 +44,7 @@ This master document serves as the top-level index and Table of Contents.
 | **2026-08-26** | Multi-Agent Collaboration Protocol, Discussion Moderation & Circuit Breaker (ADR-036) | Complete | [`2026-08-26_multi_agent_collaboration_and_circuit_breaker.md`](journal/2026-08/2026-08-26_multi_agent_collaboration_and_circuit_breaker.md) |
 | **2026-08-26** | Pure Declarative Markdown-Driven Prompting & Zero-Code Injections (ADR-037) | Complete | [`2026-08-26_pure_declarative_markdown_prompting.md`](journal/2026-08/2026-08-26_pure_declarative_markdown_prompting.md) |
 | **2026-08-26** | Post-Remediation Hardening & Defensive Engineering Standards (ADR-038) | Complete | [`2026-08-26_post_remediation_hardening_and_defensive_engineering_standards.md`](journal/2026-08/2026-08-26_post_remediation_hardening_and_defensive_engineering_standards.md) |
+| **2026-08-27** | Modular Vault Writing, Obsidian Template Integration, Wikilinks Taxonomy & Live Web Search (ADR-039 – ADR-043) | Complete | [`2026-08-27_vault_write_obsidian_templates_and_live_web_search.md`](journal/2026-08/2026-08-27_vault_write_obsidian_templates_and_live_web_search.md) |
 
 ---
 
@@ -98,8 +99,7 @@ This master document serves as the top-level index and Table of Contents.
   * Isolated sub-agent sandbox (`sympose/workers.py`) preventing chat context pollution and saving 5,000+ tokens per turn.
   * Autonomic delegation tag `[SPAWN_WORKER: ... | ...]` and configurable `performance.max_worker_tool_turns: 8`.
 * **[ADR-014 (2026-08-24): Deterministic Native Execution Tools & In-Turn Proactive Synthesis](journal/2026-08/2026-08-24_skills_and_mcp_workers.md#adr-014-deterministic-native-tools--in-turn-proactive-synthesis):**
-  * Real macOS execution (`subprocess.run`, file I/O) in `sympose/native_tools.py`, eliminating worker simulation/hallucination.
-  * In-turn proactive synthesis loop in `sympose/engine.py` delivering instant executive summaries right after tool execution in a single conversational turn.
+  * Built-in zero-dependency tools (`read_file`, `run_command`, `web_search`) and automatic synthesis loop in `sympose/engine.py`.
 * **[ADR-015 (2026-08-24): Autonomic Runtime Configuration & Master 7-Point Agent Prerequisite Standard](journal/2026-08/2026-08-24_skills_and_mcp_workers.md#adr-015-autonomic-runtime-configuration--master-7-point-agent-prerequisite-standard):**
   * Autonomic tag `[CONFIG_SET: <key> | <value>]` in `sympose/actions.py` to persist `config.yaml` updates live from conversational natural language.
   * `skills/sympose_mastery/SKILL.md` turning the default orchestrator (Samantha) into a full runtime concierge and sysadmin.
@@ -162,6 +162,16 @@ This master document serves as the top-level index and Table of Contents.
   * Segregated all runtime prompts from Python source into clean `prompts/` Markdown files.
 * **[ADR-038 (2026-08-26): Post-Remediation Hardening & Defensive Engineering Standards](journal/2026-08/2026-08-26_post_remediation_hardening_and_defensive_engineering_standards.md):**
   * Codified strict identity agnosticism, directory boundary safety (`os.path.commonpath`), multi-agent session concurrency isolation, process mutexes, and discrete memory line formatting.
+* **[ADR-039 (2026-08-27): Modular `vault_write` Skill, Obsidian Wikilink Taxonomy & Nested Hierarchies](journal/2026-08/2026-08-27_vault_write_obsidian_templates_and_live_web_search.md#adr-039-modular-vault_write-skill-obsidian-wikilink-taxonomy--nested-hierarchies):**
+  * Standardized the 6-Category Wikilink Taxonomy (People, Dates, Projects, Tech, Collections, Media), nested folder hierarchy (`Projects/<Project>/<Note>.md`), and conversational summary contract.
+* **[ADR-040 (2026-08-27): Native Obsidian `Templates/` Engine & Dynamic YAML Frontmatter Tag Syncing](journal/2026-08/2026-08-27_vault_write_obsidian_templates_and_live_web_search.md#adr-040-native-obsidian-templates-engine--dynamic-frontmatter-tag-syncing):**
+  * Automated template resolution from `Templates/` with variable interpolation and real-time merging of reflection tags into YAML frontmatter `tags:`.
+* **[ADR-041 (2026-08-27): Multi-Turn Slack Thread Active Context Isolation & Single-Source Action Execution](journal/2026-08/2026-08-27_vault_write_obsidian_templates_and_live_web_search.md#adr-041-multi-turn-slack-thread-active-context-isolation--single-source-action-execution):**
+  * Strict active prompt isolation preventing past thread history from triggering ghost writes, single action execution pipeline, and bracket-depth code-masked tag parsing.
+* **[ADR-042 (2026-08-27): Autonomous Live Internet Search (`web_search`) & Zero-Key `ddgs` Standard](journal/2026-08/2026-08-27_vault_write_obsidian_templates_and_live_web_search.md#adr-042-autonomous-live-internet-search-web_search--zero-key-ddgs-standard):**
+  * Direct `[SEARCH: <query>]` autonomic tag, `web_search` skill playbook, and anti-helplessness mandate banning canned refusals across all personas.
+* **[ADR-043 (2026-08-27): Three-Layer Architectural Separation (Soul vs. Skill vs. System Physics)](journal/2026-08/2026-08-27_vault_write_obsidian_templates_and_live_web_search.md#adr-043-three-layer-architectural-separation-soul-vs-skill-vs-system-physics):**
+  * Segregated character identity (`_soul.md`), operational playbooks (`skills/*`), and universal system grounding (`workspace_rules.md`).
 
 ---
 

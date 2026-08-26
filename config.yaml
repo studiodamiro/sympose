@@ -1,61 +1,135 @@
+# ==============================================================================
+# 🏛️ Sympose Master Configuration
+# Central settings for runtime, performance budgets, memory, and Obsidian vault.
+# ==============================================================================
+
 performance:
+  # HTTP timeout in seconds for cloud LLM providers (Gemini, OpenRouter, Anthropic)
+  # Recommended range: 5.0 - 30.0s | Default: 10.0
   request_timeout: 10.0
+
+  # Timeout in seconds for local offline Ollama models running on local hardware
+  # Recommended range: 15.0 - 120.0s | Default: 60.0
   local_request_timeout: 60.0
+
+  # Maximum conversational turns (user + assistant) kept in active RAM context window
+  # Prevents context dilution and token bloat | Range: 5 - 50 turns | Default: 15
   max_context_turns: 15
+
+  # Maximum tool execution loops allowed for Ephemeral Sub-Agent Workers
+  # Prevents infinite tool call loops | Range: 2 - 20 turns | Default: 8
   max_worker_tool_turns: 8
+
+  # Number of preceding Slack thread replies fetched for context resolution
+  # Range: 3 - 50 replies (6-12 is ideal for speed & token efficiency) | Default: 12
   slack_thread_context_limit: 12
+
+  # Automatically drop unsupported provider parameters during model fallbacks (LiteLLM)
+  # Default: true
   drop_unsupported_params: true
+
+  # Stream tokens live in Terminal UI and Slack updates
+  # Default: true
   stream: true
+
 session:
   exit_behavior:
+    # Automatically save session summaries upon exit without prompting
+    # Default: false
     auto_save: false
+
+    # Destination for persisted session logs: 'vault' | 'memory' | 'both'
+    # Default: both
     default_target: both
+
+    # Clear terminal screen upon exiting or running /clear
+    # Default: true
     clear_terminal: true
+
+    # Relative subfolder inside Obsidian Vault where session logs are saved
+    # Default: Sessions
     obsidian_subfolder: Sessions
+
+    # Fast, cost-efficient model used for synthesizing session summaries on exit
+    # Default: gemini/gemini-3.5-flash-lite
     summarization_model: gemini/gemini-3.5-flash-lite
+
 memory:
+  # Universal user profile path containing enduring personal facts and preferences
+  # Shared across all agents | Default: profiles/user_profile.md
   user_profile_file: profiles/user_profile.md
+
+  # Shared team memory file for collaborative specialists (Samantha, Grace, etc.)
+  # Default: profiles/_shared_memory.md
   shared_memory_file: profiles/_shared_memory.md
+
+  # Number of turns before working memory automatically triggers background compaction
+  # Range: 10 - 100 turns | Default: 25
   compaction_threshold: 25
+
+  # Automatically synthesize and prune working memory when compaction threshold is reached
+  # Default: true
   auto_compact: true
+
 runtime:
+  # Default active persona when launching Sympose without arguments
+  # Options: samantha | grace | aurelius | <custom_handle> | Default: samantha
   default_persona: samantha
+
+  # Directory containing agent YAML manifests, souls (_soul.md), and memories
+  # Default: profiles
   profiles_dir: profiles
+
 vault:
+  # Root directory inside Obsidian Vault where daily journal entries reside
+  # Default: Daily
   daily_notes_folder: Daily
+
+  # Strftime template for daily note filepaths and folder hierarchy
+  # Example: Daily/2026/08-August/2026-08-26.md
   daily_notes_format: Daily/%Y/%m-%B/%Y-%m-%d.md
+
+  # Vault indexing & search mode:
+  # - 'direct': Fast pure-Python scanning (Zero dependencies / Recommended)
+  # - 'sqlite_fts': Ranked BM25 full-text index in local SQLite
+  # - 'semantic': Local vector embeddings search
+  # Default: direct
   search_mode: direct
+
+  # Folders ignored during vault sweeps to prevent indexing binary/system clutter
   ignore_folders:
-  - .obsidian
-  - .git
-  - .gitignore
-  - Attachments
-  - Drawings
+    - .obsidian
+    - .git
+    - .gitignore
+    - Attachments
+    - Drawings
+
+  # Natural language trigger keywords that prompt automated vault searches
   search_triggers:
-  - vault
-  - note
-  - notes
-  - folder
-  - review
-  - pick
-  - show
-  - tell
-  - access
-  - know
-  - have
-  - who
-  - what
-  - which
-  - pull
-  - give
-  - get
-  - name
-  - list
-  - read
-  - someone
-  - somebody
-  - anyone
-  - past
-  - search
-  - find
-  - check
+    - vault
+    - note
+    - notes
+    - folder
+    - review
+    - pick
+    - show
+    - tell
+    - access
+    - know
+    - have
+    - who
+    - what
+    - which
+    - pull
+    - give
+    - get
+    - name
+    - list
+    - read
+    - someone
+    - somebody
+    - anyone
+    - past
+    - search
+    - find
+    - check

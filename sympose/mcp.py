@@ -102,5 +102,8 @@ class MCPRegistry:
         self.active_clients.clear()
 
 
+import atexit
+
 # Master singleton registry
 mcp_registry = MCPRegistry()
+atexit.register(mcp_registry.shutdown_all)

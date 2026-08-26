@@ -24,7 +24,7 @@ class ActionProcessor:
         "REMEMBER": re.compile(r"\[(?:ACTION:)?REMEMBER:\s*([^\]]+?)\]", re.IGNORECASE),
         "SPAWN_WORKER": re.compile(r"\[(?:ACTION:)?SPAWN_WORKER:\s*([^|\]]+?)\s*\|\s*([\s\S]+?)\]", re.IGNORECASE),
         "CONFIG_SET": re.compile(r"\[(?:ACTION:)?CONFIG_SET:\s*([^|\]]+?)\s*\|\s*([^\]]+?)\]", re.IGNORECASE),
-        "CREATE_PERSONA": re.compile(r"\[(?:ACTION:)?CREATE_PERSONA:\s*([^|\]]+?)\s*\|\s*([\s\S]*?)\n\s*\]", re.IGNORECASE),
+        "CREATE_PERSONA": re.compile(r"\[(?:ACTION:)?CREATE_PERSONA:\s*([^|\]]+?)\s*\|\s*([\s\S]+?)\]", re.IGNORECASE),
         "DELETE_PERSONA": re.compile(r"\[(?:ACTION:)?DELETE_PERSONA:\s*([^\]]+?)\]", re.IGNORECASE),
         "WRITE_CANVAS": re.compile(r"\[(?:ACTION:)?WRITE_CANVAS:\s*([^|\]]+?)\s*\|\s*([\s\S]+?)\]", re.IGNORECASE),
         "REACT": re.compile(r"\[(?:ACTION:)?REACT:\s*([a-zA-Z0-9_\-+:]+?)\]", re.IGNORECASE),

@@ -156,10 +156,13 @@ config_manager = ConfigManager()
 
 
 def is_safe_path(target_path: str, base_dir: str = ".") -> bool:
-    """Prevents directory traversal attacks (e.g. ../../etc/passwd)."""
-    resolved_target = os.path.abspath(target_path)
-    resolved_base = os.path.abspath(base_dir)
-    return resolved_target.startswith(resolved_base)
+    """Prevents directory traversal attacks (e.g. ../../etc/passwd) and sibling directory bypasses."""
+    try:
+        resolved_target = os.path.abspath(target_path)
+        resolved_base = os.path.abspath(base_dir)
+        return os.path.commonpath([resolved_target, resolved_base]) == resolved_base
+    except Exception:
+        return False
 
 
 def convert_md_to_slack_mrkdwn(text: str) -> str:

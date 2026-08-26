@@ -12,6 +12,19 @@ import litellm
 from sympose.config import config_manager
 
 
+_FILE_LOCKS: Dict[str, threading.Lock] = {}
+_GLOBAL_LOCK = threading.Lock()
+
+
+def get_file_lock(filepath: str) -> threading.Lock:
+    """Returns a process-wide mutex for the given file path to avoid write conflicts."""
+    abs_p = os.path.abspath(filepath)
+    with _GLOBAL_LOCK:
+        if abs_p not in _FILE_LOCKS:
+            _FILE_LOCKS[abs_p] = threading.Lock()
+        return _FILE_LOCKS[abs_p]
+
+
 class MemoryCompactor:
     """Consolidates and prunes markdown working memory files when line counts exceed thresholds."""
 
@@ -33,9 +46,12 @@ class MemoryCompactor:
         if not filepath or not os.path.exists(filepath):
             return False
 
+        lock = get_file_lock(filepath)
         try:
-            with open(filepath, "r", encoding="utf-8") as f:
-                content = f.read().strip()
+            with lock:
+                with open(filepath, "r", encoding="utf-8") as f:
+                    content = f.read().strip()
+                    initial_lines = [l.strip() for l in content.split("\n") if l.strip()]
         except Exception:
             return False
 
@@ -81,9 +97,22 @@ class MemoryCompactor:
             distilled = (resp.choices[0].message.content or "").strip()
 
             if distilled and ("#" in distilled or "- " in distilled) and len(distilled) > 20:
-                # Atomically write back clean file
-                with open(filepath, "w", encoding="utf-8") as f:
-                    f.write(distilled + "\n")
+                with lock:
+                    # Reconcile any lines appended while LLM was processing
+                    try:
+                        with open(filepath, "r", encoding="utf-8") as f:
+                            current_content = f.read().strip()
+                            current_lines = [l.strip() for l in current_content.split("\n") if l.strip()]
+                    except Exception:
+                        current_lines = []
+
+                    appended_lines = [l for l in current_lines if l not in initial_lines]
+                    final_text = distilled.rstrip() + "\n"
+                    if appended_lines:
+                        final_text += "\n" + "\n".join(appended_lines) + "\n"
+
+                    with open(filepath, "w", encoding="utf-8") as f:
+                        f.write(final_text)
                 return True
         except Exception as e:
             print(f"⚠️ Memory compaction failed for {filepath}: {e}")

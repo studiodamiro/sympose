@@ -42,15 +42,15 @@ Sympose supports existing Obsidian vault structures without requiring file reorg
 
 ## 2. Defensive Path Validation (`is_safe_path`)
 
-To prevent Path Traversal attacks (e.g. `../../etc/passwd` or accessing another agent's private vault domain), every file read and write operation is verified through [`sympose/config.py:is_safe_path()`](./sympose/config.py):
+To prevent Path Traversal attacks (e.g. `../../etc/passwd` or sibling directory escapes), every file read and write operation is verified through [`sympose/config.py:is_safe_path()`](file:///Users/damiro/Development/sympose/sympose/config.py):
 
 ```python
 def is_safe_path(target_path: str, base_dir: str) -> bool:
-    """Ensures target_path resolves strictly within base_dir (prevents ../ traversal)."""
+    """Ensures target_path resolves strictly within base_dir (prevents ../ traversal and sibling directory escapes)."""
     try:
-        base = os.path.realpath(base_dir)
-        target = os.path.realpath(target_path)
-        return os.path.commonpath([base]) == os.path.commonpath([base, target])
+        resolved_base = os.path.realpath(base_dir)
+        resolved_target = os.path.realpath(target_path)
+        return os.path.commonpath([resolved_target, resolved_base]) == resolved_base
     except Exception:
         return False
 ```

@@ -222,4 +222,22 @@ To ensure universal portability across any operating system and vault layout:
 * **Universal Structure Compatibility**: Supports Flat, PARA (`01_Projects`, `02_Areas`), Johnny Decimal, and Zettelkasten systems seamlessly.
 
 ---
-*Standard ratified on 2026-08-24. Updated with Ground-Truth Sovereignty & Inherited Sandboxing Standards on 2026-08-25. Implemented in Sympose Core Package (`sympose/`).*
+
+## 12. Discrete Working Memory Formatting & Extraction Resilience (ADR-038)
+
+To prevent context contamination and memory pollution:
+* **Discrete Bullet Invariant**: Working memory files (`profiles/*_memory.md` and `_shared_memory.md`) must **strictly** contain high-density bullet points (`- ` / `* `).
+* **Section Bleed Protection**: Multi-section session summarizers must explicitly filter extracted memory outputs to valid bullet lines. If section parsing fails, the full markdown session document must **never** bleed into working memory.
+* **Preamble-Resilient Extraction**: Shadow memory extractors must use line-level bullet extraction rather than fragile prefix matching (`startswith("-")`), ensuring valid facts are preserved even when models include conversational preamble.
+
+---
+
+## 13. Concurrency Mutexes & State Reconciliation (ADR-038)
+
+To maintain absolute data integrity during multi-threaded background distillation:
+* **Process-Wide File Mutexes**: Asynchronous background operations (such as `MemoryCompactor.check_and_compact_async`) must acquire process-wide locks (`get_file_lock()`) before snapshotting or writing to memory files.
+* **Snapshot Drift Reconciliation**: When background LLM compaction completes (typically after 1–3s), the compactor must re-read the file under lock, extract any newly appended bullet lines written by foreground user turns during distillation, and append them to the distilled output before saving.
+* **Session-Isolated History Routing**: Multi-agent daemons (e.g. Slack Socket Mode) must pass thread-scoped `session_id` tokens into `chat_stream` and `get_history`, guaranteeing zero history clobbering across concurrent conversations.
+
+---
+*Standard ratified on 2026-08-24. Updated with Ground-Truth Sovereignty & Inherited Sandboxing on 2026-08-25. Hardened with Discrete Bullet Formatting, Process Mutexes & Multi-Agent Concurrency on 2026-08-26 (ADR-038). Implemented in Sympose Core Package (`sympose/`).*

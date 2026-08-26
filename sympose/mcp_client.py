@@ -40,7 +40,9 @@ class MCPClient:
 
     def _build_env(self) -> Dict[str, str]:
         full_env = os.environ.copy()
-        paths = ["/opt/homebrew/bin", "/usr/local/bin", os.path.expanduser("~/.nvm/versions/node"), full_env.get("PATH", "")]
+        import glob
+        nvm_paths = sorted(glob.glob(os.path.expanduser("~/.nvm/versions/node/*/bin")), reverse=True)
+        paths = ["/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin"] + nvm_paths + [full_env.get("PATH", "")]
         full_env["PATH"] = ":".join([p for p in paths if p])
         for k, v in self.custom_env.items():
             if isinstance(v, str) and v.startswith("env:"):
@@ -105,8 +107,15 @@ class MCPClient:
         except Exception:
             return None
 
+        import select
         start_time = time.time()
         while time.time() - start_time < self.timeout:
+            if self.process.poll() is not None:
+                break
+            # Non-blocking poll for available stdout data
+            rlist, _, _ = select.select([self.process.stdout], [], [], 0.05)
+            if not rlist:
+                continue
             line = self.process.stdout.readline()
             if not line:
                 if self.process.poll() is not None:

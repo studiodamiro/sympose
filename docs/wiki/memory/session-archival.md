@@ -69,3 +69,11 @@ Summary of the discussion and high-level architectural goals.
 ## Action Items & Next Steps
 - [ ] Immediate follow-up task.
 ```
+
+---
+
+## 4. Section Bleed Defense & Discrete Memory Standard (ADR-038)
+
+Session distillation prompts are externalized to [`prompts/session_summary.md`](file:///Users/damiro/Development/sympose/prompts/session_summary.md).
+- **Strict Bullet Filtering**: In `SessionArchivist.summarize_session`, `memory_part` is strictly filtered to bullet points (`- ` / `* `).
+- **Zero Pollution**: If section header matching fails or models emit non-bullet prose, raw Markdown notes and headings are never appended into `_memory.md`.

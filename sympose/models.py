@@ -28,13 +28,15 @@ class ModelCatalog:
     def get_cached_models(cls, force_refresh: bool = False) -> List[Dict[str, Any]]:
         """Loads models from local cache, or fetches from OpenRouter if expired/forced."""
         now = time.time()
+        existing_cached_models = []
 
-        if not force_refresh and os.path.exists(CACHE_FILE):
+        if os.path.exists(CACHE_FILE):
             try:
                 with open(CACHE_FILE, "r", encoding="utf-8") as f:
                     cached = json.load(f)
-                if now - cached.get("timestamp", 0) < CACHE_TTL_SECONDS:
-                    return cached.get("models", [])
+                existing_cached_models = cached.get("models", [])
+                if not force_refresh and now - cached.get("timestamp", 0) < CACHE_TTL_SECONDS and existing_cached_models:
+                    return existing_cached_models
             except Exception:
                 pass
 
@@ -48,7 +50,8 @@ class ModelCatalog:
                 pass
             return fetched
 
-        return []
+        # Graceful fallback: return existing cached models (even if expired) or static catalog
+        return existing_cached_models or list(cls.STATIC_CATALOG)
 
     @classmethod
     def fetch_openrouter_catalog(cls) -> List[Dict[str, Any]]:

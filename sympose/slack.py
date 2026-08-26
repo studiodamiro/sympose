@@ -27,9 +27,10 @@ class SlackDaemon:
         self.bot_token = (bot_token or os.getenv(f"{p}BOT_TOKEN") or (os.getenv("SLACK_AURELIUS_BOT_TOKEN") if self.default_persona == "archia" else None) or os.getenv("SLACK_BOT_TOKEN", "")).strip()
         self.app_token = (app_token or os.getenv(f"{p}APP_TOKEN") or (os.getenv("SLACK_AURELIUS_APP_TOKEN") if self.default_persona == "archia" else None) or os.getenv("SLACK_APP_TOKEN", "")).strip()
         self.thread_personas, self.thread_histories, self.app, self.handler, self.bot_user_id, self.bot_id, self.boot_ts = {}, {}, None, None, "", "", time.time()
+        self._is_setup = False
         u_card = self.pm._read_file_safe(os.path.join(getattr(self.pm, "profiles_dir", "profiles"), "user_profile.md"))
-        m = re.search(r"(?:Primary\s+User|User|Name):\s*([a-zA-Z0-9_\-]+)", u_card, re.I)
-        self.primary_user = m.group(1).strip() if m else (os.getenv("USER") or "User")
+        m = re.search(r"[-*]?\s*(?:\*\*|__)?(?:Primary\s+User|User|Name)(?:\*\*|__)?\s*:\s*([^\n\r]+)", u_card, re.I)
+        self.primary_user = m.group(1).strip().strip("*_`") if m and m.group(1).strip() else (os.getenv("USER") or "User")
 
     def _validate_tokens(self) -> bool:
         if not self.bot_token or not self.app_token or App is None or SocketModeHandler is None:
@@ -114,8 +115,7 @@ class SlackDaemon:
                 msgs = client.conversations_replies(channel=channel_id, ts=event.get("thread_ts"), limit=8).get("messages", [])
                 streak = sum(1 for m in reversed(msgs) if (m.get("bot_id") or m.get("user") in self.bot_user_ids or m.get("subtype") == "bot_message"))
                 if streak >= int(self.config.get("performance.max_consecutive_bot_turns", 3)):
-                    if handle != "samantha": return
-                    prompt += "\n\n[SYSTEM: Discussion turn limit reached. Synthesize final plan for the user without tagging other bots.]"
+                    prompt += "\n\n[SYSTEM: Discussion turn limit reached. Deliver concluding summary for the user without tagging other bots.]"
             except Exception: pass
 
         name = self.pm.get_profile(handle).get("name", handle) if self.pm.get_profile(handle) else handle
@@ -128,7 +128,7 @@ class SlackDaemon:
 
         th_key = f"{thread_id}:{handle}"
         if bool(re.search(r"\b(?:delete|clear|wipe|erase|purge|reset)\s+(?:our\s+|the\s+|this\s+)?(?:thread|chat|conversation|history|session|context|messages?)", prompt, re.I)) or prompt.strip() in ("/clear", "/delete", "/wipe", "/reset"):
-            self.thread_histories.pop(th_key, None); self.engine.reset_history(handle)
+            self.thread_histories.pop(th_key, None); self.engine.reset_history(handle, session_id=th_key)
             if event.get("thread_ts"):
                 try:
                     for m in client.conversations_replies(channel=channel_id, ts=event.get("thread_ts"), limit=100).get("messages", []):
@@ -140,10 +140,9 @@ class SlackDaemon:
             if not re.search(r"\b(?:do\s*not\s*reply|no\s*reply|do\s*not\s*acknowledge|no\s*response|silent|silence)\b", prompt, re.I): say(text=f"🧹 Conversation history deleted for @{handle}.", thread_ts=thread_ts)
             return
 
-        self.engine.histories[handle] = self.thread_histories.get(th_key, [])
         try:
-            chunks = [c for c in self.engine.chat_stream(handle, full_prompt) if c != "CLEARED_SESSION"]
-            self.thread_histories[th_key] = self.engine.get_history(handle)
+            chunks = [c for c in self.engine.chat_stream(handle, full_prompt, session_id=th_key) if c != "CLEARED_SESSION"]
+            self.thread_histories[th_key] = self.engine.get_history(handle, session_id=th_key)
             raw_text = "".join(chunks).strip()
             clean_text, badges = ActionProcessor.execute_actions(self.pm, handle, raw_text)
             if badges: clean_text = (clean_text + "\n\n" + "\n".join(badges)).strip()
@@ -158,6 +157,8 @@ class SlackDaemon:
             print(f"⚠️ [Slack Error] @{handle}: {e}", file=sys.stderr); say(text=f"⚠️ *{name} encountered an error:* `{e}`", thread_ts=thread_ts)
 
     def setup(self) -> bool:
+        if self._is_setup and self.handler:
+            return True
         if not self._validate_tokens(): return False
         try:
             self.app = App(token=self.bot_token)
@@ -171,7 +172,9 @@ class SlackDaemon:
             except Exception: pass
             self.app.event("app_mention")(lambda client, event, say: self._process_message(client, event, say))
             self.app.event("message")(lambda client, event, say: self._process_message(client, event, say) if (event.get("channel_type") == "im" or event.get("thread_ts")) else None)
-            self.handler = SocketModeHandler(self.app, self.app_token); return True
+            self.handler = SocketModeHandler(self.app, self.app_token)
+            self._is_setup = True
+            return True
         except Exception as e:
             print(f"⚠️ [Sympose Slack] Failed to start @{self.default_persona}: {e}", file=sys.stderr); return False
 
@@ -179,7 +182,10 @@ class SlackDaemon:
         while True:
             try:
                 if self.setup() and self.handler: print(f"⚡ [Sympose] Slack Bot active for @{self.default_persona}"); self.handler.start()
-            except Exception as e: print(f"⚠️ [Slack Reconnect] @{self.default_persona}: {e}. Retrying in 3s...", file=sys.stderr); import time; time.sleep(3)
+            except Exception as e:
+                self._is_setup = False
+                print(f"⚠️ [Slack Reconnect] @{self.default_persona}: {e}. Retrying in 3s...", file=sys.stderr)
+                import time; time.sleep(3)
 
 
 class MultiAgentSlackRunner:

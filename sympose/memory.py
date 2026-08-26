@@ -15,11 +15,14 @@ from sympose.vault import VaultManager
 
 
 def _load_prompt_tmpl(name: str, fallback: str) -> str:
-    p = os.path.join("prompts", name)
-    if os.path.exists(p):
-        try:
-            with open(p, "r", encoding="utf-8") as f: return f.read().strip()
-        except Exception: pass
+    repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    for p in (os.path.join(repo_root, "prompts", name), os.path.join("prompts", name)):
+        if os.path.exists(p):
+            try:
+                with open(p, "r", encoding="utf-8") as f:
+                    return f.read().strip()
+            except Exception:
+                pass
     return fallback
 
 
@@ -61,11 +64,15 @@ class HeuristicGatedExtractor:
                 prompt = tmpl.replace("{{user_message}}", user_message).replace("{{assistant_reply}}", assistant_reply)
                 kwargs = {"model": model, "messages": [{"role": "user", "content": prompt}], "stream": False, "timeout": 5.0}
                 for pfx, key in (("gemini/", "GEMINI_API_KEY"), ("anthropic/", "ANTHROPIC_API_KEY"), ("openai/", "OPENAI_API_KEY"), ("openrouter/", "OPENROUTER_API_KEY")):
-                    if model.startswith(pfx) and os.getenv(key): kwargs["api_key"] = os.getenv(key)
+                    if model.startswith(pfx) and os.getenv(key):
+                        kwargs["api_key"] = os.getenv(key)
 
                 resp = litellm.completion(**kwargs)
                 out = (resp.choices[0].message.content or "").strip()
-                if out and out.upper() != "NONE" and out.startswith("-"): pm.append_memory(handle, out)
+                if out and out.upper() != "NONE":
+                    bullets = [l.strip() for l in out.splitlines() if l.strip().startswith(("- ", "* "))]
+                    if bullets:
+                        pm.append_memory(handle, "\n".join(bullets))
             except Exception: pass
 
         threading.Thread(target=_worker, daemon=True).start()
@@ -122,7 +129,9 @@ class SessionArchivist:
                 re.IGNORECASE | re.DOTALL
             )
 
-            memory_part = sec1.group(1).strip() if (sec1 and sec1.group(1).strip()) else raw_text.strip()
+            memory_raw = sec1.group(1).strip() if (sec1 and sec1.group(1).strip()) else ""
+            memory_bullets = [l.strip() for l in memory_raw.splitlines() if l.strip().startswith(("- ", "* "))]
+            memory_part = "\n".join(memory_bullets)
             obsidian_part = sec2.group(1).strip() if (sec2 and sec2.group(1).strip()) else raw_text.strip()
 
             results: Dict[str, Any] = {"status": "success", "targets_saved": []}

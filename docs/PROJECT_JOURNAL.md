@@ -43,6 +43,7 @@ This master document serves as the top-level index and Table of Contents.
 | **2026-08-26** | Evidence-Based Grounding & Epistemic Humility Standard (ADR-035) | Complete | [`2026-08-26_evidence_based_grounding_and_epistemic_humility.md`](journal/2026-08/2026-08-26_evidence_based_grounding_and_epistemic_humility.md) |
 | **2026-08-26** | Multi-Agent Collaboration Protocol, Discussion Moderation & Circuit Breaker (ADR-036) | Complete | [`2026-08-26_multi_agent_collaboration_and_circuit_breaker.md`](journal/2026-08/2026-08-26_multi_agent_collaboration_and_circuit_breaker.md) |
 | **2026-08-26** | Pure Declarative Markdown-Driven Prompting & Zero-Code Injections (ADR-037) | Complete | [`2026-08-26_pure_declarative_markdown_prompting.md`](journal/2026-08/2026-08-26_pure_declarative_markdown_prompting.md) |
+| **2026-08-26** | Post-Remediation Hardening & Defensive Engineering Standards (ADR-038) | Complete | [`2026-08-26_post_remediation_hardening_and_defensive_engineering_standards.md`](journal/2026-08/2026-08-26_post_remediation_hardening_and_defensive_engineering_standards.md) |
 
 ---
 
@@ -141,6 +142,26 @@ This master document serves as the top-level index and Table of Contents.
   * Zero inbound ports using `slack-bolt` and `SocketModeHandler`.
   * Thread-bound multi-agent session isolation preventing conversational crosstalk across channels.
   * Intelligent `@handle` mention parsing, automatic persona routing, and instant reaction SLA feedback.
+* **[ADR-029 (2026-08-25): Assume Interruption & Proactive Write-Through State Memory](journal/2026-08/2026-08-25_assume_interruption_and_write_through_memory.md):**
+  * Context windows are volatile L1 cache. Proactive checkpointing via `[REMEMBER]` and `[WRITE_NOTE]`.
+* **[ADR-030 (2026-08-26): High-Density Folder Digests & Zero Time-Delay Simulation Standard](journal/2026-08/2026-08-26_high_density_folder_digests_and_zero_delay_simulation.md):**
+  * Zero-delay immediate turn delivery and 1-line metadata digests for comprehensive folder synthesis.
+* **[ADR-031 (2026-08-26): Slack Thread Deletion, Command Ergonomics & Memory Sovereignty](journal/2026-08/2026-08-26_slack_thread_deletion_and_command_ergonomics.md):**
+  * Atomic in-chat thread purge via `/clear` and Slack API deletion with broom reactions.
+* **[ADR-032 (2026-08-26): First-Class MCP Directory & Modular Hub Refactor](journal/2026-08/2026-08-26_mcp_directory_segregation_and_modular_hub.md):**
+  * Segregated MCP subsystem into `mcp/` root with client wrappers and automatic discovery.
+* **[ADR-033 (2026-08-26): Zero-Key Native Web Search & DDGS Standard](journal/2026-08/2026-08-26_zero_key_native_web_search_and_ddgs_standard.md):**
+  * Native DuckDuckGo web search tool built into sub-agent workers with zero external API key requirements.
+* **[ADR-034 (2026-08-26): Autonomous Slack Emotion & Reaction Autonomy](journal/2026-08/2026-08-26_autonomous_slack_reaction_engine.md):**
+  * Autonomic `[REACT: <emoji>]` action tags and silent turn support (`(no response)`).
+* **[ADR-035 (2026-08-26): Evidence-Based Grounding & Epistemic Humility Standard](journal/2026-08/2026-08-26_evidence_based_grounding_and_epistemic_humility.md):**
+  * Zero-assumption verification and strict grounding protocols for high-signal engineering.
+* **[ADR-036 (2026-08-26): Multi-Agent Collaboration Protocol & Circuit Breakers](journal/2026-08/2026-08-26_multi_agent_collaboration_and_circuit_breaker.md):**
+  * Automatic multi-agent turn limits (`max_consecutive_bot_turns`) preventing infinite bot tag loops.
+* **[ADR-037 (2026-08-26): Pure Declarative Markdown-Driven Prompting](journal/2026-08/2026-08-26_pure_declarative_markdown_prompting.md):**
+  * Segregated all runtime prompts from Python source into clean `prompts/` Markdown files.
+* **[ADR-038 (2026-08-26): Post-Remediation Hardening & Defensive Engineering Standards](journal/2026-08/2026-08-26_post_remediation_hardening_and_defensive_engineering_standards.md):**
+  * Codified strict identity agnosticism, directory boundary safety (`os.path.commonpath`), multi-agent session concurrency isolation, process mutexes, and discrete memory line formatting.
 
 ---
 

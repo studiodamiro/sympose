@@ -69,6 +69,12 @@ class VaultManager:
         mv, allowed_dirs = cls._get_master_vault(), cls.get_allowed_dirs(profile)
         if not mv or not allowed_dirs: return "⚠️ Master notes directory not configured or access denied."
         target_dir = next((d for d in allowed_dirs if os.path.basename(d).lower() == folder_name.lower()), None)
+        if not target_dir:
+            for d in allowed_dirs:
+                candidate = os.path.join(d, folder_name)
+                if os.path.exists(candidate) and is_safe_path(candidate, d):
+                    target_dir = candidate
+                    break
         if not target_dir or not os.path.exists(target_dir):
             return f"Folder `{folder_name}` not found in allowed vault directories."
 

@@ -79,12 +79,16 @@ class WorkerEngine:
 
         mv = os.getenv("MASTER_VAULT_PATH")
         env_lines = [f"- Workspace Directory: `{os.getcwd()}`"] + ([f"- Obsidian Vault Directory: `{mv}`"] if mv else [])
-        tmpl_path = os.path.join("prompts", "worker_system.md")
+        repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         tmpl = ""
-        if os.path.exists(tmpl_path):
-            try:
-                with open(tmpl_path, "r", encoding="utf-8") as f: tmpl = f.read().strip()
-            except Exception: pass
+        for tp in (os.path.join(repo_root, "prompts", "worker_system.md"), os.path.join("prompts", "worker_system.md")):
+            if os.path.exists(tp):
+                try:
+                    with open(tp, "r", encoding="utf-8") as f:
+                        tmpl = f.read().strip()
+                        break
+                except Exception:
+                    pass
         if not tmpl: tmpl = "You are an ephemeral Sub-Agent Worker in Sympose on macOS dispatched by parent agent @{{parent_agent}}.\n\n### RUNTIME ENVIRONMENT:\n{{environment}}\n\n### UNIVERSAL OPERATIONAL DIRECTIVES:\n1. GROUND-TRUTH EXECUTION: Use tools directly.\n2. ZERO HAND-WAVING: Output factual deliverables.\n3. RAPID COMPLETION."
 
         system_prompt = tmpl.replace("{{parent_agent}}", task.parent_agent).replace("{{environment}}", "\n".join(env_lines))
@@ -151,6 +155,9 @@ class WorkerEngine:
                                 args_dict = {}
                         else:
                             args_dict = raw_args or {}
+
+                        if not isinstance(args_dict, dict):
+                            args_dict = {}
 
                         yield f"> ⚙️ *Worker calling tool:* `{t_name}`...\n"
 

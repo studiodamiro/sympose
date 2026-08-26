@@ -85,7 +85,7 @@ class SymposeCompleter:
             self.engine.pm.reload_profiles()
             return [f"@{h}" for h in self.engine.pm.profiles.keys()]
         except Exception:
-            return ["@samantha", "@grace", "@aurelius"]
+            return [f"@{h}" for h in getattr(getattr(self.engine, "pm", None), "profiles", {}).keys()] or []
 
     def get_worker_targets(self) -> List[str]:
         """Returns combined list of procedural skills and MCP servers."""

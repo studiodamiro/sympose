@@ -78,8 +78,8 @@ class ProfileManager:
     def build_system_prompt(self, profile: Dict[str, Any]) -> str:
         handle, name = profile.get("handle", "agent"), profile.get("name", profile.get("handle", "agent"))
         user_card = self._read_file_safe(os.path.join(self.profiles_dir, "user_profile.md"))
-        m = re.search(r"(?:Primary\s+User|User|Name):\s*([a-zA-Z0-9_\-]+)", user_card, re.I)
-        primary_user = m.group(1).strip() if m else "User"
+        m = re.search(r"[-*]?\s*(?:\*\*|__)?(?:Primary\s+User|User|Name)(?:\*\*|__)?\s*:\s*([^\n\r]+)", user_card, re.I)
+        primary_user = m.group(1).strip().strip("*_`") if m and m.group(1).strip() else (os.getenv("USER") or "User")
 
         v_folders = profile.get("vault_folders") or [profile.get("vault_folder", "General")]
         vf_desc = "Root Vault (All Folders)" if ("" in v_folders or "*" in v_folders) else ", ".join(f"`{f}/`" for f in v_folders)
@@ -127,18 +127,21 @@ class ProfileManager:
 
     def _append_to_file(self, file_path: str, fact: str) -> bool:
         try:
-            os.makedirs(os.path.dirname(os.path.abspath(file_path)), exist_ok=True)
-            existing = self._read_file_safe(file_path).lower()
-            lines = [l.strip() for l in fact.strip().split("\n") if l.strip()]
-            new_lines = []
-            for l in lines:
-                clean = l[2:].strip() if (l.startswith("- ") or l.startswith("* ")) else l
-                if clean.lower() not in existing:
-                    new_lines.append(f"- {clean}")
-            if new_lines:
-                with open(file_path, "a", encoding="utf-8") as f:
-                    f.write("\n" + "\n".join(new_lines))
-            return True
+            from sympose.compactor import get_file_lock
+            lock = get_file_lock(file_path)
+            with lock:
+                os.makedirs(os.path.dirname(os.path.abspath(file_path)), exist_ok=True)
+                existing = self._read_file_safe(file_path).lower()
+                lines = [l.strip() for l in fact.strip().split("\n") if l.strip()]
+                new_lines = []
+                for l in lines:
+                    clean = l[2:].strip() if (l.startswith("- ") or l.startswith("* ")) else l
+                    if clean.lower() not in existing:
+                        new_lines.append(f"- {clean}")
+                if new_lines:
+                    with open(file_path, "a", encoding="utf-8") as f:
+                        f.write("\n" + "\n".join(new_lines))
+                return True
         except Exception:
             return False
 

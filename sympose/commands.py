@@ -105,9 +105,10 @@ class CommandInterceptor:
                         except ValueError:
                             pass
                     engine.config.set(key, val)
+                    engine.config.save()
                     if "max_context_turns" in key:
                         engine.max_turns = int(val)
-                    yield f"Config `{key}` updated to `{val}` for active runtime."
+                    yield f"Config `{key}` updated to `{val}` (persisted to disk)."
                 else:
                     yield "Usage:\n- `/config`: Show settings\n- `/config set <key> <value>`: Update setting"
             return _config()
@@ -314,15 +315,16 @@ class CommandInterceptor:
                     yield chunk
             return _worker()
 
-        # 9. @mention in prompt
-        mention_match = re.search(r"@(\w+)", clean_input)
+        # 9. Explicit @mention delegation (must start with @<handle>)
+        mention_match = re.match(r"^\s*@(\w+)(?:\s*[:,]?\s*(.*))?$", clean_input, re.DOTALL)
         if mention_match:
             target_tag = mention_match.group(1).lower()
+            delegated_prompt = (mention_match.group(2) or "").strip() or clean_input
             if target_tag in engine.pm.profiles and target_tag != handle.lower():
                 def _mention():
                     target_p = engine.pm.get_profile(target_tag)
                     yield f"[Delegating to {target_p.get('name', target_tag)} ({target_p.get('title', 'Specialist')}):]\n\n"
-                    for chunk in engine.spawn_sub_agent(target_tag, clean_input):
+                    for chunk in engine.spawn_sub_agent(target_tag, delegated_prompt):
                         yield chunk
                 return _mention()
 

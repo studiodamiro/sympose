@@ -24,9 +24,31 @@ class PersonaEngine:
         self.model_overrides: Dict[str, str] = {}
         self.active_vault_ctx: Dict[str, str] = {}
 
-    def get_history(self, handle: str) -> List[Dict[str, str]]: return self.histories.setdefault(handle.lower(), [])
-    def reset_history(self, handle: str) -> None: self.histories[handle.lower()] = []; self.active_vault_ctx.pop(handle.lower(), None)
-    def summarize_session(self, handle: str, target: str = "both") -> Dict[str, Any]: return self.archivist.summarize_session(handle, self.get_history(handle), target=target)
+    def _get_history_key(self, handle: str, session_id: Optional[str] = None) -> str:
+        return f"{handle.lower()}::{session_id}" if session_id else handle.lower()
+
+    def get_history(self, handle: str, session_id: Optional[str] = None) -> List[Dict[str, str]]:
+        return self.histories.setdefault(self._get_history_key(handle, session_id), [])
+
+    def reset_history(self, handle: str, session_id: Optional[str] = None) -> None:
+        if session_id:
+            k = self._get_history_key(handle, session_id)
+            self.histories[k] = []
+            self.active_vault_ctx.pop(k, None)
+        else:
+            h_low = handle.lower()
+            prefix = f"{h_low}::"
+            self.histories[h_low] = []
+            self.active_vault_ctx.pop(h_low, None)
+            for k in list(self.histories.keys()):
+                if k.startswith(prefix):
+                    self.histories.pop(k, None)
+            for k in list(self.active_vault_ctx.keys()):
+                if k.startswith(prefix):
+                    self.active_vault_ctx.pop(k, None)
+
+    def summarize_session(self, handle: str, target: str = "both", session_id: Optional[str] = None) -> Dict[str, Any]:
+        return self.archivist.summarize_session(handle, self.get_history(handle, session_id=session_id), target=target)
 
     def _resolve_vault_context(self, profile: Dict[str, Any], message: str) -> Optional[str]:
         msg = message.strip()
@@ -117,7 +139,7 @@ class PersonaEngine:
                 else f"⚠️ Delegation error ({target_model}): {err_str}"
             )
 
-    def chat_stream(self, handle: str, user_message: str):
+    def chat_stream(self, handle: str, user_message: str, session_id: Optional[str] = None):
         profile = self.pm.get_profile(handle)
         if not profile:
             yield f"⚠️ Persona `@{handle}` not found."
@@ -136,18 +158,13 @@ class PersonaEngine:
                 self.pm.append_memory(handle, extracted_fact)
                 yield f"> 🧠 **Persisted to {profile.get('name', handle)}'s memory:** *{extracted_fact}*\n\n"
 
-        # Build dynamic composite prompt & inject persistent pre-turn vault context
+        # Build dynamic composite prompt & inject active turn vault context
         system_prompt = self.pm.build_system_prompt(profile)
         vault_ctx = self._resolve_vault_context(profile, clean_input)
         if vault_ctx:
-            self.active_vault_ctx[handle.lower()] = vault_ctx
-        elif handle.lower() in self.active_vault_ctx and self.active_vault_ctx[handle.lower()]:
-            vault_ctx = self.active_vault_ctx[handle.lower()]
-
-        if vault_ctx:
             system_prompt += f"\n\n{vault_ctx}"
 
-        history = self.get_history(handle)
+        history = self.get_history(handle, session_id=session_id)
         active_messages = [{"role": "system", "content": system_prompt}]
         active_messages.extend(history[-(self.max_turns * 2):])
         active_messages.append({"role": "user", "content": user_message})
@@ -187,7 +204,8 @@ class PersonaEngine:
                     pass
 
             history.extend([{"role": "user", "content": user_message}, {"role": "assistant", "content": assistant_record}])
-            self.histories[handle.lower()] = history[-(self.max_turns * 2):]
+            h_key = self._get_history_key(handle, session_id)
+            self.histories[h_key] = history[-(self.max_turns * 2):]
             self.archivist.trigger_background_extraction(handle, user_message, complete_text)
         except Exception as e:
             err = str(e)

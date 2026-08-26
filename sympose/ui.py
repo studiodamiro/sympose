@@ -54,13 +54,23 @@ class TerminalUI:
             if h == default_handle.lower():
                 default_choice = str(i)
 
+            v_folders = p.get("vault_folders") or ([p["vault_folder"]] if p.get("vault_folder") else [])
+            if not v_folders:
+                sandbox_desc = "none/"
+            elif "*" in v_folders or "" in v_folders or "all" in v_folders:
+                sandbox_desc = "Root (*)"
+            elif len(v_folders) == 1:
+                sandbox_desc = f"{v_folders[0]}/"
+            else:
+                sandbox_desc = ", ".join(f"{f}/" for f in v_folders[:2]) + (f" (+{len(v_folders)-2})" if len(v_folders) > 2 else "")
+
             table.add_row(
                 str(i),
                 f"@{p.get('handle')}",
                 p.get("name", ""),
                 p.get("title", ""),
                 p.get("model", ""),
-                f"{p.get('vault_folder', 'none')}/"
+                sandbox_desc
             )
 
         console.print(table)

@@ -21,9 +21,9 @@ class SlackDaemon:
     def __init__(self, engine: PersonaEngine, default_persona: Optional[str] = None, bot_token: Optional[str] = None, app_token: Optional[str] = None):
         self.engine, self.pm, self.config = engine, engine.pm, engine.config
         self.default_persona = default_persona or self.config.get("runtime.default_persona", "samantha").lower()
-        p_prefix = f"SLACK_{self.default_persona.upper()}_"
-        self.bot_token = (bot_token or os.getenv(f"{p_prefix}BOT_TOKEN") or os.getenv("SLACK_BOT_TOKEN", "")).strip()
-        self.app_token = (app_token or os.getenv(f"{p_prefix}APP_TOKEN") or os.getenv("SLACK_APP_TOKEN", "")).strip()
+        p = f"SLACK_{self.default_persona.upper()}_"
+        self.bot_token = (bot_token or os.getenv(f"{p}BOT_TOKEN") or os.getenv("SLACK_BOT_TOKEN", "")).strip()
+        self.app_token = (app_token or os.getenv(f"{p}APP_TOKEN") or os.getenv("SLACK_APP_TOKEN", "")).strip()
         self.thread_personas: Dict[str, str] = {}
         self.thread_histories: Dict[str, List[Dict[str, str]]] = {}
         self.app, self.handler = None, None
@@ -143,11 +143,14 @@ class SlackDaemon:
         try:
             chunks = [c for c in self.engine.chat_stream(handle, full_prompt) if c != "CLEARED_SESSION"]
             self.thread_histories[th_key] = self.engine.get_history(handle)
-            say(text=convert_md_to_slack_mrkdwn("".join(chunks).strip()), thread_ts=thread_ts)
+            raw_text = "".join(chunks)
+            say(text=convert_md_to_slack_mrkdwn(raw_text.strip()), thread_ts=thread_ts)
             try: client.reactions_remove(channel=channel_id, timestamp=msg_ts, name="eyes")
             except Exception: pass
-            try: client.reactions_add(channel=channel_id, timestamp=msg_ts, name="white_check_mark")
-            except Exception: pass
+            reacts = [m.group(1).strip().strip(":") for m in re.finditer(r"\[(?:ACTION:)?REACT:\s*([a-zA-Z0-9_\-+:]+?)\]", raw_text, re.I)] or ["white_check_mark"]
+            for em in reacts:
+                try: client.reactions_add(channel=channel_id, timestamp=msg_ts, name=em)
+                except Exception: pass
         except Exception as e:
             logging.error(f"Error handling Slack event: {e}")
             say(text=f"⚠️ *{name} encountered an error:* `{e}`", thread_ts=thread_ts)
@@ -183,10 +186,8 @@ class MultiAgentSlackRunner:
 
         if not daemons:
             d = SlackDaemon(engine)
-            if d.setup(): daemons.append(d)
-            else:
-                print("⚠️ [Sympose Slack] Missing or invalid Slack tokens in .env.", file=sys.stderr)
-                sys.exit(1)
+            if not d.setup(): sys.exit("⚠️ [Sympose Slack] Missing or invalid Slack tokens in .env.")
+            daemons.append(d)
 
         print(f"🚀 [Sympose] Launching {len(daemons)} Slack Agent(s)...")
         threads = [threading.Thread(target=d.handler.start, daemon=True) for d in daemons if d.setup() and d.handler]

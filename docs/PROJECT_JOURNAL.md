@@ -39,6 +39,7 @@ This master document serves as the top-level index and Table of Contents.
 | **2026-08-26** | Slack Thread Deletion, Command Ergonomics & Memory Sovereignty (ADR-031) | Complete | [`2026-08-26_slack_thread_deletion_and_command_ergonomics.md`](journal/2026-08-26_slack_thread_deletion_and_command_ergonomics.md) |
 | **2026-08-26** | First-Class MCP Directory & Modular Hub Refactor (ADR-032) | Complete | [`2026-08-26_mcp_directory_segregation_and_modular_hub.md`](journal/2026-08-26_mcp_directory_segregation_and_modular_hub.md) |
 | **2026-08-26** | Zero-Key Native Web Search & DDGS Standard (ADR-033) | Complete | [`2026-08-26_zero_key_native_web_search_and_ddgs_standard.md`](journal/2026-08-26_zero_key_native_web_search_and_ddgs_standard.md) |
+| **2026-08-26** | Autonomous Slack Emotion & Reaction Autonomy (ADR-034) | Complete | [`2026-08-26_autonomous_slack_reaction_engine.md`](journal/2026-08-26_autonomous_slack_reaction_engine.md) |
 
 ---
 

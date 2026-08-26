@@ -64,6 +64,13 @@ class SlackDaemon:
                 if len(part) >= 3: alias_map[part] = h
             for al in p.get("aliases", []): alias_map[str(al).lower()] = h
 
+        gm = re.match(r"^(?:hi|hey|hello|good\s+morning|morning|good\s+afternoon|good\s+evening)\s+@?([a-zA-Z0-9_\-]+)[,:\s]*(.*)$", cleaned, re.I | re.DOTALL)
+        if gm and gm.group(1).lower() in alias_map:
+            target = alias_map[gm.group(1).lower()]
+            self.thread_personas[thread_id] = target
+            rest = gm.group(2).strip()
+            return target, (rest if rest else cleaned)
+
         match = re.match(r"^@?([a-zA-Z0-9_\-]+)[:,\s]+(.*)$", cleaned, re.DOTALL)
         if match and match.group(1).lower() in alias_map:
             target = alias_map[match.group(1).lower()]
@@ -89,10 +96,8 @@ class SlackDaemon:
                 for m in res.get("messages", []):
                     if m.get("ts") != current_ts and m.get("text", "").strip():
                         lines.append(f"- {self._resolve_user_name(client, m.get('user') or m.get('username') or '')}: {self._clean_mentions(client, m.get('text', '').strip())}")
-                if lines:
-                    return "### Slack Thread Context (Preceding Messages in this Thread):\n" + "\n".join(lines)
-            except Exception as e:
-                logging.debug(f"Thread context: {e}")
+                if lines: return "### Slack Thread Context (Preceding Messages in this Thread):\n" + "\n".join(lines)
+            except Exception as e: logging.debug(f"Thread context: {e}")
 
         if re.search(r"\b(summarize|summary|catch\s*up|recap|what\s+happened|this\s+(?:thread|channel|conversation))\b", prompt, re.I):
             try:
@@ -100,20 +105,20 @@ class SlackDaemon:
                 for m in reversed(res.get("messages", [])):
                     if m.get("ts") != current_ts and m.get("text", "").strip():
                         lines.append(f"- {self._resolve_user_name(client, m.get('user') or m.get('username') or '')}: {self._clean_mentions(client, m.get('text', '').strip())}")
-                if lines:
-                    return "### Recent Slack Channel History:\n" + "\n".join(lines)
-            except Exception as e:
-                logging.debug(f"Channel context: {e}")
+                if lines: return "### Recent Slack Channel History:\n" + "\n".join(lines)
+            except Exception as e: logging.debug(f"Channel context: {e}")
         return ""
 
     def _process_message(self, client: Any, event: Dict[str, Any], say: Any) -> None:
-        channel_id, thread_ts = event.get("channel", ""), event.get("thread_ts") or event.get("ts", "")
-        msg_ts, raw_text = event.get("ts", ""), event.get("text", "")
-        thread_id = f"{channel_id}:{thread_ts}"
-        if not raw_text.strip() or event.get("bot_id") or event.get("subtype") == "bot_message":
-            return
+        channel_id, msg_ts, raw_text = event.get("channel", ""), event.get("ts", ""), event.get("text", "")
+        if not raw_text.strip() or event.get("bot_id") or event.get("subtype") == "bot_message": return
+        is_dm = (event.get("channel_type") == "im")
+        thread_ts = event.get("thread_ts") if is_dm else (event.get("thread_ts") or event.get("ts", ""))
+        thread_id = f"{channel_id}:{event.get('thread_ts') or event.get('ts') or channel_id}"
 
         handle, prompt = self._resolve_persona_and_prompt(raw_text, thread_id)
+        if bool(os.getenv(f"SLACK_{handle.upper()}_BOT_TOKEN")) and handle != self.default_persona: return
+
         profile = self.pm.get_profile(handle)
         name = profile.get("name", handle) if profile else handle
         slack_ctx = self._fetch_slack_context(client, channel_id, event.get("thread_ts"), msg_ts, prompt)
@@ -124,11 +129,8 @@ class SlackDaemon:
         except Exception: pass
 
         th_key = f"{thread_id}:{handle}"
-        # Direct Slack Thread Deletion & In-Memory Reset
         if bool(re.search(r"^(?:please\s+)?(?:delete|clear|wipe|erase|purge)\s+(?:our\s+|the\s+|this\s+)?(?:thread|chat|conversation|history|messages?)$", prompt.strip(), re.I)) or prompt.strip() in ("/clear", "/delete", "/wipe", "/reset"):
-            self.thread_histories.pop(th_key, None)
-            self.engine.reset_history(handle)
-            deleted = 0
+            self.thread_histories.pop(th_key, None); self.engine.reset_history(handle); deleted = 0
             if event.get("thread_ts"):
                 try:
                     res = client.conversations_replies(channel=channel_id, ts=event.get("thread_ts"), limit=100)
@@ -143,8 +145,8 @@ class SlackDaemon:
         try:
             chunks = [c for c in self.engine.chat_stream(handle, full_prompt) if c != "CLEARED_SESSION"]
             self.thread_histories[th_key] = self.engine.get_history(handle)
-            raw_text = "".join(chunks)
-            say(text=convert_md_to_slack_mrkdwn(raw_text.strip()), thread_ts=thread_ts)
+            raw_text = "".join(chunks).strip() or f"*{name} acknowledged your message.*"
+            say(text=convert_md_to_slack_mrkdwn(raw_text), thread_ts=thread_ts)
             try: client.reactions_remove(channel=channel_id, timestamp=msg_ts, name="eyes")
             except Exception: pass
             reacts = [m.group(1).strip().strip(":") for m in re.finditer(r"\[(?:ACTION:)?REACT:\s*([a-zA-Z0-9_\-+:]+?)\]", raw_text, re.I)] or ["white_check_mark"]
@@ -152,7 +154,7 @@ class SlackDaemon:
                 try: client.reactions_add(channel=channel_id, timestamp=msg_ts, name=em)
                 except Exception: pass
         except Exception as e:
-            logging.error(f"Error handling Slack event: {e}")
+            print(f"⚠️ [Slack Error] @{handle}: {e}", file=sys.stderr)
             say(text=f"⚠️ *{name} encountered an error:* `{e}`", thread_ts=thread_ts)
 
     def setup(self) -> bool:
@@ -182,15 +184,13 @@ class MultiAgentSlackRunner:
         handles = [persona_override.lower()] if persona_override else [p["handle"].lower() for p in engine.pm.list_personas()]
         for h in handles:
             d = SlackDaemon(engine, default_persona=h)
-            if d._validate_tokens() and not any(x.bot_token == d.bot_token for x in daemons): daemons.append(d)
+            if d._validate_tokens() and not any(x.bot_token == d.bot_token for x in daemons):
+                if d.setup(): daemons.append(d)
 
-        if not daemons:
-            d = SlackDaemon(engine)
-            if not d.setup(): sys.exit("⚠️ [Sympose Slack] Missing or invalid Slack tokens in .env.")
-            daemons.append(d)
+        if not daemons: sys.exit("⚠️ [Sympose Slack] Missing or invalid Slack tokens in .env.")
 
         print(f"🚀 [Sympose] Launching {len(daemons)} Slack Agent(s)...")
-        threads = [threading.Thread(target=d.handler.start, daemon=True) for d in daemons if d.setup() and d.handler]
+        threads = [threading.Thread(target=d.handler.start, daemon=True) for d in daemons if d.handler]
         for t in threads: t.start()
         try:
             for t in threads: t.join()

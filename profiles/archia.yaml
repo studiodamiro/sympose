@@ -6,8 +6,15 @@ aliases:
   - "arch"
   - "aurelius"
   - "marcus"
-model: "ollama/qwen2.5:14b"
-temperature: 0.3
+# Active Model: Nous Hermes 3 (Llama 3.1 - Uncensored, deep roleplay & intellect)
+model: "ollama/hermes3:8b"
+
+# Switchable Alternatives:
+# model: "ollama/qwen2.5:14b"                                    # Qwen 2.5 14B (Previous baseline)
+# model: "ollama/mistral-nemo:12b"                                 # Mistral Nemo (Literary & fast)
+# model: "openrouter/nousresearch/hermes-3-llama-3.1-405b:free"    # Cloud Hermes 405B (Free tier)
+
+temperature: 0.4
 api_base: "http://localhost:11434"
 icon_emoji: ":rose:"
 

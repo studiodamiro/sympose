@@ -10,6 +10,7 @@ try: from slack_bolt import App; from slack_bolt.adapter.socket_mode import Sock
 except ImportError: App, SocketModeHandler = None, None
 
 from sympose.engine import PersonaEngine
+from sympose.actions import ActionProcessor
 from sympose.config import convert_md_to_slack_mrkdwn
 
 
@@ -81,8 +82,7 @@ class SlackDaemon:
             parts = cleaned.split()
             if len(parts) > 1 and parts[1].replace("@", "").lower() in alias_map:
                 target = alias_map[parts[1].replace("@", "").lower()]
-                self.thread_personas[thread_id] = target
-                return target, f"Switched active persona to @{target}."
+                self.thread_personas[thread_id] = target; return target, f"Switched active persona to @{target}."
 
         active = self.thread_personas.get(thread_id, self.default_persona)
         return (active if active in [p["handle"].lower() for p in personas] else self.default_persona), cleaned
@@ -93,9 +93,7 @@ class SlackDaemon:
         if thread_ts:
             try:
                 res = client.conversations_replies(channel=channel_id, ts=thread_ts, limit=50)
-                for m in res.get("messages", []):
-                    if m.get("ts") != current_ts and m.get("text", "").strip():
-                        lines.append(f"- {self._resolve_user_name(client, m.get('user') or m.get('username') or '')}: {self._clean_mentions(client, m.get('text', '').strip())}")
+                lines = [f"- {self._resolve_user_name(client, m.get('user') or m.get('username') or '')}: {self._clean_mentions(client, m.get('text', '').strip())}" for m in res.get("messages", []) if m.get("ts") != current_ts and m.get("text", "").strip()]
                 if lines: return "### Slack Thread Context (Preceding Messages in this Thread):\n" + "\n".join(lines)
             except Exception as e: logging.debug(f"Thread context: {e}")
 
@@ -145,11 +143,13 @@ class SlackDaemon:
         try:
             chunks = [c for c in self.engine.chat_stream(handle, full_prompt) if c != "CLEARED_SESSION"]
             self.thread_histories[th_key] = self.engine.get_history(handle)
-            raw_text = "".join(chunks).strip() or f"*{name} acknowledged your message.*"
-            say(text=convert_md_to_slack_mrkdwn(raw_text), thread_ts=thread_ts)
+            raw_text = "".join(chunks).strip()
+            reacts = [m.group(1).strip().strip(":") for m in re.finditer(r"\[(?:ACTION:)?REACT:\s*([a-zA-Z0-9_\-+:]+?)\]", raw_text, re.I)] or ["white_check_mark"]
+            clean_text, badges = ActionProcessor.execute_actions(self.pm, handle, raw_text)
+            if badges: clean_text = (clean_text + "\n\n" + "\n".join(badges)).strip()
+            say(text=convert_md_to_slack_mrkdwn(clean_text or f"*{name} acknowledged your message.*"), thread_ts=thread_ts)
             try: client.reactions_remove(channel=channel_id, timestamp=msg_ts, name="eyes")
             except Exception: pass
-            reacts = [m.group(1).strip().strip(":") for m in re.finditer(r"\[(?:ACTION:)?REACT:\s*([a-zA-Z0-9_\-+:]+?)\]", raw_text, re.I)] or ["white_check_mark"]
             for em in reacts:
                 try: client.reactions_add(channel=channel_id, timestamp=msg_ts, name=em)
                 except Exception: pass

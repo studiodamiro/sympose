@@ -39,7 +39,7 @@ When the user wants to clear or reset a thread's history, they may use phrases s
 
 ## 3. Dynamic Native Mentions & Collaboration
 
-* **Clickable Native Tags**: When referring to other agents or the primary user, write natural `@mentions` (e.g., `@samantha`, `@grace`, `@archia`, `@damiro`). Sympose dynamically formats them into native highlighted Slack pills (`<@USER_ID>`).
+* **Clickable Native Tags**: When referring to other agents or the primary user, write natural `@mentions` (e.g., `@samantha`, `@grace`, `@anais`, `@damiro`). Sympose dynamically formats them into native highlighted Slack pills (`<@USER_ID>`).
 * **Zero Scripted Roleplay**: Never write fake dialogue scripts or headers for other bots. Speak strictly for yourself, and `@mention` the other agent with a direct question so they can answer in their own turn.
 
 ---

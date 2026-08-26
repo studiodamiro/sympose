@@ -41,6 +41,7 @@ This master document serves as the top-level index and Table of Contents.
 | **2026-08-26** | Zero-Key Native Web Search & DDGS Standard (ADR-033) | Complete | [`2026-08-26_zero_key_native_web_search_and_ddgs_standard.md`](journal/2026-08-26_zero_key_native_web_search_and_ddgs_standard.md) |
 | **2026-08-26** | Autonomous Slack Emotion & Reaction Autonomy (ADR-034) | Complete | [`2026-08-26_autonomous_slack_reaction_engine.md`](journal/2026-08-26_autonomous_slack_reaction_engine.md) |
 | **2026-08-26** | Evidence-Based Grounding & Epistemic Humility Standard (ADR-035) | Complete | [`2026-08-26_evidence_based_grounding_and_epistemic_humility.md`](journal/2026-08-26_evidence_based_grounding_and_epistemic_humility.md) |
+| **2026-08-26** | Multi-Agent Collaboration Protocol, Discussion Moderation & Circuit Breaker (ADR-036) | Complete | [`2026-08-26_multi_agent_collaboration_and_circuit_breaker.md`](journal/2026-08-26_multi_agent_collaboration_and_circuit_breaker.md) |
 
 ---
 

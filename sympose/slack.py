@@ -169,8 +169,8 @@ class SlackDaemon:
                     if u.get("is_bot") and u.get("id"): self.bot_user_ids.add(u["id"])
                     for k in [u.get("name"), u.get("real_name"), u.get("profile", {}).get("display_name")]: (self.name_to_id.update({k.lower(): u["id"]}) if k and u.get("id") else None)
             except Exception: pass
-            self.app.event("app_mention")(lambda c, e, s: self._process_message(c, e, s))
-            self.app.event("message")(lambda c, e, s: self._process_message(c, e, s) if (e.get("channel_type") == "im" or e.get("thread_ts")) else None)
+            self.app.event("app_mention")(lambda client, event, say: self._process_message(client, event, say))
+            self.app.event("message")(lambda client, event, say: self._process_message(client, event, say) if (event.get("channel_type") == "im" or event.get("thread_ts")) else None)
             self.handler = SocketModeHandler(self.app, self.app_token); return True
         except Exception as e:
             print(f"⚠️ [Sympose Slack] Failed to start @{self.default_persona}: {e}", file=sys.stderr); return False

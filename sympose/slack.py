@@ -53,11 +53,8 @@ class SlackDaemon:
         self.name_to_id[self.primary_user.lower()] = user_id
         return self.primary_user
 
-    def _clean_mentions(self, client: Any, text: str) -> str:
-        return re.sub(r"<@([A-Z0-9]+)>", lambda m: f"@{self._resolve_user_name(client, m.group(1))}", text)
-
-    def _format_outgoing_mentions(self, text: str) -> str:
-        return re.sub(r"@([a-zA-Z0-9_\-]+)", lambda m: f"<@{self.name_to_id[m.group(1).lower()]}>" if m.group(1).lower() in self.name_to_id else m.group(0), text)
+    def _clean_mentions(self, client: Any, text: str) -> str: return re.sub(r"<@([A-Z0-9]+)>", lambda m: f"@{self._resolve_user_name(client, m.group(1))}", text)
+    def _format_outgoing_mentions(self, text: str) -> str: return re.sub(r"@([a-zA-Z0-9_\-]+)", lambda m: f"<@{self.name_to_id[m.group(1).lower()]}>" if m.group(1).lower() in self.name_to_id else m.group(0), text)
 
     def _resolve_persona_and_prompt(self, text: str, thread_id: str) -> Tuple[str, str]:
         cleaned, personas = re.sub(r"<@[A-Z0-9]+>", "", text).strip(), self.pm.list_personas()
@@ -84,12 +81,11 @@ class SlackDaemon:
 
     def _fetch_slack_context(self, client: Any, channel_id: str, thread_ts: Optional[str], current_ts: str, prompt: str) -> str:
         """Retrieves Slack thread replies or recent channel history with human-readable usernames."""
-        lines: List[str] = []
         if thread_ts:
             try:
                 res = client.conversations_replies(channel=channel_id, ts=thread_ts, limit=int(self.config.get("performance.slack_thread_context_limit", 12)))
-                lines = [f"- {self._resolve_user_name(client, m.get('user') or m.get('username') or '')}: {self._clean_mentions(client, m.get('text', '').strip())}" for m in res.get("messages", []) if m.get("ts") != current_ts and m.get("text", "").strip()]
-                if lines: return "### Slack Thread Context (Preceding Messages in this Thread):\n" + "\n".join(lines)
+                if tl := [f"- {self._resolve_user_name(client, m.get('user') or m.get('username') or '')}: {self._clean_mentions(client, m.get('text', '').strip())}" for m in res.get("messages", []) if m.get("ts") != current_ts and m.get("text", "").strip()]:
+                    return "### Slack Thread Context (Preceding Messages in this Thread):\n" + "\n".join(tl)
             except Exception as e: logging.debug(f"Thread context: {e}")
 
         if re.search(r"\b(summarize|summary|catch\s*up|recap|what\s+happened|this\s+(?:thread|channel|conversation))\b", prompt, re.I):
@@ -131,15 +127,18 @@ class SlackDaemon:
         except Exception: pass
 
         th_key = f"{thread_id}:{handle}"
-        if bool(re.search(r"^(?:please\s+)?(?:delete|clear|wipe|erase|purge)\s+(?:our\s+|the\s+|this\s+)?(?:thread|chat|conversation|history|messages?)$", prompt.strip(), re.I)) or prompt.strip() in ("/clear", "/delete", "/wipe", "/reset"):
-            self.thread_histories.pop(th_key, None); self.engine.reset_history(handle); deleted = 0
+        if bool(re.search(r"\b(?:delete|clear|wipe|erase|purge|reset)\s+(?:our\s+|the\s+|this\s+)?(?:thread|chat|conversation|history|session|context|messages?)", prompt, re.I)) or prompt.strip() in ("/clear", "/delete", "/wipe", "/reset"):
+            self.thread_histories.pop(th_key, None); self.engine.reset_history(handle)
             if event.get("thread_ts"):
                 try:
                     for m in client.conversations_replies(channel=channel_id, ts=event.get("thread_ts"), limit=100).get("messages", []):
-                        try: client.chat_delete(channel=channel_id, ts=m.get("ts")); deleted += 1
+                        try: client.chat_delete(channel=channel_id, ts=m.get("ts"))
                         except Exception: pass
                 except Exception: pass
-            if deleted == 0: say(text=f"🧹 Conversation history deleted for @{handle}.", thread_ts=thread_ts); return
+            try: client.reactions_remove(channel=channel_id, timestamp=msg_ts, name="eyes"); client.reactions_add(channel=channel_id, timestamp=msg_ts, name="broom")
+            except Exception: pass
+            if not re.search(r"\b(?:do\s*not\s*reply|no\s*reply|do\s*not\s*acknowledge|no\s*response|silent|silence)\b", prompt, re.I): say(text=f"🧹 Conversation history deleted for @{handle}.", thread_ts=thread_ts)
+            return
 
         self.engine.histories[handle] = self.thread_histories.get(th_key, [])
         try:
@@ -148,10 +147,11 @@ class SlackDaemon:
             raw_text = "".join(chunks).strip()
             clean_text, badges = ActionProcessor.execute_actions(self.pm, handle, raw_text)
             if badges: clean_text = (clean_text + "\n\n" + "\n".join(badges)).strip()
-            say(text=self._format_outgoing_mentions(convert_md_to_slack_mrkdwn(clean_text or f"*{name} acknowledged your message.*")), thread_ts=thread_ts)
+            is_silent = not clean_text or clean_text.strip().lower() in ("(no response)", "no response", "(silence)", "...", "no response.")
+            if not is_silent: say(text=self._format_outgoing_mentions(convert_md_to_slack_mrkdwn(clean_text)), thread_ts=thread_ts)
             try: client.reactions_remove(channel=channel_id, timestamp=msg_ts, name="eyes")
             except Exception: pass
-            for em in ([m.group(1).strip().strip(":") for m in re.finditer(r"\[(?:ACTION:)?REACT:\s*([a-zA-Z0-9_\-+:]+?)\]", raw_text, re.I)] or ["white_check_mark"]):
+            for em in ([m.group(1).strip().strip(":") for m in re.finditer(r"\[(?:ACTION:)?REACT:\s*([a-zA-Z0-9_\-+:]+?)\]", raw_text, re.I)] or (["white_check_mark"] if is_silent else [])):
                 try: client.reactions_add(channel=channel_id, timestamp=msg_ts, name=em)
                 except Exception: pass
         except Exception as e:
@@ -167,11 +167,10 @@ class SlackDaemon:
             try:
                 for u in self.app.client.users_list().get("members", []):
                     if u.get("is_bot") and u.get("id"): self.bot_user_ids.add(u["id"])
-                    for k in [u.get("name"), u.get("real_name"), u.get("profile", {}).get("display_name")]:
-                        if k and u.get("id"): self.name_to_id[k.lower()] = u.get("id")
+                    for k in [u.get("name"), u.get("real_name"), u.get("profile", {}).get("display_name")]: (self.name_to_id.update({k.lower(): u["id"]}) if k and u.get("id") else None)
             except Exception: pass
-            self.app.event("app_mention")(lambda client, event, say: self._process_message(client, event, say))
-            self.app.event("message")(lambda client, event, say: self._process_message(client, event, say) if (event.get("channel_type") == "im" or event.get("thread_ts")) else None)
+            self.app.event("app_mention")(lambda c, e, s: self._process_message(c, e, s))
+            self.app.event("message")(lambda c, e, s: self._process_message(c, e, s) if (e.get("channel_type") == "im" or e.get("thread_ts")) else None)
             self.handler = SocketModeHandler(self.app, self.app_token); return True
         except Exception as e:
             print(f"⚠️ [Sympose Slack] Failed to start @{self.default_persona}: {e}", file=sys.stderr); return False

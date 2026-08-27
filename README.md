@@ -183,6 +183,7 @@ sympose/
 | `/delete @<handle>` | Safely retire and archive an agent persona | `/delete @curie` |
 | `/save [memory\|obsidian\|both]` | Synthesize and save session takeaways | `/save both` |
 | `/vault <query>` | Query persona's sandboxed Obsidian notes | `/vault architecture` |
+| `/vault backlinks <note>` | Inspect incoming backlinks/references for a note | `/vault backlinks OAuth` |
 | `/note <file.md> <content>` | Create or append to a sandboxed vault note | `/note Ideas.md Roadmap items` |
 | `/daily <reflection>` | Append a thought to today's Daily Notes | `/daily Completed worker refactor` |
 | `/remember <fact>` | Save a durable fact to working memory | `/remember Prefers vanilla CSS` |

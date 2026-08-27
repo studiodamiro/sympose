@@ -45,6 +45,7 @@ This master document serves as the top-level index and Table of Contents.
 | **2026-08-26** | Pure Declarative Markdown-Driven Prompting & Zero-Code Injections (ADR-037) | Complete | [`2026-08-26_pure_declarative_markdown_prompting.md`](journal/2026-08/2026-08-26_pure_declarative_markdown_prompting.md) |
 | **2026-08-26** | Post-Remediation Hardening & Defensive Engineering Standards (ADR-038) | Complete | [`2026-08-26_post_remediation_hardening_and_defensive_engineering_standards.md`](journal/2026-08/2026-08-26_post_remediation_hardening_and_defensive_engineering_standards.md) |
 | **2026-08-27** | Modular Vault Writing, Obsidian Template Integration, Wikilinks Taxonomy & Live Web Search (ADR-039 – ADR-043) | Complete | [`2026-08-27_vault_write_obsidian_templates_and_live_web_search.md`](journal/2026-08/2026-08-27_vault_write_obsidian_templates_and_live_web_search.md) |
+| **2026-08-27** | In-Memory Inverted Index & Deterministic Backlink Lookup Engine (ADR-044) | Complete | [`2026-08-27_backlink_lookup_engine_and_inverted_index.md`](journal/2026-08/2026-08-27_backlink_lookup_engine_and_inverted_index.md) |
 
 ---
 
@@ -172,10 +173,13 @@ This master document serves as the top-level index and Table of Contents.
   * Direct `[SEARCH: <query>]` autonomic tag, `web_search` skill playbook, and anti-helplessness mandate banning canned refusals across all personas.
 * **[ADR-043 (2026-08-27): Three-Layer Architectural Separation (Soul vs. Skill vs. System Physics)](journal/2026-08/2026-08-27_vault_write_obsidian_templates_and_live_web_search.md#adr-043-three-layer-architectural-separation-soul-vs-skill-vs-system-physics):**
   * Segregated character identity (`_soul.md`), operational playbooks (`skills/*`), and universal system grounding (`workspace_rules.md`).
+* **[ADR-044 (2026-08-27): In-Memory Inverted Index & Deterministic Backlink Lookup Engine](journal/2026-08/2026-08-27_backlink_lookup_engine_and_inverted_index.md#adr-044-in-memory-inverted-index--deterministic-backlink-lookup-engine):**
+  * Sub-4ms local Inverted Index in `sympose/vault.py` with alias/anchor resolution, Tier-0 natural language intent interception, sandboxed permissions, and slash command integration (`/vault backlinks <note>`).
 
 ---
 
 ## Technical Standards & Guides
 * **[Autonomous Agent Memory Architecture Standard](MEMORY_ARCHITECTURE_STANDARD.md):** The definitive standard for triad memory management, anti-hallucination grounding, shadow extraction, and Obsidian integration.
 * **[Latency & Performance Tuning Guide](LATENCY_TUNING_GUIDE.md):** Complete catalog of knobs, timeouts, context windows, and model configurations governing sub-second SLA.
+* **[Web Dashboard & Standalone Vault Explorer Specification](wiki/architecture/dashboard-and-vault-explorer.md):** Architectural blueprint for the web dashboard, interactive knowledge graph, multi-agent chat stream, and standalone vault explorer.
 * **[Wiki Documentation Hub](wiki/index.md):** Comprehensive guide to skills, MCP workers, profile systems, and command references.

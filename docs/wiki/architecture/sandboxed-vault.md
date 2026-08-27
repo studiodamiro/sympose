@@ -106,3 +106,15 @@ This delivers instant, grounded contextual awareness without additional network 
 - **Tier 1: `direct` (Default / Pure Python)**: Zero dependencies, ultra-fast regex/substring scan over domain notes.
 - **Tier 2: `sqlite_fts`**: Ranked BM25 full-text search indexed in SQLite.
 - **Tier 3: `semantic`**: Local vector embeddings via SentenceTransformers.
+
+---
+
+## 6. In-Memory Inverted Index & Backlink Engine (ADR-044)
+
+To support bidirectional knowledge graphs without requiring an external Obsidian app or heavy MCP server daemon:
+
+1. **Deterministic Wikilink Parser (`extract_wikilinks`)**: Captures standard links (`[[Target]]`), heading anchors (`[[Target#Heading]]`), and aliases (`[[Target|Alias]]`).
+2. **Sub-4ms Inverted Index (`build_backlink_index`)**: Compiles an in-memory reverse mapping (`TargetStem -> [{source_file, rel_path, line_no, context_snippet}]`) across sandboxed folders in $<3.2\text{ms}$.
+3. **Tier-0 Pre-Inference Intent Interception**: Natural language queries like *"what notes link to [[OAuth]]?"* or *"who references Virginia?"* are resolved into ground-truth backlink digests before LLM inference.
+4. **Standalone Vault Explorer Readiness**: Provides the foundational graph and backlink primitives for the upcoming Web Dashboard Vault Explorer.
+

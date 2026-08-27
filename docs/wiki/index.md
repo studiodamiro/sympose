@@ -58,6 +58,7 @@ graph TD
 * **[Sub-Second Latency Engine](./docs/wiki/architecture/sub-second-engine.md):** How Sympose achieves 0.75s TTFT on macOS by eliminating GCE metadata server hangs and managing warm connection pools.
 * **[MCP & Sub-Agent Workers](./docs/wiki/architecture/mcp-and-workers.md):** Isolated, ephemeral worker sandboxes connecting to Model Context Protocol tool servers.
 * **[Sandboxed Obsidian Vault](./docs/wiki/architecture/sandboxed-vault.md):** Defensive path validation, isolated domain folders, and note search tiers.
+* **[Web Dashboard & Standalone Vault Explorer](./docs/wiki/architecture/dashboard-and-vault-explorer.md):** UI specification, interactive knowledge graph, multi-agent chat stream, and standalone vault explorer.
 
 ### 🧠 [Autonomous Memory System](./docs/wiki/memory/shadow-extractor.md)
 * **[Selective Memory Sharing & Privacy Rings](./docs/wiki/memory/selective-sharing.md):** Air-gapping private offline agents (Aurelius) while allowing cloud agents (Samantha & Grace) to share team project memory.

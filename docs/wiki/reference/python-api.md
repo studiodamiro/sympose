@@ -67,12 +67,18 @@ result = archivist.summarize_session("samantha", history, target="both")
 ```
 
 ### `sympose.vault.VaultManager`
-Provides sandboxed file I/O, path validation, and multi-tier vault search.
+Provides sandboxed file I/O, path validation, multi-tier vault search, and in-memory backlink indexing.
 
 ```python
-is_safe = VaultManager.is_safe_path("/vault/Engineering", "/vault/Engineering/notes.md")
-content = VaultManager.read_domain_note(profile, "Architecture.md")
-results = VaultManager.search_domain_notes(profile, "API design")
+is_safe = is_safe_path("/vault/Engineering/notes.md", "/vault/Engineering")
+content = VaultManager.read_note(profile, "Architecture.md")
+results = VaultManager.search(profile, "API design")
+
+# Inverted Index & Backlink Lookups (ADR-044)
+links = VaultManager.extract_wikilinks(content)
+index = VaultManager.build_backlink_index(profile)
+backlinks = VaultManager.get_backlinks(profile, "OAuth")
+digest = VaultManager.get_backlinks_digest(profile, "OAuth")
 ```
 
 ### `sympose.config.ConfigManager`

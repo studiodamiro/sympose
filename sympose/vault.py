@@ -3,8 +3,10 @@ Sandboxed Vault & Markdown Note Manager for Sympose.
 """
 
 import os, re, datetime
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, Tuple
+from collections import defaultdict
 from sympose.config import is_safe_path, config_manager
+
 
 
 class VaultManager:
@@ -200,6 +202,115 @@ class VaultManager:
         all_matches = (title_matches + content_matches)[:5]
         return "\n\n---\n\n".join(all_matches) if all_matches else f"No notes found matching `{query}` in allowed vault folders."
 
+    @staticmethod
+    def extract_wikilinks(content: str) -> List[Dict[str, Any]]:
+        """Extracts structured wikilink metadata from text content, supporting aliases and heading anchors."""
+        pattern = re.compile(r"\[\[([^\]\|#]+)(?:#([^\]\|]+))?(?:\|([^\]]+))?\]\]")
+        links = []
+        for match in pattern.finditer(content):
+            target = match.group(1).strip()
+            heading = match.group(2).strip() if match.group(2) else None
+            alias = match.group(3).strip() if match.group(3) else None
+            stem = os.path.splitext(os.path.basename(target))[0].lower().strip()
+            links.append({
+                "target": target,
+                "stem": stem,
+                "heading": heading,
+                "alias": alias,
+                "raw": match.group(0),
+            })
+        return links
+
+    @classmethod
+    def get_forward_links(cls, profile: Dict[str, Any], note_name: str) -> List[Dict[str, Any]]:
+        """Extracts all outgoing wikilinks from a given note within allowed vault folders."""
+        content = cls.read_note(profile, note_name)
+        if not content or content.startswith("Note `") or content.startswith("⚠️"):
+            return []
+        return cls.extract_wikilinks(content)
+
+    @classmethod
+    def build_backlink_index(cls, profile: Dict[str, Any]) -> Dict[str, List[Dict[str, Any]]]:
+        """Constructs an in-memory inverted index of backlinks across allowed vault folders."""
+        mv, allowed_dirs = cls._get_master_vault(), cls.get_allowed_dirs(profile)
+        if not mv or not allowed_dirs:
+            return {}
+
+        inverted_index: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
+        raw_ignore = config_manager.get("vault.ignore_folders") or [".obsidian", ".git", "Attachments", ".trash"]
+        ignore_dirs = {str(d).lower().strip() for d in raw_ignore}
+        pattern = re.compile(r"\[\[([^\]\|#]+)(?:#([^\]\|]+))?(?:\|([^\]]+))?\]\]")
+
+        try:
+            for allowed in allowed_dirs:
+                if not os.path.exists(allowed):
+                    continue
+                for root, dirs, files in os.walk(allowed):
+                    dirs[:] = [d for d in dirs if d.lower() not in ignore_dirs and not d.startswith(".")]
+                    for fn in sorted(files):
+                        if fn.endswith((".md", ".markdown", ".txt")):
+                            fp = os.path.join(root, fn)
+                            if not is_safe_path(fp, allowed):
+                                continue
+                            rel_path = os.path.relpath(fp, mv)
+                            try:
+                                with open(fp, "r", encoding="utf-8", errors="ignore") as f:
+                                    for line_idx, line in enumerate(f, start=1):
+                                        for match in pattern.finditer(line):
+                                            target = match.group(1).strip()
+                                            heading = match.group(2).strip() if match.group(2) else None
+                                            alias = match.group(3).strip() if match.group(3) else None
+                                            stem = os.path.splitext(os.path.basename(target))[0].lower().strip()
+                                            inverted_index[stem].append({
+                                                "source_file": fn,
+                                                "rel_path": rel_path,
+                                                "target": target,
+                                                "target_stem": stem,
+                                                "heading": heading,
+                                                "alias": alias,
+                                                "line_no": line_idx,
+                                                "context_snippet": line.strip(),
+                                            })
+                            except Exception:
+                                pass
+        except Exception:
+            pass
+
+        return dict(inverted_index)
+
+    @classmethod
+    def get_backlinks(cls, profile: Dict[str, Any], note_name: str) -> List[Dict[str, Any]]:
+        """Queries the in-memory inverted index for all incoming references to note_name."""
+        clean_target = note_name.strip().strip("\"'").replace("[[", "").replace("]]", "")
+        stem = os.path.splitext(os.path.basename(clean_target))[0].lower().strip()
+        index = cls.build_backlink_index(profile)
+        return index.get(stem, [])
+
+    @classmethod
+    def get_backlinks_digest(cls, profile: Dict[str, Any], note_name: str, max_entries: int = 15) -> str:
+        """Generates a high-density Markdown summary of backlinks for note_name."""
+        clean_target = note_name.strip().strip("\"'").replace("[[", "").replace("]]", "")
+        stem = os.path.splitext(os.path.basename(clean_target))[0].lower().strip()
+        backlinks = cls.get_backlinks(profile, clean_target)
+        if not backlinks:
+            return f"No backlinks found referencing `[[{clean_target}]]` in allowed vault folders."
+
+        lines = [f"### ◀ Backlinks for `[[{clean_target}]]` ({len(backlinks)} reference(s) found):"]
+        for b in backlinks[:max_entries]:
+            rel = b.get("rel_path", b.get("source_file", "unknown"))
+            line_no = b.get("line_no", "")
+            line_str = f" (Line {line_no})" if line_no else ""
+            ctx = b.get("context_snippet", "")
+            if ctx:
+                lines.append(f"- **`{rel}`**{line_str}:\n  > {ctx[:200]}")
+            else:
+                lines.append(f"- **`{rel}`**{line_str}")
+
+        if len(backlinks) > max_entries:
+            lines.append(f"\n*(+ {len(backlinks) - max_entries} more references in vault)*")
+
+        return "\n".join(lines)
+
     @classmethod
     def get_template_for_path(cls, mv: str, note_name: str) -> Optional[str]:
         """Resolves the user's authentic Obsidian template from Templates/ folder if present."""
@@ -392,6 +503,19 @@ class VaultManager:
     def resolve_turn_context(cls, profile: Dict[str, Any], message: str) -> Optional[str]:
         """Tier-0 Pre-Inference Heuristic Retrieval: inspects turn message and retrieves notes before LLM call."""
         msg = message.strip()
+
+        # 0. Explicit backlink queries ("what notes link to [[OAuth]]?", "backlinks for Architecture", "who references Virginia?")
+        bl_match = re.search(
+            r"(?:what\s+(?:notes\s+)?(?:link\s+to|reference)|who\s+(?:links\s+to|references)|backlinks?\s+(?:for|to|of)?)\s+(?:\[\[)?([a-zA-Z0-9_\-\s/\.]+?)(?:\]\])?(?:\?|$|\.|\n)",
+            msg,
+            re.I
+        )
+        if bl_match:
+            bl_target = bl_match.group(1).strip()
+            if len(bl_target) >= 2:
+                digest = cls.get_backlinks_digest(profile, bl_target)
+                if digest and not digest.startswith("No backlinks found"):
+                    return f"### Ground-Truth Vault Backlink Index for `[[{bl_target}]]`:\n{digest}"
 
         # 1. Quoted note title lookup (e.g. "If I Stay", 'If I Stay')
         for q_match in re.findall(r"[\"']([^\"']+)[\"']", msg):

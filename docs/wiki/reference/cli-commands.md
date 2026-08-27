@@ -43,6 +43,7 @@ Sympose intercepts slash commands directly in the REPL execution loop, executing
 | `/note` | `<file.md> <content>` | Creates or appends Markdown content into the persona's sandboxed vault folder. |
 | `/daily` | `<reflection text>` | Appends timestamped reflection to `Daily Notes/YYYY-MM-DD.md` in your vault. |
 | `/vault` | `<query>` | Performs fast search over notes in the active persona's domain folder. |
+| `/vault backlinks` | `<note_name>` | Instantly inspects incoming backlinks/references with line numbers and snippets (also `/backlinks <note>`). |
 
 ---
 

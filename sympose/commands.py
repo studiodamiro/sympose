@@ -231,9 +231,17 @@ class CommandInterceptor:
                     yield f"Model for {profile.get('name', handle)} temporarily set to `{new_model}`.\n*(Run `/model reset` to restore default)*"
             return _model()
 
-        if clean_input.startswith("/vault "):
+        if clean_input.startswith("/vault ") or clean_input.startswith("/backlinks"):
             def _vault():
-                yield VaultManager.search(profile, clean_input[7:].strip())
+                raw = clean_input.strip()
+                if raw.startswith("/vault backlinks") or raw.startswith("/backlinks"):
+                    target = raw[16:].strip() if raw.startswith("/vault backlinks") else raw[10:].strip()
+                    if not target:
+                        yield "Usage: `/vault backlinks <note_name>` or `/backlinks <note_name>`"
+                        return
+                    yield VaultManager.get_backlinks_digest(profile, target)
+                else:
+                    yield VaultManager.search(profile, clean_input[7:].strip())
             return _vault()
 
         if clean_input.startswith("/note "):
@@ -385,6 +393,7 @@ class CommandInterceptor:
                     "- `/reset` or `/new`: Clear active conversation context\n"
                     "- `/model [name|reset]`: View active model, provider health, or switch/reset backend model\n"
                     "- `/vault <query>`: Query persona's sandboxed notes\n"
+                    "- `/vault backlinks <note>`: Query incoming backlinks/references for a note\n"
                     "- `/help`: Show this command list\n"
                     "- `quit` or `exit`: End session (triggers save options)"
                 )

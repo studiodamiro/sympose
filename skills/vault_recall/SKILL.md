@@ -37,8 +37,10 @@ tags:
       - **Topic & Entity Keywords**: In filenames (e.g. `*tadhana*`, `*database*`, `*theology*`).
       - **Chronological / Date Formats**: Any date schema (`YYYY-MM-DD`, `YYYY/MM/DD`, `YYYYMMDD`, etc.).
       - **Frontmatter & Metadata**: YAML keys (`tags:`, `type:`, `project:`, `category:`).
-      - **Wikilink Traversal**: Follow internal wikilinks (`[[Note Title]]`) mentioned inside notes to discover connected ideas.
-2. **System Noise & Binary Exclusion**:
+      - **Wikilink & Backlink Traversal**: Follow internal wikilinks (`[[Note Title]]`) and reverse backlinks (incoming references) to discover connected ideas across projects and daily logs.
+2. **Backlink & Graph Inversion**:
+    - When exploring a concept, entity, or person (e.g. `[[Virginia]]`, `[[FastAPI]]`, `[[Sympose]]`), query incoming references to gather every journal entry, architectural doc, and meeting log referencing that node.
+3. **System Noise & Binary Exclusion**:
     - Strictly ignore hidden dot-directories (`.*`, `.obsidian/`, `.git/`, `.trash/`) and binary asset directories (`Attachments/`, images, PDFs).
 
 ---

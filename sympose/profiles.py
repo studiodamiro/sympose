@@ -102,7 +102,7 @@ class ProfileManager:
         if persona_mem := self._read_file_safe(profile.get("memory_file")):
             prompt_parts.append(f"### Persona Working Memory:\n{persona_mem}")
 
-        rules_txt = self._read_file_safe("workspace_rules.md")
+        rules_txt = self._read_file_safe(os.path.join("prompts", "workspace_rules.md")) or self._read_file_safe("workspace_rules.md")
         if rules_txt:
             rules_formatted = (
                 rules_txt.replace("{{workspace_root}}", os.getcwd())

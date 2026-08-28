@@ -28,7 +28,7 @@ class TerminalInterface:
         self.engine = engine
         self.pm = engine.pm
         self.config = engine.config
-        self.console = Console() if Console else None
+        self.console = TerminalUI.get_console()
         self.completer = SymposeCompleter.setup_readline(self.engine)
 
     def display_banner(self) -> None:

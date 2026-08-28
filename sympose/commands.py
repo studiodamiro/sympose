@@ -89,19 +89,22 @@ class CommandInterceptor:
                 if len(parts) == 1:
                     cfg = engine.config
                     yield (
-                        "**Sympose Active Configuration:**\n"
-                        f"- `performance.request_timeout`: {cfg.get('performance.request_timeout')}s\n"
-                        f"- `performance.max_context_turns`: {cfg.get('performance.max_context_turns')} turns\n"
-                        f"- `performance.max_worker_tool_turns`: {cfg.get('performance.max_worker_tool_turns')} turns\n"
-                        f"- `performance.stream`: {cfg.get('performance.stream')}\n"
-                        f"- `session.exit_behavior.auto_save`: {cfg.get('session.exit_behavior.auto_save')}\n"
-                        f"- `session.exit_behavior.default_target`: {cfg.get('session.exit_behavior.default_target')}\n"
-                        f"- `session.exit_behavior.clear_terminal`: {cfg.get('session.exit_behavior.clear_terminal')}\n"
-                        f"- `session.exit_behavior.summarization_model`: {cfg.get('session.exit_behavior.summarization_model')}\n"
-                        f"- `memory.compaction_threshold`: {cfg.get('memory.compaction_threshold', 25)} lines\n"
-                        f"- `memory.auto_compact`: {cfg.get('memory.auto_compact', True)}\n"
-                        f"- `vault.search_mode`: {cfg.get('vault.search_mode')}\n\n"
-                        "Tip: Set values live with `/config set <key> <value>` (e.g. `/config set memory.compaction_threshold 25`)."
+                        "# ⚙️ Sympose Active Configuration\n\n"
+                        "### ⚡ Performance & Streaming\n"
+                        f"- `performance.request_timeout`: `{cfg.get('performance.request_timeout')}s`\n"
+                        f"- `performance.max_context_turns`: `{cfg.get('performance.max_context_turns')} turns`\n"
+                        f"- `performance.max_worker_tool_turns`: `{cfg.get('performance.max_worker_tool_turns')} turns`\n"
+                        f"- `performance.stream`: `{cfg.get('performance.stream')}`\n\n"
+                        "### 💾 Session & Memory Archival\n"
+                        f"- `session.exit_behavior.auto_save`: `{cfg.get('session.exit_behavior.auto_save')}`\n"
+                        f"- `session.exit_behavior.default_target`: `{cfg.get('session.exit_behavior.default_target')}`\n"
+                        f"- `session.exit_behavior.clear_terminal`: `{cfg.get('session.exit_behavior.clear_terminal')}`\n"
+                        f"- `session.exit_behavior.summarization_model`: `{cfg.get('session.exit_behavior.summarization_model') or os.getenv('DEFAULT_MODEL', 'gemini/gemini-3.6-flash')}`\n"
+                        f"- `memory.compaction_threshold`: `{cfg.get('memory.compaction_threshold', 25)} lines`\n"
+                        f"- `memory.auto_compact`: `{cfg.get('memory.auto_compact', True)}`\n"
+                        f"- `vault.search_mode`: `{cfg.get('vault.search_mode')}`\n\n"
+                        "### 💡 Live Tuning\n"
+                        "- Tune knobs live with `/config set <key> <value>` (e.g. `/config set performance.max_context_turns 20`)."
                     )
                 elif parts[1].lower() == "set" and len(parts) >= 4:
                     key, raw_val = parts[2], parts[3]
@@ -117,9 +120,9 @@ class CommandInterceptor:
                     engine.config.save()
                     if "max_context_turns" in key:
                         engine.max_turns = int(val)
-                    yield f"Config `{key}` updated to `{val}` (persisted to disk)."
+                    yield f"✅ Config `{key}` updated to `{val}` (persisted to disk)."
                 else:
-                    yield "Usage:\n- `/config`: Show settings\n- `/config set <key> <value>`: Update setting"
+                    yield "Usage:\n- `/config`: Show active settings\n- `/config set <key> <value>`: Update setting live"
             return _config()
 
         # 5. Explicit /remember
@@ -188,28 +191,32 @@ class CommandInterceptor:
                     state_tag = f"`{current_model}` (Live Session Override)" if active_override else f"`{current_model}` (Profile Default)"
 
                     lines = [
-                        f"**Active Model for {profile.get('name', handle)}:** {state_tag}",
-                        "\n**Configured Providers (.env):**",
-                        f"- OpenRouter: {or_key}",
-                        f"- Google Gemini: {gem_key}",
-                        f"- Anthropic Claude: {ant_key}",
-                        f"- OpenAI: {oai_key}",
-                        "\n**Recommended Models to Test:**",
-                        "- **OpenRouter:**",
-                        "  - `openrouter/anthropic/claude-3.5-sonnet` (Surgical coding & architecture)",
-                        "  - `openrouter/deepseek/deepseek-r1` (Deep reasoning & algorithmic thought)",
-                        "  - `openrouter/google/gemini-2.5-flash` (Fast, multimodal agentic worker)",
-                        "  - `openrouter/meta-llama/llama-3.3-70b-instruct` (High-density open weights)",
-                        "- **Direct Cloud (Requires Direct Key):**",
-                        "  - `gemini/gemini-3.6-flash` (Sub-second low latency)",
-                        "  - `anthropic/claude-3-5-sonnet-20241022` (Direct Anthropic key)",
+                        "# 🤖 Model & Provider Configuration\n",
+                        "### Active Model",
+                        f"- **Current Model:** {state_tag}",
+                        f"- **Active Persona:** {profile.get('name', handle)} (`@{handle}`)\n",
+                        "### Configured Providers (.env)",
+                        f"- **OpenRouter:** {or_key}",
+                        f"- **Google Gemini:** {gem_key}",
+                        f"- **Anthropic Claude:** {ant_key}",
+                        f"- **OpenAI:** {oai_key}\n",
+                        "### Recommended Models to Test",
+                        "- **OpenRouter (Multi-Provider):**",
+                        "  - `openrouter/anthropic/claude-3.5-sonnet` — Surgical coding & architecture",
+                        "  - `openrouter/deepseek/deepseek-r1` — Deep reasoning & algorithmic thought",
+                        "  - `openrouter/google/gemini-2.5-flash` — Fast, multimodal agentic worker",
+                        "  - `openrouter/meta-llama/llama-3.3-70b-instruct` — High-density open weights",
+                        "- **Direct Cloud API Keys:**",
+                        "  - `gemini/gemini-3.6-flash` — Sub-second low latency",
+                        "  - `anthropic/claude-3-5-sonnet-20241022` — Direct Anthropic API",
                         "- **Local Ollama:**",
-                        "  - `ollama/qwen2.5:7b`",
-                        "\n**Usage:**",
+                        "  - `ollama/qwen2.5:7b` — Sovereign local execution\n",
+                        "### 💡 Commands & Navigation",
                         "- Search catalog: `/model find <keyword>` (e.g. `/model find sonnet`, `/model find deepseek`)",
-                        "- Switch model: `/model <model_id>` (e.g. `/model openrouter/anthropic/claude-sonnet-4.5`)",
-                        "- Refresh cache: `/model refresh`",
-                        "- Revert to default: `/model reset`",
+                        "- Switch model: `/model <model_id>` (e.g. `/model openrouter/anthropic/claude-3.5-sonnet`)",
+                        "- Refresh catalog cache: `/model refresh`",
+                        "- Revert to default model: `/model reset`",
+                        "- Setup wizard: `/setup`",
                     ]
                     yield "\n".join(lines)
                 elif sub_lower.startswith(("find ", "search ")):
@@ -386,26 +393,31 @@ class CommandInterceptor:
         if clean_input == "/help":
             def _help():
                 yield (
-                    "**Available Slash Commands:**\n"
-                    "- `/skills` or `/tools`: Inspect indexed skill playbooks and MCP tool servers\n"
-                    "- `/worker <skill|mcp> <task>`: Dispatch an isolated sub-agent worker with tools/skills\n"
-                    "- `/save [memory|obsidian|both]`: Summarize and save session takeaways\n"
-                    "- `/config`: View active runtime, performance & session settings\n"
-                    "- `/config set <key> <val>`: Tune knobs live (e.g. `/config set performance.max_context_turns 20`)\n"
-                    "- `/delete @<handle>`: Retire/archive an agent persona safely\n"
-                    "- `/clear`: Clear terminal display and reset conversation context\n"
-                    "- `/ask <@persona> <task>`: Delegate an isolated sub-task to a peer\n"
-                    "- `/note <file.md> <content>`: Create or append to a sandboxed vault note\n"
-                    "- `/daily <reflection>`: Append to Daily Notes/YYYY-MM-DD.md\n"
-                    "- `/remember <fact>`: Save fact into persona's persistent `_memory.md`\n"
-                    "- `/compact [shared|@persona]`: Consolidate duplicates, resolve conflicts, and prune memory\n"
-                    "- `/reset` or `/new`: Clear active conversation context\n"
-                    "- `/model [name|reset]`: View active model, provider health, or switch/reset backend model\n"
-                    "- `/setup` or `/onboard`: Launch interactive provider & vault setup wizard\n"
-                    "- `/vault <query>`: Query persona's sandboxed notes\n"
-                    "- `/vault backlinks <note>`: Query incoming backlinks/references for a note\n"
-                    "- `/help`: Show this command list\n"
-                    "- `quit` or `exit`: End session (triggers save options)"
+                    "# 🏛️ Sympose Hub Commands\n\n"
+                    "### 👥 Session & Persona Control\n"
+                    "- `/switch [@handle]` — Switch active specialist persona\n"
+                    "- `/setup` or `/onboard` — Launch interactive provider & vault setup wizard\n"
+                    "- `/model [id | reset]` — Inspect provider status or switch backend model\n"
+                    "- `/clear` — Clear terminal display & reset active context\n"
+                    "- `/reset` or `/new` — Wipe current conversation history\n"
+                    "- `quit` or `exit` — End session (triggers save prompt)\n\n"
+                    "### 📚 Knowledge & Obsidian Vault\n"
+                    "- `/vault <query>` — Search notes within authorized sandbox\n"
+                    "- `/vault backlinks <note>` — Inspect incoming references for a note\n"
+                    "- `/note <file.md> <content>` — Create or append to a sandboxed note\n"
+                    "- `/daily <reflection>` — Append reflection to today's Daily Note\n"
+                    "- `/remember <fact>` — Save fact into persona's persistent memory\n"
+                    "- `/compact [shared|@handle]` — Consolidate duplicate memory bullets\n"
+                    "- `/save [memory|obsidian|both]` — Manually trigger session summary\n\n"
+                    "### 🛠️ Sub-Agents & Tools\n"
+                    "- `/skills` or `/tools` — Inspect indexed skill playbooks and MCP servers\n"
+                    "- `/worker <skill|mcp> <task>` — Dispatch ephemeral sub-agent worker\n"
+                    "- `/ask <@handle> <task>` — Delegate isolated sub-task to a peer\n\n"
+                    "### ⚙️ Runtime Settings\n"
+                    "- `/config` — View active runtime settings & performance knobs\n"
+                    "- `/config set <key> <val>` — Live-tune knobs (e.g. `/config set performance.max_context_turns 20`)\n"
+                    "- `/delete @<handle>` — Safely archive & retire an agent persona\n"
+                    "- `/help` — Show this command reference"
                 )
             return _help()
 

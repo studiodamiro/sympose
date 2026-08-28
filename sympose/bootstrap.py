@@ -150,13 +150,13 @@ def ensure_workspace(workspace_dir: str) -> bool:
     return is_fresh
 
 
-def run_first_run_onboarding(workspace_dir: str) -> None:
-    """Interactive first-run wizard if no API keys are detected."""
+def run_first_run_onboarding(workspace_dir: str, force: bool = False) -> None:
+    """Interactive setup & onboarding wizard (runs on first launch or via sympose --setup)."""
     env_file = os.path.join(workspace_dir, ".env")
     
     # Check if any provider API key already exists in environment
     has_key = any(os.getenv(k) for k in ["OPENROUTER_API_KEY", "GEMINI_API_KEY", "ANTHROPIC_API_KEY", "OPENAI_API_KEY"])
-    if has_key or not sys.stdin.isatty():
+    if not force and (has_key or not sys.stdin.isatty()):
         return
 
     console = Console() if Console else None
@@ -164,15 +164,26 @@ def run_first_run_onboarding(workspace_dir: str) -> None:
         console.print(Panel.fit(
             "[bold cyan]🏛️  S Y M P O S E[/bold cyan]\n"
             "[dim]Zero-Bloat Multi-Model AI Agent Hub & Sovereign Vault Explorer[/dim]\n\n"
-            f"[green]✨ Initialized sovereign workspace at[/green] [bold yellow]{workspace_dir}[/bold yellow]\n"
+            f"[green]✨ Active Workspace:[/green] [bold yellow]{workspace_dir}[/bold yellow]\n"
             "[magenta]Default Persona: @samantha (Polymath Strategic Orchestrator)[/magenta]",
             border_style="cyan"
         ))
+        
+        # Display existing keys if any
+        if force:
+            existing = []
+            for k in ["GEMINI_API_KEY", "OPENROUTER_API_KEY", "ANTHROPIC_API_KEY", "OPENAI_API_KEY", "MASTER_VAULT_PATH"]:
+                if val := os.getenv(k):
+                    masked = val[:6] + "..." + val[-4:] if len(val) > 12 else "********"
+                    existing.append(f"  • [bold]{k}[/bold]: [green]{masked}[/green]")
+            if existing:
+                console.print("\n[dim]Current Environment Variables:[/dim]\n" + "\n".join(existing))
+
         console.print("\n[bold yellow]🔑 Step 1 of 2: Connect your AI Provider[/bold yellow]")
         console.print("  [bold cyan][1][/bold cyan] Google Gemini [dim](Fast & Free tier available)[/dim]")
         console.print("  [bold cyan][2][/bold cyan] OpenRouter [dim](Access to Claude, Sonnet, Gemini, Qwen)[/dim]")
         console.print("  [bold cyan][3][/bold cyan] Anthropic Claude [dim](Direct API)[/dim]")
-        console.print("  [bold cyan][4][/bold cyan] Skip for now [dim](Configure later in .env or local Ollama)[/dim]\n")
+        console.print("  [bold cyan][4][/bold cyan] Skip / Keep current [dim](Configure in .env or local Ollama)[/dim]\n")
         
         choice = Prompt.ask("Select provider", choices=["1", "2", "3", "4"], default="1")
         key_var = {"1": "GEMINI_API_KEY", "2": "OPENROUTER_API_KEY", "3": "ANTHROPIC_API_KEY"}.get(choice)
@@ -186,11 +197,13 @@ def run_first_run_onboarding(workspace_dir: str) -> None:
                 console.print(f"[bold green]✅ Saved {key_var} to {env_file}[/bold green]\n")
 
         console.print("\n[bold yellow]📁 Step 2 of 2: Obsidian Vault Connection (Optional)[/bold yellow]")
-        vault_path = Prompt.ask("Enter path to your Obsidian Vault / Notes folder [dim](press Enter to skip)[/dim]", default="").strip()
+        current_vault = os.getenv("MASTER_VAULT_PATH", "")
+        vault_prompt = f"Enter path to Obsidian Vault / Notes folder [dim](press Enter to keep '{current_vault or 'default'}')[/dim]"
+        vault_path = Prompt.ask(vault_prompt, default=current_vault).strip()
         if vault_path:
             os.environ["MASTER_VAULT_PATH"] = vault_path
             with open(env_file, "a", encoding="utf-8") as f:
                 f.write(f"\nMASTER_VAULT_PATH=\"{vault_path}\"\n")
             console.print(f"[bold green]✅ Linked vault: {vault_path}[/bold green]\n")
         
-        console.print("[bold green]🎉 Ready! Launching @samantha...[/bold green]\n")
+        console.print("[bold green]🎉 Setup completed! Launching @samantha...[/bold green]\n")

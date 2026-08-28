@@ -22,6 +22,7 @@ def main():
     parser.add_argument("--config", type=str, default="config.yaml", help="Path to master config YAML file")
     parser.add_argument("--slack", action="store_true", help="Launch Slack Socket Mode Daemon")
     parser.add_argument("--dashboard", "--web", action="store_true", help="Launch Web Dashboard & Standalone Vault Explorer")
+    parser.add_argument("--setup", "--onboard", action="store_true", help="Launch interactive setup & onboarding wizard")
     args = parser.parse_args()
 
     from sympose.bootstrap import resolve_workspace_dir, ensure_workspace, run_first_run_onboarding
@@ -31,9 +32,9 @@ def main():
     is_fresh = ensure_workspace(workspace_dir)
     load_dotenv(os.path.join(workspace_dir, ".env"))
 
-    # Run onboarding wizard if fresh workspace and interactive terminal
-    if is_fresh and not args.dashboard and not args.slack:
-        run_first_run_onboarding(workspace_dir)
+    # Run onboarding wizard if requested (--setup) or if fresh workspace
+    if (args.setup or is_fresh) and not args.dashboard and not args.slack:
+        run_first_run_onboarding(workspace_dir, force=args.setup)
 
     # Initialize configuration & profile managers
     config_path = args.config if os.path.isabs(args.config) or os.path.exists(args.config) else os.path.join(workspace_dir, args.config)

@@ -24,6 +24,8 @@ if [ "$1" == "--slack" ]; then
 elif [ "$1" == "--dashboard" ] || [ "$1" == "--web" ]; then
     echo "Starting Sympose Dashboard & Vault Gateway..."
     python3 app.py --dashboard
+elif [ "$1" == "--setup" ] || [ "$1" == "--onboard" ]; then
+    python3 app.py --setup
 else
     python3 app.py --cli "$@"
 fi

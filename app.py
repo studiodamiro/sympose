@@ -5,6 +5,7 @@ Main Entry Point
 """
 
 import sys
+import os
 import argparse
 from sympose.config import ConfigManager
 from sympose.profiles import ProfileManager

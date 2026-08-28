@@ -116,13 +116,16 @@ You are operating within Sympose Agent Hub on macOS.
 def resolve_workspace_dir() -> str:
     """
     Resolves the active Sympose workspace directory.
-    If 'profiles/' or 'config.yaml' exists in current working directory, use CWD (Local Project Mode).
+    If 'profiles/' or 'config.yaml' exists in a specific sub-project directory (and CWD is not ~ or /),
+    use CWD (Local Project Mode).
     Otherwise, defaults to '~/.sympose' (Global Sovereign User Mode).
     """
-    cwd = os.getcwd()
-    if os.path.exists(os.path.join(cwd, "profiles")) or os.path.exists(os.path.join(cwd, "config.yaml")):
-        return cwd
-    global_dir = os.path.expanduser("~/.sympose")
+    cwd = os.path.abspath(os.getcwd())
+    home = os.path.abspath(os.path.expanduser("~"))
+    if cwd not in (home, "/", os.path.abspath(os.sep)):
+        if os.path.exists(os.path.join(cwd, "profiles")) or os.path.exists(os.path.join(cwd, "config.yaml")):
+            return cwd
+    global_dir = os.path.join(home, ".sympose")
     return global_dir
 
 

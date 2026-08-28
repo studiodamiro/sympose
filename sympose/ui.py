@@ -56,7 +56,7 @@ class TerminalUI:
 
             v_folders = p.get("vault_folders") or ([p["vault_folder"]] if p.get("vault_folder") else [])
             if not v_folders:
-                sandbox_desc = "none/"
+                sandbox_desc = "General/"
             elif "*" in v_folders or "" in v_folders or "all" in v_folders:
                 sandbox_desc = "Root (*)"
             elif len(v_folders) == 1:
@@ -64,12 +64,14 @@ class TerminalUI:
             else:
                 sandbox_desc = ", ".join(f"{f}/" for f in v_folders[:2]) + (f" (+{len(v_folders)-2})" if len(v_folders) > 2 else "")
 
+            model_display = p.get("model") or os.getenv("DEFAULT_MODEL", "gemini/gemini-3.6-flash")
+
             table.add_row(
                 str(i),
                 f"@{p.get('handle')}",
                 p.get("name", ""),
                 p.get("title", ""),
-                p.get("model", ""),
+                model_display,
                 sandbox_desc
             )
 

@@ -11,8 +11,10 @@ from typing import Optional
 try:
     from rich.console import Console
     from rich.prompt import Prompt
+    from rich.markdown import Markdown
 except ImportError:
     Console = None
+    Markdown = None
 
 from sympose.engine import PersonaEngine
 from sympose.ui import TerminalUI
@@ -121,11 +123,38 @@ class TerminalInterface:
                     current_handle = self.select_persona(default_handle=current_handle)
                 continue
 
-            is_command = user_input.startswith("/")
+            if is_command:
+                output_chunks = []
+                for chunk in self.engine.chat_stream(current_handle, user_input):
+                    if chunk == "CLEARED_SESSION":
+                        cleared = True
+                        if self.console:
+                            self.console.clear()
+                        else:
+                            os.system("clear")
+                        self.display_banner()
+                        if self.console:
+                            self.console.print(f"[bold green]✓ Context cleared for @{current_handle}.[/bold green]")
+                        break
+                    output_chunks.append(chunk)
+
+                if cleared:
+                    continue
+
+                full_cmd_output = "".join(output_chunks).strip()
+                if full_cmd_output:
+                    if self.console:
+                        self.console.print()
+                        self.console.print(Markdown(full_cmd_output))
+                        self.console.print()
+                    else:
+                        print(f"\n{full_cmd_output}\n")
+                continue
+
             start_time = time.time()
             status = None
 
-            if self.console and not is_command:
+            if self.console:
                 phrases = profile.get("thinking_phrases", ["Thinking..."]) if profile else ["Thinking..."]
                 chosen_phrase = random.choice(phrases) if phrases else "Thinking..."
                 status = self.console.status(f"[dim italic cyan]{name} is {chosen_phrase.lower()}[/dim italic cyan]", spinner="dots")

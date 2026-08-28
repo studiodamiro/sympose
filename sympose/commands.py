@@ -176,7 +176,7 @@ class CommandInterceptor:
                 sub = parts[1].strip() if len(parts) > 1 else ""
                 sub_lower = sub.lower()
                 active_override = engine.model_overrides.get(handle.lower())
-                default_model = profile.get("model", "gemini/gemini-3.5-flash-lite")
+                default_model = profile.get("model") or os.getenv("DEFAULT_MODEL", "gemini/gemini-3.6-flash")
                 current_model = active_override or default_model
 
                 if not sub or sub_lower in ("list", "help", "status", "ls"):
@@ -196,12 +196,12 @@ class CommandInterceptor:
                         f"- OpenAI: {oai_key}",
                         "\n**Recommended Models to Test:**",
                         "- **OpenRouter:**",
-                        "  - `openrouter/anthropic/claude-sonnet-4.5` (Surgical coding & architecture)",
-                        "  - `openrouter/deepseek/deepseek-v4-pro` (Deep reasoning & fullstack)",
-                        "  - `openrouter/google/gemini-3.7-flash` (Fast, multimodal agentic worker)",
-                        "  - `openrouter/qwen/qwen3.8-27b` (High-density coding & tool calling)",
+                        "  - `openrouter/anthropic/claude-3.5-sonnet` (Surgical coding & architecture)",
+                        "  - `openrouter/deepseek/deepseek-r1` (Deep reasoning & algorithmic thought)",
+                        "  - `openrouter/google/gemini-2.5-flash` (Fast, multimodal agentic worker)",
+                        "  - `openrouter/meta-llama/llama-3.3-70b-instruct` (High-density open weights)",
                         "- **Direct Cloud (Requires Direct Key):**",
-                        "  - `gemini/gemini-3.5-flash-lite` (Sub-second low latency)",
+                        "  - `gemini/gemini-3.6-flash` (Sub-second low latency)",
                         "  - `anthropic/claude-3-5-sonnet-20241022` (Direct Anthropic key)",
                         "- **Local Ollama:**",
                         "  - `ollama/qwen2.5:7b`",

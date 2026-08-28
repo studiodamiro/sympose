@@ -500,14 +500,73 @@ class VaultManager:
             return f"Error: Failed to write session note: {e}"
 
     @classmethod
+    def has_vault_skill(cls, profile: Dict[str, Any]) -> bool:
+        """Verifies if the persona possesses the vault_recall skill or active vault permissions."""
+        skills = profile.get("skills") or []
+        return "vault_recall" in skills or "vault_write" in skills or bool(profile.get("vault_folders")) or bool(profile.get("vault_folder"))
+
+    @classmethod
+    def find_chronological_notes(cls, profile: Dict[str, Any]) -> List[str]:
+        """Dynamically discovers all chronological, daily, and journal notes across allowed vault folders."""
+        mv, allowed_dirs = cls._get_master_vault(), cls.get_allowed_dirs(profile)
+        if not mv or not allowed_dirs:
+            return []
+
+        raw_ignore = config_manager.get("vault.ignore_folders") or [".obsidian", ".git", "Attachments", ".trash", "Drawings"]
+        ignore_dirs = {str(d).lower().strip() for d in raw_ignore}
+        date_pattern = re.compile(r"^\d{4}-\d{2}-\d{2}\.(?:md|markdown|txt)$")
+
+        results: List[str] = []
+        for allowed in allowed_dirs:
+            if not os.path.exists(allowed):
+                continue
+            for root, dirs, files in os.walk(allowed):
+                dirs[:] = [d for d in dirs if not d.startswith(".") and d.lower() not in ignore_dirs]
+                for fn in files:
+                    if fn.endswith((".md", ".markdown", ".txt")) and not fn.endswith(".excalidraw.md"):
+                        fp = os.path.join(root, fn)
+                        if is_safe_path(fp, allowed):
+                            if date_pattern.match(fn) or "daily" in root.lower() or "journal" in root.lower() or "diary" in root.lower():
+                                results.append(fp)
+        return results
+
+    @classmethod
+    def get_discovered_folders(cls, profile: Dict[str, Any]) -> Dict[str, str]:
+        """Discovers real directory names and their full paths dynamically across allowed vault folders."""
+        mv, allowed_dirs = cls._get_master_vault(), cls.get_allowed_dirs(profile)
+        if not mv or not allowed_dirs:
+            return {}
+
+        raw_ignore = config_manager.get("vault.ignore_folders") or [".obsidian", ".git", "Attachments", ".trash", "Drawings"]
+        ignore_dirs = {str(d).lower().strip() for d in raw_ignore}
+        discovered: Dict[str, str] = {}
+
+        for allowed in allowed_dirs:
+            if not os.path.exists(allowed):
+                continue
+            if allowed != mv:
+                discovered[os.path.basename(allowed).lower()] = allowed
+            try:
+                for entry in os.scandir(allowed):
+                    if entry.is_dir() and not entry.name.startswith(".") and entry.name.lower() not in ignore_dirs:
+                        discovered[entry.name.lower()] = entry.path
+            except Exception:
+                pass
+        return discovered
+
+    @classmethod
     def resolve_turn_context(cls, profile: Dict[str, Any], message: str) -> Optional[str]:
-        """Tier-0 Pre-Inference Heuristic Retrieval: inspects turn message and retrieves notes before LLM call."""
+        """Skill-gated, structure-agnostic pre-inference retrieval conforming to skills/vault_recall."""
+        # 1. Skill Permission Gate: only proceed if agent is authorized for vault recall
+        if not cls.has_vault_skill(profile):
+            return None
+
         msg = message.strip()
         mv, allowed_dirs = cls._get_master_vault(), cls.get_allowed_dirs(profile)
         if not mv or not allowed_dirs:
             return None
 
-        # 0. Explicit backlink queries ("what notes link to [[OAuth]]?", "backlinks for Architecture", "who references Virginia?")
+        # 2. Wikilink & Backlink Queries ("what notes link to [[OAuth]]?", "backlinks for Architecture")
         bl_match = re.search(
             r"(?:what\s+(?:notes\s+)?(?:link\s+to|reference)|who\s+(?:links\s+to|references)|backlinks?\s+(?:for|to|of)?)\s+(?:\[\[)?([a-zA-Z0-9_\-\s/\.]+?)(?:\]\])?(?:\?|$|\.|\n)",
             msg,
@@ -520,17 +579,7 @@ class VaultManager:
                 if digest and not digest.startswith("No backlinks found"):
                     return f"### Ground-Truth Vault Backlink Index for `[[{bl_target}]]`:\n{digest}"
 
-        # 1. Daily / Journal Entry Specific Intent Retrieval (Random Sample, Today, or Date-Specific)
-        daily_intent = bool(re.search(r"\b(daily\s*(?:note|entry|entries|log|reflection)?|journal\s*(?:entry|entries|note)?|diary|reflection|entries|entry)\b", msg, re.I))
-        sample_intent = bool(re.search(r"\b(pick|choose|random|randam|rnd|surprise|sample|one\s+of|pull|grab|fetch|get\s+one|show\s+one|any)\b", msg, re.I))
-        
-        if daily_intent and sample_intent:
-            for daily_cand in ["Daily", "DailyNotes", "Daily Notes", "Journal", "Journals", "Reflections", "General"]:
-                samples = cls.get_random_sample_notes(profile, daily_cand, count=1)
-                if samples and not samples.startswith("⚠️") and not samples.startswith("No notes"):
-                    return f"### Ground-Truth Selected Sandboxed Note from `{daily_cand}/`:\n{samples}"
-
-        # 2. Quoted note title lookup (e.g. "If I Stay", 'If I Stay')
+        # 3. Quoted note title lookup (e.g. "If I Stay", 'If I Stay')
         for q_match in re.findall(r"[\"']([^\"']+)[\"']", msg):
             q_clean = q_match.strip()
             if len(q_clean) >= 2:
@@ -538,7 +587,7 @@ class VaultManager:
                 if content and not content.startswith("Note `") and not content.startswith("⚠️"):
                     return f"### Ground-Truth Sandboxed Vault Note (`{q_clean}` - Exact Content):\n{content}"
 
-        # 3. Explicit note reading requests ("read note X", "look at note X")
+        # 4. Explicit note reading requests ("read note X", "look at note X")
         rd = re.search(r"(?:read|open|check|look\s+at|show\s+me)\s+(?:the\s+)?note\s+([a-zA-Z0-9_\-/\.\s]+(?:\.md|\.markdown|\.txt|[a-zA-Z0-9]))", msg, re.I)
         if rd:
             note_target = rd.group(1).strip()
@@ -546,78 +595,49 @@ class VaultManager:
             if c and not c.startswith("Note `") and not c.startswith("⚠️"):
                 return f"### Ground-Truth Sandboxed Vault Note (`{note_target}` - Exact Content):\n{c}"
 
-        # 4. Known note title lookup across allowed vault folders (multi-word titles, e.g. "If I Stay")
-        stop_titles = {"daily", "note", "notes", "entry", "entries", "general", "today", "yesterday", "tomorrow", "summary", "log", "logs", "todo", "thoughts", "quotes", "people", "movies", "reading", "writing"}
-        msg_lower = msg.lower()
-        raw_ignore = config_manager.get("vault.ignore_folders") or [".obsidian", ".git", "Attachments", ".trash"]
-        ignore_dirs = {str(d).lower().strip() for d in raw_ignore}
-        for allowed in allowed_dirs:
-            if not os.path.exists(allowed): continue
-            for root, dirs, files in os.walk(allowed):
-                dirs[:] = [d for d in dirs if not d.startswith(".") and d.lower() not in ignore_dirs]
-                for fn in files:
-                    if fn.endswith((".md", ".markdown", ".txt")):
-                        stem = os.path.splitext(fn)[0]
-                        if len(stem) >= 3 and stem.lower() not in stop_titles:
-                            if re.search(rf"\b{re.escape(stem.lower())}\b", msg_lower):
-                                fp = os.path.join(root, fn)
-                                if is_safe_path(fp, allowed):
-                                    try:
-                                        with open(fp, "r", encoding="utf-8", errors="ignore") as f:
-                                            content = f.read().strip()
-                                        if content:
-                                            rel = os.path.relpath(fp, mv)
-                                            return f"### Ground-Truth Sandboxed Vault Note (`{rel}` - Exact Content):\n{content}"
-                                    except Exception:
-                                        pass
+        # 5. Chronological & Daily Journal Intent (Structure-Agnostic)
+        is_chrono_query = bool(re.search(r"\b(daily|journal|diary|reflection|reflections|log|logs|day's\s+note|entry|entries)\b", msg, re.I))
+        is_sample_request = bool(re.search(r"\b(pick|choose|random|randam|rnd|surprise|sample|one\s+of|pull|grab|fetch|get\s+one|show\s+one|any)\b", msg, re.I))
 
-        # 5. Direct single-word note title lookup (e.g. Miro, Summit, Virginia)
-        stop_words = {"the", "and", "for", "with", "this", "that", "from", "when", "what", "where", "your", "have", "sure", "look", "tell", "about", "some", "here", "will", "does", "obsidian", "vault", "journal", "daily", "folder", "note", "notes", "please", "access", "format", "file", "files", "entry", "entries", "what", "why", "who", "how", "did", "say", "said", "made", "pick", "picked", "choose", "chose", "movie", "film", "pull", "randam", "random"}
-        for w in re.findall(r"[a-zA-Z0-9_\-]+", msg):
-            if len(w) >= 3 and w.lower() not in stop_words:
-                content = cls.read_note(profile, w)
-                if content and not content.startswith("Note `") and not content.startswith("⚠️"):
-                    return f"### Ground-Truth Sandboxed Vault Note (`{w}` - Exact Content):\n{content}"
+        if is_chrono_query and is_sample_request:
+            chrono_notes = cls.find_chronological_notes(profile)
+            if chrono_notes:
+                import random
+                selected_fp = random.choice(chrono_notes)
+                rel = os.path.relpath(selected_fp, mv)
+                try:
+                    with open(selected_fp, "r", encoding="utf-8", errors="ignore") as f:
+                        body = f.read().strip()
+                    if body:
+                        return f"### Ground-Truth Sandboxed Vault Note (`{rel}` - Exact Content):\n{body[:3000]}"
+                except Exception:
+                    pass
 
         # 6. Year-based chronological queries ("2020 journal entry")
         yr = re.search(r"\b(201\d|202\d|19\d\d)\b", msg)
-        if yr and re.search(r"(?:vault|journal|note|notes|daily|reflection|reminisce|entry|entries|wayback|past)", msg, re.I):
+        if yr and is_chrono_query:
             res = cls.search(profile, yr.group(1))
             if res and not res.startswith("No notes found") and "not configured" not in res:
                 return f"### Ground-Truth Vault Search Results for '{yr.group(1)}':\n{res}"
 
-        # 7. Dynamic domain scanning derived from agent's configured vault_folders & top-level folders
-        v_folders = profile.get("vault_folders") or [profile.get("vault_folder", "General")]
-        if "" in v_folders or "*" in v_folders or "all" in v_folders:
-            # Expand to real directories in master vault
-            try:
-                v_folders = [d for d in os.listdir(mv) if os.path.isdir(os.path.join(mv, d)) and not d.startswith(".") and d.lower() not in ignore_dirs]
-            except Exception:
-                v_folders = ["General", "Daily", "Thoughts", "Projects", "Quotes", "People"]
-
+        # 7. Dynamic Real-Directory Discovery & Sampling (Zero Hardcoding)
+        discovered_dirs = cls.get_discovered_folders(profile)
         triggers = config_manager.get("vault.search_triggers") or ["vault", "note", "notes", "folder", "search", "find", "who", "what", "access", "pull", "show", "read", "entry", "entries", "sample", "pick"]
         has_intent = any(k in msg.lower() for k in triggers)
 
-        for folder in v_folders:
-            if not folder or folder in ("*", "", "all"): continue
-            f_clean = folder.strip().lower()
-            variants = {f_clean, f_clean[:-1] if f_clean.endswith("s") else f_clean + "s"}
-            if f_clean == "daily": variants.update({"journal", "journals", "diary", "reflection", "reflections", "log", "logs", "entry", "entries"})
-            elif f_clean == "people": variants.update({"person", "contact", "contacts", "friend", "friends", "family"})
-            elif f_clean == "movies": variants.update({"film", "films", "cinema"})
-            elif f_clean == "thoughts": variants.update({"thought", "essay", "essays", "musings"})
-            elif f_clean == "quotes": variants.update({"quote", "quotation", "saying"})
-
-            if any(re.search(rf"\b{re.escape(v)}\b", msg, re.I) for v in variants) and has_intent:
-                if sample_intent:
-                    samples = cls.get_random_sample_notes(profile, folder, count=1)
-                    if samples:
-                        return f"### Ground-Truth Selected Note from `{folder}/`:\n{samples}"
-                if re.search(r"\b(scan|analyze|summarize|all|overview|how\s+i|about\s+me|connections?|access)\b", msg, re.I):
-                    return cls.get_folder_digest(profile, folder)
-                res = cls.search(profile, f_clean, target_folder=folder)
-                if res and not res.startswith("No notes found") and "not configured" not in res:
-                    return f"### Ground-Truth Vault Search Results for '{folder}':\n{res}"
+        if has_intent and discovered_dirs:
+            for folder_name, folder_path in discovered_dirs.items():
+                f_stem = folder_name.rstrip("s")
+                if re.search(rf"\b{re.escape(f_stem)}\w*\b", msg, re.I):
+                    if is_sample_request:
+                        samples = cls.get_random_sample_notes(profile, folder_name, count=1)
+                        if samples:
+                            return f"### Ground-Truth Selected Note from `{folder_name}/`:\n{samples}"
+                    if re.search(r"\b(scan|analyze|summarize|all|overview|connections?|access)\b", msg, re.I):
+                        return cls.get_folder_digest(profile, folder_name)
+                    res = cls.search(profile, folder_name, target_folder=folder_name)
+                    if res and not res.startswith("No notes found") and "not configured" not in res:
+                        return f"### Ground-Truth Vault Search Results for '{folder_name}':\n{res}"
 
         # 8. Conversational search fallback
         q = re.sub(r"^(?:hey|hi|hello|yo|good\s+\w+)\s*(?:\w+)?[\.\,\:\;–—\s\-]*", "", msg, flags=re.I).strip()

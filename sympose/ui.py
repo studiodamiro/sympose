@@ -61,7 +61,7 @@ class TerminalUI:
         banner.append("<S>  ", style="bold cyan")
         banner.append("S Y M P O S E  ", style="bold white")
         banner.append("// multi-model agent hub  ", style="dim white")
-        banner.append("[v0.2.11]\n", style="dim cyan")
+        banner.append("[v0.2.12]\n", style="dim cyan")
         banner.append("minimalist runtime for macos & slack\n", style="dim white")
         banner.append("commands: /help | /save | /config | switch: /switch | exit: /exit", style="dim cyan")
         console.print(Panel(banner, box=ROUNDED, border_style="cyan", padding=(1, 2)))
@@ -76,7 +76,7 @@ class TerminalUI:
         banner.append("<S>  ", style="bold cyan")
         banner.append("S Y M P O S E  ", style="bold white")
         banner.append("// interactive setup wizard  ", style="dim white")
-        banner.append("[v0.2.11]\n", style="dim cyan")
+        banner.append("[v0.2.12]\n", style="dim cyan")
         banner.append("zero-bloat multi-model agent hub & sovereign vault explorer\n\n", style="dim white")
         banner.append("active workspace: ", style="green")
         banner.append(f"{workspace_dir}\n", style="bold yellow")
@@ -124,8 +124,8 @@ class TerminalUI:
             options=options
         )
 
-        valid_choices = list(index_map.keys()) + [p["handle"].lower() for p in profiles]
-        prompt_label = f"Select persona [1-{len(profiles)} or handle]"
+        valid_choices = list(index_map.keys()) + [p["handle"].lower() for p in profiles] + [f"@{p['handle'].lower()}" for p in profiles]
+        prompt_label = f"Select persona [1-{len(profiles)} or @handle]"
         raw_choice = Prompt.ask(prompt_label, default=default_choice, choices=valid_choices, case_sensitive=False)
         cleaned = raw_choice.lower().replace("@", "").strip()
 

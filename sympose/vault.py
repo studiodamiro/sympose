@@ -501,9 +501,9 @@ class VaultManager:
 
     @classmethod
     def has_vault_skill(cls, profile: Dict[str, Any]) -> bool:
-        """Verifies if the persona possesses the vault_recall skill or active vault permissions."""
+        """Verifies if the persona possesses the vault_recall skill."""
         skills = profile.get("skills") or []
-        return "vault_recall" in skills or "vault_write" in skills or bool(profile.get("vault_folders")) or bool(profile.get("vault_folder"))
+        return "vault_recall" in skills
 
     @classmethod
     def find_chronological_notes(cls, profile: Dict[str, Any]) -> List[str]:

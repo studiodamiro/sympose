@@ -61,7 +61,7 @@ class TerminalUI:
         banner.append("<S>  ", style="bold cyan")
         banner.append("S Y M P O S E  ", style="bold white")
         banner.append("// multi-model agent hub  ", style="dim white")
-        banner.append("[v0.2.5]\n", style="dim cyan")
+        banner.append("[v0.2.6]\n", style="dim cyan")
         banner.append("minimalist runtime for macos & slack\n", style="dim white")
         banner.append("commands: /help | /save | /config | switch: /switch | exit: /exit", style="dim cyan")
         console.print(Panel(banner, box=ROUNDED, border_style="cyan", padding=(1, 2)))
@@ -76,7 +76,7 @@ class TerminalUI:
         banner.append("<S>  ", style="bold cyan")
         banner.append("S Y M P O S E  ", style="bold white")
         banner.append("// interactive setup wizard  ", style="dim white")
-        banner.append("[v0.2.5]\n", style="dim cyan")
+        banner.append("[v0.2.6]\n", style="dim cyan")
         banner.append("zero-bloat multi-model agent hub & sovereign vault explorer\n\n", style="dim white")
         banner.append("active workspace: ", style="green")
         banner.append(f"{workspace_dir}\n", style="bold yellow")
@@ -99,7 +99,15 @@ class TerminalUI:
         if not profiles or not console:
             return default_handle
 
-        table = Table(title="Personas", box=ROUNDED, border_style="dim cyan", show_header=True, header_style="bold cyan")
+        table = Table(
+            title="PERSONAS",
+            title_justify="left",
+            title_style="bold cyan",
+            box=ROUNDED,
+            border_style="cyan",
+            show_header=True,
+            header_style="bold cyan"
+        )
         table.add_column("#", style="bold yellow", justify="center", width=4)
         table.add_column("Handle", style="bold yellow")
         table.add_column("Name", style="bold white")
@@ -165,7 +173,13 @@ class TerminalUI:
             "[bold cyan][3][/bold cyan] Both (Memory + Obsidian) [Default]\n"
             "[bold cyan][4][/bold cyan] Discard & Exit (No save)"
         )
-        console.print(Panel(menu_text, box=ROUNDED, title="Save Session Takeaways?", border_style="dim cyan"))
+        console.print(Panel(
+            menu_text,
+            box=ROUNDED,
+            title="SAVE SESSION TAKEAWAYS?",
+            title_align="left",
+            border_style="cyan"
+        ))
 
         def_opt = "1" if default_target == "memory" else ("2" if default_target == "obsidian" else ("4" if default_target == "discard" else "3"))
         choice = Prompt.ask("Select option", choices=["1", "2", "3", "4"], default=def_opt)

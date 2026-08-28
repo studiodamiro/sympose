@@ -61,7 +61,7 @@ class TerminalUI:
         banner.append("<S>  ", style="bold cyan")
         banner.append("S Y M P O S E  ", style="bold white")
         banner.append("// multi-model agent hub  ", style="dim white")
-        banner.append("[v0.2.10]\n", style="dim cyan")
+        banner.append("[v0.2.11]\n", style="dim cyan")
         banner.append("minimalist runtime for macos & slack\n", style="dim white")
         banner.append("commands: /help | /save | /config | switch: /switch | exit: /exit", style="dim cyan")
         console.print(Panel(banner, box=ROUNDED, border_style="cyan", padding=(1, 2)))
@@ -76,7 +76,7 @@ class TerminalUI:
         banner.append("<S>  ", style="bold cyan")
         banner.append("S Y M P O S E  ", style="bold white")
         banner.append("// interactive setup wizard  ", style="dim white")
-        banner.append("[v0.2.10]\n", style="dim cyan")
+        banner.append("[v0.2.11]\n", style="dim cyan")
         banner.append("zero-bloat multi-model agent hub & sovereign vault explorer\n\n", style="dim white")
         banner.append("active workspace: ", style="green")
         banner.append(f"{workspace_dir}\n", style="bold yellow")
@@ -98,57 +98,32 @@ class TerminalUI:
         if not profiles or not console:
             return default_handle
 
-        console.print()
-        table = Table(
-            title="👥  PERSONAS",
-            title_justify="left",
-            title_style="bold cyan",
-            box=ROUNDED,
-            border_style="cyan",
-            show_header=True,
-            header_style="bold cyan"
-        )
-        table.add_column("#", style="bold yellow", justify="center", width=4)
-        table.add_column("Handle", style="bold yellow")
-        table.add_column("Name", style="bold white")
-        table.add_column("Role / Title", style="cyan")
-        table.add_column("Default Model", style="green")
-        table.add_column("Sandbox", style="magenta")
-
+        options = []
         index_map: Dict[str, str] = {}
         handle_map: Dict[str, str] = {}
         default_choice = default_handle
 
         for i, p in enumerate(profiles, start=1):
             h = p.get("handle", "").lower()
+            name = p.get("name", h)
+            title = p.get("title", "Specialist Persona")
             index_map[str(i)] = h
             handle_map[h] = h
             handle_map[f"@{h}"] = h
-            if h == default_handle.lower():
+            
+            is_active = h == default_handle.lower()
+            if is_active:
                 default_choice = str(i)
-
-            v_folders = p.get("vault_folders") or ([p["vault_folder"]] if p.get("vault_folder") else [])
-            if not v_folders:
-                sandbox_desc = "General/"
-            elif "*" in v_folders or "" in v_folders or "all" in v_folders:
-                sandbox_desc = "Root (*)"
-            elif len(v_folders) == 1:
-                sandbox_desc = f"{v_folders[0]}/"
+                options.append(f"[bold yellow]@{h}[/bold yellow]  [bold white]{name}[/bold white] [dim]— {title}[/dim] [dim cyan][Active][/dim cyan]")
             else:
-                sandbox_desc = ", ".join(f"{f}/" for f in v_folders[:2]) + (f" (+{len(v_folders)-2})" if len(v_folders) > 2 else "")
+                options.append(f"[bold yellow]@{h}[/bold yellow]  [bold white]{name}[/bold white] [dim]— {title}[/dim]")
 
-            model_display = p.get("model") or os.getenv("DEFAULT_MODEL", "gemini/gemini-3.6-flash")
+        TerminalUI.render_option_panel(
+            console,
+            title="👥  SELECT ACTIVE PERSONA",
+            options=options
+        )
 
-            table.add_row(
-                str(i),
-                f"@{p.get('handle')}",
-                p.get("name", ""),
-                p.get("title", ""),
-                model_display,
-                sandbox_desc
-            )
-
-        console.print(table)
         valid_choices = list(index_map.keys()) + [p["handle"].lower() for p in profiles]
         prompt_label = f"Select persona [1-{len(profiles)} or handle]"
         raw_choice = Prompt.ask(prompt_label, default=default_choice, choices=valid_choices, case_sensitive=False)

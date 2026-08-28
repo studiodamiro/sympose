@@ -46,6 +46,7 @@ This master document serves as the top-level index and Table of Contents.
 | **2026-08-26** | Post-Remediation Hardening & Defensive Engineering Standards (ADR-038) | Complete | [`2026-08-26_post_remediation_hardening_and_defensive_engineering_standards.md`](journal/2026-08/2026-08-26_post_remediation_hardening_and_defensive_engineering_standards.md) |
 | **2026-08-27** | Modular Vault Writing, Obsidian Template Integration, Wikilinks Taxonomy & Live Web Search (ADR-039 – ADR-043) | Complete | [`2026-08-27_vault_write_obsidian_templates_and_live_web_search.md`](journal/2026-08/2026-08-27_vault_write_obsidian_templates_and_live_web_search.md) |
 | **2026-08-27** | In-Memory Inverted Index & Deterministic Backlink Lookup Engine (ADR-044) | Complete | [`2026-08-27_backlink_lookup_engine_and_inverted_index.md`](journal/2026-08/2026-08-27_backlink_lookup_engine_and_inverted_index.md) |
+| **2026-08-29** | Standalone Python Packaging, Sovereign User Workspace & Standardized CLI Design System (ADR-045 – ADR-048) | Complete | [`2026-08-29_sovereign_packaging_and_cli_design_system.md`](journal/2026-08/2026-08-29_sovereign_packaging_and_cli_design_system.md) |
 
 ---
 
@@ -175,6 +176,14 @@ This master document serves as the top-level index and Table of Contents.
   * Segregated character identity (`_soul.md`), operational playbooks (`skills/*`), and universal system grounding (`workspace_rules.md`).
 * **[ADR-044 (2026-08-27): In-Memory Inverted Index & Deterministic Backlink Lookup Engine](journal/2026-08/2026-08-27_backlink_lookup_engine_and_inverted_index.md#adr-044-in-memory-inverted-index--deterministic-backlink-lookup-engine):**
   * Sub-4ms local Inverted Index in `sympose/vault.py` with alias/anchor resolution, Tier-0 natural language intent interception, sandboxed permissions, and slash command integration (`/vault backlinks <note>`).
+* **[ADR-045 (2026-08-29): Standalone PEP 517 Packaging & Sovereign User Workspace (`~/.sympose/`)](journal/2026-08/2026-08-29_sovereign_packaging_and_cli_design_system.md#adr-045-modern-standalone-python-packaging-pyprojecttoml--sovereign-user-workspace-sympose):**
+  * Built `pyproject.toml` packaging with `sympose` entry point, 1-command `pipx` install/upgrade, and dynamic dual-mode workspace resolution (Local Repo vs. `~/.sympose/`).
+* **[ADR-046 (2026-08-29): Samantha-Only Clean Slate & Dynamic Autonomic Persona Genesis](journal/2026-08/2026-08-29_sovereign_packaging_and_cli_design_system.md#adr-046-samantha-only-clean-slate--dynamic-autonomic-persona-genesis-create_persona):**
+  * Seeded Samantha as sole starter orchestrator, removed hardcoded names from procedural skills, and enabled dynamic `[CREATE_PERSONA]` tag emission with automatic baseline skill/model fallbacks.
+* **[ADR-047 (2026-08-29): Standardized Sympose CLI Design System (`SYMPOSE_THEME`) & Themed Markdown](journal/2026-08/2026-08-29_sovereign_packaging_and_cli_design_system.md#adr-047-standardized-sympose-cli-design-system-sympose_theme--typography-standard):**
+  * Unified semantic color tokens, `box.ROUNDED` card containers, and Rich Markdown rendering across `/help`, `/model`, `/config`, `/switch`, and `/skills`.
+* **[ADR-048 (2026-08-29): Dynamic 3-Tier Model Hierarchy & Fallback Architecture](journal/2026-08/2026-08-29_sovereign_packaging_and_cli_design_system.md#adr-048-dynamic-3-tier-model-hierarchy--runtime-fallback-architecture):**
+  * 3-Tier resolution (System `DEFAULT_MODEL` $\rightarrow$ Persona `model:` $\rightarrow$ Session Summarizer / In-Session `/model` override) with zero hardcoded model lock-in.
 
 ---
 

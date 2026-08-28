@@ -138,9 +138,11 @@ sympose/
 │   └── discussion_moderation/# Multi-agent loop limiter & timeboxing
 ├── mcp/                      # Master MCP server hub & configs (servers.json)
 ├── sympose/                  # Decoupled Python package (<200 LOC per file)
+│   ├── bootstrap.py          # Workspace resolver (~/.sympose) & onboarding wizard
+│   ├── server.py             # FastAPI REST & Standalone Vault Gateway
 │   ├── config.py             # ConfigManager with live dynamic override
 │   ├── profiles.py           # ProfileManager, auto-soul & auto-memory genesis
-│   ├── vault.py              # Obsidian templates engine, tag sync & search
+│   ├── vault.py              # In-memory inverted index, templates & backlink engine
 │   ├── actions.py            # Autonomic action tag processor & parser
 │   ├── engine.py             # Sliding window LLM engine & live synthesis loop
 │   ├── slack.py              # Slack Socket Mode daemon & mention router
@@ -153,14 +155,16 @@ sympose/
 │   ├── workers.py            # Sub-agent worker sandbox & multi-turn tool loop
 │   ├── completer.py          # Readline tab auto-completion for commands, models & skills
 │   ├── commands.py           # Tactical slash command interceptor
-│   ├── ui.py                 # Rich terminal tables, banners & exit modals
+│   ├── ui.py                 # Rich terminal tables, SYMPOSE_THEME & exit modals
 │   └── cli.py                # Interactive CLI loop & streaming controller
 ├── docs/                     # Architectural Decision Records & Guides
-│   ├── PROJECT_JOURNAL.md    # Master index & ADR records (ADR-001 to ADR-043)
+│   ├── PROJECT_JOURNAL.md    # Master index & ADR records (ADR-001 to ADR-048)
 │   ├── SLACK_SETUP_GUIDE.md  # 1-click Slack app manifest & socket setup
 │   ├── LATENCY_TUNING_GUIDE.md # Performance parameters & latency SLAs
 │   ├── MEMORY_ARCHITECTURE_STANDARD.md # Triad memory & grounding standard
 │   └── journal/              # Daily engineering logs by month
+├── pyproject.toml            # PEP 517/621 packaging & entry points
+├── MANIFEST.in               # Asset bundling manifest
 ├── config.yaml               # Central runtime, performance & memory config
 ├── requirements.txt          # Minimal, zero-bloat dependencies
 ├── .env.example              # Multi-provider API keys template
@@ -174,12 +178,14 @@ sympose/
 
 | Command | Purpose | Example |
 | :--- | :--- | :--- |
+| `/switch [@handle]` | Switch active conversation to another persona | `/switch @grace` |
+| `/setup` (or `/onboard`) | Launch interactive provider & vault setup wizard | `/setup` |
+| `/model [id\|find\|reset]` | Inspect active model, search live OpenRouter, or switch | `/model find sonnet` |
 | `/skills` (or `/tools`) | Inspect indexed skill playbooks and active MCP servers | `/skills` |
 | `/worker <skill\|mcp> <task>` | Dispatch an isolated sub-agent worker with tools/skills | `/worker git_workflow "Check branch status"` |
-| `/switch [@handle]` | Switch active conversation to another persona | `/switch @grace` |
 | `/config` | View active runtime, performance & session settings | `/config` |
 | `/config set <key> <val>` | Tune knobs live in the active terminal | `/config set performance.max_context_turns 20` |
-| `/compact [shared\|@persona]` | Consolidate duplicates, resolve conflicts & prune memory | `/compact shared` |
+| `/compact [shared\|@handle]` | Consolidate duplicates, resolve conflicts & prune memory | `/compact shared` |
 | `/delete @<handle>` | Safely retire and archive an agent persona | `/delete @curie` |
 | `/save [memory\|obsidian\|both]` | Synthesize and save session takeaways | `/save both` |
 | `/vault <query>` | Query persona's sandboxed Obsidian notes | `/vault architecture` |
@@ -187,7 +193,6 @@ sympose/
 | `/note <file.md> <content>` | Create or append to a sandboxed vault note | `/note Ideas.md Roadmap items` |
 | `/daily <reflection>` | Append a thought to today's Daily Notes | `/daily Completed worker refactor` |
 | `/remember <fact>` | Save a durable fact to working memory | `/remember Prefers vanilla CSS` |
-| `/model [list\|find\|reset]` | Inspect active model, search live OpenRouter, or switch | `/model find sonnet` |
 | `/reset` (or `/new`) | Reset active conversation context | `/reset` |
 | `/clear` | Clear terminal screen and reset context | `/clear` |
 | `/help` | Show command reference | `/help` |

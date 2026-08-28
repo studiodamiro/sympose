@@ -188,8 +188,11 @@ class SymposeCompleter:
         else:
             readline.parse_and_bind("tab: complete")
 
-        # Load history
-        hist_path = os.path.expanduser("~/.sympose_history")
+        # Load history from active workspace directory
+        from sympose.bootstrap import resolve_workspace_dir
+        ws = resolve_workspace_dir()
+        os.makedirs(ws, exist_ok=True)
+        hist_path = os.path.join(ws, ".history")
         try:
             if os.path.exists(hist_path):
                 readline.read_history_file(hist_path)

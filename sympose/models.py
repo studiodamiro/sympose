@@ -9,7 +9,12 @@ import time
 import urllib.request
 from typing import List, Dict, Any, Optional
 
-CACHE_FILE = os.path.expanduser("~/.sympose_models_cache.json")
+def get_cache_file() -> str:
+    from sympose.bootstrap import resolve_workspace_dir
+    ws = resolve_workspace_dir()
+    os.makedirs(ws, exist_ok=True)
+    return os.path.join(ws, ".models_cache.json")
+
 CACHE_TTL_SECONDS = 86400  # 24 hours
 
 
@@ -29,10 +34,11 @@ class ModelCatalog:
         """Loads models from local cache, or fetches from OpenRouter if expired/forced."""
         now = time.time()
         existing_cached_models = []
+        cache_file = get_cache_file()
 
-        if os.path.exists(CACHE_FILE):
+        if os.path.exists(cache_file):
             try:
-                with open(CACHE_FILE, "r", encoding="utf-8") as f:
+                with open(cache_file, "r", encoding="utf-8") as f:
                     cached = json.load(f)
                 existing_cached_models = cached.get("models", [])
                 if not force_refresh and now - cached.get("timestamp", 0) < CACHE_TTL_SECONDS and existing_cached_models:

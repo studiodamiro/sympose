@@ -23,9 +23,26 @@ def main():
     parser.add_argument("--dashboard", "--web", action="store_true", help="Launch Web Dashboard & Standalone Vault Explorer")
     args = parser.parse_args()
 
+    from sympose.bootstrap import resolve_workspace_dir, ensure_workspace, run_first_run_onboarding
+    from dotenv import load_dotenv
+
+    workspace_dir = resolve_workspace_dir()
+    is_fresh = ensure_workspace(workspace_dir)
+    load_dotenv(os.path.join(workspace_dir, ".env"))
+
+    # Run onboarding wizard if fresh workspace and interactive terminal
+    if is_fresh and not args.dashboard and not args.slack:
+        run_first_run_onboarding(workspace_dir)
+
     # Initialize configuration & profile managers
-    config = ConfigManager(args.config)
-    pm = ProfileManager(profiles_dir=config.get("runtime.profiles_dir", "profiles"))
+    config_path = args.config if os.path.isabs(args.config) or os.path.exists(args.config) else os.path.join(workspace_dir, args.config)
+    config = ConfigManager(config_path)
+    
+    profiles_dir = config.get("runtime.profiles_dir", "profiles")
+    if not os.path.isabs(profiles_dir) and not os.path.exists(profiles_dir):
+        profiles_dir = os.path.join(workspace_dir, profiles_dir)
+
+    pm = ProfileManager(profiles_dir=profiles_dir)
     engine = PersonaEngine(pm)
 
     default_persona = args.persona or config.get("runtime.default_persona", "samantha")

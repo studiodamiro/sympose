@@ -21,11 +21,16 @@ class ProfileManager:
         """Generates soul, memory, universal user card, and shared team memory from .example templates if absent."""
         handle, name, title = profile.get("handle", "agent").lower(), profile.get("name", "Agent"), profile.get("title", "Specialist Advisor")
         os.makedirs(self.profiles_dir, exist_ok=True)
+        soul_name = os.path.basename(profile.get("soul_file") or f"{handle}_soul.md")
+        mem_name = os.path.basename(profile.get("memory_file") or f"{handle}_memory.md")
+        soul_path = os.path.join(self.profiles_dir, soul_name)
+        mem_path = os.path.join(self.profiles_dir, mem_name)
+
         for path, default_content in [
             (os.path.join(self.profiles_dir, "user_profile.md"), "# Universal User Profile\n\n- **Primary User**: user\n- **Environment**: macOS / Linux\n"),
             (os.path.join(self.profiles_dir, "_shared_memory.md"), "# Shared Team Working Memory\n\n- **Active Project**: Sympose Agent Hub\n"),
-            (profile.get("soul_file") or os.path.join(self.profiles_dir, f"{handle}_soul.md"), f"# {name}: Core Directives\n\nYou are **{name}**, the {title} in Sympose.\n"),
-            (profile.get("memory_file") or os.path.join(self.profiles_dir, f"{handle}_memory.md"), f"# {name}: Working Memory\n\n- **Role**: {title}\n")
+            (soul_path, f"# {name}: Core Directives\n\nYou are **{name}**, the {title} in Sympose.\n"),
+            (mem_path, f"# {name}: Working Memory\n\n- **Role**: {title}\n")
         ]:
             if not os.path.exists(path):
                 content = default_content
@@ -38,8 +43,8 @@ class ProfileManager:
                     with open(path, "w", encoding="utf-8") as f: f.write(content)
                 except Exception: pass
 
-        profile["soul_file"] = profile.get("soul_file") or os.path.join(self.profiles_dir, f"{handle}_soul.md")
-        profile["memory_file"] = profile.get("memory_file") or os.path.join(self.profiles_dir, f"{handle}_memory.md")
+        profile["soul_file"] = soul_path
+        profile["memory_file"] = mem_path
         if not profile.get("thinking_phrases"):
             profile["thinking_phrases"] = [f"Consulting {name}...", "Distilling insights...", "Formulating plan..."]
 
@@ -54,29 +59,6 @@ class ProfileManager:
             "share_memory": True,
             "skills": ["sympose_mastery", "strategic_analysis", "vault_recall", "vault_write", "web_search"],
             "thinking_phrases": ["Connecting high-level dots...", "Synthesizing strategic options...", "Distilling signal from noise..."]
-        },
-        "grace": {
-            "name": "Grace Hopper",
-            "handle": "grace",
-            "title": "Surgical Software & Systems Engineer",
-            "model": "gemini/gemini-3.5-flash-lite",
-            "temperature": 0.1,
-            "icon_emoji": ":computer:",
-            "vault_folders": ["Projects", "Code", "Templates"],
-            "share_memory": True,
-            "skills": ["git_workflow", "code_review", "system_architecture", "vault_recall", "vault_write", "web_search"],
-            "thinking_phrases": ["Decompiling assumptions...", "Eliminating unnecessary abstractions...", "Verifying system constraints..."]
-        },
-        "anais": {
-            "name": "Anaïs Nin",
-            "handle": "anais",
-            "title": "Literary Sensualist & Intimate Diarist",
-            "model": "gemini/gemini-3.5-flash-lite",
-            "icon_emoji": ":rose:",
-            "vault_folders": ["Thoughts", "Daily", "Quotes", "Templates"],
-            "share_memory": False,
-            "skills": ["vault_write", "vault_recall", "web_search"],
-            "thinking_phrases": ["Exploring emotional depths...", "Translating shadows into ink..."]
         }
     }
 
@@ -115,12 +97,22 @@ class ProfileManager:
         return list(self.profiles.values())
 
     def _read_file_safe(self, path: Optional[str]) -> str:
-        if path and os.path.exists(path):
-            try:
-                with open(path, "r", encoding="utf-8") as f:
-                    return f.read().strip()
-            except Exception:
-                return ""
+        if not path:
+            return ""
+        # Try direct path
+        candidates = [
+            path,
+            os.path.join(self.profiles_dir, path),
+            os.path.join(self.profiles_dir, os.path.basename(path)),
+            os.path.join(os.path.dirname(self.profiles_dir), path),
+        ]
+        for c in candidates:
+            if os.path.exists(c) and os.path.isfile(c):
+                try:
+                    with open(c, "r", encoding="utf-8") as f:
+                        return f.read().strip()
+                except Exception:
+                    pass
         return ""
 
     def build_system_prompt(self, profile: Dict[str, Any]) -> str:
@@ -150,20 +142,24 @@ class ProfileManager:
         if persona_mem := self._read_file_safe(profile.get("memory_file")):
             prompt_parts.append(f"### Persona Working Memory:\n{persona_mem}")
 
-        rules_txt = self._read_file_safe(os.path.join("prompts", "workspace_rules.md")) or self._read_file_safe("workspace_rules.md")
-        if rules_txt:
-            rules_formatted = (
-                rules_txt.replace("{{workspace_root}}", os.getcwd())
-                .replace("{{master_vault_path}}", mv)
-                .replace("{{sandboxed_vault}}", vf_desc)
-                .replace("{{memory_mode}}", f"{sharing_desc} (File: `{profile.get('memory_file')}`)")
-                .replace("{{current_datetime}}", datetime.datetime.now().strftime("%Y-%m-%d %A %H:%M"))
-                .replace("{{sources}}", sources)
-                .replace("{{user}}", primary_user)
-                .replace("{{handle}}", handle)
-                .replace("{{name}}", name)
-            )
-            prompt_parts.append(rules_formatted)
+        workspace_parent = os.path.dirname(self.profiles_dir)
+        rules_txt = (
+            self._read_file_safe(os.path.join(workspace_parent, "prompts", "workspace_rules.md"))
+            or self._read_file_safe(os.path.join("prompts", "workspace_rules.md"))
+            or "### Directives:\n- Think systematically and provide crisp analysis.\n- Save durable insights to memory."
+        )
+        rules_formatted = (
+            rules_txt.replace("{{workspace_root}}", os.getcwd())
+            .replace("{{master_vault_path}}", mv)
+            .replace("{{sandboxed_vault}}", vf_desc)
+            .replace("{{memory_mode}}", f"{sharing_desc} (File: `{profile.get('memory_file')}`)")
+            .replace("{{current_datetime}}", datetime.datetime.now().strftime("%Y-%m-%d %A %H:%M"))
+            .replace("{{sources}}", sources)
+            .replace("{{user}}", primary_user)
+            .replace("{{handle}}", handle)
+            .replace("{{name}}", name)
+        )
+        prompt_parts.append(rules_formatted)
 
         if active_skills := profile.get("skills", []):
             if isinstance(active_skills, list) and (skills_txt := skill_manager.format_skills_for_prompt(active_skills)):

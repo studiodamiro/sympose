@@ -48,34 +48,42 @@ class Skill:
 class SkillManager:
     """Discovers, indexes, and compiles modular skill playbooks from the skills/ directory."""
 
-    def __init__(self, skills_dir: str = "skills"):
-        self.skills_dir = skills_dir
+    def __init__(self, skills_dir: Optional[str] = None):
+        if skills_dir:
+            self.skills_dir = skills_dir
+        else:
+            from sympose.bootstrap import resolve_workspace_dir
+            self.skills_dir = os.path.join(resolve_workspace_dir(), "skills")
         self.skills: Dict[str, Skill] = {}
         self.reload_skills()
 
     def reload_skills(self) -> Dict[str, Skill]:
         """Scans the skills directory and loads all valid SKILL.md and standalone markdown playbooks."""
         self.skills.clear()
-        if not os.path.exists(self.skills_dir):
-            try:
-                os.makedirs(self.skills_dir, exist_ok=True)
-            except Exception:
-                return self.skills
-
-        # 1. Look for folder-based skills: skills/<name>/SKILL.md or skills/<name>/skill.md
-        folder_pattern = os.path.join(self.skills_dir, "*", "SKILL.md")
-        folder_pattern_lower = os.path.join(self.skills_dir, "*", "skill.md")
         
-        found_files = set(glob.glob(folder_pattern) + glob.glob(folder_pattern_lower))
+        search_dirs = [self.skills_dir]
+        builtin_dir = os.path.join(os.path.dirname(__file__), "builtin_skills")
+        if os.path.exists(builtin_dir) and builtin_dir not in search_dirs:
+            search_dirs.append(builtin_dir)
 
-        # 2. Look for standalone markdown files in skills/ directory (e.g. skills/debugging.md)
-        for f in glob.glob(os.path.join(self.skills_dir, "*.md")):
-            found_files.add(f)
+        found_files = set()
+        for s_dir in search_dirs:
+            if not os.path.exists(s_dir):
+                continue
+            # 1. Folder-based skills: skills/<name>/SKILL.md or skills/<name>/skill.md
+            folder_pattern = os.path.join(s_dir, "*", "SKILL.md")
+            folder_pattern_lower = os.path.join(s_dir, "*", "skill.md")
+            for f in glob.glob(folder_pattern) + glob.glob(folder_pattern_lower):
+                found_files.add(f)
+            # 2. Standalone markdown files in skills/ directory (e.g. skills/debugging.md)
+            for f in glob.glob(os.path.join(s_dir, "*.md")):
+                found_files.add(f)
 
-        for filepath in found_files:
+        for filepath in sorted(found_files):
             try:
                 skill = self._parse_skill_file(filepath)
                 if skill:
+                    # User custom skills in workspace override builtins with the same name
                     self.skills[skill.name] = skill
             except Exception as e:
                 print(f"⚠️ Error loading skill from {filepath}: {e}")

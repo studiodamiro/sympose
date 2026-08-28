@@ -178,6 +178,22 @@ def ensure_workspace(workspace_dir: str) -> bool:
         with open(rules_file, "w", encoding="utf-8") as f:
             f.write(DEFAULT_RULES_MD)
 
+    # 5. Seed built-in skills into workspace skills directory
+    try:
+        import shutil
+        builtin_skills_dir = os.path.join(os.path.dirname(__file__), "builtin_skills")
+        if os.path.exists(builtin_skills_dir):
+            for item in os.listdir(builtin_skills_dir):
+                s_src = os.path.join(builtin_skills_dir, item)
+                s_dst = os.path.join(skills_dir, item)
+                if not os.path.exists(s_dst):
+                    if os.path.isdir(s_src):
+                        shutil.copytree(s_src, s_dst)
+                    elif os.path.isfile(s_src) and s_src.endswith(".md"):
+                        shutil.copy2(s_src, s_dst)
+    except Exception:
+        pass
+
     return is_fresh
 
 

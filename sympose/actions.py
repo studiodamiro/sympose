@@ -173,9 +173,25 @@ class ActionProcessor:
                     badges.append(f"> ⚙️ **{name} updated runtime configuration:** `{key}` = `{val}`")
 
             # 7. CREATE_PERSONA
-            elif tag == "CREATE_PERSONA" and "|" in inner:
-                parts = inner.split("|", 1)
-                h_name, raw_yaml = parts[0].strip().lower().replace("@", ""), parts[1].strip()
+            elif tag == "CREATE_PERSONA":
+                h_name, raw_yaml = "", ""
+                if "|" in inner:
+                    parts = inner.split("|", 1)
+                    h_name, raw_yaml = parts[0].strip().lower().replace("@", ""), parts[1].strip()
+                else:
+                    raw_yaml = inner.strip()
+                    try:
+                        import yaml
+                        y_data = yaml.safe_load(raw_yaml)
+                        if isinstance(y_data, dict) and "handle" in y_data:
+                            h_name = str(y_data["handle"]).strip().lower().replace("@", "")
+                    except Exception:
+                        pass
+                    if not h_name:
+                        m_h = re.search(r"^handle:\s*([^\n\r]+)", raw_yaml, re.M | re.I)
+                        if m_h:
+                            h_name = m_h.group(1).strip().strip("\"'").lower().replace("@", "")
+
                 if h_name and raw_yaml:
                     p_dir = getattr(profile_manager, "profiles_dir", "profiles")
                     os.makedirs(p_dir, exist_ok=True)

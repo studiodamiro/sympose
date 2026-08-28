@@ -45,6 +45,10 @@ class ProfileManager:
 
         profile["soul_file"] = soul_path
         profile["memory_file"] = mem_path
+        if not profile.get("model"):
+            profile["model"] = os.getenv("DEFAULT_MODEL", "gemini/gemini-3.6-flash")
+        if not profile.get("skills"):
+            profile["skills"] = ["vault_recall", "vault_write", "web_search"]
         if not profile.get("thinking_phrases"):
             profile["thinking_phrases"] = [f"Consulting {name}...", "Distilling insights...", "Formulating plan..."]
 

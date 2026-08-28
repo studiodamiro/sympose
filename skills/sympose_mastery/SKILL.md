@@ -97,7 +97,7 @@ When the user asks to create a new agent (e.g. *"Create a research specialist na
    model: "gemini/gemini-3.6-flash"
    vault_folders: ["General", "Research", "Daily"]
    share_memory: true
-   skills: ["strategic_analysis", "vault_recall"]
+   skills: ["strategic_analysis", "vault_recall", "vault_write", "web_search"]
    thinking_phrases:
      - "Formulating empirical hypothesis..."
      - "Synthesizing research literature..."

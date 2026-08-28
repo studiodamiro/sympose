@@ -12,8 +12,10 @@ try:
     from rich.console import Console
     from rich.prompt import Prompt
     from rich.panel import Panel
+    from rich.box import ROUNDED
 except ImportError:
     Console = None
+    ROUNDED = None
 
 
 DEFAULT_CONFIG_YAML = """# Sympose Master Configuration

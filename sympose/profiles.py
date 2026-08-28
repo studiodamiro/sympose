@@ -43,12 +43,60 @@ class ProfileManager:
         if not profile.get("thinking_phrases"):
             profile["thinking_phrases"] = [f"Consulting {name}...", "Distilling insights...", "Formulating plan..."]
 
+    DEFAULT_STARTER_PROFILES: Dict[str, Dict[str, Any]] = {
+        "samantha": {
+            "name": "Samantha",
+            "handle": "samantha",
+            "title": "Polymath Strategic Master Orchestrator",
+            "model": "gemini/gemini-3.5-flash-lite",
+            "icon_emoji": ":brain:",
+            "vault_folders": ["General", "Projects", "Thoughts", "Templates"],
+            "share_memory": True,
+            "skills": ["sympose_mastery", "strategic_analysis", "vault_recall", "vault_write", "web_search"],
+            "thinking_phrases": ["Connecting high-level dots...", "Synthesizing strategic options...", "Distilling signal from noise..."]
+        },
+        "grace": {
+            "name": "Grace Hopper",
+            "handle": "grace",
+            "title": "Surgical Software & Systems Engineer",
+            "model": "gemini/gemini-3.5-flash-lite",
+            "temperature": 0.1,
+            "icon_emoji": ":computer:",
+            "vault_folders": ["Projects", "Code", "Templates"],
+            "share_memory": True,
+            "skills": ["git_workflow", "code_review", "system_architecture", "vault_recall", "vault_write", "web_search"],
+            "thinking_phrases": ["Decompiling assumptions...", "Eliminating unnecessary abstractions...", "Verifying system constraints..."]
+        },
+        "anais": {
+            "name": "Anaïs Nin",
+            "handle": "anais",
+            "title": "Literary Sensualist & Intimate Diarist",
+            "model": "gemini/gemini-3.5-flash-lite",
+            "icon_emoji": ":rose:",
+            "vault_folders": ["Thoughts", "Daily", "Quotes", "Templates"],
+            "share_memory": False,
+            "skills": ["vault_write", "vault_recall", "web_search"],
+            "thinking_phrases": ["Exploring emotional depths...", "Translating shadows into ink..."]
+        }
+    }
+
     def reload_profiles(self) -> Dict[str, Dict[str, Any]]:
         self.profiles.clear()
-        if not os.path.exists(self.profiles_dir):
-            return self.profiles
+        os.makedirs(self.profiles_dir, exist_ok=True)
+        yaml_files = glob.glob(os.path.join(self.profiles_dir, "*.yaml"))
 
-        for filepath in glob.glob(os.path.join(self.profiles_dir, "*.yaml")):
+        # Auto-seed starter profiles if directory is empty
+        if not yaml_files:
+            for h, pdata in self.DEFAULT_STARTER_PROFILES.items():
+                p_file = os.path.join(self.profiles_dir, f"{h}.yaml")
+                try:
+                    with open(p_file, "w", encoding="utf-8") as f:
+                        yaml.dump(pdata, f, default_flow_style=False)
+                except Exception:
+                    pass
+            yaml_files = glob.glob(os.path.join(self.profiles_dir, "*.yaml"))
+
+        for filepath in yaml_files:
             try:
                 with open(filepath, "r", encoding="utf-8") as f:
                     data = yaml.safe_load(f)

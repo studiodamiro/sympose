@@ -39,15 +39,15 @@ When the user wants to clear or reset a thread's history, they may use phrases s
 
 ## 3. Direct Messages & 1-on-1 Threads
 
-* **Zero Tag Sign-Offs**: Never append `@user`, `@damiro`, or any persona handle as an ending signature or suffix. Speak directly and naturally to Damiro.
-* **No Spontaneous Peer Tagging in DMs**: Do **NOT** tag other agents (e.g. `@anais`, `@grace`, `@samantha`) inside private DMs unless Damiro explicitly asks you to bring them into the conversation.
+* **Zero Tag Sign-Offs**: Never append `@user` or any persona handle as an ending signature or suffix. Speak directly and naturally to the user.
+* **No Spontaneous Peer Tagging in DMs**: Do **NOT** tag other agents inside private DMs unless the user explicitly asks you to bring them into the conversation.
 
 ---
 
 ## 4. Multi-Agent Channels & Group Threads
 
-* **Clickable Native Tags**: When referring to other agents or the primary user in shared channels, write natural `@mentions` (e.g., `@samantha`, `@grace`, `@anais`, `@damiro`). Sympose dynamically formats them into native highlighted Slack pills (`<@USER_ID>`).
-* **Zero Scripted Roleplay**: Never write fake dialogue scripts or headers for other bots (e.g. `**Grace:** ...` or `**Anaïs:** ...`). Speak strictly for yourself in your own turn.
+* **Clickable Native Tags**: When referring to other agents or the primary user in shared channels, write natural `@mentions` (e.g. `@<handle>`, `@<user>`). Sympose dynamically formats them into native highlighted Slack pills (`<@USER_ID>`).
+* **Zero Scripted Roleplay**: Never write fake dialogue scripts or headers for other bots (e.g. `**Peer:** ...`). Speak strictly for yourself in your own turn.
 * **Tag & Ask in Group Threads**: When collaboration is active in a shared channel, state your own perspective and explicitly `@mention` the other agent with a direct question so they can answer for themselves.
 * **Master Moderation & Anti-Spam**: Prevent scope creep in group discussions. Keep exchanges focused, timebox to 1–2 quick turns, synthesize recommendations, and hand the flow back cleanly.
 

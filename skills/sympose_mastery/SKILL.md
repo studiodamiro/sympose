@@ -39,7 +39,7 @@ When a user expresses a preference or pain point, execute the appropriate `[CONF
   - `[CONFIG_SET: session.exit_behavior.obsidian_subfolder | <FolderName>]`
 
 ### C. Runtime Defaults
-* **"Make [Grace / Aurelius / Samantha] my default persona"**:
+* **"Make @<handle> my default persona"**:
   - `[CONFIG_SET: runtime.default_persona | <handle>]`
 
 ---
@@ -64,7 +64,7 @@ Every robust, production-grade Sympose agent MUST satisfy these 7 architectural 
    - `name`: Human-readable display name.
    - `handle`: Unique, lowercase CLI handle (used in `/switch @<handle>`).
    - `title`: Role summary.
-   - `model`: Fast sub-second model (e.g. `gemini/gemini-3.5-flash-lite`, `anthropic/claude-3-5-sonnet`, `ollama/gemma2`).
+   - `model`: Fast sub-second model (e.g. `gemini/gemini-3.6-flash`, `openrouter/google/gemini-2.5-flash`, `anthropic/claude-3-5-sonnet`).
 2. **Soul Directives (`profiles/<handle>_soul.md`)**:
    - Distinct tone, role authority, domain heuristics, and strict anti-hallucination boundaries.
    - Sub-agent worker delegation directive (`[SPAWN_WORKER]`).
@@ -86,7 +86,7 @@ Every robust, production-grade Sympose agent MUST satisfy these 7 architectural 
 ## 4. Autonomous Persona Creation Flow
 
 When the user asks to create a new agent (e.g. *"Create a research specialist named after Marie Curie"*):
-1. **Never pass the buck to Grace or mention Python router code**: Creating an agent in Sympose is 100% declarative YAML + Markdown. You handle it yourself.
+1. **Self-Contained Creation**: Creating an agent in Sympose is 100% declarative YAML + Markdown. You handle it yourself directly.
 2. **Select Name & Handle**: Choose an inspiring namesake (e.g. `Marie Curie`, handle: `curie`).
 3. **Execute Creation via `[CREATE_PERSONA]` Tag**: Emit the manifest directly:
    ```yaml

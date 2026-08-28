@@ -14,8 +14,9 @@ from sympose.config import config_manager
 def create_app(engine: Any) -> FastAPI:
     """Factory creating the FastAPI application bound to a PersonaEngine instance."""
     app = FastAPI(
-        title="Sympose Multi-Agent Hub & Vault Explorer API",
-        version="0.2.0",
+        title="Sympose Multi-Model Agent Hub API",
+        version="0.2.1",
+        description="FastAPI REST API & Standalone Vault Gateway for Sympose",
         docs_url="/docs",
         redoc_url="/redoc",
     )
@@ -29,10 +30,10 @@ def create_app(engine: Any) -> FastAPI:
     )
 
     @app.get("/api/health")
-    def health() -> Dict[str, Any]:
+    def health_check() -> Dict[str, Any]:
         return {
             "status": "healthy",
-            "version": "0.2.0",
+            "version": "0.2.1",
             "active_personas": list(engine.pm.profiles.keys()),
             "default_persona": engine.config.get("runtime.default_persona", "samantha"),
         }

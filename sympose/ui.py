@@ -56,7 +56,7 @@ class TerminalUI:
 
         banner = Text()
         banner.append("sympose // multi-model agent hub  ", style="bold cyan")
-        banner.append("[v0.2.0]\n", style="dim cyan")
+        banner.append("[v0.2.1]\n", style="dim cyan")
         banner.append("minimalist runtime for macos & slack\n", style="dim white")
         banner.append("commands: /help | /save | /config | switch: /switch | exit: /exit", style="dim cyan")
         console.print(Panel(banner, box=ROUNDED, border_style="dim cyan", padding=(1, 2)))

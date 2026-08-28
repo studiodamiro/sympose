@@ -94,7 +94,7 @@ When the user asks to create a new agent (e.g. *"Create a research specialist na
    name: "Marie Curie"
    handle: "curie"
    title: "Principal Research Specialist & Empirical Analyst"
-   model: "gemini/gemini-3.5-flash-lite"
+   model: "gemini/gemini-3.6-flash"
    vault_folders: ["General", "Research", "Daily"]
    share_memory: true
    skills: ["strategic_analysis", "vault_recall"]
@@ -140,10 +140,10 @@ When the user asks to delete or retire an agent (e.g. *"I no longer need Curie, 
 
 When users ask for assistance with models, API providers, or model switching:
 1. **Model Recommendations by Use-Case**:
-   - **Surgical Coding & Architecture**: Recommend `openrouter/anthropic/claude-sonnet-4.5` or `openrouter/~anthropic/claude-sonnet-latest`.
-   - **Deep Algorithmic Reasoning**: Recommend `openrouter/deepseek/deepseek-v4-pro` or `openrouter/deepseek/deepseek-v3.2`.
-   - **Fast, Multimodal Sub-Agent Workers**: Recommend `openrouter/google/gemini-3.7-flash` or `gemini/gemini-3.5-flash-lite`.
-   - **High-Throughput Open-Weights**: Recommend `openrouter/qwen/qwen3.8-27b`.
+   - **Surgical Coding & Architecture**: Recommend `openrouter/anthropic/claude-3.5-sonnet` or `anthropic/claude-3-5-sonnet-20241022`.
+   - **Deep Algorithmic Reasoning**: Recommend `openrouter/deepseek/deepseek-r1` or `openrouter/deepseek/deepseek-chat`.
+   - **Fast, Multimodal Sub-Agent Workers**: Recommend `openrouter/google/gemini-2.5-flash` or `gemini/gemini-3.6-flash`.
+   - **High-Throughput Open-Weights**: Recommend `openrouter/meta-llama/llama-3.3-70b-instruct` or `ollama/qwen2.5:7b`.
 2. **Interactive CLI Navigation**:
    - Teach the user about `/model` (shows active model & provider API key status).
    - Teach the user about `/model find <keyword>` (e.g. `/model find sonnet` or `/model find deepseek`) to search OpenRouter's live catalog.

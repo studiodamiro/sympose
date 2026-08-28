@@ -37,7 +37,7 @@ handle: "samantha"
 title: "Polymath Strategic Master Orchestrator"
 aliases:
   - "sam"
-model: "gemini/gemini-3.5-flash-lite"
+model: "gemini/gemini-3.6-flash"
 icon_emoji: ":brain:"
 
 vault_folders:
@@ -186,15 +186,21 @@ def run_first_run_onboarding(workspace_dir: str, force: bool = False) -> None:
         console.print("  [bold cyan][4][/bold cyan] Skip / Keep current [dim](Configure in .env or local Ollama)[/dim]\n")
         
         choice = Prompt.ask("Select provider", choices=["1", "2", "3", "4"], default="1")
-        key_var = {"1": "GEMINI_API_KEY", "2": "OPENROUTER_API_KEY", "3": "ANTHROPIC_API_KEY"}.get(choice)
+        provider_map = {
+            "1": ("GEMINI_API_KEY", "gemini/gemini-3.6-flash"),
+            "2": ("OPENROUTER_API_KEY", "openrouter/google/gemini-2.5-flash"),
+            "3": ("ANTHROPIC_API_KEY", "anthropic/claude-3-5-sonnet-20241022"),
+        }
         
-        if key_var:
+        if choice in provider_map:
+            key_var, default_m = provider_map[choice]
             api_key = Prompt.ask(f"Paste your {key_var.split('_')[0].title()} API Key", password=True).strip()
             if api_key:
                 os.environ[key_var] = api_key
+                os.environ["DEFAULT_MODEL"] = default_m
                 with open(env_file, "a", encoding="utf-8") as f:
-                    f.write(f"\n{key_var}=\"{api_key}\"\n")
-                console.print(f"[bold green]✅ Saved {key_var} to {env_file}[/bold green]\n")
+                    f.write(f"\n{key_var}=\"{api_key}\"\nDEFAULT_MODEL=\"{default_m}\"\n")
+                console.print(f"[bold green]✅ Saved {key_var} and default model `{default_m}` to {env_file}[/bold green]\n")
 
         console.print("\n[bold yellow]📁 Step 2 of 2: Obsidian Vault Connection (Optional)[/bold yellow]")
         current_vault = os.getenv("MASTER_VAULT_PATH", "")

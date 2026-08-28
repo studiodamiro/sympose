@@ -26,6 +26,15 @@ class CommandInterceptor:
         if clean_input.startswith("!"):
             clean_input = "/" + clean_input[1:]
 
+        # 0. Setup & Onboarding Wizard
+        if clean_input in ("/setup", "/onboard", "/wizard"):
+            def _setup():
+                from sympose.bootstrap import resolve_workspace_dir, run_first_run_onboarding
+                workspace_dir = resolve_workspace_dir()
+                run_first_run_onboarding(workspace_dir, force=True)
+                yield "✨ Setup configuration updated."
+            return _setup()
+
         # 1. Reset / New Session / Delete Conversation
         if clean_input in ("/reset", "/new") or re.search(r"^(?:please\s+)?(?:delete|clear|reset|wipe|start\s+a\s+new)\s+(?:our\s+|the\s+|this\s+)?(?:chat|conversation|history|session)$", clean_input, re.I):
             def _reset():
@@ -392,6 +401,7 @@ class CommandInterceptor:
                     "- `/compact [shared|@persona]`: Consolidate duplicates, resolve conflicts, and prune memory\n"
                     "- `/reset` or `/new`: Clear active conversation context\n"
                     "- `/model [name|reset]`: View active model, provider health, or switch/reset backend model\n"
+                    "- `/setup` or `/onboard`: Launch interactive provider & vault setup wizard\n"
                     "- `/vault <query>`: Query persona's sandboxed notes\n"
                     "- `/vault backlinks <note>`: Query incoming backlinks/references for a note\n"
                     "- `/help`: Show this command list\n"

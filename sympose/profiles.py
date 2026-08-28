@@ -53,7 +53,7 @@ class ProfileManager:
             "name": "Samantha",
             "handle": "samantha",
             "title": "Polymath Strategic Master Orchestrator",
-            "model": "gemini/gemini-3.5-flash-lite",
+            "model": "gemini/gemini-3.6-flash",
             "icon_emoji": ":brain:",
             "vault_folders": ["General", "Projects", "Thoughts", "Templates"],
             "share_memory": True,

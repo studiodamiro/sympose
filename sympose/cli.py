@@ -123,6 +123,8 @@ class TerminalInterface:
                     current_handle = self.select_persona(default_handle=current_handle)
                 continue
 
+            is_command = user_input.startswith("/")
+
             if is_command:
                 output_chunks = []
                 for chunk in self.engine.chat_stream(current_handle, user_input):

@@ -58,11 +58,30 @@ class TerminalUI:
             return
 
         banner = Text()
-        banner.append("sympose // multi-model agent hub  ", style="bold cyan")
-        banner.append("[v0.2.3]\n", style="dim cyan")
+        banner.append("S Y M P O S E  ", style="bold cyan")
+        banner.append("// multi-model agent hub  ", style="dim white")
+        banner.append("[v0.2.4]\n", style="dim cyan")
         banner.append("minimalist runtime for macos & slack\n", style="dim white")
         banner.append("commands: /help | /save | /config | switch: /switch | exit: /exit", style="dim cyan")
-        console.print(Panel(banner, box=ROUNDED, border_style="dim cyan", padding=(1, 2)))
+        console.print(Panel(banner, box=ROUNDED, border_style="cyan", padding=(1, 2)))
+
+    @staticmethod
+    def display_setup_banner(console: Optional[Any], workspace_dir: str) -> None:
+        if not console:
+            print(f"=== sympose // setup wizard ({workspace_dir}) ===")
+            return
+
+        banner = Text()
+        banner.append("S Y M P O S E  ", style="bold cyan")
+        banner.append("// interactive setup wizard  ", style="dim white")
+        banner.append("[v0.2.4]\n", style="dim cyan")
+        banner.append("zero-bloat multi-model agent hub & sovereign vault explorer\n\n", style="dim white")
+        banner.append("active workspace: ", style="green")
+        banner.append(f"{workspace_dir}\n", style="bold yellow")
+        banner.append("default persona: ", style="magenta")
+        banner.append("@samantha ", style="bold white")
+        banner.append("(Polymath Strategic Orchestrator)", style="dim")
+        console.print(Panel(banner, box=ROUNDED, border_style="cyan", padding=(1, 2)))
 
     @staticmethod
     def render_markdown(console: Optional[Any], md_text: str) -> None:

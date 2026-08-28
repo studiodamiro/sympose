@@ -190,13 +190,8 @@ def run_first_run_onboarding(workspace_dir: str, force: bool = False) -> None:
 
     console = Console() if Console else None
     if console:
-        console.print(Panel.fit(
-            "[bold cyan]🏛️  S Y M P O S E[/bold cyan]\n"
-            "[dim]Zero-Bloat Multi-Model AI Agent Hub & Sovereign Vault Explorer[/dim]\n\n"
-            f"[green]✨ Active Workspace:[/green] [bold yellow]{workspace_dir}[/bold yellow]\n"
-            "[magenta]Default Persona: @samantha (Polymath Strategic Orchestrator)[/magenta]",
-            border_style="cyan"
-        ))
+        from sympose.ui import TerminalUI
+        TerminalUI.display_setup_banner(console, workspace_dir)
         
         # Display existing keys if any
         if force:

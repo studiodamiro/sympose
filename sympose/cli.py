@@ -127,6 +127,7 @@ class TerminalInterface:
 
             if is_command:
                 output_chunks = []
+                cleared = False
                 for chunk in self.engine.chat_stream(current_handle, user_input):
                     if chunk == "CLEARED_SESSION":
                         cleared = True
@@ -145,12 +146,7 @@ class TerminalInterface:
 
                 full_cmd_output = "".join(output_chunks).strip()
                 if full_cmd_output:
-                    if self.console:
-                        self.console.print()
-                        self.console.print(Markdown(full_cmd_output))
-                        self.console.print()
-                    else:
-                        print(f"\n{full_cmd_output}\n")
+                    TerminalUI.render_markdown(self.console, full_cmd_output)
                 continue
 
             start_time = time.time()

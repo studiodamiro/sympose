@@ -23,11 +23,16 @@ Get up and running with Sympose in less than 2 minutes.
 
 ---
 
-## 2. Installation
+## 2. Installation & Upgrades
 
-### Option A: 1-Line Global Install (macOS, Windows, Linux)
+### Option A: 1-Line Standalone Global Install (Recommended)
 ```bash
 pipx install git+https://github.com/studiodamiro/sympose.git
+```
+
+To upgrade to the latest release at any time:
+```bash
+pipx upgrade sympose
 ```
 
 ### Option B: Local Developer Clone
@@ -43,21 +48,23 @@ source .venv/bin/activate
 pip install -e .
 ```
 
+For the complete guide on multi-platform installation and workspace persistence, see the [Installation & Onboarding Guide](./installation-and-onboarding.md).
+
 ---
 
-## 3. Environment Configuration
+## 3. Interactive Setup Wizard
 
-Create a `.env` file in the project root (or configure via `sympose --dashboard` Settings UI):
+Sympose includes an automated onboarding wizard. Run:
 
 ```bash
-# Cloud LLM API Keys (Set at least one)
-OPENROUTER_API_KEY="your-openrouter-api-key"
-GEMINI_API_KEY="your-gemini-api-key"
-ANTHROPIC_API_KEY="your-anthropic-api-key"
-
-# Path to your local Obsidian Vault (Optional)
-MASTER_VAULT_PATH="/Users/yourname/Documents/ObsidianVault"
+sympose --setup
 ```
+
+The wizard will guide you through:
+1. Selecting your primary LLM provider (OpenRouter, Google Gemini, Anthropic, Ollama).
+2. Registering your API key securely into `.env`.
+3. Choosing your default baseline model (`gemini/gemini-3.6-flash` or `openrouter/google/gemini-2.5-flash`).
+4. Linking your local Obsidian vault directory.
 
 ---
 

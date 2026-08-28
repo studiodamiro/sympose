@@ -74,6 +74,7 @@ graph TD
 * **[@aurelius](./docs/wiki/agents/aurelius.md):** 100% Offline Local Sounding Board.
 
 ### 🚀 [Guides & Getting Started](./docs/wiki/guides/quickstart.md)
+* **[Installation, Upgrades & Onboarding](./docs/wiki/guides/installation-and-onboarding.md):** 1-Line `pipx` install, upgrade protocols, and interactive setup wizard.
 * **[Quickstart Guide](./docs/wiki/guides/quickstart.md):** Installation, API keys, and starting the interactive CLI.
 * **[Developer Workflows & Daemon Persistence](./docs/wiki/guides/developer-workflows.md):** Pair-programming with Grace across Antigravity, VS Code, and background 24/7 Slack daemon.
 * **[Slack Integration & Setup](./docs/wiki/guides/slack-integration.md):** 1-Click App Manifest, Socket Mode, and multi-agent Slack deployment.

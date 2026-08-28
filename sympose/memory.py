@@ -59,7 +59,7 @@ class HeuristicGatedExtractor:
         """Runs the extraction pass in a detached background daemon thread."""
         def _worker():
             try:
-                model = config.get("session.exit_behavior.summarization_model", "gemini/gemini-3.5-flash-lite")
+                model = config.get("session.exit_behavior.summarization_model") or os.getenv("DEFAULT_MODEL", "gemini/gemini-3.6-flash")
                 tmpl = _load_prompt_tmpl("memory_extraction.md", "You are the silent memory archivist for Sympose AI.\nUser message: {{user_message}}\nAssistant reply: {{assistant_reply}}\n\nEvaluate if the user shared a DURABLE fact.\nIf NO: Output 'NONE'.\nIf YES: Output 1 bullet point '- '.")
                 prompt = tmpl.replace("{{user_message}}", user_message).replace("{{assistant_reply}}", assistant_reply)
                 kwargs = {"model": model, "messages": [{"role": "user", "content": prompt}], "stream": False, "timeout": 5.0}
@@ -94,7 +94,7 @@ class SessionArchivist:
         if not history: return {"status": "empty", "message": "No active conversation turns to summarize."}
 
         transcript = "\n\n".join(f"{msg.get('role', 'unknown').capitalize()}: {msg.get('content', '')}" for msg in history)
-        summarization_model = self.config.get("session.exit_behavior.summarization_model", "gemini/gemini-3.5-flash-lite")
+        summarization_model = self.config.get("session.exit_behavior.summarization_model") or os.getenv("DEFAULT_MODEL", "gemini/gemini-3.6-flash")
         tmpl = _load_prompt_tmpl("session_summary.md", "You are the session archivist for Sympose Agent Hub.\nAnalyze session with @{{handle}} ({{name}}):\n\n### SECTION 1: PERSISTENT MEMORY BULLETS\n- Facts\n\n### SECTION 2: OBSIDIAN SESSION LOG\n## Overview\n\nCONVERSATION TRANSCRIPT:\n{{transcript}}")
         prompt = tmpl.replace("{{handle}}", handle).replace("{{name}}", str(profile.get("name", handle))).replace("{{transcript}}", transcript)
 

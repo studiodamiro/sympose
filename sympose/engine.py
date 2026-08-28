@@ -68,7 +68,7 @@ class PersonaEngine:
             return
 
         system_prompt = self.pm.build_system_prompt(target_profile)
-        target_model = self.model_overrides.get(target_handle.lower(), target_profile.get("model", "gemini/gemini-3.5-flash-lite"))
+        target_model = self.model_overrides.get(target_handle.lower(), target_profile.get("model") or os.getenv("DEFAULT_MODEL", "gemini/gemini-3.6-flash"))
         active_messages = [{"role": "system", "content": system_prompt}, {"role": "user", "content": sub_prompt}]
         if litellm is None:
             yield "⚠️ LiteLLM is not installed."
@@ -125,7 +125,7 @@ class PersonaEngine:
         active_messages.extend(history[-(self.max_turns * 2):])
         active_messages.append({"role": "user", "content": user_message})
 
-        target_model = self.model_overrides.get(handle.lower(), profile.get("model", "gemini/gemini-3.5-flash-lite"))
+        target_model = self.model_overrides.get(handle.lower(), profile.get("model") or os.getenv("DEFAULT_MODEL", "gemini/gemini-3.6-flash"))
         if litellm is None:
             yield "⚠️ LiteLLM is not installed. Run `pip install -r requirements.txt`."
             return

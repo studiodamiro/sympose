@@ -13,7 +13,7 @@ session:
     default_target: both
     clear_terminal: true
     obsidian_subfolder: Sessions
-    summarization_model: gemini/gemini-3.5-flash-lite
+    summarization_model: gemini/gemini-3.6-flash
 memory:
   user_profile_file: profiles/user_profile.md
   shared_memory_file: profiles/_shared_memory.md

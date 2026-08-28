@@ -52,7 +52,7 @@ class ConfigManager:
                 "default_target": "both",
                 "clear_terminal": True,
                 "obsidian_subfolder": "Sessions",
-                "summarization_model": "gemini/gemini-3.5-flash-lite",
+                "summarization_model": "gemini/gemini-3.6-flash",
             }
         },
         "memory": {

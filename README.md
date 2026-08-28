@@ -56,13 +56,20 @@ Sympose separates agent intelligence into three specialized, file-based componen
 
 ---
 
-## 🎭 Agent Specialists & Roster
+## 🎭 Clean-Slate Architecture & Dynamic Agent Genesis
 
-| Persona | Domain / Role | Default Model Backend | Obsidian Sandbox | Key Capabilities & Skills |
+Sympose boots with a **pure clean slate**: **Samantha** (`@samantha`) is seeded out of the box as the master orchestrator. New specialist agents are spawned dynamically on-the-fly through conversation (`[CREATE_PERSONA]`) or by dropping YAML manifests into `profiles/`:
+
+| Starter Persona | Domain / Role | Default Model Backend | Obsidian Sandbox | Key Capabilities & Skills |
 | :--- | :--- | :--- | :--- | :--- |
-| **Samantha** (`@samantha`) | Polymath Strategic Master Orchestrator | **Gemini 3.5 Flash-Lite** | `General/`, `Projects/`, `Thoughts/`, `Templates/` | High-level system architecture, task breakdown, Sympose concierge, and worker orchestration. Mounted: `sympose_mastery`, `strategic_analysis`, `system_architecture`, `slack_interaction`, `vault_write`, `vault_recall`, `web_search`. |
-| **Grace** (`@grace`) | Surgical Software & Systems Engineer | **Gemini 3.5 Flash-Lite** (`temp: 0.1`) | `Projects/`, `Code/`, `Templates/` | Zero-bloat code reviews, atomic conventional commits, compiler heuristics, and deterministic systems design. Mounted: `code_review`, `git_workflow`, `system_architecture`, `slack_interaction`, `vault_write`, `vault_recall`, `web_search`. |
-| **Anaïs Nin** (`@anais`) | Literary Sensualist & Intimate Diarist | **Qwen 2.5 14B Abliterated** (or Ollama) | `Thoughts/`, `Daily/`, `Quotes/`, `Templates/` | Psychological depth, emotional truth, intimate daily reflections, creative exploration, and personal growth. Mounted: `vault_write`, `vault_recall`, `slack_interaction`, `strategic_analysis`, `web_search`. |
+| **Samantha** (`@samantha`) | Polymath Strategic Master Orchestrator | `gemini/gemini-3.6-flash` (or OpenRouter) | `General/`, `Projects/`, `Thoughts/`, `Templates/` | High-level system architecture, task breakdown, Sympose concierge, and worker orchestration. Mounted: `sympose_mastery`, `strategic_analysis`, `system_architecture`, `slack_interaction`, `vault_write`, `vault_recall`, `web_search`. |
+
+### 🧬 Dynamic Specialist Genesis (Zero Code Injections)
+You can spawn domain-specialized agents in seconds simply by asking Samantha in natural language:
+* *"Create an agent modeled after Rear Admiral Grace Hopper for surgical systems engineering and zero-bloat code reviews."*
+* *"Create a deep research agent specialized in competitive intelligence and synthesis."*
+
+Samantha emits `[CREATE_PERSONA]` to write `profiles/<handle>.yaml` and generate soul directives, instantly mounting the new agent into `/switch`.
 
 ---
 
@@ -116,9 +123,8 @@ sympose/
 ├── profiles/                 # Agent Souls, YAML Manifests, and Memories
 │   ├── _shared_memory.md     # Team-wide collaborative working memory
 │   ├── user_profile.md       # Universal user profile card
-│   ├── samantha.yaml / _soul.md / _memory.md
-│   ├── grace.yaml / _soul.md / _memory.md
-│   ├── anais.yaml / _soul.md / _memory.md
+│   ├── samantha.yaml / _soul.md / _memory.md  # Core Master Orchestrator (Fresh Slate)
+│   ├── <custom_agent>.yaml / _soul.md / _memory.md # Dynamically Created Specialists
 │   └── _archived/            # Defensive soft-delete directory for retired agents
 ├── prompts/                  # Declarative system prompt templates
 │   ├── workspace_rules.md    # Universal base rules & action physics

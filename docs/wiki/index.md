@@ -67,11 +67,10 @@ graph TD
 * **[Session Archival & Distillation](./docs/wiki/memory/session-archival.md):** Automated session logs and working memory consolidation on exit.
 
 ### 🎭 [Persona & Skills Ecosystem](./docs/wiki/agents/profile-system.md)
-* **[Profile System & Auto-Bootstrapping](./docs/wiki/agents/profile-system.md):** Spinning up new domain specialists with a minimal 4-line YAML manifest.
+* **[Profile System & Dynamic Persona Genesis](./docs/wiki/agents/profile-system.md):** Seeding Samantha on fresh slate and spinning up new domain specialists on-the-fly.
 * **[Modular Skills System (`SKILL.md`)](./docs/wiki/agents/skills-system.md):** Reusable procedural heuristics, domain playbooks, and tool bindings.
-* **[@samantha](./docs/wiki/agents/samantha.md):** Strategic Master Orchestrator.
-* **[@grace](./docs/wiki/agents/grace.md):** Surgical Software Engineer.
-* **[@aurelius](./docs/wiki/agents/aurelius.md):** 100% Offline Local Sounding Board.
+* **[@samantha](./docs/wiki/agents/samantha.md):** Core Starter Master Orchestrator & Concierge.
+* **[Specialist Archetypes](./docs/wiki/agents/grace.md):** Example blueprints for surgical engineering (`@grace`) and offline local agents (`@aurelius`).
 
 ### 🚀 [Guides & Getting Started](./docs/wiki/guides/quickstart.md)
 * **[Installation, Upgrades & Onboarding](./docs/wiki/guides/installation-and-onboarding.md):** 1-Line `pipx` install, upgrade protocols, and interactive setup wizard.

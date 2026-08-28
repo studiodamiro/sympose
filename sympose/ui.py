@@ -61,7 +61,7 @@ class TerminalUI:
         banner.append("<S>  ", style="bold cyan")
         banner.append("S Y M P O S E  ", style="bold white")
         banner.append("// multi-model agent hub  ", style="dim white")
-        banner.append("[v0.2.7]\n", style="dim cyan")
+        banner.append("[v0.2.8]\n", style="dim cyan")
         banner.append("minimalist runtime for macos & slack\n", style="dim white")
         banner.append("commands: /help | /save | /config | switch: /switch | exit: /exit", style="dim cyan")
         console.print(Panel(banner, box=ROUNDED, border_style="cyan", padding=(1, 2)))
@@ -76,7 +76,7 @@ class TerminalUI:
         banner.append("<S>  ", style="bold cyan")
         banner.append("S Y M P O S E  ", style="bold white")
         banner.append("// interactive setup wizard  ", style="dim white")
-        banner.append("[v0.2.7]\n", style="dim cyan")
+        banner.append("[v0.2.8]\n", style="dim cyan")
         banner.append("zero-bloat multi-model agent hub & sovereign vault explorer\n\n", style="dim white")
         banner.append("active workspace: ", style="green")
         banner.append(f"{workspace_dir}\n", style="bold yellow")
@@ -100,7 +100,7 @@ class TerminalUI:
             return default_handle
 
         table = Table(
-            title="PERSONAS",
+            title="👥  PERSONAS",
             title_justify="left",
             title_style="bold cyan",
             box=ROUNDED,
@@ -176,7 +176,7 @@ class TerminalUI:
         console.print(Panel(
             menu_text,
             box=ROUNDED,
-            title="SAVE SESSION TAKEAWAYS?",
+            title="💾  SAVE SESSION TAKEAWAYS?",
             title_align="left",
             border_style="cyan"
         ))

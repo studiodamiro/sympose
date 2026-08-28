@@ -16,7 +16,7 @@ from sympose.slack import MultiAgentSlackRunner
 
 def main():
     parser = argparse.ArgumentParser(description="Sympose Multi-Model Agent Hub")
-    parser.add_argument("-v", "--version", action="version", version="%(prog)s 0.2.4")
+    parser.add_argument("-v", "--version", action="version", version="%(prog)s 0.2.5")
     parser.add_argument("--cli", action="store_true", help="Launch interactive Terminal CLI Hub")
     parser.add_argument("--persona", type=str, default=None, help="Initial persona handle (e.g. samantha)")
     parser.add_argument("--config", type=str, default="config.yaml", help="Path to master config YAML file")

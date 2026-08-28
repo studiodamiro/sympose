@@ -25,25 +25,29 @@ Get up and running with Sympose in less than 2 minutes.
 
 ## 2. Installation
 
-Clone the repository and install dependencies:
-
+### Option A: 1-Line Global Install (macOS, Windows, Linux)
 ```bash
-git clone https://github.com/your-username/sympose.git
+pipx install git+https://github.com/studiodamiro/sympose.git
+```
+
+### Option B: Local Developer Clone
+```bash
+git clone https://github.com/studiodamiro/sympose.git
 cd sympose
 
 # Create and activate virtual environment
 python3 -m venv .venv
 source .venv/bin/activate
 
-# Install lean dependencies
-pip install -r requirements.txt
+# Install in editable mode
+pip install -e .
 ```
 
 ---
 
 ## 3. Environment Configuration
 
-Create a `.env` file in the project root:
+Create a `.env` file in the project root (or configure via `sympose --dashboard` Settings UI):
 
 ```bash
 # Cloud LLM API Keys (Set at least one)
@@ -51,26 +55,26 @@ OPENROUTER_API_KEY="your-openrouter-api-key"
 GEMINI_API_KEY="your-gemini-api-key"
 ANTHROPIC_API_KEY="your-anthropic-api-key"
 
-# Default Sub-Agent Worker Model (Optional fallback)
-DEFAULT_MODEL="gemini/gemini-3.5-flash-lite"
-
 # Path to your local Obsidian Vault (Optional)
 MASTER_VAULT_PATH="/Users/yourname/Documents/ObsidianVault"
 ```
 
 ---
 
-## 4. Launching the Interactive CLI
-
-Start Sympose with the launcher:
+## 4. Launching Sympose
 
 ```bash
-./chat.sh
-```
+# 1. Interactive Terminal CLI Hub (Default)
+sympose
+# or: ./chat.sh
 
-Or run Python directly:
-```bash
-python3 app.py --persona samantha
+# 2. Web Dashboard & Standalone Vault Explorer (localhost:8000)
+sympose --dashboard
+# or: ./chat.sh --dashboard
+
+# 3. 24/7 Slack Socket Mode Daemon
+sympose --slack
+# or: ./chat.sh --slack
 ```
 
 ---

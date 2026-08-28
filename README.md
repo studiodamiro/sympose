@@ -205,15 +205,21 @@ sympose/
 
 ### 2. Installation
 
+#### Option A: 1-Line Install directly from GitHub (macOS, Windows, Linux)
+```bash
+pipx install git+https://github.com/studiodamiro/sympose.git
+```
+
+#### Option B: Local Developer Clone
 ```bash
 # Clone the repository
 git clone https://github.com/studiodamiro/sympose.git
 cd sympose
 
-# Create virtual environment & install dependencies
+# Create virtual environment & install in editable mode
 python3 -m venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt
+pip install -e .
 ```
 
 ### 3. Environment Configuration
@@ -227,12 +233,17 @@ cp .env.example .env
 ### 4. Running Sympose
 
 ```bash
-# Launch interactive macOS Terminal Hub
-chmod +x chat.sh
-./chat.sh
+# Launch interactive Terminal CLI Hub (Default)
+sympose
+# or: ./chat.sh
 
-# Or launch Slack Socket Mode Daemon
-./chat.sh --slack
+# Launch Web Dashboard & Standalone Vault Explorer
+sympose --dashboard
+# or: ./chat.sh --dashboard
+
+# Launch 24/7 Slack Socket Mode Daemon
+sympose --slack
+# or: ./chat.sh --slack
 ```
 
 ---

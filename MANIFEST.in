@@ -1,0 +1,10 @@
+include README.md
+include config.yaml
+include config.example.yaml
+include requirements.txt
+include chat.sh
+recursive-include prompts *.md
+recursive-include skills *.md
+recursive-include profiles *.yaml *.md
+recursive-include mcp *.json *.md
+recursive-include docs *.md

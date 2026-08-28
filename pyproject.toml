@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sympose"
+version = "0.2.0"
+description = "Zero-Bloat Multi-Model AI Agent Hub & Sovereign Vault Explorer"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [
+    { name = "damiro" }
+]
+keywords = ["ai", "agents", "obsidian", "knowledge-graph", "fastapi", "slack", "multi-agent"]
+dependencies = [
+    "litellm>=1.30.0",
+    "pyyaml>=6.0",
+    "rich>=13.0.0",
+    "python-dotenv>=1.0.0",
+    "slack-bolt>=1.18.0",
+    "slack-sdk>=3.21.0",
+    "ddgs>=9.0.0",
+    "fastapi>=0.115.0",
+    "uvicorn>=0.30.0",
+]
+
+[project.scripts]
+sympose = "app:main"
+
+[tool.setuptools]
+packages = ["sympose"]
+py-modules = ["app"]
+
+[tool.setuptools.package-data]
+sympose = ["*.yaml", "*.md", "*.json"]

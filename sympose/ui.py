@@ -13,11 +13,14 @@ try:
     from rich.text import Text
     from rich.box import ROUNDED
     from rich.theme import Theme
-    from rich.markdown import Markdown
+    from rich.markdown import Markdown, Heading
+    if Heading and hasattr(Heading, "LEVEL_ALIGN"):
+        Heading.LEVEL_ALIGN["h1"] = "left"
 except ImportError:
     Console = None
     ROUNDED = None
     Markdown = None
+    Heading = None
 
 SYMPOSE_THEME = Theme({
     "sympose.brand": "bold cyan",
@@ -56,7 +59,7 @@ class TerminalUI:
 
         banner = Text()
         banner.append("sympose // multi-model agent hub  ", style="bold cyan")
-        banner.append("[v0.2.2]\n", style="dim cyan")
+        banner.append("[v0.2.3]\n", style="dim cyan")
         banner.append("minimalist runtime for macos & slack\n", style="dim white")
         banner.append("commands: /help | /save | /config | switch: /switch | exit: /exit", style="dim cyan")
         console.print(Panel(banner, box=ROUNDED, border_style="dim cyan", padding=(1, 2)))

@@ -89,13 +89,13 @@ class CommandInterceptor:
                 if len(parts) == 1:
                     cfg = engine.config
                     yield (
-                        "# ⚙️ Sympose Active Configuration\n\n"
-                        "### ⚡ Performance & Streaming\n"
+                        "# ⚙️  ACTIVE RUNTIME CONFIGURATION\n\n"
+                        "### ⚡  PERFORMANCE & STREAMING\n"
                         f"- `performance.request_timeout`: `{cfg.get('performance.request_timeout')}s`\n"
                         f"- `performance.max_context_turns`: `{cfg.get('performance.max_context_turns')} turns`\n"
                         f"- `performance.max_worker_tool_turns`: `{cfg.get('performance.max_worker_tool_turns')} turns`\n"
                         f"- `performance.stream`: `{cfg.get('performance.stream')}`\n\n"
-                        "### 💾 Session & Memory Archival\n"
+                        "### 💾  SESSION & MEMORY ARCHIVAL\n"
                         f"- `session.exit_behavior.auto_save`: `{cfg.get('session.exit_behavior.auto_save')}`\n"
                         f"- `session.exit_behavior.default_target`: `{cfg.get('session.exit_behavior.default_target')}`\n"
                         f"- `session.exit_behavior.clear_terminal`: `{cfg.get('session.exit_behavior.clear_terminal')}`\n"
@@ -103,7 +103,7 @@ class CommandInterceptor:
                         f"- `memory.compaction_threshold`: `{cfg.get('memory.compaction_threshold', 25)} lines`\n"
                         f"- `memory.auto_compact`: `{cfg.get('memory.auto_compact', True)}`\n"
                         f"- `vault.search_mode`: `{cfg.get('vault.search_mode')}`\n\n"
-                        "### 💡 Live Tuning\n"
+                        "### 💡  LIVE TUNING\n"
                         "- Tune knobs live with `/config set <key> <value>` (e.g. `/config set performance.max_context_turns 20`)."
                     )
                 elif parts[1].lower() == "set" and len(parts) >= 4:
@@ -191,16 +191,16 @@ class CommandInterceptor:
                     state_tag = f"`{current_model}` (Live Session Override)" if active_override else f"`{current_model}` (Profile Default)"
 
                     lines = [
-                        "# 🤖 Model & Provider Configuration\n",
-                        "### Active Model",
+                        "# 🤖  MODEL & PROVIDER CONFIGURATION\n",
+                        "### 🎯  ACTIVE MODEL",
                         f"- **Current Model:** {state_tag}",
                         f"- **Active Persona:** {profile.get('name', handle)} (`@{handle}`)\n",
-                        "### Configured Providers (.env)",
+                        "### 🔑  CONFIGURED PROVIDERS (.ENV)",
                         f"- **OpenRouter:** {or_key}",
                         f"- **Google Gemini:** {gem_key}",
                         f"- **Anthropic Claude:** {ant_key}",
                         f"- **OpenAI:** {oai_key}\n",
-                        "### Recommended Models to Test",
+                        "### 🌟  RECOMMENDED MODELS TO TEST",
                         "- **OpenRouter (Multi-Provider):**",
                         "  - `openrouter/anthropic/claude-3.5-sonnet` — Surgical coding & architecture",
                         "  - `openrouter/deepseek/deepseek-r1` — Deep reasoning & algorithmic thought",
@@ -211,7 +211,7 @@ class CommandInterceptor:
                         "  - `anthropic/claude-3-5-sonnet-20241022` — Direct Anthropic API",
                         "- **Local Ollama:**",
                         "  - `ollama/qwen2.5:7b` — Sovereign local execution\n",
-                        "### 💡 Commands & Navigation",
+                        "### 💡  COMMANDS & NAVIGATION",
                         "- Search catalog: `/model find <keyword>` (e.g. `/model find sonnet`, `/model find deepseek`)",
                         "- Switch model: `/model <model_id>` (e.g. `/model openrouter/anthropic/claude-3.5-sonnet`)",
                         "- Refresh catalog cache: `/model refresh`",
@@ -291,14 +291,17 @@ class CommandInterceptor:
         if clean_input in ("/skills", "/tools"):
             def _skills():
                 loaded_skills = skill_manager.list_skills()
-                lines = ["**Installed Procedural Skill Playbooks (`skills/`):**"]
+                lines = [
+                    "# 🛠️  INSTALLED SKILLS & MCP TOOL SERVERS\n",
+                    "### 📦  PROCEDURAL SKILL PLAYBOOKS (`skills/`)"
+                ]
                 if loaded_skills:
                     for s in loaded_skills:
                         lines.append(f"- **`{s['name']}`**: {s['title']} — *{s['description'] or 'No description'}*")
                 else:
                     lines.append("- *No skill playbooks found in `skills/`.*")
 
-                lines.append("\n**Configured MCP Tool Servers (`config.yaml`):**")
+                lines.append("\n### 🔌  CONFIGURED MCP TOOL SERVERS (`config.yaml`)")
                 if mcp_registry.servers:
                     for name, srv in mcp_registry.servers.items():
                         cmd_str = f"{srv['command']} {' '.join(srv['args'])}"
@@ -393,15 +396,15 @@ class CommandInterceptor:
         if clean_input == "/help":
             def _help():
                 yield (
-                    "# 🏛️ Sympose Hub Commands\n\n"
-                    "### 👥 Session & Persona Control\n"
+                    "# 🏛️  SYMPOSE HUB COMMANDS\n\n"
+                    "### 👥  SESSION & PERSONA CONTROL\n"
                     "- `/switch [@handle]` — Switch active specialist persona\n"
                     "- `/setup` or `/onboard` — Launch interactive provider & vault setup wizard\n"
                     "- `/model [id | reset]` — Inspect provider status or switch backend model\n"
                     "- `/clear` — Clear terminal display & reset active context\n"
                     "- `/reset` or `/new` — Wipe current conversation history\n"
                     "- `quit` or `exit` — End session (triggers save prompt)\n\n"
-                    "### 📚 Knowledge & Obsidian Vault\n"
+                    "### 📚  KNOWLEDGE & OBSIDIAN VAULT\n"
                     "- `/vault <query>` — Search notes within authorized sandbox\n"
                     "- `/vault backlinks <note>` — Inspect incoming references for a note\n"
                     "- `/note <file.md> <content>` — Create or append to a sandboxed note\n"
@@ -409,11 +412,11 @@ class CommandInterceptor:
                     "- `/remember <fact>` — Save fact into persona's persistent memory\n"
                     "- `/compact [shared|@handle]` — Consolidate duplicate memory bullets\n"
                     "- `/save [memory|obsidian|both]` — Manually trigger session summary\n\n"
-                    "### 🛠️ Sub-Agents & Tools\n"
+                    "### 🛠️  SUB-AGENTS & TOOLS\n"
                     "- `/skills` or `/tools` — Inspect indexed skill playbooks and MCP servers\n"
                     "- `/worker <skill|mcp> <task>` — Dispatch ephemeral sub-agent worker\n"
                     "- `/ask <@handle> <task>` — Delegate isolated sub-task to a peer\n\n"
-                    "### ⚙️ Runtime Settings\n"
+                    "### ⚙️  RUNTIME SETTINGS\n"
                     "- `/config` — View active runtime settings & performance knobs\n"
                     "- `/config set <key> <val>` — Live-tune knobs (e.g. `/config set performance.max_context_turns 20`)\n"
                     "- `/delete @<handle>` — Safely archive & retire an agent persona\n"

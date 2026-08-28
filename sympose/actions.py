@@ -25,35 +25,35 @@ class ActionProcessor:
 
     @classmethod
     def parse_action_tags(cls, text: str) -> List[Tuple[str, str, str]]:
-        """Extracts all autonomic action tags supporting nested brackets (such as Obsidian [[wikilinks]]) while ignoring tags inside code blocks."""
+        """Extracts all autonomic action tags supporting nested brackets while ignoring documentation template placeholders."""
         results: List[Tuple[str, str, str]] = []
-        # Mask fenced code blocks so code demonstrations aren't executed as live actions
-        masked_text = re.sub(r"```[\s\S]*?```", lambda m: " " * len(m.group(0)), text)
         i = 0
-        while i < len(masked_text):
-            if masked_text[i] == "[":
+        while i < len(text):
+            if text[i] == "[":
                 for tag in cls.TAG_NAMES:
                     prefix = f"[{tag}:"
                     prefix_act = f"[ACTION:{tag}:"
                     p_len = 0
-                    if masked_text[i:].upper().startswith(prefix):
+                    if text[i:].upper().startswith(prefix):
                         p_len = len(prefix)
-                    elif masked_text[i:].upper().startswith(prefix_act):
+                    elif text[i:].upper().startswith(prefix_act):
                         p_len = len(prefix_act)
 
                     if p_len > 0:
                         depth = 1
                         j = i + 1
-                        while j < len(masked_text) and depth > 0:
-                            if masked_text[j] == "[":
+                        while j < len(text) and depth > 0:
+                            if text[j] == "[":
                                 depth += 1
-                            elif masked_text[j] == "]":
+                            elif text[j] == "]":
                                 depth -= 1
                             j += 1
                         if depth == 0:
                             raw_tag = text[i:j]
                             inner = text[i + p_len:j - 1].strip()
-                            results.append((tag, inner, raw_tag))
+                            # Ignore documentation template placeholders (e.g. <handle>, <manifest>, <path>, etc.)
+                            if not re.search(r"<(?:handle|manifest|path|content|reflection_content|query|folder|key|value|target|spec)[^>]*>", inner, re.I):
+                                results.append((tag, inner, raw_tag))
                             i = j - 1
                         break
             i += 1
@@ -66,6 +66,7 @@ class ActionProcessor:
         clean = text
         for _, _, raw_tag in tags:
             clean = clean.replace(raw_tag, "")
+        clean = re.sub(r"```[a-zA-Z0-9_-]*\s*```\n?", "", clean)
         return re.sub(r"\n{3,}", "\n\n", clean).strip()
 
     @classmethod
@@ -261,5 +262,6 @@ class ActionProcessor:
                         VaultManager.write_daily_note(profile, clean_payload)
                         badges.append(f"> 📅 **{name} logged entry to Daily Notes**")
 
+        clean_text = re.sub(r"```[a-zA-Z0-9_-]*\s*```\n?", "", clean_text)
         clean_text = re.sub(r"\n{3,}", "\n\n", clean_text).strip()
         return clean_text, badges

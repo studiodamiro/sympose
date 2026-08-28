@@ -50,7 +50,7 @@ class ModelCatalog:
         fetched = cls.fetch_openrouter_catalog()
         if fetched:
             try:
-                with open(CACHE_FILE, "w", encoding="utf-8") as f:
+                with open(cache_file, "w", encoding="utf-8") as f:
                     json.dump({"timestamp": now, "models": fetched}, f)
             except Exception:
                 pass

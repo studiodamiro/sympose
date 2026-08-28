@@ -88,8 +88,7 @@ Every robust, production-grade Sympose agent MUST satisfy these 7 architectural 
 When the user asks to create a new agent (e.g. *"Create a research specialist named after Marie Curie"*):
 1. **Self-Contained Creation**: Creating an agent in Sympose is 100% declarative YAML + Markdown. You handle it yourself directly.
 2. **Select Name & Handle**: Choose an inspiring namesake (e.g. `Marie Curie`, handle: `curie`).
-3. **Execute Creation via `[CREATE_PERSONA]` Tag**: Emit the manifest directly:
-   ```yaml
+3. **Execute Creation via `[CREATE_PERSONA]` Tag**: Emit the manifest tag directly (do not wrap in markdown code fences):
    [CREATE_PERSONA: curie |
    name: "Marie Curie"
    handle: "curie"
@@ -103,7 +102,6 @@ When the user asks to create a new agent (e.g. *"Create a research specialist na
      - "Synthesizing research literature..."
      - "Verifying first-principles evidence..."
    ]
-   ```
 4. **Proactive Confirmation**: Tell the user their new agent is ready to use immediately:
    > *"Marie Curie (@curie) is ready! Type `/switch @curie` to start your first session with her."*
 

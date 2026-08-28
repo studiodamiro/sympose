@@ -38,6 +38,8 @@ wheels/
 # Logs & Temporary Files
 *.log
 scratch/
+.history
+.history/
 artifacts/*.html
 artifacts/*.svg
 

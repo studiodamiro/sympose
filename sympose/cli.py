@@ -118,9 +118,11 @@ class TerminalInterface:
                 if target in self.pm.profiles:
                     current_handle = target
                     if self.console:
-                        self.console.print(f"[bold green]Switched active persona to @{current_handle}[/bold green]")
+                        self.console.print(f"\n[bold green]✓ Switched active persona to @{current_handle}[/bold green]")
                 else:
                     current_handle = self.select_persona(default_handle=current_handle)
+                    if self.console:
+                        self.console.print(f"\n[bold green]✓ Active persona: @{current_handle}[/bold green]")
                 continue
 
             is_command = user_input.startswith("/")
@@ -137,7 +139,7 @@ class TerminalInterface:
                             os.system("clear")
                         self.display_banner()
                         if self.console:
-                            self.console.print(f"[bold green]✓ Context cleared for @{current_handle}.[/bold green]")
+                            self.console.print(f"\n[bold green]✓ Context cleared for @{current_handle}.[/bold green]")
                         break
                     output_chunks.append(chunk)
 
@@ -170,7 +172,7 @@ class TerminalInterface:
                             os.system("clear")
                         self.display_banner()
                         if self.console:
-                            self.console.print(f"[bold green]✓ Context cleared for @{current_handle}.[/bold green]")
+                            self.console.print(f"\n[bold green]✓ Context cleared for @{current_handle}.[/bold green]")
                         break
 
                     if not first_chunk:
@@ -196,10 +198,8 @@ class TerminalInterface:
             elapsed = time.time() - start_time
             if first_chunk and not is_command:
                 short_m = model.split("/")[-1] if "/" in model else model
-                badge = f"\n\n[dim cyan][{first_time:.2f}s TTFT | {elapsed:.2f}s total | {short_m}][/dim cyan]\n"
+                badge = f"\n\n[dim cyan][{first_time:.2f}s TTFT | {elapsed:.2f}s total | {short_m}][/dim cyan]"
                 if self.console:
                     self.console.print(badge)
                 else:
-                    print(f"\n[{first_time:.2f}s TTFT | {elapsed:.2f}s total | {short_m}]\n")
-            else:
-                print("\n")
+                    print(f"\n[{first_time:.2f}s TTFT | {elapsed:.2f}s total | {short_m}]")

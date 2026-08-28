@@ -15,7 +15,7 @@ def create_app(engine: Any) -> FastAPI:
     """Factory creating the FastAPI application bound to a PersonaEngine instance."""
     app = FastAPI(
         title="Sympose Multi-Model Agent Hub API",
-        version="0.2.9",
+        version="0.2.10",
         description="FastAPI REST API & Standalone Vault Gateway for Sympose",
         docs_url="/docs",
         redoc_url="/redoc",
@@ -33,7 +33,7 @@ def create_app(engine: Any) -> FastAPI:
     def health_check() -> Dict[str, Any]:
         return {
             "status": "healthy",
-            "version": "0.2.9",
+            "version": "0.2.10",
             "active_personas": list(engine.pm.profiles.keys()),
             "default_persona": engine.config.get("runtime.default_persona", "samantha"),
         }
@@ -85,30 +85,39 @@ def create_app(engine: Any) -> FastAPI:
         <!DOCTYPE html>
         <html lang="en">
         <head>
-            <meta charset="UTF-8"><title>Sympose Dashboard & Vault Gateway</title>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Sympose // Multi-Model Agent Hub & Vault Gateway</title>
             <style>
-                body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #0B0F17; color: #E2E8F0; margin: 0; padding: 40px 20px; display: flex; justify-content: center; }
-                .card { background: #111827; border: 1px solid #1F2937; border-radius: 16px; max-width: 600px; padding: 32px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); }
-                h1 { color: #8B5CF6; font-size: 24px; margin-top: 0; }
-                p { line-height: 1.6; color: #94A3B8; }
-                .badge { background: #1E1B4B; color: #A78BFA; padding: 4px 10px; border-radius: 6px; font-size: 13px; font-weight: 600; display: inline-block; margin-bottom: 16px; }
-                a { color: #38BDF8; text-decoration: none; font-weight: 500; }
-                a:hover { text-decoration: underline; }
-                ul { list-style: none; padding: 0; }
-                li { padding: 10px 0; border-bottom: 1px solid #1F2937; }
-                code { background: #1E293B; padding: 2px 6px; border-radius: 4px; font-family: monospace; color: #F1F5F9; }
+                body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif; background: #080D14; color: #E2E8F0; margin: 0; padding: 40px 20px; display: flex; justify-content: center; align-items: center; min-height: 80vh; }
+                .card { background: #0E1726; border: 1px solid #1E293B; border-radius: 16px; max-width: 620px; width: 100%; padding: 36px; box-shadow: 0 20px 40px rgba(0,0,0,0.6); }
+                .header-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
+                .brand-badge { background: #0C4A6E; color: #38BDF8; padding: 6px 12px; border-radius: 8px; font-size: 13px; font-weight: 700; font-family: monospace; letter-spacing: 0.05em; border: 1px solid #0284C7; }
+                .sla-badge { background: #064E3B; color: #34D399; padding: 4px 10px; border-radius: 6px; font-size: 12px; font-weight: 600; }
+                h1 { color: #38BDF8; font-size: 24px; margin: 0 0 10px 0; font-weight: 700; letter-spacing: -0.02em; }
+                p { line-height: 1.6; color: #94A3B8; margin-bottom: 24px; font-size: 15px; }
+                ul { list-style: none; padding: 0; margin: 0; }
+                li { padding: 14px 0; border-bottom: 1px solid #1E293B; display: flex; justify-content: space-between; align-items: center; }
+                li:last-child { border-bottom: none; }
+                .endpoint-label { color: #CBD5E1; font-weight: 500; font-size: 14px; }
+                a.btn { background: #1E293B; color: #38BDF8; padding: 6px 14px; border-radius: 6px; text-decoration: none; font-size: 13px; font-weight: 600; border: 1px solid #334155; transition: all 0.15s ease; }
+                a.btn:hover { background: #0284C7; color: #FFFFFF; border-color: #38BDF8; }
+                code { background: #1E293B; padding: 2px 6px; border-radius: 4px; font-family: ui-monospace, monospace; color: #F1F5F9; }
             </style>
         </head>
         <body>
             <div class="card">
-                <span class="badge">API Gateway Active &bull; < 0.8s SLA</span>
-                <h1>🏛️ Sympose Hub & Vault API</h1>
-                <p>The local API server and Inverted Index Engine are live on <code>localhost:8000</code>.</p>
+                <div class="header-row">
+                    <span class="brand-badge">&lt;S&gt; S Y M P O S E</span>
+                    <span class="sla-badge">Live Gateway &bull; v0.2.10</span>
+                </div>
+                <h1>Multi-Model Agent Hub &amp; Vault API</h1>
+                <p>Zero-Bloat AI Orchestration Runtime &amp; Standalone Obsidian Vault Gateway running on <code>localhost:8000</code>.</p>
                 <ul>
-                    <li>📖 <b>Interactive API Docs:</b> <a href="/docs">/docs (Swagger UI)</a></li>
-                    <li>🏥 <b>Health Status:</b> <a href="/api/health">/api/health</a></li>
-                    <li>🎭 <b>Active Personas:</b> <a href="/api/personas">/api/personas</a></li>
-                    <li>⚙️ <b>Live Configuration:</b> <a href="/api/config">/api/config</a></li>
+                    <li><span class="endpoint-label">📖 Interactive Swagger API Docs</span> <a class="btn" href="/docs">/docs</a></li>
+                    <li><span class="endpoint-label">🏥 Health &amp; Runtime Status</span> <a class="btn" href="/api/health">/api/health</a></li>
+                    <li><span class="endpoint-label">🎭 Active Personas Index</span> <a class="btn" href="/api/personas">/api/personas</a></li>
+                    <li><span class="endpoint-label">⚙️ Live Configuration Knobs</span> <a class="btn" href="/api/config">/api/config</a></li>
                 </ul>
             </div>
         </body>

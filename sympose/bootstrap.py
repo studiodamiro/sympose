@@ -203,11 +203,18 @@ def run_first_run_onboarding(workspace_dir: str, force: bool = False) -> None:
             if existing:
                 console.print("\n[dim]Current Environment Variables:[/dim]\n" + "\n".join(existing))
 
-        console.print("\n[bold yellow]🔑 Step 1 of 2: Connect your AI Provider[/bold yellow]")
-        console.print("  [bold cyan][1][/bold cyan] Google Gemini [dim](Fast & Free tier available)[/dim]")
-        console.print("  [bold cyan][2][/bold cyan] OpenRouter [dim](Access to Claude, Sonnet, Gemini, Qwen)[/dim]")
-        console.print("  [bold cyan][3][/bold cyan] Anthropic Claude [dim](Direct API)[/dim]")
-        console.print("  [bold cyan][4][/bold cyan] Skip / Keep current [dim](Configure in .env or local Ollama)[/dim]\n")
+        # Step 1: AI Provider Selection Panel
+        provider_options = [
+            "Google Gemini  [dim](Sub-second latency & free tier available — recommended)[/dim]",
+            "OpenRouter     [dim](Unified access to Claude 3.5, Sonnet, DeepSeek, Qwen)[/dim]",
+            "Anthropic      [dim](Direct Claude 3.5 Sonnet API key)[/dim]",
+            "Skip / Custom  [dim](Keep current .env or local Ollama execution)[/dim]"
+        ]
+        TerminalUI.render_option_panel(
+            console,
+            title="🔑  STEP 1/2: CONNECT YOUR AI PROVIDER",
+            options=provider_options
+        )
         
         choice = Prompt.ask("Select provider", choices=["1", "2", "3", "4"], default="1")
         provider_map = {
@@ -224,16 +231,30 @@ def run_first_run_onboarding(workspace_dir: str, force: bool = False) -> None:
                 os.environ["DEFAULT_MODEL"] = default_m
                 with open(env_file, "a", encoding="utf-8") as f:
                     f.write(f"\n{key_var}=\"{api_key}\"\nDEFAULT_MODEL=\"{default_m}\"\n")
-                console.print(f"[bold green]✅ Saved {key_var} and default model `{default_m}` to {env_file}[/bold green]\n")
+                console.print(f"\n[bold green]✓ Saved {key_var} and default model `{default_m}` to {env_file}[/bold green]")
 
-        console.print("\n[bold yellow]📁 Step 2 of 2: Obsidian Vault Connection (Optional)[/bold yellow]")
+        # Step 2: Obsidian Vault Selection Panel
+        vault_panel_text = (
+            "Link your existing Obsidian / Markdown notes directory to enable `/vault` searching & synthesis.\n"
+            "[dim]Press Enter without typing to keep standalone sandboxed storage.[/dim]"
+        )
+        console.print()
+        console.print(Panel(
+            vault_panel_text,
+            box=ROUNDED,
+            title="📁  STEP 2/2: OBSIDIAN VAULT CONNECTION (OPTIONAL)",
+            title_align="left",
+            border_style="cyan",
+            padding=(0, 2)
+        ))
+
         current_vault = os.getenv("MASTER_VAULT_PATH", "")
-        vault_prompt = f"Enter path to Obsidian Vault / Notes folder [dim](press Enter to keep '{current_vault or 'default'}')[/dim]"
+        vault_prompt = "Enter path to Obsidian Vault / Notes folder"
         vault_path = Prompt.ask(vault_prompt, default=current_vault).strip()
         if vault_path:
             os.environ["MASTER_VAULT_PATH"] = vault_path
             with open(env_file, "a", encoding="utf-8") as f:
                 f.write(f"\nMASTER_VAULT_PATH=\"{vault_path}\"\n")
-            console.print(f"[bold green]✅ Linked vault: {vault_path}[/bold green]\n")
+            console.print(f"\n[bold green]✓ Linked vault: {vault_path}[/bold green]")
         
-        console.print("[bold green]🎉 Setup completed! Launching @samantha...[/bold green]\n")
+        console.print("\n[bold green]🎉 Setup completed! Launching @samantha...[/bold green]\n")

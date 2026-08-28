@@ -61,7 +61,7 @@ class TerminalUI:
         banner.append("<S>  ", style="bold cyan")
         banner.append("S Y M P O S E  ", style="bold white")
         banner.append("// multi-model agent hub  ", style="dim white")
-        banner.append("[v0.2.9]\n", style="dim cyan")
+        banner.append("[v0.2.10]\n", style="dim cyan")
         banner.append("minimalist runtime for macos & slack\n", style="dim white")
         banner.append("commands: /help | /save | /config | switch: /switch | exit: /exit", style="dim cyan")
         console.print(Panel(banner, box=ROUNDED, border_style="cyan", padding=(1, 2)))
@@ -76,7 +76,7 @@ class TerminalUI:
         banner.append("<S>  ", style="bold cyan")
         banner.append("S Y M P O S E  ", style="bold white")
         banner.append("// interactive setup wizard  ", style="dim white")
-        banner.append("[v0.2.9]\n", style="dim cyan")
+        banner.append("[v0.2.10]\n", style="dim cyan")
         banner.append("zero-bloat multi-model agent hub & sovereign vault explorer\n\n", style="dim white")
         banner.append("active workspace: ", style="green")
         banner.append(f"{workspace_dir}\n", style="bold yellow")
@@ -161,25 +161,51 @@ class TerminalUI:
         return default_handle
 
     @staticmethod
+    def render_option_panel(
+        console: Optional[Any],
+        title: str,
+        options: List[str],
+        subtitle: Optional[str] = None
+    ) -> None:
+        """Renders a standardized rounded panel containing numbered options."""
+        if not console:
+            return
+
+        lines = []
+        if subtitle:
+            lines.append(f"[dim]{subtitle}[/dim]\n")
+        for i, opt in enumerate(options, start=1):
+            lines.append(f"[bold cyan][{i}][/bold cyan] {opt}")
+
+        panel_content = "\n".join(lines)
+        console.print()
+        console.print(Panel(
+            panel_content,
+            box=ROUNDED,
+            title=title,
+            title_align="left",
+            border_style="cyan",
+            padding=(0, 2)
+        ))
+
+    @staticmethod
     def prompt_exit_choice(console: Optional[Any], handle: str, default_target: str = "both") -> Optional[str]:
         """Displays exit modal dialog for memory/obsidian persistence."""
         if not console:
             return default_target if default_target in ("memory", "obsidian", "both") else None
 
         console.print(f"\n[bold yellow]Active session with @{handle} detected.[/bold yellow]")
-        menu_text = (
-            "[bold cyan][1][/bold cyan] Memory Only (Append to persistent `_memory.md`)\n"
-            "[bold cyan][2][/bold cyan] Obsidian Only (Save structured note to vault)\n"
-            "[bold cyan][3][/bold cyan] Both (Memory + Obsidian) [Default]\n"
-            "[bold cyan][4][/bold cyan] Discard & Exit (No save)"
-        )
-        console.print(Panel(
-            menu_text,
-            box=ROUNDED,
+        options = [
+            "Memory Only (Append to persistent `_memory.md`)",
+            "Obsidian Only (Save structured note to vault)",
+            "Both (Memory + Obsidian) [Default]",
+            "Discard & Exit (No save)"
+        ]
+        TerminalUI.render_option_panel(
+            console,
             title="💾  SAVE SESSION TAKEAWAYS?",
-            title_align="left",
-            border_style="cyan"
-        ))
+            options=options
+        )
 
         def_opt = "1" if default_target == "memory" else ("2" if default_target == "obsidian" else ("4" if default_target == "discard" else "3"))
         choice = Prompt.ask("Select option", choices=["1", "2", "3", "4"], default=def_opt)

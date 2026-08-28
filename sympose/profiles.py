@@ -12,8 +12,12 @@ from sympose.skills import skill_manager
 class ProfileManager:
     """Dynamically loads agent profiles, souls, universal user cards, and tiered memory pools."""
 
-    def __init__(self, profiles_dir: str = "profiles"):
-        self.profiles_dir = profiles_dir
+    def __init__(self, profiles_dir: Optional[str] = None):
+        if profiles_dir:
+            self.profiles_dir = os.path.abspath(profiles_dir)
+        else:
+            from sympose.bootstrap import resolve_workspace_dir
+            self.profiles_dir = os.path.abspath(os.path.join(resolve_workspace_dir(), "profiles"))
         self.profiles: Dict[str, Dict[str, Any]] = {}
         self.reload_profiles()
 
@@ -146,14 +150,13 @@ class ProfileManager:
         if persona_mem := self._read_file_safe(profile.get("memory_file")):
             prompt_parts.append(f"### Persona Working Memory:\n{persona_mem}")
 
-        workspace_parent = os.path.dirname(self.profiles_dir)
+        workspace_parent = os.path.dirname(os.path.abspath(self.profiles_dir))
         rules_txt = (
             self._read_file_safe(os.path.join(workspace_parent, "prompts", "workspace_rules.md"))
-            or self._read_file_safe(os.path.join("prompts", "workspace_rules.md"))
             or "### Directives:\n- Think systematically and provide crisp analysis.\n- Save durable insights to memory."
         )
         rules_formatted = (
-            rules_txt.replace("{{workspace_root}}", os.getcwd())
+            rules_txt.replace("{{workspace_root}}", workspace_parent)
             .replace("{{master_vault_path}}", mv)
             .replace("{{sandboxed_vault}}", vf_desc)
             .replace("{{memory_mode}}", f"{sharing_desc} (File: `{profile.get('memory_file')}`)")

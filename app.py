@@ -16,7 +16,7 @@ from sympose.slack import MultiAgentSlackRunner
 
 def main():
     parser = argparse.ArgumentParser(description="Sympose Multi-Model Agent Hub")
-    parser.add_argument("-v", "--version", action="version", version="%(prog)s 0.2.20")
+    parser.add_argument("-v", "--version", action="version", version="%(prog)s 0.2.21")
     parser.add_argument("--cli", action="store_true", help="Launch interactive Terminal CLI Hub")
     parser.add_argument("--persona", type=str, default=None, help="Initial persona handle (e.g. samantha)")
     parser.add_argument("--config", type=str, default="config.yaml", help="Path to master config YAML file")
@@ -37,11 +37,11 @@ def main():
         run_first_run_onboarding(workspace_dir, force=args.setup)
 
     # Initialize configuration & profile managers
-    config_path = args.config if os.path.isabs(args.config) or os.path.exists(args.config) else os.path.join(workspace_dir, args.config)
+    config_path = args.config if os.path.isabs(args.config) else os.path.join(workspace_dir, args.config)
     config = ConfigManager(config_path)
     
     profiles_dir = config.get("runtime.profiles_dir", "profiles")
-    if not os.path.isabs(profiles_dir) and not os.path.exists(profiles_dir):
+    if not os.path.isabs(profiles_dir):
         profiles_dir = os.path.join(workspace_dir, profiles_dir)
 
     pm = ProfileManager(profiles_dir=profiles_dir)

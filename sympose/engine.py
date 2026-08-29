@@ -84,7 +84,15 @@ class PersonaEngine:
                     self.active_vault_ctx.pop(k, None)
 
     def summarize_session(self, handle: str, target: str = "both", session_id: Optional[str] = None) -> Dict[str, Any]:
-        return self.archivist.summarize_session(handle, self.get_history(handle, session_id=session_id), target=target)
+        curr_session_id = session_id or self.active_sessions.get(handle.lower())
+        res = self.archivist.summarize_session(handle, self.get_history(handle, session_id=session_id), target=target)
+        if res.get("status") == "success" and curr_session_id:
+            obs_text = res.get("obsidian_content", "")
+            if obs_text:
+                first_h = re.search(r"^(?:#|##)\s*(?:Session:?\s*)?([^\n]+)", obs_text, re.M)
+                if first_h and first_h.group(1).strip():
+                    SessionManager.update_session_title(curr_session_id, first_h.group(1).strip())
+        return res
 
     def _build_kwargs(self, target_model: str, profile: Dict[str, Any], messages: List[Dict[str, Any]], stream: bool = True) -> Dict[str, Any]:
         is_loc = target_model.startswith("ollama/") or ":11434" in str(profile.get("api_base", ""))
@@ -199,7 +207,9 @@ class PersonaEngine:
             history.extend([{"role": "user", "content": user_message}, {"role": "assistant", "content": assistant_record}])
             h_key = self._get_history_key(handle, session_id)
             self.histories[h_key] = history[-(self.max_turns * 2):]
-            SessionManager.append_turn(curr_session_id, handle, user_message, assistant_record)
+            meta = SessionManager.append_turn(curr_session_id, handle, user_message, assistant_record)
+            if meta and meta.get("turns_count") == 3:
+                SessionManager.generate_smart_title_async(curr_session_id, handle, history[-6:], self.config)
             self.archivist.trigger_background_extraction(handle, user_message, complete_text)
         except Exception as e:
             err = str(e)

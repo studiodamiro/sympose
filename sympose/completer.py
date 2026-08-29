@@ -69,16 +69,19 @@ class SymposeCompleter:
 
     CONFIG_KEYS = [
         "performance.request_timeout",
+        "performance.local_request_timeout",
         "performance.max_context_turns",
         "performance.resume_context_turns",
         "performance.max_worker_tool_turns",
+        "performance.stream",
         "session.exit_behavior.auto_save",
         "session.exit_behavior.default_target",
         "session.exit_behavior.clear_terminal",
-        "session.exit_behavior.obsidian_subfolder",
+        "session.exit_behavior.summarization_model",
         "memory.compaction_threshold",
         "memory.auto_compact",
         "runtime.default_persona",
+        "vault.search_mode",
     ]
 
     def __init__(self, engine: Any):

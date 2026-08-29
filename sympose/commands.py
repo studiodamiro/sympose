@@ -178,6 +178,7 @@ class CommandInterceptor:
                         "# ⚙️  ACTIVE RUNTIME CONFIGURATION\n\n"
                         "### ⚡  PERFORMANCE & STREAMING\n"
                         f"- `performance.request_timeout`: `{cfg.get('performance.request_timeout')}s`\n"
+                        f"- `performance.local_request_timeout`: `{cfg.get('performance.local_request_timeout', 120.0)}s`\n"
                         f"- `performance.max_context_turns`: `{cfg.get('performance.max_context_turns')} turns`\n"
                         f"- `performance.resume_context_turns`: `{cfg.get('performance.resume_context_turns', 6)} turns`\n"
                         f"- `performance.max_worker_tool_turns`: `{cfg.get('performance.max_worker_tool_turns')} turns`\n"

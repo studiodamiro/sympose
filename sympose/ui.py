@@ -165,15 +165,13 @@ class TerminalUI:
 
     @staticmethod
     def prompt_exit_choice(console: Optional[Any], handle: str, default_target: str = "memory") -> Optional[str]:
-        """Displays exit modal dialog for memory/obsidian persistence."""
+        """Displays exit modal dialog for memory persistence."""
         if not console:
-            return default_target if default_target in ("memory", "obsidian", "both") else None
+            return "memory" if default_target == "memory" else None
 
         console.print(f"\n[bold yellow]Active session with @{handle} completed.[/bold yellow]")
         options = [
-            "Memory Only (Extract durable facts to `_memory.md`) [Default]",
-            "Obsidian Only (Export session note to vault)",
-            "Both (Memory + Obsidian Note)",
+            "Extract durable facts to `_memory.md` [Default]",
             "Skip (Preserve in `/history` only)"
         ]
         TerminalUI.render_option_panel(
@@ -182,11 +180,10 @@ class TerminalUI:
             options=options
         )
 
-        def_opt = "1" if default_target == "memory" else ("2" if default_target == "obsidian" else ("4" if default_target in ("discard", "skip", "none") else "3"))
-        choice = Prompt.ask("Select option", choices=["1", "2", "3", "4"], default=def_opt)
+        def_opt = "1" if default_target == "memory" else "2"
+        choice = Prompt.ask("Select option", choices=["1", "2"], default=def_opt)
 
-        mapping = {"1": "memory", "2": "obsidian", "3": "both", "4": None}
-        return mapping.get(choice)
+        return "memory" if choice == "1" else None
 
     @staticmethod
     def select_session(

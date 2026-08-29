@@ -10,8 +10,8 @@ performance:
   max_consecutive_bot_turns: 6
 session:
   exit_behavior:
-    auto_save: true
-    default_target: memory
+    auto_save: true           # If true, auto-extracts memory on exit without prompt
+    default_target: memory    # Options: memory (extract facts to _memory.md), none (instant exit)
     clear_terminal: true
     summarization_model: gemini/gemini-3.6-flash
 memory:

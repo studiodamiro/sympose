@@ -170,37 +170,250 @@ class VaultManager:
                 pass
         return "\n\n---\n\n".join(payloads)
 
+    _last_searches: Dict[str, List[Dict[str, Any]]] = {}
+
+    @staticmethod
+    def parse_frontmatter(content: str) -> Tuple[Dict[str, Any], str]:
+        """Extracts YAML frontmatter dictionary and clean markdown body."""
+        if not content.startswith("---"):
+            return {}, content
+
+        match = re.match(r"^---\r?\n(.*?)\r?\n---\r?\n(.*)$", content, re.DOTALL)
+        if not match:
+            return {}, content
+
+        raw_yaml, body = match.group(1), match.group(2)
+        meta: Dict[str, Any] = {}
+        try:
+            import yaml
+            parsed = yaml.safe_load(raw_yaml)
+            if isinstance(parsed, dict):
+                meta = parsed
+        except Exception:
+            pass
+
+        if not meta:
+            for line in raw_yaml.splitlines():
+                if ":" in line and not line.strip().startswith("#"):
+                    k, v = line.split(":", 1)
+                    k = k.strip().lower()
+                    v = v.strip().strip("\"'")
+                    if v:
+                        meta[k] = v
+        return meta, body
+
     @classmethod
-    def search(cls, profile: Dict[str, Any], query: str, target_folder: Optional[str] = None) -> str:
+    def search_structured(cls, profile: Dict[str, Any], query: str, target_folder: Optional[str] = None, max_results: int = 15) -> List[Dict[str, Any]]:
+        """Performs fast sandboxed vault search returning structured match metadata with snippets."""
         mv, allowed_dirs = cls._get_master_vault(), cls.get_allowed_dirs(profile)
-        if not mv or not allowed_dirs: return "⚠️ Master notes directory not configured or access denied."
+        if not mv or not allowed_dirs:
+            return []
+
         search_dirs = [d for d in allowed_dirs if os.path.basename(d).lower() == target_folder.lower()] if target_folder else allowed_dirs
         search_dirs = search_dirs or allowed_dirs
 
-        query_lower, title_matches, content_matches = query.lower(), [], []
+        query_clean = query.lower().strip().strip("\"'")
+        if not query_clean:
+            return []
+
+        title_matches: List[Dict[str, Any]] = []
+        content_matches: List[Dict[str, Any]] = []
         raw_ignore = config_manager.get("vault.ignore_folders") or [".obsidian", ".git", "Attachments", ".trash"]
         ignore_dirs = {str(d).lower().strip() for d in raw_ignore}
+
         try:
             for allowed in search_dirs:
+                if not os.path.exists(allowed):
+                    continue
                 for root, dirs, files in os.walk(allowed):
                     dirs[:] = [d for d in dirs if d.lower() not in ignore_dirs and not d.startswith(".")]
-                    for file in files:
-                        if file.endswith((".md", ".markdown", ".txt")):
-                            file_path = os.path.join(root, file)
-                            rel_path = os.path.relpath(file_path, mv)
-                            with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
-                                content = f.read()
-                                if query_lower in file.lower() or query_lower in rel_path.lower():
-                                    title_matches.append(f"**{rel_path}**:\n{content[:1200].strip()}")
-                                elif query_lower in content.lower():
-                                    content_matches.append(f"**{rel_path}** (Content match):\n{content[:1200].strip()}")
-                            if len(title_matches) >= 5: break
-                    if len(title_matches) >= 5: break
-        except Exception as e:
-            return f"Error searching vault: {e}"
+                    for file in sorted(files):
+                        if not file.endswith((".md", ".markdown", ".txt")):
+                            continue
+                        file_path = os.path.join(root, file)
+                        if not is_safe_path(file_path, allowed):
+                            continue
+                        rel_path = os.path.relpath(file_path, mv)
 
-        all_matches = (title_matches + content_matches)[:5]
-        return "\n\n---\n\n".join(all_matches) if all_matches else f"No notes found matching `{query}` in allowed vault folders."
+                        try:
+                            with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+                                full_content = f.read()
+                        except Exception:
+                            continue
+
+                        meta, body = cls.parse_frontmatter(full_content)
+                        tags = meta.get("tags", [])
+                        if isinstance(tags, str):
+                            tags = [t.strip() for t in tags.replace(",", " ").split() if t.strip()]
+                        elif not isinstance(tags, list):
+                            tags = []
+
+                        is_title_match = (query_clean in file.lower() or query_clean in rel_path.lower())
+
+                        if is_title_match:
+                            fl = next((line.strip("# \t\r") for line in body.splitlines() if line.strip() and not line.startswith("---") and ":" not in line), "")
+                            clean_fl = " ".join(fl.split())
+                            if len(clean_fl) > 70:
+                                clean_fl = clean_fl[:67].rstrip() + "..."
+                            title_matches.append({
+                                "file_name": file,
+                                "rel_path": rel_path,
+                                "abs_path": file_path,
+                                "match_type": "title",
+                                "line_no": 1,
+                                "snippet": clean_fl or "Exact title match",
+                                "title": meta.get("title") or meta.get("name") or os.path.splitext(file)[0],
+                                "tags": tags,
+                                "meta": meta,
+                            })
+                        elif query_clean in full_content.lower():
+                            matched_line_no = 1
+                            matched_snippet = ""
+                            for line_idx, line in enumerate(full_content.splitlines(), start=1):
+                                if query_clean in line.lower():
+                                    matched_line_no = line_idx
+                                    clean_l = " ".join(line.strip().strip("#*-> ").split())
+                                    q_idx = clean_l.lower().find(query_clean)
+                                    if q_idx > 25:
+                                        clean_l = "..." + clean_l[max(q_idx - 15, 0):]
+                                    if len(clean_l) > 70:
+                                        clean_l = clean_l[:67].rstrip() + "..."
+                                    matched_snippet = clean_l
+                                    break
+                            content_matches.append({
+                                "file_name": file,
+                                "rel_path": rel_path,
+                                "abs_path": file_path,
+                                "match_type": "content",
+                                "line_no": matched_line_no,
+                                "snippet": matched_snippet or f"Match found on line {matched_line_no}",
+                                "title": meta.get("title") or meta.get("name") or os.path.splitext(file)[0],
+                                "tags": tags,
+                                "meta": meta,
+                            })
+
+                        if len(title_matches) + len(content_matches) >= max_results * 2:
+                            break
+                    if len(title_matches) + len(content_matches) >= max_results * 2:
+                        break
+        except Exception:
+            pass
+
+        all_results = (title_matches + content_matches)[:max_results]
+        for idx, res in enumerate(all_results, start=1):
+            res["index"] = idx
+
+        handle_key = profile.get("handle", "default").lower()
+        cls._last_searches[handle_key] = all_results
+        cls._last_searches["default"] = all_results
+        return all_results
+
+    @classmethod
+    def get_last_search(cls, profile: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Returns the most recent search results for the given profile."""
+        handle_key = profile.get("handle", "default").lower()
+        return cls._last_searches.get(handle_key) or cls._last_searches.get("default", [])
+
+    @classmethod
+    def format_search_digest(cls, query: str, results: List[Dict[str, Any]]) -> str:
+        """Formats structured search results into a clean, high-density Markdown list."""
+        if not results:
+            return f"No notes found matching `{query}` in allowed vault folders."
+
+        lines = [f"### 🔍 Vault Search: \"{query}\" ({len(results)} note{'s' if len(results) != 1 else ''} found):\n"]
+        for r in results:
+            idx = r.get("index", 1)
+            rel = r.get("rel_path", r.get("file_name", "note.md"))
+            mtype = r.get("match_type", "content")
+            line_no = r.get("line_no", 1)
+            snippet = r.get("snippet", "")
+            tags = r.get("tags", [])
+            tag_str = f" `[{' '.join('#' + t.lstrip('#') for t in tags[:3])}]`" if tags else ""
+
+            type_label = "*(Title Match)*" if mtype == "title" else f"*(Line {line_no})*"
+            lines.append(f"**[{idx}] `{rel}`** {type_label}{tag_str}")
+            if snippet:
+                lines.append(f"  > {snippet}")
+            lines.append("")
+
+        lines.append("──────────────────────────────────────────────────────────────────────────")
+        lines.append("*Quick Nav: `/read <#>` to view in terminal | `/open <#>` to open in Obsidian | `/vault back` to return*")
+        return "\n".join(lines)
+
+    @classmethod
+    def search(cls, profile: Dict[str, Any], query: str, target_folder: Optional[str] = None) -> str:
+        results = cls.search_structured(profile, query, target_folder=target_folder)
+        return cls.format_search_digest(query, results)
+
+    @classmethod
+    def resolve_note_target(cls, profile: Dict[str, Any], target: str) -> Tuple[Optional[str], Optional[str]]:
+        """Resolves target string (index number, relative path, or filename) to (rel_path, abs_path)."""
+        mv, allowed_dirs = cls._get_master_vault(), cls.get_allowed_dirs(profile)
+        if not mv or not allowed_dirs:
+            return None, None
+
+        clean_target = target.strip().strip("\"'")
+        handle_key = profile.get("handle", "default").lower()
+        cached = cls._last_searches.get(handle_key) or cls._last_searches.get("default", [])
+
+        # 1. Number shortcut [1-N]
+        if clean_target.isdigit():
+            idx = int(clean_target)
+            for item in cached:
+                if item.get("index") == idx:
+                    return item.get("rel_path"), item.get("abs_path")
+
+        # 2. Match exact rel_path or stem in cached results
+        t_stem = os.path.splitext(os.path.basename(clean_target))[0].lower()
+        for item in cached:
+            if item.get("rel_path", "").lower() == clean_target.lower() or os.path.splitext(item.get("file_name", ""))[0].lower() == t_stem:
+                return item.get("rel_path"), item.get("abs_path")
+
+        # 3. Direct lookup in vault
+        target_name = clean_target if clean_target.endswith((".md", ".txt")) else clean_target + ".md"
+        direct_target = os.path.join(mv, target_name)
+        for allowed in allowed_dirs:
+            if is_safe_path(direct_target, allowed) and os.path.exists(direct_target):
+                return os.path.relpath(direct_target, mv), direct_target
+
+        for allowed in allowed_dirs:
+            candidate = os.path.join(allowed, os.path.basename(target_name))
+            if is_safe_path(candidate, allowed) and os.path.exists(candidate):
+                return os.path.relpath(candidate, mv), candidate
+
+        # 4. Recursive lookup in allowed dirs
+        raw_ignore = config_manager.get("vault.ignore_folders") or [".obsidian", ".git", "Attachments", ".trash"]
+        ignore_dirs = {str(d).lower().strip() for d in raw_ignore}
+        for allowed in allowed_dirs:
+            for root, dirs, files in os.walk(allowed):
+                dirs[:] = [d for d in dirs if d.lower() not in ignore_dirs and not d.startswith(".")]
+                for fn in files:
+                    if os.path.splitext(fn)[0].lower() == t_stem:
+                        fp = os.path.join(root, fn)
+                        if is_safe_path(fp, allowed):
+                            return os.path.relpath(fp, mv), fp
+
+        return None, None
+
+    @classmethod
+    def open_in_obsidian(cls, profile: Dict[str, Any], target: str) -> Tuple[bool, str]:
+        """Opens note in Obsidian desktop app / system default editor."""
+        import subprocess, platform
+        rel_path, abs_path = cls.resolve_note_target(profile, target)
+        if not abs_path or not os.path.exists(abs_path):
+            return False, f"⚠️ Note `{target}` not found in allowed vault folders."
+
+        try:
+            system = platform.system()
+            if system == "Darwin":
+                subprocess.Popen(["open", abs_path])
+            elif system == "Linux":
+                subprocess.Popen(["xdg-open", abs_path])
+            elif system == "Windows":
+                os.startfile(abs_path)
+            return True, f"✨ Opened `{rel_path}` in Obsidian / system editor."
+        except Exception as e:
+            return False, f"⚠️ Failed to open note: {e}"
 
     @staticmethod
     def extract_wikilinks(content: str) -> List[Dict[str, Any]]:

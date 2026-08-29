@@ -29,7 +29,7 @@ try:
     import litellm
     litellm.suppress_debug_info = True
     litellm.drop_params = True
-    litellm.request_timeout = 10.0
+    litellm.request_timeout = 30.0
 except ImportError:
     litellm = None
 
@@ -39,7 +39,7 @@ class ConfigManager:
 
     DEFAULT_CONFIG: Dict[str, Any] = {
         "performance": {
-            "request_timeout": 10.0,
+            "request_timeout": 30.0,
             "local_request_timeout": 60.0,
             "max_context_turns": 15,
             "max_worker_tool_turns": 8,

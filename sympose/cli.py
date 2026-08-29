@@ -95,9 +95,15 @@ class TerminalInterface:
 
             try:
                 user_input = Prompt.ask(prompt_label).strip() if self.console else input(f"\nYou (to @{current_handle}): ").strip()
-            except (KeyboardInterrupt, EOFError):
+            except EOFError:
                 self.handle_exit(current_handle)
                 break
+            except KeyboardInterrupt:
+                if self.console:
+                    self.console.print("\n[dim](Type /exit or press Ctrl+D to quit)[/dim]")
+                else:
+                    print("\n(Type /exit or press Ctrl+D to quit)")
+                continue
 
             if not user_input:
                 continue
@@ -130,18 +136,25 @@ class TerminalInterface:
             if is_command:
                 output_chunks = []
                 cleared = False
-                for chunk in self.engine.chat_stream(current_handle, user_input):
-                    if chunk == "CLEARED_SESSION":
-                        cleared = True
-                        if self.console:
-                            self.console.clear()
-                        else:
-                            os.system("clear")
-                        self.display_banner()
-                        if self.console:
-                            self.console.print(f"\n[bold green]✓ Context cleared for @{current_handle}.[/bold green]")
-                        break
-                    output_chunks.append(chunk)
+                try:
+                    for chunk in self.engine.chat_stream(current_handle, user_input):
+                        if chunk == "CLEARED_SESSION":
+                            cleared = True
+                            if self.console:
+                                self.console.clear()
+                            else:
+                                os.system("clear")
+                            self.display_banner()
+                            if self.console:
+                                self.console.print(f"\n[bold green]✓ Context cleared for @{current_handle}.[/bold green]")
+                            break
+                        output_chunks.append(chunk)
+                except KeyboardInterrupt:
+                    if self.console:
+                        self.console.print(f"\n\n[dim yellow]^C [Command cancelled][/dim yellow]")
+                    else:
+                        print("\n\n^C [Command cancelled]")
+                    continue
 
                 if cleared:
                     continue
@@ -161,6 +174,8 @@ class TerminalInterface:
                 status.start()
 
             first_chunk, first_time, cleared = False, 0.0, False
+            render_mode = str(self.engine.config.get("performance.render_mode", "hybrid")).lower().strip()
+            buffered_chunks = []
 
             try:
                 for chunk in self.engine.chat_stream(current_handle, user_input):
@@ -178,16 +193,51 @@ class TerminalInterface:
                     if not first_chunk:
                         first_chunk = True
                         first_time = time.time() - start_time
-                        if status:
-                            status.stop()
-                            status = None
-                        if self.console:
-                            self.console.print(f"\n[bold cyan]{name}:[/bold cyan]")
-                        else:
-                            print(f"\n{name}:")
+                        if render_mode != "buffered":
+                            if status:
+                                status.stop()
+                                status = None
+                            if self.console:
+                                self.console.print(f"\n[bold cyan]{name}:[/bold cyan]")
+                            else:
+                                print(f"\n{name}:")
 
-                    sys.stdout.write(chunk)
-                    sys.stdout.flush()
+                    if render_mode == "buffered":
+                        buffered_chunks.append(chunk)
+                    elif render_mode == "raw":
+                        sys.stdout.write(chunk)
+                        sys.stdout.flush()
+                    else:  # "hybrid" default
+                        if chunk.startswith("\n\n>") or "\n> " in chunk or chunk.startswith("> "):
+                            if self.console:
+                                self.console.print()
+                                TerminalUI.render_markdown(self.console, chunk.strip())
+                            else:
+                                sys.stdout.write(chunk)
+                                sys.stdout.flush()
+                        else:
+                            sys.stdout.write(chunk)
+                            sys.stdout.flush()
+
+                if render_mode == "buffered" and buffered_chunks and not cleared:
+                    if status:
+                        status.stop()
+                        status = None
+                    if self.console:
+                        self.console.print(f"\n[bold cyan]{name}:[/bold cyan]")
+                        TerminalUI.render_markdown(self.console, "".join(buffered_chunks).strip())
+                    else:
+                        print(f"\n{name}:")
+                        print("".join(buffered_chunks).strip())
+            except KeyboardInterrupt:
+                if status:
+                    status.stop()
+                    status = None
+                if self.console:
+                    self.console.print(f"\n\n[dim yellow]^C [Interrupted @{current_handle}][/dim yellow]")
+                else:
+                    print(f"\n\n^C [Interrupted @{current_handle}]")
+                continue
             finally:
                 if status:
                     status.stop()

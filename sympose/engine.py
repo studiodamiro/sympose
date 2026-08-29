@@ -97,7 +97,7 @@ class PersonaEngine:
     def _build_kwargs(self, target_model: str, profile: Dict[str, Any], messages: List[Dict[str, Any]], stream: bool = True) -> Dict[str, Any]:
         is_loc = target_model.startswith("ollama/") or ":11434" in str(profile.get("api_base", ""))
         to_key = "performance.local_request_timeout" if is_loc else "performance.request_timeout"
-        kwargs = {"model": target_model, "messages": messages, "stream": stream, "timeout": float(self.config.get(to_key, 60.0 if is_loc else 10.0))}
+        kwargs = {"model": target_model, "messages": messages, "stream": stream, "timeout": float(self.config.get(to_key, 120.0 if is_loc else 30.0))}
         for pfx, key in (("gemini/", "GEMINI_API_KEY"), ("anthropic/", "ANTHROPIC_API_KEY"), ("openai/", "OPENAI_API_KEY"), ("openrouter/", "OPENROUTER_API_KEY")):
             if target_model.startswith(pfx) and os.getenv(key):
                 kwargs["api_key"] = os.getenv(key)
@@ -187,12 +187,13 @@ class PersonaEngine:
 
             complete_text = "".join(full_reply)
             clean_text, badges = ActionProcessor.execute_actions(self.pm, handle, complete_text, user_prompt=clean_input)
-            has_worker = any("Sub-Agent Worker Report" in b or "Live Web Search Report" in b for b in badges)
+            has_worker = any("Sub-Agent Worker" in b or "Live Web Search Report" in b for b in badges)
+            has_rendered_note = any("rendered note to Terminal" in b for b in badges)
             assistant_record = (clean_text + ("\n\n" + "\n".join(badges) if badges else "")).strip()
             if badges:
                 yield "\n\n" + "\n".join(badges)
 
-            if has_worker:
+            if has_worker and not has_rendered_note:
                 yield "\n\n"
                 synth_msgs = list(active_messages) + [{"role": "assistant", "content": assistant_record}, {"role": "user", "content": "[System Directive: Synthesize the live data / report above to provide the direct calculation and final answer to the user.]"}]
                 try:

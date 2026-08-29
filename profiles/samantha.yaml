@@ -28,6 +28,7 @@ skills:
   - "system_architecture"
   - "strategic_analysis"
   - "discussion_moderation"
+  - "subagent_spawn"
   - "vault_recall"
   - "vault_write"
   - "web_search"

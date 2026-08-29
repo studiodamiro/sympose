@@ -27,8 +27,12 @@ class SymposeCompleter:
         "/wizard",
         "/ask",
         "/model",
+        "/render",
         "/config",
         "/vault",
+        "/read",
+        "/view",
+        "/open",
         "/note",
         "/daily",
         "/remember",
@@ -181,9 +185,26 @@ class SymposeCompleter:
                 if len(tokens) >= 3 and sub in ("add", "mount", "install", "remove", "unmount", "uninstall", "rm"):
                     return [p for p in self.get_personas() if p.startswith(text) or p.lstrip("@").startswith(text)]
 
+        # /vault -> back, list, backlinks, open, read
+        if cmd == "/vault":
+            vault_subcmds = ["back", "list", "backlinks", "open", "read"]
+            if len(tokens) == 1 or (len(tokens) == 2 and not line_l.endswith(" ")):
+                return [opt for opt in vault_subcmds if opt.startswith(text)]
+
         # /save -> both, memory, obsidian
         if cmd == "/save":
             return [opt for opt in self.SAVE_OPTIONS if opt.startswith(text)]
+
+        # /render -> hybrid, buffered, raw
+        if cmd == "/render":
+            render_subcmds = ["hybrid", "buffered", "raw"]
+            if len(tokens) == 1 or (len(tokens) == 2 and not line_l.endswith(" ")):
+                return [opt for opt in render_subcmds if opt.startswith(text)]
+
+        # /help -> available commands
+        if cmd == "/help":
+            help_topics = [c.lstrip("/") for c in self.ROOT_COMMANDS if c.startswith("/")] + [c for c in self.ROOT_COMMANDS if c.startswith("/")]
+            return [t for t in help_topics if t.startswith(text)]
 
         # /config set -> config keys
         if cmd == "/config" and "set" in tokens:

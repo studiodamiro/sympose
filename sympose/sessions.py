@@ -147,7 +147,41 @@ class SessionManager:
         return meta
 
     @classmethod
-    def list_sessions(cls, handle: Optional[str] = None, limit: int = 15) -> List[Dict[str, Any]]:
+    def prune_ghost_sessions(cls, handle: Optional[str] = None, active_session_id: Optional[str] = None) -> int:
+        """Prunes 0-turn or trivial 1-turn generic greeting sessions that lack substantive conversation."""
+        s_dir = cls.get_sessions_dir()
+        if not os.path.exists(s_dir): return 0
+        pruned_count = 0
+        h_low = handle.lower() if handle else None
+
+        for fname in os.listdir(s_dir):
+            if not fname.endswith(".jsonl"): continue
+            sid = fname[:-6]
+            if sid == active_session_id: continue
+            fpath = os.path.join(s_dir, fname)
+            try:
+                with open(fpath, "r", encoding="utf-8") as f:
+                    lines = [l.strip() for l in f if l.strip()]
+                if not lines:
+                    os.remove(fpath)
+                    pruned_count += 1
+                    continue
+                first = json.loads(lines[0])
+                if first.get("type") != "meta": continue
+                if h_low and first.get("handle") != h_low: continue
+
+                turns_cnt = first.get("turns_count", len(lines) - 1)
+                title = first.get("title", "")
+                # Prune if 0 turns or 1-turn generic non-substantive interaction
+                if turns_cnt == 0 or (turns_cnt <= 1 and title in ("New Conversation", "Untitled Session")):
+                    os.remove(fpath)
+                    pruned_count += 1
+            except Exception: continue
+        return pruned_count
+
+    @classmethod
+    def list_sessions(cls, handle: Optional[str] = None, limit: int = 15, active_session_id: Optional[str] = None) -> List[Dict[str, Any]]:
+        cls.prune_ghost_sessions(handle, active_session_id=active_session_id)
         s_dir = cls.get_sessions_dir()
         if not os.path.exists(s_dir): return []
         results, h_low = [], handle.lower() if handle else None
@@ -160,6 +194,13 @@ class SessionManager:
                 if not first: continue
                 meta = json.loads(first)
                 if meta.get("type") != "meta" or (h_low and meta.get("handle") != h_low): continue
+                sid = meta.get("session_id", "")
+                turns_cnt = meta.get("turns_count", 0)
+                title = meta.get("title", "")
+
+                # Skip 0-turn empty sessions unless currently active
+                if turns_cnt == 0 and sid != active_session_id: continue
+
                 meta["relative_time"] = cls.format_relative_time(meta.get("updated_at", meta.get("created_at", "")))
                 results.append(meta)
             except Exception: continue

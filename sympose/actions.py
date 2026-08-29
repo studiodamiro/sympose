@@ -19,6 +19,7 @@ class ActionProcessor:
 
     TAG_NAMES = [
         "DAILY_NOTE", "WRITE_NOTE", "APPEND_NOTE", "REMEMBER",
+        "READ_NOTE", "VIEW_NOTE",
         "SPAWN_WORKER", "SEARCH", "WEB_SEARCH", "CONFIG_SET",
         "CREATE_PERSONA", "DELETE_PERSONA", "WRITE_CANVAS", "REACT"
     ]
@@ -72,12 +73,13 @@ class ActionProcessor:
     @classmethod
     def execute_actions(cls, profile_manager: Any, handle: str, text: str, user_prompt: str = "") -> Tuple[str, List[str]]:
         """Executes all detected action tags in model output and returns (clean_text, confirmation_badges)."""
-        profile = profile_manager.get_profile(handle)
-        if not profile:
+        is_worker = (handle.lower() == "worker")
+        profile = profile_manager.get_profile(handle) if not is_worker else {}
+        if not profile and not is_worker:
             return text, []
 
         badges: List[str] = []
-        name = profile.get("name", handle)
+        name = "Sub-Agent Worker" if is_worker else profile.get("name", handle)
         vault_folder = profile.get("vault_folder", "")
         is_shared = profile.get("share_memory", False)
 
@@ -121,6 +123,24 @@ class ActionProcessor:
                 mem_desc = "working & shared team memory" if is_shared else f"private memory (`{profile.get('memory_file')}`)"
                 badges.append(f"> 🧠 **{name} updated {mem_desc}:** {inner}")
 
+            # 4b. READ_NOTE / VIEW_NOTE
+            elif tag in ("READ_NOTE", "VIEW_NOTE") and inner.strip():
+                target_note = inner.strip().strip("\"'")
+                rel_path, abs_path = VaultManager.resolve_note_target(profile, target_note)
+                if rel_path:
+                    note_content = VaultManager.read_note(profile, rel_path)
+                    if note_content is not None and not str(note_content).startswith("Error") and not str(note_content).startswith("⚠️"):
+                        from sympose.config import config_manager
+                        render_mode = str(config_manager.get("performance.render_mode", "hybrid")).lower().strip()
+                        from sympose.ui import TerminalUI
+                        console = TerminalUI.get_console() if render_mode != "raw" else None
+                        TerminalUI.render_vault_note_panel(console, rel_path, note_content)
+                        badges.append(f"> 📄 **{name} rendered note to Terminal:** `{rel_path}`")
+                    else:
+                        badges.append(f"> ⚠️ **Could not read note:** `{rel_path or target_note}`")
+                else:
+                    badges.append(f"> ⚠️ **Note not found in allowed vault folders:** `{target_note}`")
+
             # 5. SPAWN_WORKER
             elif tag == "SPAWN_WORKER" and "|" in inner:
                 parts = inner.split("|", 1)
@@ -139,22 +159,43 @@ class ActionProcessor:
                         mcp_servers=mcp_to_load,
                         parent_agent=handle,
                     )
-                    worker_output_chunks = list(WorkerEngine.execute_worker_stream(task))
-                    worker_result = "".join(worker_output_chunks).strip()
-                    badge_spec = f"Skills: `{', '.join(skills_to_load)}`" if skills_to_load else f"MCP: `{', '.join(mcp_to_load)}`"
-                    badges.append(
-                        f"\n> 🛠️ **Sub-Agent Worker Report** ({badge_spec}):\n"
-                        + "\n".join([f"> {line}" for line in worker_result.split("\n")])
-                    )
+                    final_synthesis, tool_calls_executed = WorkerEngine.execute_worker_task(task)
+                    clean_worker_res, worker_sub_badges = cls.execute_actions(profile_manager, "worker", final_synthesis, user_prompt=task_prompt)
+                    for wb in worker_sub_badges:
+                        if wb not in badges:
+                            badges.append(wb)
+
+                    badge_spec = f"Skills: `{', '.join(skills_to_load)}`" if skills_to_load else (f"MCP: `{', '.join(mcp_to_load)}`" if mcp_to_load else "General Sandbox")
+
+                    report_md = [
+                        f"> ### 🛠️ Sub-Agent Worker Report `[{badge_spec}]`",
+                        f"> **Task:** *{task_prompt}*",
+                        "> ",
+                        "> ---",
+                        "> "
+                    ]
+                    if tool_calls_executed:
+                        tool_str = "  •  ".join([f"⚙️ `{tc}`" for tc in tool_calls_executed])
+                        report_md.append(f"> {tool_str}")
+                        report_md.append("> ")
+
+                    for line in clean_worker_res.strip().splitlines():
+                        report_md.append(f"> {line}")
+
+                    badges.append("\n" + "\n".join(report_md))
 
             # 5b. SEARCH / WEB_SEARCH (Direct in-turn live search)
             elif tag in ("SEARCH", "WEB_SEARCH") and inner.strip():
                 query = inner.strip()
                 ok, search_out = NativeTools.execute("web_search", {"query": query, "max_results": 5})
                 if ok and search_out:
+                    indented_search = "\n".join([f"> {line}" for line in search_out.split("\n")])
                     badges.append(
-                        f"\n> 🌐 **Live Web Search Report (`{query}`):**\n"
-                        + "\n".join([f"> {line}" for line in search_out.split("\n")])
+                        f"\n> ### 🌐 Live Web Search Report (`{query}`)\n"
+                        f"> \n"
+                        f"> ---\n"
+                        f"> \n"
+                        f"{indented_search}"
                     )
                 else:
                     badges.append(f"> 🌐 **Web Search (`{query}`):** *{search_out}*")

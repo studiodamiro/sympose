@@ -82,7 +82,7 @@ class MemoryCompactor:
                 "model": target_model,
                 "messages": [{"role": "user", "content": prompt}],
                 "stream": False,
-                "timeout": 10.0,
+                "timeout": float(config_manager.get("performance.request_timeout", 30.0)),
             }
             if target_model.startswith("gemini/") and os.getenv("GEMINI_API_KEY"):
                 kwargs["api_key"] = os.getenv("GEMINI_API_KEY")

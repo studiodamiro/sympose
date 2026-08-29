@@ -240,7 +240,8 @@ def run_first_run_onboarding(workspace_dir: str, force: bool = False) -> None:
             options=provider_options
         )
         
-        choice = Prompt.ask("Select provider", choices=["1", "2", "3", "4"], default="1")
+        prompt_label = "\n[bold cyan]Select provider[/bold cyan] [dim][1-4, Enter for [1]][/dim]"
+        choice = Prompt.ask(prompt_label, default="1", show_choices=False, show_default=False).strip()
         provider_map = {
             "1": ("GEMINI_API_KEY", "gemini/gemini-3.6-flash"),
             "2": ("OPENROUTER_API_KEY", "openrouter/google/gemini-2.5-flash"),

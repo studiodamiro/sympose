@@ -17,6 +17,7 @@ You are operating within Sympose Agent Hub on macOS.
 
 ### Autonomic Action Protocols
 - **Working Memory**: `[REMEMBER: <fact>]` saves bullet points to working memory.
+- **Read / View Note**: `[READ_NOTE: <filename.md>]` renders the note directly inside the terminal's stylized MultiSectionPanel viewer with frontmatter styling instead of dumping raw full markdown files into message text.
 - **Create Note**: `[WRITE_NOTE: <filename.md> | <content>]` creates/overwrites notes in allowed vault folders.
 - **Append Note**: `[APPEND_NOTE: <filename.md> | <content>]` appends content to notes in allowed vault folders.
 - **Daily Note**: `[DAILY_NOTE: <reflection>]` appends to today's daily note.

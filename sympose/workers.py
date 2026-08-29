@@ -193,6 +193,141 @@ class WorkerEngine:
             err_str = str(e)
             yield f"\n⚠️ **Worker Execution Error ({target_model}):** {err_str}"
 
+    @classmethod
+    def execute_worker_task(cls, task: WorkerTask) -> Tuple[str, List[str]]:
+        """Executes worker task and returns (final_deliverable_text, tool_calls_summary_list)."""
+        skills_text = skill_manager.format_skills_for_prompt(task.skills)
+
+        parent_prof = ProfileManager().get_profile(task.parent_agent)
+        allowed_dirs = VaultManager.get_allowed_dirs(parent_prof) if parent_prof else None
+
+        active_clients: Dict[str, MCPClient] = {}
+        tool_to_client: Dict[str, MCPClient] = {}
+        all_litellm_tools: List[Dict[str, Any]] = list(NativeTools.NATIVE_SCHEMAS)
+
+        resolved_mcp_servers = list(task.mcp_servers)
+        for s_name in task.skills:
+            skill = skill_manager.get_skill(s_name)
+            if skill and skill.mcp_servers:
+                for s in skill.mcp_servers:
+                    if s not in resolved_mcp_servers:
+                        resolved_mcp_servers.append(s)
+
+        for server_name in resolved_mcp_servers:
+            client = mcp_registry.get_client(server_name)
+            if client and client.start():
+                active_clients[server_name] = client
+                for t in client.get_litellm_tools():
+                    tool_name = t["function"]["name"]
+                    tool_to_client[tool_name] = client
+                    all_litellm_tools.append(t)
+
+        mv = os.getenv("MASTER_VAULT_PATH")
+        env_lines = [f"- Workspace Directory: `{os.getcwd()}`"] + ([f"- Obsidian Vault Directory: `{mv}`"] if mv else [])
+        repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        tmpl = ""
+        for tp in (os.path.join(repo_root, "prompts", "worker_system.md"), os.path.join("prompts", "worker_system.md")):
+            if os.path.exists(tp):
+                try:
+                    with open(tp, "r", encoding="utf-8") as f:
+                        tmpl = f.read().strip()
+                        break
+                except Exception:
+                    pass
+        if not tmpl:
+            tmpl = "You are an ephemeral Sub-Agent Worker in Sympose on macOS dispatched by parent agent @{{parent_agent}}.\n\n### RUNTIME ENVIRONMENT:\n{{environment}}\n\n### UNIVERSAL OPERATIONAL DIRECTIVES:\n1. GROUND-TRUTH EXECUTION: Use tools directly.\n2. ZERO HAND-WAVING: Output factual deliverables.\n3. RAPID COMPLETION."
+
+        system_prompt = tmpl.replace("{{parent_agent}}", task.parent_agent).replace("{{environment}}", "\n".join(env_lines))
+        if skills_text:
+            system_prompt += f"\n\n{skills_text}"
+        target_model = task.model
+        if not target_model:
+            for s_name in task.skills:
+                s_obj = skill_manager.get_skill(s_name)
+                if s_obj and s_obj.recommended_models:
+                    target_model = s_obj.recommended_models[0]
+                    break
+        target_model = target_model or os.getenv("DEFAULT_MODEL", "gemini/gemini-3.5-flash-lite")
+
+        messages: List[Dict[str, Any]] = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": task.task_prompt},
+        ]
+
+        turn_count = 0
+        final_synthesis = ""
+        tool_calls_executed = []
+
+        try:
+            while turn_count < task.max_tool_turns:
+                turn_count += 1
+                kwargs: Dict[str, Any] = {
+                    "model": target_model,
+                    "messages": messages,
+                    "temperature": task.temperature,
+                    "stream": False,
+                }
+                if all_litellm_tools:
+                    kwargs["tools"] = all_litellm_tools
+                    kwargs["tool_choice"] = "auto"
+
+                for pfx, key in (("gemini/", "GEMINI_API_KEY"), ("anthropic/", "ANTHROPIC_API_KEY"), ("openai/", "OPENAI_API_KEY"), ("openrouter/", "OPENROUTER_API_KEY")):
+                    if target_model.startswith(pfx) and os.getenv(key):
+                        kwargs["api_key"] = os.getenv(key)
+
+                response = litellm.completion(**kwargs)
+                choice = response.choices[0]
+                message = choice.message
+                tool_calls = getattr(message, "tool_calls", None)
+
+                if tool_calls:
+                    messages.append(message.to_dict() if hasattr(message, "to_dict") else dict(message))
+                    for tc in tool_calls:
+                        fn = tc.function if hasattr(tc, "function") else tc.get("function", {})
+                        call_id = tc.id if hasattr(tc, "id") else tc.get("id", "call_1")
+                        t_name = fn.name if hasattr(fn, "name") else fn.get("name", "")
+                        raw_args = fn.arguments if hasattr(fn, "arguments") else fn.get("arguments", {})
+                        if isinstance(raw_args, str):
+                            try:
+                                args_dict = json.loads(raw_args)
+                            except Exception:
+                                args_dict = {}
+                        else:
+                            args_dict = raw_args or {}
+
+                        arg_summary = ", ".join(f"{k}={v}" for k, v in args_dict.items() if k in ("path", "query", "command", "file_path"))
+                        tool_calls_executed.append(f"{t_name}({arg_summary})" if arg_summary else f"{t_name}()")
+
+                        if t_name in ("run_command", "read_file", "web_search"):
+                            ok, tool_res = NativeTools.execute(t_name, args_dict, allowed_dirs=allowed_dirs)
+                        else:
+                            client = tool_to_client.get(t_name)
+                            if client:
+                                ok, tool_res = client.call_tool(t_name, args_dict)
+                            else:
+                                ok, tool_res = False, f"Tool `{t_name}` not registered with active MCP servers."
+
+                        if len(tool_res) > MAX_TOOL_OUTPUT_CHARS:
+                            tool_res = tool_res[:MAX_TOOL_OUTPUT_CHARS] + "\n...[Output truncated for brevity]..."
+
+                        messages.append({
+                            "role": "tool",
+                            "tool_call_id": call_id,
+                            "name": t_name,
+                            "content": tool_res,
+                        })
+                    continue
+                else:
+                    final_synthesis = message.content or ""
+                    break
+
+            if not final_synthesis and turn_count >= task.max_tool_turns:
+                final_synthesis = "⚠️ Worker reached maximum tool turns without completing final synthesis."
+
+            return final_synthesis, tool_calls_executed
+        except Exception as e:
+            return f"⚠️ **Worker Execution Error ({target_model}):** {e}", tool_calls_executed
+
 
 # Singleton worker engine
 worker_engine = WorkerEngine()

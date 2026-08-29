@@ -92,7 +92,8 @@ class CommandInterceptor:
                 # Interactive listing: /history, /history list, /history all
                 is_all = (subcmd in ("all", "--all") or (len(parts) > 2 and parts[2] in ("all", "--all")))
                 target_handle = None if is_all else handle
-                sessions = SessionManager.list_sessions(handle=target_handle, limit=15)
+                active_sid = engine.active_sessions.get(handle.lower())
+                sessions = SessionManager.list_sessions(handle=target_handle, limit=15, active_session_id=active_sid)
 
                 if not sessions:
                     yield f"No past conversations found{' for @' + handle if not is_all else ''}."
@@ -212,6 +213,38 @@ class CommandInterceptor:
                 else:
                     yield "Usage:\n- `/config`: Show active settings\n- `/config set <key> <value>`: Update setting live"
             return _config()
+
+        # 4b. Render Mode Switcher (/render)
+        if clean_input == "/render" or clean_input.startswith("/render "):
+            def _render():
+                parts = clean_input.split()
+                sub = parts[1].lower() if len(parts) > 1 else ""
+                current_mode = str(engine.config.get("performance.render_mode", "hybrid")).lower()
+                console = TerminalUI.get_console()
+
+                if not sub:
+                    chosen = TerminalUI.select_render_mode(console, current_mode)
+                    if chosen:
+                        engine.config.set("performance.render_mode", chosen)
+                        engine.config.save()
+                        yield f"✅ Terminal render mode updated to **`{chosen}`** (persisted to config.yaml)."
+                    else:
+                        yield ""
+                    return
+
+                mode_map = {
+                    "1": "hybrid", "hybrid": "hybrid", "smart": "hybrid",
+                    "2": "buffered", "buffered": "buffered", "full": "buffered", "markdown": "buffered",
+                    "3": "raw", "raw": "raw", "plain": "raw"
+                }
+                if sub in mode_map:
+                    target_mode = mode_map[sub]
+                    engine.config.set("performance.render_mode", target_mode)
+                    engine.config.save()
+                    yield f"✅ Terminal render mode updated to **`{target_mode}`** (persisted to config.yaml)."
+                else:
+                    yield "⚠️ Invalid render mode. Available options: `hybrid`, `buffered`, `raw`."
+            return _render()
 
         # 5. Explicit /remember
         if clean_input.startswith("/remember "):
@@ -335,18 +368,106 @@ class CommandInterceptor:
                     yield f"Model for {profile.get('name', handle)} temporarily set to `{new_model}`.\n*(Run `/model reset` to restore default)*"
             return _model()
 
-        if clean_input.startswith("/vault ") or clean_input.startswith("/backlinks"):
-            def _vault():
+        # 6. Sandboxed Vault & Markdown Explorer (/vault, /read, /view, /open, /backlinks)
+        if clean_input.startswith(("/vault", "/backlinks", "/read", "/view", "/open")):
+            def _vault_ops():
                 raw = clean_input.strip()
+                console = TerminalUI.get_console()
+
+                # 6a. Backlinks lookup
                 if raw.startswith("/vault backlinks") or raw.startswith("/backlinks"):
                     target = raw[16:].strip() if raw.startswith("/vault backlinks") else raw[10:].strip()
                     if not target:
                         yield "Usage: `/vault backlinks <note_name>` or `/backlinks <note_name>`"
                         return
                     yield VaultManager.get_backlinks_digest(profile, target)
+                    return
+
+                # 6b. Open in Obsidian / system editor (/open <#|note> or /vault open <#|note>)
+                if raw.startswith("/vault open ") or raw.startswith("/open "):
+                    target = raw[12:].strip() if raw.startswith("/vault open ") else raw[6:].strip()
+                    if not target:
+                        yield "Usage: `/open <#|note_name>` or `/vault open <#|note_name>`"
+                        return
+                    ok, msg = VaultManager.open_in_obsidian(profile, target)
+                    yield f"✨ {msg}" if ok else f"⚠️ {msg}"
+                    return
+
+                # 6c. Read / View note in boxed terminal panel (/read <#|note> or /view <#|note> or /vault read <#|note>)
+                if raw.startswith(("/read ", "/view ", "/vault read ")):
+                    if raw.startswith("/vault read "):
+                        target = raw[12:].strip()
+                    elif raw.startswith("/read "):
+                        target = raw[6:].strip()
+                    else:
+                        target = raw[6:].strip()
+
+                    if not target:
+                        yield "Usage: `/read <#|note_name>` or `/view <#|note_name>`"
+                        return
+
+                    rel_path, abs_path = VaultManager.resolve_note_target(profile, target)
+                    if not rel_path:
+                        yield f"⚠️ Note `{target}` not found in allowed vault folders."
+                        return
+
+                    content = VaultManager.read_note(profile, rel_path)
+                    cached = VaultManager.get_last_search(profile)
+                    if console:
+                        if cached and target.isdigit() and 1 <= int(target) <= len(cached):
+                            TerminalUI.interactive_vault_browser(console, profile, "Search", cached, initial_index=int(target))
+                        else:
+                            TerminalUI.render_vault_note_panel(console, rel_path, content, abs_path=abs_path)
+                        yield ""
+                    else:
+                        yield f"### 📄 Note: `{rel_path}`\n\n{content}"
+                    return
+
+                # 6d. Re-display previous search results (/vault, /vault back, /vault list, /vaults)
+                if raw in ("/vault", "/vaults", "/vault back", "/vault list", "/vault prev"):
+                    cached = VaultManager.get_last_search(profile)
+                    if not cached:
+                        yield "No previous search results found in session. Run `/vault <query>` to search."
+                        return
+                    if console:
+                        TerminalUI.interactive_vault_browser(console, profile, "Previous Search", cached)
+                        yield ""
+                    else:
+                        yield VaultManager.format_search_digest("Previous Search", cached)
+                    return
+
+                # 6e. Direct search query or number selection (/vault <query> or /vault <#>)
+                query = raw[7:].strip() if raw.startswith("/vault ") else raw[6:].strip()
+                if not query:
+                    cached = VaultManager.get_last_search(profile)
+                    if cached and console:
+                        TerminalUI.interactive_vault_browser(console, profile, "Previous Search", cached)
+                        yield ""
+                    else:
+                        yield "Usage: `/vault <query>` or `/vault backlinks <note>` or `/vault back`"
+                    return
+
+                cached = VaultManager.get_last_search(profile)
+                if query.isdigit() and cached:
+                    idx = int(query)
+                    if 1 <= idx <= len(cached):
+                        if console:
+                            TerminalUI.interactive_vault_browser(console, profile, "Search", cached, initial_index=idx)
+                            yield ""
+                        else:
+                            item = cached[idx - 1]
+                            content = VaultManager.read_note(profile, item["rel_path"])
+                            yield f"### 📄 Note: `{item['rel_path']}`\n\n{content}"
+                        return
+
+                results = VaultManager.search_structured(profile, query)
+                if console:
+                    TerminalUI.interactive_vault_browser(console, profile, query, results)
+                    yield ""
                 else:
-                    yield VaultManager.search(profile, clean_input[7:].strip())
-            return _vault()
+                    yield VaultManager.format_search_digest(query, results)
+
+            return _vault_ops()
 
         if clean_input.startswith("/note "):
             def _note():
@@ -602,6 +723,7 @@ class CommandInterceptor:
                     "- `/worker <skill|mcp> <task>` — Dispatch ephemeral sub-agent worker\n"
                     "- `/ask <@handle> <task>` — Delegate isolated sub-task to a peer\n\n"
                     "### ⚙️  RUNTIME SETTINGS\n"
+                    "- `/render [hybrid|buffered|raw]` — Switch terminal render mode (interactive menu or direct)\n"
                     "- `/config` — View active runtime settings & performance knobs\n"
                     "- `/config set <key> <val>` — Live-tune knobs (e.g. `/config set performance.max_context_turns 20`)\n"
                     "- `/delete @<handle>` — Safely archive & retire an agent persona\n"

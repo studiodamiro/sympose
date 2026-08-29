@@ -42,7 +42,10 @@ Sympose intercepts slash commands directly in the REPL execution loop, executing
 | :--- | :--- | :--- |
 | `/note` | `<file.md> <content>` | Creates or appends Markdown content into the persona's sandboxed vault folder. |
 | `/daily` | `<reflection text>` | Appends timestamped reflection to `Daily Notes/YYYY-MM-DD.md` in your vault. |
-| `/vault` | `<query>` | Performs fast search over notes in the active persona's domain folder. |
+| `/vault` | `<query>` | Performs structured search over whitelisted vault folders and opens the interactive reader. |
+| `/vault back` / `/vault list` | *(none)* | Re-displays the last search results list without re-running search queries. |
+| `/read` / `/view` | `<#\|name>` | Renders a note in-terminal inside the stylized `MultiSectionPanel` box with frontmatter styling. |
+| `/open` / `/vault open` | `<#\|name>` | Launches the note directly in the Obsidian desktop application via OS handler. |
 | `/vault backlinks` | `<note_name>` | Instantly inspects incoming backlinks/references with line numbers and snippets (also `/backlinks <note>`). |
 
 ---
@@ -61,3 +64,14 @@ Sympose intercepts slash commands directly in the REPL execution loop, executing
 | `/worker` | `<skill\|mcp> <task>` | Dispatches an ephemeral sub-agent worker sandbox with skills and MCP tools. |
 | `/ask` | `<@peer> <prompt>` | Spawns an isolated sub-agent task to a peer agent without polluting active context. |
 | `/help` | *(none)* | Displays command cheat sheet and active shortcuts. |
+
+---
+
+## 5. Keyboard & Signal Shortcuts
+
+| Shortcut | Context | Behavior |
+| :--- | :--- | :--- |
+| `Ctrl + C` | During Thinking / Streaming | Immediately aborts active LLM token stream / spinner, prints `^C [Interrupted]`, and preserves session. |
+| `Ctrl + C` | During Slash Commands | Cancels active tool/search command without exiting the CLI. |
+| `Ctrl + C` | At Input Prompt | Clears the current input line without exiting the session. |
+| `Ctrl + D` | At Input Prompt | Cleanly exits the session and triggers memory persistence. |

@@ -45,7 +45,7 @@ tags:
 
 ---
 
-## 2. Small-to-Big Anchor Parsing (Tier 1 Extraction)
+## 3. Small-to-Big Anchor Parsing (Tier 1 Extraction)
 
 Do not ingest full unstructured transcripts when targeted sections are available:
 1. **YAML Frontmatter**: Extract `entry:`, `type:`, `project:`, `agent:`, `tags:`.
@@ -57,21 +57,29 @@ Do not ingest full unstructured transcripts when targeted sections are available
 
 ---
 
-## 3. High-Density Synthesis Format
+## 4. Context-Adaptive Output Modes
 
-Deliver historical findings in a structured, actionable format:
+Deliver findings dynamically based on the specific goal of the inquiry—**do NOT force an artificial "Historical Timeline" template when simple note retrieval was requested**:
 
+### Mode A: Direct Note Retrieval (Single Note Inspection)
+When asked to pull up, inspect, or present a specific note:
+- Quote the verbatim Markdown content directly with primary source metadata (Path, Created/Updated date).
+- Do not append empty or irrelevant "Timeline" headings.
+
+### Mode B: Multi-Note Historical Synthesis & Timeline
+When investigating a multi-month initiative, milestone evolution, or decision history across multiple notes:
 ```markdown
-### 🗓️ Historical Context & Timeline: [Topic / Project Name]
+### 🗓️ Historical Synthesis: [Topic / Project Name]
 
 #### Primary Sources:
-- `Projects/SampleProject/Technical/TECH_DEBT.md` (Updated: 2026-08-20)
+- `Projects/SampleProject/TECH_DEBT.md` (2026-08-20)
 - `Daily/2026/08-August/2026-08-15.md` (2026-08-15)
 
-#### Key Decisions & Findings:
+#### Key Decisions & Chronology:
 1. **[Decision 1]**: Summary of what was agreed upon and why.
 2. **[Decision 2]**: Specific architectural choice or constraint identified.
-
-#### Open Items / Current State:
-- [ ] Remaining action item from past notes.
 ```
+
+### Mode C: Targeted Fact / Snippet Lookup
+When answering a specific factual question from notes (e.g. *"what was the database port?"*):
+- Deliver the direct answer and exact quotation immediately without boilerplate wrapper headings.

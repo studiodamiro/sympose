@@ -62,7 +62,7 @@ class HeuristicGatedExtractor:
                 model = config.get("session.exit_behavior.summarization_model") or os.getenv("DEFAULT_MODEL", "gemini/gemini-3.6-flash")
                 tmpl = _load_prompt_tmpl("memory_extraction.md", "You are the silent memory archivist for Sympose AI.\nUser message: {{user_message}}\nAssistant reply: {{assistant_reply}}\n\nEvaluate if the user shared a DURABLE fact.\nIf NO: Output 'NONE'.\nIf YES: Output 1 bullet point '- '.")
                 prompt = tmpl.replace("{{user_message}}", user_message).replace("{{assistant_reply}}", assistant_reply)
-                kwargs = {"model": model, "messages": [{"role": "user", "content": prompt}], "stream": False, "timeout": 5.0}
+                kwargs = {"model": model, "messages": [{"role": "user", "content": prompt}], "stream": False, "timeout": float(config.get("performance.request_timeout", 30.0))}
                 for pfx, key in (("gemini/", "GEMINI_API_KEY"), ("anthropic/", "ANTHROPIC_API_KEY"), ("openai/", "OPENAI_API_KEY"), ("openrouter/", "OPENROUTER_API_KEY")):
                     if model.startswith(pfx) and os.getenv(key):
                         kwargs["api_key"] = os.getenv(key)
@@ -103,7 +103,7 @@ class SessionArchivist:
                 "model": summarization_model,
                 "messages": [{"role": "user", "content": prompt}],
                 "stream": False,
-                "timeout": float(self.config.get("performance.request_timeout", 10.0)),
+                "timeout": float(self.config.get("performance.request_timeout", 30.0)),
             }
             if summarization_model.startswith("gemini/") and os.getenv("GEMINI_API_KEY"):
                 kwargs["api_key"] = os.getenv("GEMINI_API_KEY")
@@ -143,7 +143,7 @@ class SessionArchivist:
                     results["memory_content"] = memory_part
 
             if target in ("obsidian", "both") and obsidian_part:
-                subfolder = self.config.get("session.exit_behavior.obsidian_subfolder", "Sessions")
+                subfolder = self.config.get("session.obsidian_subfolder") or self.config.get("session.exit_behavior.obsidian_subfolder", "Sessions")
                 save_msg = VaultManager.write_session_note(profile, obsidian_part, subfolder=subfolder)
                 results["targets_saved"].append(save_msg)
                 results["obsidian_content"] = obsidian_part

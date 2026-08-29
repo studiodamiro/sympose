@@ -15,7 +15,7 @@ def create_app(engine: Any) -> FastAPI:
     """Factory creating the FastAPI application bound to a PersonaEngine instance."""
     app = FastAPI(
         title="Sympose Multi-Model Agent Hub API",
-        version="0.2.22",
+        version="0.2.23",
         description="FastAPI REST API & Standalone Vault Gateway for Sympose",
         docs_url="/docs",
         redoc_url="/redoc",
@@ -29,11 +29,11 @@ def create_app(engine: Any) -> FastAPI:
         allow_headers=["*"],
     )
 
-    @app.get("/api/health")
+    @app.get("/health", tags=["System"])
     def health_check() -> Dict[str, Any]:
         return {
             "status": "healthy",
-            "version": "0.2.22",
+            "version": "0.2.23",
             "active_personas": list(engine.pm.profiles.keys()),
             "default_persona": engine.config.get("runtime.default_persona", "samantha"),
         }

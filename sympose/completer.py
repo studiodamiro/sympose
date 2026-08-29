@@ -31,6 +31,7 @@ class SymposeCompleter:
         "/daily",
         "/remember",
         "/compact",
+        "/skill",
         "/skills",
         "/tools",
         "/worker",
@@ -89,6 +90,14 @@ class SymposeCompleter:
         except Exception:
             return [f"@{h}" for h in getattr(getattr(self.engine, "pm", None), "profiles", {}).keys()] or []
 
+    def get_skills(self) -> List[str]:
+        """Returns list of all available skill names."""
+        try:
+            skill_manager.reload_skills()
+            return list(skill_manager.skills.keys())
+        except Exception:
+            return []
+
     def get_worker_targets(self) -> List[str]:
         """Returns combined list of procedural skills and MCP servers."""
         targets = []
@@ -125,6 +134,26 @@ class SymposeCompleter:
             if len(tokens) == 1 or (len(tokens) == 2 and not line_l.endswith(" ")):
                 targets = self.get_worker_targets()
                 return [t for t in targets if t.startswith(text)]
+
+        # /skill, /skills, /tools -> subcommands, skill names, and @personas
+        if cmd in ("/skill", "/skills", "/tools"):
+            skill_subcmds = ["list", "add", "remove", "show"]
+            all_skills = self.get_skills()
+
+            # Subcommand completion: "/skill " or "/skill a"
+            if len(tokens) == 1 or (len(tokens) == 2 and not line_l.endswith(" ")):
+                options = skill_subcmds + all_skills
+                return [opt for opt in options if opt.startswith(text)]
+
+            sub = tokens[1].lower() if len(tokens) > 1 else ""
+
+            # Skill name completion: "/skill add ", "/skill show ", "/skill remove "
+            if sub in ("add", "mount", "install", "show", "view", "info", "remove", "unmount", "uninstall", "rm"):
+                if len(tokens) == 2 or (len(tokens) == 3 and not line_l.endswith(" ")):
+                    return [s for s in all_skills if s.startswith(text)]
+                # Persona handle completion: "/skill add git_workflow @"
+                if len(tokens) >= 3 and sub in ("add", "mount", "install", "remove", "unmount", "uninstall", "rm"):
+                    return [p for p in self.get_personas() if p.startswith(text) or p.lstrip("@").startswith(text)]
 
         # /save -> both, memory, obsidian
         if cmd == "/save":

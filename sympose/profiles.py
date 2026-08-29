@@ -3,7 +3,7 @@ Dynamic Profile, Soul & Tiered Memory Manager for Sympose.
 """
 
 import os, sys, glob, re, datetime
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional, Any, Tuple
 import yaml
 
 from sympose.skills import skill_manager
@@ -20,6 +20,48 @@ class ProfileManager:
             self.profiles_dir = os.path.abspath(os.path.join(resolve_workspace_dir(), "profiles"))
         self.profiles: Dict[str, Dict[str, Any]] = {}
         self.reload_profiles()
+
+    def update_persona_skills(self, handle: str, skill_name: str, action: str = "add") -> Tuple[bool, str]:
+        """Adds or removes a skill from a persona's YAML manifest and reloads profiles."""
+        h = handle.lower().replace("@", "").strip()
+        yaml_file = os.path.join(self.profiles_dir, f"{h}.yaml")
+        if not os.path.exists(yaml_file):
+            return False, f"Profile manifest `{yaml_file}` not found."
+
+        try:
+            with open(yaml_file, "r", encoding="utf-8") as f:
+                data = yaml.safe_load(f)
+            if not isinstance(data, dict):
+                return False, f"Invalid YAML structure in `{yaml_file}`."
+
+            current_skills = list(data.get("skills") or [])
+            norm_skill = skill_name.strip().lower()
+
+            if action in ("add", "mount", "install"):
+                if norm_skill in current_skills:
+                    return True, f"Skill `{norm_skill}` is already equipped on `@{h}`."
+                current_skills.append(norm_skill)
+                data["skills"] = current_skills
+                with open(yaml_file, "w", encoding="utf-8") as f:
+                    yaml.dump(data, f, default_flow_style=False, sort_keys=False)
+                self.reload_profiles()
+                p_name = data.get("name", h)
+                return True, f"Mounted skill `{norm_skill}` to {p_name} (`@{h}`)."
+
+            elif action in ("remove", "unmount", "uninstall", "rm"):
+                if norm_skill not in current_skills:
+                    return False, f"Skill `{norm_skill}` is not mounted on `@{h}`."
+                current_skills.remove(norm_skill)
+                data["skills"] = current_skills
+                with open(yaml_file, "w", encoding="utf-8") as f:
+                    yaml.dump(data, f, default_flow_style=False, sort_keys=False)
+                self.reload_profiles()
+                p_name = data.get("name", h)
+                return True, f"Unmounted skill `{norm_skill}` from {p_name} (`@{h}`)."
+
+            return False, f"Unknown action `{action}` (use 'add' or 'remove')."
+        except Exception as e:
+            return False, f"Failed to update `{yaml_file}`: {e}"
 
     def bootstrap_missing_artifacts(self, profile: Dict[str, Any]) -> None:
         """Generates soul, memory, universal user card, and shared team memory from .example templates if absent."""

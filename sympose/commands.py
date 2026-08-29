@@ -287,17 +287,103 @@ class CommandInterceptor:
                     yield chunk
             return _ask()
 
-        # 7. Skills & MCP Inspection (/skills)
-        if clean_input in ("/skills", "/tools"):
+        # 7. Skills & MCP Inspection & Management (/skill, /skills, /tools)
+        if clean_input.startswith(("/skill", "/skills", "/tools")):
             def _skills():
+                parts = clean_input.split()
+                sub = parts[1].lower() if len(parts) > 1 else "list"
+
+                # 7a. Show / View / Info on a specific skill
+                if sub in ("show", "view", "info"):
+                    if len(parts) < 3:
+                        yield "Usage: `/skill show <skill_name>` (e.g. `/skill show git_workflow`)"
+                        return
+                    s_name = parts[2].lower()
+                    skill = skill_manager.get_skill(s_name)
+                    if not skill:
+                        yield f"⚠️ Skill `{s_name}` not found. Run `/skill list` to see all available skills."
+                        return
+                    tags_str = f"- **Tags:** `{', '.join(skill.tags)}`\n" if skill.tags else ""
+                    mcp_str = f"- **MCP Dependencies:** `{', '.join(skill.mcp_servers)}`\n" if skill.mcp_servers else ""
+                    models_str = f"- **Recommended Models:** `{', '.join(skill.recommended_models)}`\n" if skill.recommended_models else ""
+                    yield (
+                        f"# 📦  SKILL: {skill.title.upper()} (`{skill.name}`)\n\n"
+                        f"- **Description:** *{skill.description or 'No description'}*\n"
+                        f"- **File:** `{skill.filepath}`\n"
+                        f"{tags_str}{mcp_str}{models_str}\n"
+                        f"---\n\n"
+                        f"### 📋 Playbook Directives:\n\n"
+                        f"{skill.content}\n\n"
+                        f"---\n"
+                        f"*To mount to active persona:* `/skill add {skill.name}`\n"
+                        f"*To mount to specific agent:* `/skill add {skill.name} @<handle>`"
+                    )
+                    return
+
+                # 7b. Add / Mount / Install skill to persona
+                if sub in ("add", "mount", "install"):
+                    if len(parts) < 3:
+                        yield "Usage: `/skill add <skill_name> [@handle]`\nExample: `/skill add git_workflow @rosalind`"
+                        return
+                    s_name = parts[2].lower()
+                    t_handle = parts[3].replace("@", "").lower() if len(parts) > 3 else handle.lower()
+                    skill = skill_manager.get_skill(s_name)
+                    if not skill:
+                        yield f"⚠️ Warning: Skill `{s_name}` is not indexed in `skills/` or builtin skills. (Run `/skill list` to view available skills)."
+                    ok, msg = engine.pm.update_persona_skills(t_handle, s_name, action="add")
+                    yield f"✅ {msg}" if ok else f"⚠️ {msg}"
+                    return
+
+                # 7c. Remove / Unmount / Uninstall skill from persona
+                if sub in ("remove", "unmount", "uninstall", "rm"):
+                    if len(parts) < 3:
+                        yield "Usage: `/skill remove <skill_name> [@handle]`\nExample: `/skill remove git_workflow @rosalind`"
+                        return
+                    s_name = parts[2].lower()
+                    t_handle = parts[3].replace("@", "").lower() if len(parts) > 3 else handle.lower()
+                    ok, msg = engine.pm.update_persona_skills(t_handle, s_name, action="remove")
+                    yield f"✅ {msg}" if ok else f"⚠️ {msg}"
+                    return
+
+                # 7d. Shortcut: Direct skill name lookup (e.g. `/skill git_workflow`)
+                if sub not in ("list", "ls") and (direct_skill := skill_manager.get_skill(sub)):
+                    tags_str = f"- **Tags:** `{', '.join(direct_skill.tags)}`\n" if direct_skill.tags else ""
+                    yield (
+                        f"# 📦  SKILL: {direct_skill.title.upper()} (`{direct_skill.name}`)\n\n"
+                        f"- **Description:** *{direct_skill.description or 'No description'}*\n"
+                        f"- **File:** `{direct_skill.filepath}`\n"
+                        f"{tags_str}\n"
+                        f"---\n\n"
+                        f"### 📋 Playbook Directives:\n\n"
+                        f"{direct_skill.content}\n\n"
+                        f"---\n"
+                        f"*To mount to active persona:* `/skill add {direct_skill.name}`\n"
+                        f"*To mount to specific agent:* `/skill add {direct_skill.name} @<handle>`"
+                    )
+                    return
+
+                # 7e. Default: List all skills and active personas
                 loaded_skills = skill_manager.list_skills()
+                engine.pm.reload_profiles()
+                equipped_map: Dict[str, list] = {}
+                for p_h, p_data in engine.pm.profiles.items():
+                    for sk in (p_data.get("skills") or []):
+                        equipped_map.setdefault(sk.lower(), []).append(f"@{p_h}")
+
+                curr_skills = profile.get("skills") or []
+                curr_sk_str = ", ".join(f"`{s}`" for s in curr_skills) if curr_skills else "*None*"
+
                 lines = [
                     "# 🛠️  INSTALLED SKILLS & MCP TOOL SERVERS\n",
-                    "### 📦  PROCEDURAL SKILL PLAYBOOKS (`skills/`)"
+                    f"### 👤  ACTIVE PERSONA: {profile.get('name', handle)} (`@{handle}`)",
+                    f"- **Equipped Skills:** {curr_sk_str}\n",
+                    "### 📦  AVAILABLE PROCEDURAL SKILL PLAYBOOKS (`skills/`)"
                 ]
                 if loaded_skills:
                     for s in loaded_skills:
-                        lines.append(f"- **`{s['name']}`**: {s['title']} — *{s['description'] or 'No description'}*")
+                        eq_list = equipped_map.get(s["name"].lower(), [])
+                        eq_str = f" *(Equipped: {', '.join(eq_list)})*" if eq_list else ""
+                        lines.append(f"- **`{s['name']}`**: {s['title']} — *{s['description'] or 'No description'}*{eq_str}")
                 else:
                     lines.append("- *No skill playbooks found in `skills/`.*")
 
@@ -308,6 +394,13 @@ class CommandInterceptor:
                         lines.append(f"- **`{name}`**: `{cmd_str}`")
                 else:
                     lines.append("- *No MCP servers configured.*")
+
+                lines.append("\n### 💡  SKILL MANAGEMENT COMMANDS")
+                lines.append("- Mount skill to active agent: `/skill add <skill_name>`")
+                lines.append("- Mount skill to specific agent: `/skill add <skill_name> @<handle>`")
+                lines.append("- Unmount skill from agent: `/skill remove <skill_name> [@handle]`")
+                lines.append("- Inspect playbook directives: `/skill show <skill_name>`")
+                lines.append("- Run one-off task with skill: `/worker <skill_name> <task prompt>`")
 
                 yield "\n".join(lines)
             return _skills()
@@ -413,7 +506,10 @@ class CommandInterceptor:
                     "- `/compact [shared|@handle]` — Consolidate duplicate memory bullets\n"
                     "- `/save [memory|obsidian|both]` — Manually trigger session summary\n\n"
                     "### 🛠️  SUB-AGENTS & TOOLS\n"
-                    "- `/skills` or `/tools` — Inspect indexed skill playbooks and MCP servers\n"
+                    "- `/skills` or `/skill [list]` — Inspect indexed skill playbooks and active mounts\n"
+                    "- `/skill add <name> [@handle]` — Mount skill to active agent (or @handle)\n"
+                    "- `/skill remove <name> [@handle]` — Unmount skill from agent\n"
+                    "- `/skill show <name>` — Inspect playbook directives & markdown source\n"
                     "- `/worker <skill|mcp> <task>` — Dispatch ephemeral sub-agent worker\n"
                     "- `/ask <@handle> <task>` — Delegate isolated sub-task to a peer\n\n"
                     "### ⚙️  RUNTIME SETTINGS\n"

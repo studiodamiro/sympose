@@ -198,6 +198,12 @@ This master document serves as the top-level index and Table of Contents.
   * Tiered manifest caching in Python RAM with incremental `st_mtime` invalidation, GPU InstancedMesh single-draw-call rendering, and automatic physics equilibrium sleeping to achieve sub-5ms latency and <165MB total system RAM usage.
 * **[ADR-053 (2026-08-29): Cross-Platform Native Desktop Launchers & Zero-Bloat Frameless App-Mode Wrappers](journal/2026-08/2026-08-29_web_dashboard_ui_ux_and_3d_knowledge_nebula.md#adr-053-cross-platform-native-desktop-launchers--zero-bloat-frameless-app-mode-wrappers):**
   * Universal cross-platform desktop integration (macOS `/Applications/Sympose.app` with Spotlight `Cmd+Space` & Dock; Windows `Sympose.lnk` with Start Menu & Taskbar; Linux `sympose.desktop`) launching native browser engines in frameless App Mode with <60 KB launcher overhead.
+* **[ADR-054 (2026-08-29): Zero-Bloat Conversation Persistence (`.jsonl`), Decoupled UI History & Sliding Context Window Hydration](journal/2026-08/2026-08-29_conversation_history_and_session_resumption.md#adr-054-zero-bloat-conversation-persistence-jsonl-decoupled-ui-history--sliding-context-window-hydration):**
+  * Decoupled verbatim local JSON Lines conversation storage (`~/.sympose/sessions/`) from active LLM context hydration (capped to the last 6 turns / 3 dialogue pairs), delivering full `/history` continuity with sub-second TTFT and penny token usage.
+* **[ADR-055 (2026-08-29): Milestone-Based Asynchronous Titling & Generic Prompt Filtering](journal/2026-08/2026-08-29_conversation_history_and_session_resumption.md#adr-055-milestone-based-asynchronous-titling--generic-prompt-filtering):**
+  * 3-tier milestone titling pipeline (Turn 1 greeting filter $\rightarrow$ Turn 3 one-shot background synthesis $\rightarrow$ exit sync) achieving high semantic accuracy with zero title thrashing and near-zero token overhead (<$0.000005).
+* **[ADR-056 (2026-08-29): Retirement of Automated Vault Session Dumping in Favor of Native History Sovereignty](journal/2026-08/2026-08-29_conversation_history_and_session_resumption.md#adr-056-retirement-of-automated-vault-session-dumping-in-favor-of-native-history-sovereignty):**
+  * Retired automated `Sessions/` markdown dumping to protect the user's sovereign Obsidian vault from machine-generated clutter, clarifying the 3-tier boundary between cognitive working memory (`_memory.md`), verbatim chat transcripts (`.jsonl`), and intentional vault notes (`Projects/`, `Daily/`, `Thoughts/`).
 
 
 

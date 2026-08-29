@@ -45,7 +45,7 @@ class TerminalInterface:
         name = profile.get("name", handle) if profile else handle
 
         auto_save = bool(self.config.get("session.exit_behavior.auto_save", False))
-        default_target = str(self.config.get("session.exit_behavior.default_target", "both")).lower()
+        default_target = str(self.config.get("session.exit_behavior.default_target", "memory")).lower()
         clear_term = bool(self.config.get("session.exit_behavior.clear_terminal", True))
 
         if history:

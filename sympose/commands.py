@@ -179,6 +179,7 @@ class CommandInterceptor:
                         "### ⚡  PERFORMANCE & STREAMING\n"
                         f"- `performance.request_timeout`: `{cfg.get('performance.request_timeout')}s`\n"
                         f"- `performance.max_context_turns`: `{cfg.get('performance.max_context_turns')} turns`\n"
+                        f"- `performance.resume_context_turns`: `{cfg.get('performance.resume_context_turns', 6)} turns`\n"
                         f"- `performance.max_worker_tool_turns`: `{cfg.get('performance.max_worker_tool_turns')} turns`\n"
                         f"- `performance.stream`: `{cfg.get('performance.stream')}`\n\n"
                         "### 💾  SESSION & MEMORY ARCHIVAL\n"

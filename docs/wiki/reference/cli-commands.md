@@ -54,7 +54,10 @@ Sympose intercepts slash commands directly in the REPL execution loop, executing
 | `/config` | *(none)* | Displays current `config.yaml` parameters and active runtime values. |
 | `/config set` | `<key> <value>` | Dynamically updates a configuration value live in-session. |
 | `/model` | `[name\|reset\|list\|find <q>\|refresh]` | Inspects active model, searches OpenRouter catalog, switches models, or resets to default. |
-| `/skills` / `/tools` | *(none)* | Inspects loaded skill playbooks (`skills/`) and active MCP servers (`config.yaml`). |
+| `/skills` / `/skill` | `[list]` | Inspects loaded skill playbooks (`skills/`), active agent mounts, and MCP servers (`config.yaml`). |
+| `/skill add` | `<name> [@handle]` | Equips skill to active persona (or target `@handle`) and persists to YAML manifest (`/skill mount`, `/skill install`). |
+| `/skill remove` | `<name> [@handle]` | Unmounts skill from active persona (or target `@handle`) and persists to YAML (`/skill unmount`, `/skill rm`). |
+| `/skill show` | `<name>` | Previews markdown playbook directives and metadata for a skill (`/skill view`, `/skill info`). |
 | `/worker` | `<skill\|mcp> <task>` | Dispatches an ephemeral sub-agent worker sandbox with skills and MCP tools. |
 | `/ask` | `<@peer> <prompt>` | Spawns an isolated sub-agent task to a peer agent without polluting active context. |
 | `/help` | *(none)* | Displays command cheat sheet and active shortcuts. |

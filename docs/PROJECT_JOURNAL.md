@@ -184,6 +184,10 @@ This master document serves as the top-level index and Table of Contents.
   * Unified semantic color tokens, `box.ROUNDED` card containers, and Rich Markdown rendering across `/help`, `/model`, `/config`, `/switch`, and `/skills`.
 * **[ADR-048 (2026-08-29): Dynamic 3-Tier Model Hierarchy & Fallback Architecture](journal/2026-08/2026-08-29_sovereign_packaging_and_cli_design_system.md#adr-048-dynamic-3-tier-model-hierarchy--runtime-fallback-architecture):**
   * 3-Tier resolution (System `DEFAULT_MODEL` $\rightarrow$ Persona `model:` $\rightarrow$ Session Summarizer / In-Session `/model` override) with zero hardcoded model lock-in.
+* **[ADR-049 (2026-08-29): Robust Code-Fence Action Tag Parsing & Runtime Model Cache Fix](journal/2026-08/2026-08-29_skill_command_suite_and_action_parser_hardening.md#adr-049-robust-code-fence-action-tag-parsing--dynamic-cache-resolution):**
+  * Unmasked tag extraction across full output buffers ensuring fenced `[CREATE_PERSONA]` tags execute reliably, cleaned residual markdown code fences from stream, and fixed dynamic OpenRouter model catalog cache file path.
+* **[ADR-050 (2026-08-29): Interactive Skill Command Suite (`/skill` & `/skills`) with Tab Auto-Completion](journal/2026-08/2026-08-29_skill_command_suite_and_action_parser_hardening.md#adr-050-interactive-skill-command-suite-skill--skills-with-tab-auto-completion):**
+  * Built interactive `/skill` and `/skills` suite (`list`, `show`, `add`/`mount`, `remove`/`unmount`), dynamic YAML manifest mutation via `ProfileManager.update_persona_skills()`, and context-aware multi-argument Tab auto-completion.
 
 ---
 

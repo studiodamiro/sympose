@@ -22,6 +22,7 @@ DEFAULT_CONFIG_YAML = """# Sympose Master Configuration
 performance:
   request_timeout: 10.0
   max_context_turns: 15
+  resume_context_turns: 6
   sub_second_streaming: true
 
 runtime:
@@ -138,10 +139,12 @@ def ensure_workspace(workspace_dir: str) -> bool:
     profiles_dir = os.path.join(workspace_dir, "profiles")
     prompts_dir = os.path.join(workspace_dir, "prompts")
     skills_dir = os.path.join(workspace_dir, "skills")
+    sessions_dir = os.path.join(workspace_dir, "sessions")
 
     os.makedirs(profiles_dir, exist_ok=True)
     os.makedirs(prompts_dir, exist_ok=True)
     os.makedirs(skills_dir, exist_ok=True)
+    os.makedirs(sessions_dir, exist_ok=True)
 
     is_fresh = False
 

@@ -47,6 +47,10 @@ This master document serves as the top-level index and Table of Contents.
 | **2026-08-27** | Modular Vault Writing, Obsidian Template Integration, Wikilinks Taxonomy & Live Web Search (ADR-039 – ADR-043) | Complete | [`2026-08-27_vault_write_obsidian_templates_and_live_web_search.md`](journal/2026-08/2026-08-27_vault_write_obsidian_templates_and_live_web_search.md) |
 | **2026-08-27** | In-Memory Inverted Index & Deterministic Backlink Lookup Engine (ADR-044) | Complete | [`2026-08-27_backlink_lookup_engine_and_inverted_index.md`](journal/2026-08/2026-08-27_backlink_lookup_engine_and_inverted_index.md) |
 | **2026-08-29** | Standalone Python Packaging, Sovereign User Workspace & Standardized CLI Design System (ADR-045 – ADR-048) | Complete | [`2026-08-29_sovereign_packaging_and_cli_design_system.md`](journal/2026-08/2026-08-29_sovereign_packaging_and_cli_design_system.md) |
+| **2026-08-29** | Robust Code-Fence Action Parser Hardening & Interactive `/skill` Suite (ADR-049 – ADR-050) | Complete | [`2026-08-29_skill_command_suite_and_action_parser_hardening.md`](journal/2026-08/2026-08-29_skill_command_suite_and_action_parser_hardening.md) |
+| **2026-08-29** | Web Dashboard UI/UX Specification, 2D/3D Knowledge Nebula, shadcn Theme Engine & Native Desktop Launchers (ADR-051 – ADR-053) | Complete | [`2026-08-29_web_dashboard_ui_ux_and_3d_knowledge_nebula.md`](journal/2026-08/2026-08-29_web_dashboard_ui_ux_and_3d_knowledge_nebula.md) |
+
+
 
 ---
 
@@ -188,6 +192,14 @@ This master document serves as the top-level index and Table of Contents.
   * Unmasked tag extraction across full output buffers ensuring fenced `[CREATE_PERSONA]` tags execute reliably, cleaned residual markdown code fences from stream, and fixed dynamic OpenRouter model catalog cache file path.
 * **[ADR-050 (2026-08-29): Interactive Skill Command Suite (`/skill` & `/skills`) with Tab Auto-Completion](journal/2026-08/2026-08-29_skill_command_suite_and_action_parser_hardening.md#adr-050-interactive-skill-command-suite-skill--skills-with-tab-auto-completion):**
   * Built interactive `/skill` and `/skills` suite (`list`, `show`, `add`/`mount`, `remove`/`unmount`), dynamic YAML manifest mutation via `ProfileManager.update_persona_skills()`, and context-aware multi-argument Tab auto-completion.
+* **[ADR-051 (2026-08-29): Flat Architectural Web Dashboard, 2D/3D Knowledge Nebula & shadcn Theme Customizer Engine](journal/2026-08/2026-08-29_web_dashboard_ui_ux_and_3d_knowledge_nebula.md#adr-051-flat-architectural-web-dashboard-2d3d-knowledge-nebula--shadcn-theme-customizer-engine):**
+  * Established flat architectural design standard, dual 2D vector / 3D WebGL ambient background engine, two-state Explore/Focus interaction mode, full Obsidian graph control suite parity, and dynamic shadcn theme/style customizer (styles, radius, light/dark, icon libraries).
+* **[ADR-052 (2026-08-29): In-Memory Metadata Caching & Sub-5ms Scalability Standard for Multi-Thousand Note Vaults](journal/2026-08/2026-08-29_web_dashboard_ui_ux_and_3d_knowledge_nebula.md#adr-052-in-memory-metadata-caching--sub-5ms-scalability-standard-for-multi-thousand-note-vaults):**
+  * Tiered manifest caching in Python RAM with incremental `st_mtime` invalidation, GPU InstancedMesh single-draw-call rendering, and automatic physics equilibrium sleeping to achieve sub-5ms latency and <165MB total system RAM usage.
+* **[ADR-053 (2026-08-29): Cross-Platform Native Desktop Launchers & Zero-Bloat Frameless App-Mode Wrappers](journal/2026-08/2026-08-29_web_dashboard_ui_ux_and_3d_knowledge_nebula.md#adr-053-cross-platform-native-desktop-launchers--zero-bloat-frameless-app-mode-wrappers):**
+  * Universal cross-platform desktop integration (macOS `/Applications/Sympose.app` with Spotlight `Cmd+Space` & Dock; Windows `Sympose.lnk` with Start Menu & Taskbar; Linux `sympose.desktop`) launching native browser engines in frameless App Mode with <60 KB launcher overhead.
+
+
 
 ---
 

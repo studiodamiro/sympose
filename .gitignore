@@ -51,4 +51,6 @@ profiles/_archived/
 profiles/samantha_memory.md
 profiles/grace_memory.md
 profiles/aurelius_memory.md
+sessions/
+*.jsonl
 !*.example

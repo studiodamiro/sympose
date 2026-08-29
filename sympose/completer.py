@@ -19,6 +19,8 @@ class SymposeCompleter:
     """Provides context-aware Tab completion and history navigation for Sympose."""
 
     ROOT_COMMANDS = [
+        "/history",
+        "/sessions",
         "/switch",
         "/setup",
         "/onboard",
@@ -68,6 +70,7 @@ class SymposeCompleter:
     CONFIG_KEYS = [
         "performance.request_timeout",
         "performance.max_context_turns",
+        "performance.resume_context_turns",
         "performance.max_worker_tool_turns",
         "session.exit_behavior.auto_save",
         "session.exit_behavior.default_target",
@@ -112,6 +115,15 @@ class SymposeCompleter:
             pass
         return targets
 
+    def get_session_ids(self) -> List[str]:
+        """Returns list of recent session IDs."""
+        try:
+            from sympose.sessions import SessionManager
+            sessions = SessionManager.list_sessions(limit=30)
+            return [s["session_id"] for s in sessions]
+        except Exception:
+            return []
+
     def get_completions(self, line: str, text: str) -> List[str]:
         """Calculates completion candidates based on full line context and active word."""
         line_l = line.lstrip()
@@ -123,6 +135,17 @@ class SymposeCompleter:
         # 2. Command Sub-Arguments
         tokens = line_l.split()
         cmd = tokens[0].lower()
+
+        # /history, /sessions -> subcommands, session ids
+        if cmd in ("/history", "/sessions"):
+            history_subcmds = ["list", "all", "new", "resume", "view", "delete"]
+            if len(tokens) == 1 or (len(tokens) == 2 and not line_l.endswith(" ")):
+                return [opt for opt in history_subcmds if opt.startswith(text)]
+            sub = tokens[1].lower() if len(tokens) > 1 else ""
+            if sub in ("resume", "load", "view", "show", "delete", "remove", "rm"):
+                if len(tokens) == 2 or (len(tokens) == 3 and not line_l.endswith(" ")):
+                    s_ids = self.get_session_ids()
+                    return [s for s in s_ids if s.startswith(text)]
 
         # /switch, /delete, /retire, /ask -> @persona handles
         if cmd in ("/switch", "/delete", "/retire", "/ask"):

@@ -12,6 +12,7 @@ from sympose.memory import SessionArchivist
 from sympose.commands import CommandInterceptor
 from sympose.actions import ActionProcessor
 from sympose.vault import VaultManager
+from sympose.sessions import SessionManager
 
 
 class PersonaEngine:
@@ -21,6 +22,7 @@ class PersonaEngine:
         self.pm, self.config, self.archivist = profile_manager, config_manager, SessionArchivist(profile_manager)
         self.max_turns = max_turns or int(self.config.get("performance.max_context_turns", 15))
         self.histories: Dict[str, List[Dict[str, str]]] = {}
+        self.active_sessions: Dict[str, str] = {}
         self.model_overrides: Dict[str, str] = {}
         self.active_vault_ctx: Dict[str, str] = {}
 
@@ -29,6 +31,39 @@ class PersonaEngine:
 
     def get_history(self, handle: str, session_id: Optional[str] = None) -> List[Dict[str, str]]:
         return self.histories.setdefault(self._get_history_key(handle, session_id), [])
+
+    def get_active_session_id(self, handle: str) -> str:
+        h_low = handle.lower()
+        if h_low not in self.active_sessions:
+            meta = SessionManager.create_session(h_low)
+            self.active_sessions[h_low] = meta["session_id"]
+        return self.active_sessions[h_low]
+
+    def new_session(self, handle: str) -> str:
+        h_low = handle.lower()
+        self.reset_history(h_low)
+        meta = SessionManager.create_session(h_low)
+        self.active_sessions[h_low] = meta["session_id"]
+        return meta["session_id"]
+
+    def resume_session(self, handle: str, session_id: str) -> Optional[Dict[str, Any]]:
+        h_low = handle.lower()
+        session = SessionManager.load_session(session_id)
+        if not session:
+            return None
+        self.active_sessions[h_low] = session_id
+        k_turns = int(self.config.get("performance.resume_context_turns", 6))
+        turns = session.get("turns", [])
+        recent_turns = turns[-k_turns:] if k_turns > 0 else turns
+        hydrated: List[Dict[str, str]] = []
+        for t in recent_turns:
+            if t.get("user"):
+                hydrated.append({"role": "user", "content": t["user"]})
+            if t.get("assistant"):
+                hydrated.append({"role": "assistant", "content": t["assistant"]})
+        h_key = self._get_history_key(h_low)
+        self.histories[h_key] = hydrated
+        return session
 
     def reset_history(self, handle: str, session_id: Optional[str] = None) -> None:
         if session_id:
@@ -40,6 +75,7 @@ class PersonaEngine:
             prefix = f"{h_low}::"
             self.histories[h_low] = []
             self.active_vault_ctx.pop(h_low, None)
+            self.active_sessions.pop(h_low, None)
             for k in list(self.histories.keys()):
                 if k.startswith(prefix):
                     self.histories.pop(k, None)
@@ -109,6 +145,7 @@ class PersonaEngine:
                 yield f"> 🧠 **Persisted to {profile.get('name', handle)}'s memory:** *{extracted_fact}*\n\n"
 
         # Build dynamic composite prompt & inject active turn vault context via VaultManager
+        curr_session_id = session_id or self.get_active_session_id(handle)
         h_key = self._get_history_key(handle, session_id)
         vault_ctx = VaultManager.resolve_turn_context(profile, clean_input)
         if vault_ctx:
@@ -162,6 +199,7 @@ class PersonaEngine:
             history.extend([{"role": "user", "content": user_message}, {"role": "assistant", "content": assistant_record}])
             h_key = self._get_history_key(handle, session_id)
             self.histories[h_key] = history[-(self.max_turns * 2):]
+            SessionManager.append_turn(curr_session_id, handle, user_message, assistant_record)
             self.archivist.trigger_background_extraction(handle, user_message, complete_text)
         except Exception as e:
             err = str(e)

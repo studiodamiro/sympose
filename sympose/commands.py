@@ -11,6 +11,8 @@ from sympose.skills import skill_manager
 from sympose.workers import WorkerEngine, WorkerTask
 from sympose.mcp import mcp_registry
 from sympose.models import ModelCatalog
+from sympose.sessions import SessionManager
+from sympose.ui import TerminalUI
 
 
 class CommandInterceptor:
@@ -34,6 +36,90 @@ class CommandInterceptor:
                 run_first_run_onboarding(workspace_dir, force=True)
                 yield "✨ Setup configuration updated."
             return _setup()
+
+        # 0b. Conversation History & Session Resumption (/history, /sessions)
+        if clean_input.startswith(("/history", "/sessions")):
+            def _history():
+                parts = clean_input.split()
+                subcmd = parts[1].lower() if len(parts) > 1 else "list"
+                console = TerminalUI.get_console()
+
+                if subcmd in ("new", "create"):
+                    engine.new_session(handle)
+                    yield f"✨ Started fresh conversation session for {profile.get('name', handle)}."
+                    return
+
+                if subcmd in ("delete", "remove", "rm") and len(parts) > 2:
+                    target_id = parts[2]
+                    all_s = SessionManager.list_sessions(limit=50)
+                    match = next((s["session_id"] for s in all_s if s["session_id"].startswith(target_id) or target_id in s["session_id"]), target_id)
+                    if SessionManager.delete_session(match):
+                        yield f"🗑️ Deleted session `{match}`."
+                    else:
+                        yield f"⚠️ Could not delete session `{target_id}` (not found)."
+                    return
+
+                if subcmd in ("view", "show") and len(parts) > 2:
+                    target_id = parts[2]
+                    all_s = SessionManager.list_sessions(limit=50)
+                    match = next((s["session_id"] for s in all_s if s["session_id"].startswith(target_id) or target_id in s["session_id"]), target_id)
+                    session = SessionManager.load_session(match)
+                    if not session:
+                        yield f"⚠️ Session `{target_id}` not found."
+                        return
+                    show_all = "--all" in parts
+                    turns = session.get("turns", [])
+                    disp_turns = turns if show_all else turns[-6:]
+                    TerminalUI.render_session_resumed(console, session.get("title", ""), session.get("handle", handle), disp_turns)
+                    yield ""
+                    return
+
+                if subcmd in ("resume", "load") and len(parts) > 2:
+                    target_id = parts[2]
+                    all_s = SessionManager.list_sessions(limit=50)
+                    match = next((s["session_id"] for s in all_s if s["session_id"].startswith(target_id) or target_id in s["session_id"]), target_id)
+                    session = engine.resume_session(handle, match)
+                    if not session:
+                        yield f"⚠️ Session `{target_id}` not found."
+                        return
+                    turns = session.get("turns", [])
+                    k_turns = int(engine.config.get("performance.resume_context_turns", 6))
+                    disp_turns = turns[-k_turns:] if k_turns > 0 else turns
+                    TerminalUI.render_session_resumed(console, session.get("title", ""), session.get("handle", handle), disp_turns)
+                    yield ""
+                    return
+
+                # Interactive listing: /history, /history list, /history all
+                is_all = (subcmd in ("all", "--all") or (len(parts) > 2 and parts[2] in ("all", "--all")))
+                target_handle = None if is_all else handle
+                sessions = SessionManager.list_sessions(handle=target_handle, limit=15)
+
+                if not sessions:
+                    yield f"No past conversations found{' for @' + handle if not is_all else ''}."
+                    return
+
+                chosen_id = TerminalUI.select_session(
+                    console,
+                    sessions,
+                    active_session_id=engine.active_sessions.get(handle.lower()),
+                    handle=handle if not is_all else None,
+                    show_handle=is_all
+                )
+
+                if not chosen_id:
+                    yield "History selection cancelled."
+                    return
+
+                session = engine.resume_session(handle, chosen_id)
+                if session:
+                    turns = session.get("turns", [])
+                    k_turns = int(engine.config.get("performance.resume_context_turns", 6))
+                    disp_turns = turns[-k_turns:] if k_turns > 0 else turns
+                    TerminalUI.render_session_resumed(console, session.get("title", ""), session.get("handle", handle), disp_turns)
+                    yield ""
+                else:
+                    yield f"⚠️ Could not load session `{chosen_id}`."
+            return _history()
 
         # 1. Reset / New Session / Delete Conversation
         if clean_input in ("/reset", "/new") or re.search(r"^(?:please\s+)?(?:delete|clear|reset|wipe|start\s+a\s+new)\s+(?:our\s+|the\s+|this\s+)?(?:chat|conversation|history|session)$", clean_input, re.I):
@@ -491,6 +577,7 @@ class CommandInterceptor:
                 yield (
                     "# 🏛️  SYMPOSE HUB COMMANDS\n\n"
                     "### 👥  SESSION & PERSONA CONTROL\n"
+                    "- `/history [list|all|new|resume <id>]` — List and resume past conversations\n"
                     "- `/switch [@handle]` — Switch active specialist persona\n"
                     "- `/setup` or `/onboard` — Launch interactive provider & vault setup wizard\n"
                     "- `/model [id | reset]` — Inspect provider status or switch backend model\n"

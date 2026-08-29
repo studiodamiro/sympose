@@ -2,6 +2,7 @@ performance:
   request_timeout: 10.0
   local_request_timeout: 120.0
   max_context_turns: 15
+  resume_context_turns: 6
   max_worker_tool_turns: 8
   drop_unsupported_params: true
   stream: true

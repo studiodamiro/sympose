@@ -61,7 +61,7 @@ class TerminalUI:
         banner.append("<S>  ", style="bold cyan")
         banner.append("S Y M P O S E  ", style="bold white")
         banner.append("// multi-model agent hub  ", style="dim white")
-        banner.append("[v0.2.23]\n", style="dim cyan")
+        banner.append("[v0.2.24]\n", style="dim cyan")
         banner.append("minimalist runtime for macos & slack\n", style="dim white")
         banner.append("commands: /help | /save | /config | switch: /switch | exit: /exit", style="dim cyan")
         console.print(Panel(banner, box=ROUNDED, border_style="cyan", padding=(1, 2)))
@@ -76,7 +76,7 @@ class TerminalUI:
         banner.append("<S>  ", style="bold cyan")
         banner.append("S Y M P O S E  ", style="bold white")
         banner.append("// interactive setup wizard  ", style="dim white")
-        banner.append("[v0.2.23]\n", style="dim cyan")
+        banner.append("[v0.2.24]\n", style="dim cyan")
         banner.append("zero-bloat multi-model agent hub & sovereign vault explorer\n\n", style="dim white")
         banner.append("active workspace: ", style="green")
         banner.append(f"{workspace_dir}\n", style="bold yellow")
@@ -187,4 +187,114 @@ class TerminalUI:
 
         mapping = {"1": "memory", "2": "obsidian", "3": "both", "4": None}
         return mapping.get(choice)
+
+    @staticmethod
+    def select_session(
+        console: Optional[Any],
+        sessions: List[Dict[str, Any]],
+        active_session_id: Optional[str] = None,
+        handle: Optional[str] = None,
+        show_handle: bool = False
+    ) -> Optional[str]:
+        """Renders an interactive session selector panel and returns chosen session_id or None."""
+        if not sessions:
+            if console:
+                console.print(f"[dim yellow]No past conversation sessions found{' for @' + handle if handle else ''}.[/dim yellow]")
+            else:
+                print(f"No past conversation sessions found.")
+            return None
+
+        if not console:
+            print("\n=== CONVERSATION HISTORY ===")
+            for i, s in enumerate(sessions, start=1):
+                h_str = f"@{s.get('handle', '')} • " if show_handle else ""
+                print(f"[{i}] \"{s.get('title', 'Untitled')}\" ({h_str}{s.get('relative_time', '')}, {s.get('turns_count', 0)} turns)")
+            raw = input(f"Select session [1-{len(sessions)} or Enter for 1]: ").strip()
+            idx = int(raw) - 1 if raw.isdigit() and 1 <= int(raw) <= len(sessions) else 0
+            return sessions[idx]["session_id"]
+
+        lines = []
+        index_map: Dict[str, str] = {}
+        for i, s in enumerate(sessions, start=1):
+            sid = s.get("session_id", "")
+            index_map[str(i)] = sid
+            index_map[sid] = sid
+
+            title = s.get("title", "Untitled Session")
+            r_time = s.get("relative_time", "Recent")
+            turns_cnt = s.get("turns_count", 0)
+            is_active = (sid == active_session_id)
+            h_tag = s.get("handle", "")
+
+            # Line 1: [i] "Title"
+            lines.append(f"[bold cyan][{i}][/bold cyan] [bold white]\"{title}\"[/bold white]")
+
+            # Line 2: Details metadata indented
+            meta_parts = []
+            if show_handle and h_tag:
+                meta_parts.append(f"[bold cyan]@{h_tag}[/bold cyan]")
+            meta_parts.append(f"[dim]{r_time}  •  {turns_cnt} turn{'s' if turns_cnt != 1 else ''}[/dim]")
+            if is_active:
+                meta_parts.append("[bold cyan][Active][/bold cyan]")
+
+            meta_str = f"    {'  •  '.join(meta_parts) if not (show_handle and h_tag) else '  '.join(meta_parts)}"
+            lines.append(meta_str)
+            if i < len(sessions):
+                lines.append("")
+
+        title_header = "📜  ALL CONVERSATIONS" if show_handle else (f"📜  CONVERSATION HISTORY (@{handle})" if handle else "📜  CONVERSATION HISTORY")
+        panel_content = "\n".join(lines)
+        console.print()
+        console.print(Panel(
+            panel_content,
+            box=ROUNDED,
+            title=title_header,
+            title_align="left",
+            border_style="cyan",
+            padding=(1, 2)
+        ))
+
+        valid_choices = list(index_map.keys()) + ["q", "cancel", "exit", ""]
+        prompt_label = f"Select session to resume [1-{len(sessions)}, or Enter for [1]]"
+        raw_choice = Prompt.ask(prompt_label, default="1", choices=valid_choices, case_sensitive=False)
+        cleaned = raw_choice.strip().lower()
+
+        if cleaned in ("q", "cancel", "exit"):
+            return None
+        if not cleaned or cleaned == "1":
+            return sessions[0]["session_id"]
+        if cleaned in index_map:
+            return index_map[cleaned]
+        return sessions[0]["session_id"]
+
+    @staticmethod
+    def render_session_resumed(
+        console: Optional[Any],
+        session_title: str,
+        handle: str,
+        replay_turns: List[Dict[str, Any]]
+    ) -> None:
+        """Renders the resumed session banner and past turns in dimmed Markdown."""
+        if not console:
+            print(f"\n─── 🔄 Resumed Session: @{handle} (\"{session_title}\") ───")
+            for t in replay_turns:
+                print(f"You: {t.get('user', '')}")
+                print(f"@{handle}: {t.get('assistant', '')}\n")
+            print("─" * 60)
+            return
+
+        console.print()
+        banner_text = f"[dim cyan]─── 🔄 Resumed Session: [bold cyan]@{handle}[/bold cyan] [bold white]\"{session_title}\"[/bold white] ──────────────────────────[/dim cyan]"
+        console.print(banner_text)
+
+        for t in replay_turns:
+            u_msg = t.get("user", "").strip()
+            a_msg = t.get("assistant", "").strip()
+            if u_msg:
+                console.print(f"\n[bold yellow]You[/bold yellow]: [dim white]{u_msg}[/dim white]")
+            if a_msg:
+                console.print(f"\n[bold cyan]@{handle}[/bold cyan]:")
+                console.print(Markdown(a_msg))
+
+        console.print("\n[dim cyan]──────────────────────────────────────────────────────────────────────────[/dim cyan]\n")
 

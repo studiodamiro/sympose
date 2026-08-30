@@ -40,6 +40,12 @@ interface ChatMessageProps extends React.ComponentProps<"div"> {
   streaming?: boolean
   /** Action badges + any other footer content, rendered under the message body. */
   footer?: React.ReactNode
+  /**
+   * A persona reaction to a user turn (`[REACT]`, UI_DESIGN_REFERENCE.md §7) —
+   * pass the glyph only; it is chipped and floated so it straddles the bubble's
+   * bottom-left edge. `role="user"` only.
+   */
+  reaction?: React.ReactNode
 }
 
 function ChatMessage({
@@ -50,6 +56,7 @@ function ChatMessage({
   latency,
   streaming = false,
   footer,
+  reaction,
   children,
   ...props
 }: ChatMessageProps) {
@@ -63,8 +70,21 @@ function ChatMessage({
         className={cn("flex flex-col items-end gap-1", className)}
         {...props}
       >
-        <div className="max-w-[80%] rounded-lg bg-primary px-3 py-2 text-sm text-primary-foreground">
+        <div
+          className={cn(
+            "relative max-w-[80%] rounded-tl-lg rounded-br-lg rounded-bl-lg bg-panel px-4 pt-3 text-sm leading-relaxed text-muted-foreground",
+            // extra bottom room so the floated reaction chip overlaps the copy,
+            // never the reverse; the outer margin reserves layout space for the
+            // part of the chip that hangs past the bubble.
+            reaction ? "mb-3 pb-7" : "pb-3"
+          )}
+        >
           {children}
+          {reaction && (
+            <span className="absolute -bottom-2.5 left-3 inline-flex h-6 items-center gap-1 rounded-md bg-chip px-1.5 text-fg-muted [&_svg]:size-3.5">
+              {reaction}
+            </span>
+          )}
         </div>
         {(timestamp || footer) && (
           <div className="flex items-center gap-2">
@@ -89,7 +109,7 @@ function ChatMessage({
         {latency && <MetaText>{latency}</MetaText>}
         {timestamp && <MetaText>· {timestamp}</MetaText>}
       </div>
-      <div className="max-w-[74ch] text-sm leading-relaxed text-foreground">
+      <div className="max-w-[74ch] text-sm leading-relaxed text-muted-foreground">
         {children}
         {streaming && <StreamingCaret />}
       </div>

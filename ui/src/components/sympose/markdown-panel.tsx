@@ -1,0 +1,265 @@
+import * as React from "react"
+import { HugeiconsIcon } from "@hugeicons/react"
+import type { IconSvgElement } from "@hugeicons/react"
+import {
+  FloppyDiskIcon,
+  Heading01Icon,
+  Heading02Icon,
+  LeftToRightListBulletIcon,
+  LeftToRightListNumberIcon,
+  QuoteDownIcon,
+  SourceCodeIcon,
+  TextBoldIcon,
+  TextItalicIcon,
+  TextStrikethroughIcon,
+  TextUnderlineIcon,
+} from "@hugeicons/core-free-icons"
+
+import { cn } from "@/lib/utils"
+import { useResizable } from "@/lib/use-resizable"
+
+/**
+ * The markdown editor / reader that sits between `<ContentPanel>` and
+ * `<ChatPanel>` in the app shell (see the wireframe). It splits the stage with
+ * the chat: its right edge is a drag handle, the width is free between a third
+ * and two-thirds of the stage and defaults to half; the chat takes the rest.
+ * `storageKey` persists the dragged width as a cookie preference.
+ *
+ * Scope for now is a *reader* with an editing chrome on top — the toolbar marks
+ * are inert placeholders. What a first cut should carry, and why:
+ *
+ * - A frontmatter header (title / date / agent / tags) — every vault note is a
+ *   YAML-front-matter markdown file; surfacing it read-only anchors the note's
+ *   identity without a raw `---` block.
+ * - Prose with a real type hierarchy (heading, body, blockquote) at a capped
+ *   measure — this is a reading surface first.
+ * - Inline `[[wikilinks]]`, de-bracketed and in `--brand` for reader mode, plus
+ *   an outbound-links footer — the vault is a graph; links are load-bearing.
+ * - A minimal toolbar (H1 / H2 · bold / italic / underline / strike · lists ·
+ *   code · quote) and a save action. No heading-level dropdown, no tables UI,
+ *   no slash menu yet — those are the second pass.
+ */
+interface MarkdownPanelProps extends React.ComponentProps<"div"> {
+  storageKey?: string
+}
+
+interface Frontmatter {
+  title: string
+  date: string
+  agent: string
+  tags: string[]
+}
+
+const SAMPLE_FRONTMATTER: Frontmatter = {
+  title: "Fonts particular weight",
+  date: "2060-08-24",
+  agent: "Samantha",
+  tags: ["jour", "projects", "finance", "virginia"],
+}
+
+const SAMPLE_LINKS = ["mapping", "designer", "fonts"]
+
+/**
+ * Live width of an ancestor `levels` up from `ref`. `<ContentPanel>` reads its
+ * parent once on mount because that parent is the viewport-wide shell row; this
+ * panel's parent is a derived flex child that only settles a frame after
+ * `<ContentPanel>` commits, so it has to observe. Level 1 is the split area
+ * (drives max / default); level 2 is that same shell row (drives the minimum,
+ * so it lines up with `<ContentPanel>`'s).
+ */
+function useAncestorWidth(
+  ref: React.RefObject<HTMLElement | null>,
+  levels: number
+): number {
+  const [w, setW] = React.useState(0)
+  React.useEffect(() => {
+    let el: HTMLElement | null = ref.current
+    for (let i = 0; i < levels && el; i++) el = el.parentElement
+    if (!el) return
+    const ro = new ResizeObserver(([entry]) => setW(entry.contentRect.width))
+    ro.observe(el)
+    setW(el.getBoundingClientRect().width)
+    return () => ro.disconnect()
+  }, [ref, levels])
+  return w
+}
+
+/** One mark button in the toolbar — inert in this mock. */
+function MarkButton({ icon, label }: { icon: IconSvgElement; label: string }) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      className="grid size-8 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
+    >
+      <HugeiconsIcon icon={icon} className="size-4" />
+    </button>
+  )
+}
+
+function ToolbarDivider() {
+  return <span className="mx-1 h-5 w-px bg-border" />
+}
+
+/** Reader-mode wikilink — de-bracketed, `--brand`, opens the note on click. */
+function DocLink({ children }: { children: React.ReactNode }) {
+  return (
+    <button
+      type="button"
+      className="font-semibold text-brand underline-offset-4 hover:underline focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
+    >
+      {children}
+    </button>
+  )
+}
+
+function MarkdownPanel({
+  className,
+  storageKey,
+  style,
+  ...props
+}: MarkdownPanelProps) {
+  const wrapRef = React.useRef<HTMLDivElement>(null)
+  const stageW = useAncestorWidth(wrapRef, 1)
+  const shellW = useAncestorWidth(wrapRef, 2)
+
+  // Minimum is a quarter of the shell row — the exact rule `<ContentPanel>`
+  // uses — so neither working panel can be dragged narrower than the other.
+  // Otherwise free up to two-thirds of the split area, defaulting to half; the
+  // `|| fallback` covers the first render before anything has been measured.
+  const min = React.useCallback(() => Math.round(shellW / 4) || 360, [shellW])
+  const max = React.useCallback(
+    () => Math.round((stageW * 2) / 3) || 9999,
+    [stageW]
+  )
+  const defaultSize = React.useCallback(
+    () => Math.round(stageW / 2) || 480,
+    [stageW]
+  )
+
+  const { size, dragging, handleProps } = useResizable({
+    min,
+    max,
+    defaultSize,
+    storageKey,
+  })
+
+  const fm = SAMPLE_FRONTMATTER
+
+  return (
+    <div
+      ref={wrapRef}
+      data-slot="markdown-panel"
+      data-dragging={dragging || undefined}
+      className={cn(
+        // same wrapper insets as <ContentPanel>: py-2 top/bottom margin, pe-2
+        // right margin — so the gap to <ContentPanel> (its pe-2), the gap to the
+        // chat (this pe-2), and the panel's top/bottom margins are all one step.
+        "group/md relative shrink-0 py-2 pe-2 data-dragging:select-none",
+        className
+      )}
+      style={{ width: size, ...style }}
+      {...props}
+    >
+      {/* the raised surface — same fill as <ContentPanel> so the editor reads as
+          a sibling working panel and pops off the stage */}
+      <div className="flex h-full w-full flex-col overflow-hidden rounded-lg bg-panel text-panel-foreground">
+        {/* toolbar */}
+        <div className="flex shrink-0 items-center gap-0.5 border-b border-border px-3 py-2">
+          <MarkButton icon={Heading01Icon} label="Heading 1" />
+          <MarkButton icon={Heading02Icon} label="Heading 2" />
+          <ToolbarDivider />
+          <MarkButton icon={TextBoldIcon} label="Bold" />
+          <MarkButton icon={TextItalicIcon} label="Italic" />
+          <MarkButton icon={TextUnderlineIcon} label="Underline" />
+          <MarkButton icon={TextStrikethroughIcon} label="Strikethrough" />
+          <ToolbarDivider />
+          <MarkButton icon={LeftToRightListBulletIcon} label="Bullet list" />
+          <MarkButton icon={LeftToRightListNumberIcon} label="Numbered list" />
+          <ToolbarDivider />
+          <MarkButton icon={SourceCodeIcon} label="Code block" />
+          <MarkButton icon={QuoteDownIcon} label="Blockquote" />
+          <button
+            type="button"
+            aria-label="Save note"
+            className="ml-auto grid size-8 place-items-center rounded-md text-brand transition-colors hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
+          >
+            <HugeiconsIcon icon={FloppyDiskIcon} className="size-4" />
+          </button>
+        </div>
+
+        {/* document */}
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          <div className="mx-auto flex max-w-[68ch] flex-col gap-6 px-6 py-6 sm:px-8">
+            {/* frontmatter — inverted to bg-background so it lifts off the
+                panel fill (--card is not distinct from --background in light) */}
+            <dl className="grid grid-cols-[max-content_1fr] gap-x-4 gap-y-1.5 rounded-lg border border-border bg-background p-4 font-mono text-xs">
+              <dt className="text-fg-muted uppercase">Title</dt>
+              <dd className="text-foreground">{fm.title}</dd>
+              <dt className="text-fg-muted uppercase">Date</dt>
+              <dd className="text-foreground">{fm.date}</dd>
+              <dt className="text-fg-muted uppercase">Agent</dt>
+              <dd className="text-foreground">{fm.agent}</dd>
+              <dt className="text-fg-muted uppercase">Tags</dt>
+              <dd className="text-foreground">{fm.tags.join(", ")}</dd>
+            </dl>
+
+            {/* prose */}
+            <article className="flex flex-col gap-4 text-sm leading-relaxed text-muted-foreground">
+              <h2 className="font-heading text-lg font-semibold text-fg-strong">
+                {fm.title}
+              </h2>
+              <p>
+                Most fonts have a particular weight which corresponds to one of
+                the numbers in <DocLink>Common weight name mapping</DocLink>.
+                However some fonts, called variable fonts, can support a range
+                of weights with a more or less fine granularity, and this can
+                give the <DocLink>designer</DocLink> a much closer degree of
+                control over the chosen weight.
+              </p>
+              <blockquote className="border-l-2 border-border pl-4 text-fg-muted italic">
+                a man who chooses to enjoy a pleasure that has no annoying
+                consequences
+              </blockquote>
+              <p>
+                However some fonts, called variable fonts, can support a range
+                of weights with a more or less fine granularity, and this can
+                give the designer a much closer degree of control over the
+                chosen weight.
+              </p>
+            </article>
+
+            {/* outbound links */}
+            <div className="flex flex-col gap-2 border-t border-border pt-4">
+              <span className="font-mono text-xs text-fg-muted uppercase">
+                Links
+              </span>
+              <div className="flex flex-wrap gap-2">
+                {SAMPLE_LINKS.map((l) => (
+                  <button
+                    key={l}
+                    type="button"
+                    className="rounded-full border border-border bg-background px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
+                  >
+                    {l}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* right-edge resize handle — mirrors <ContentPanel> */}
+      <div
+        {...handleProps}
+        aria-label="Resize editor"
+        className="group/md-handle absolute inset-y-0 right-0 z-10 w-1.5 cursor-col-resize touch-none"
+      >
+        <span className="absolute inset-y-0 right-0 w-px bg-transparent transition-colors group-hover/md-handle:bg-border group-focus-visible/md-handle:bg-brand group-data-dragging/md:bg-brand" />
+      </div>
+    </div>
+  )
+}
+
+export { MarkdownPanel }

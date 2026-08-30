@@ -51,6 +51,7 @@ This master document serves as the top-level index and Table of Contents.
 | **2026-08-29** | Web Dashboard UI/UX Specification, 2D/3D Knowledge Nebula, shadcn Theme Engine & Native Desktop Launchers (ADR-051 – ADR-053) | Complete | [`2026-08-29_web_dashboard_ui_ux_and_3d_knowledge_nebula.md`](../journal/2026-08/2026-08-29_web_dashboard_ui_ux_and_3d_knowledge_nebula.md) |
 | **2026-08-30** | Dashboard/API Gateway Security Design Gap & Zero-Dependency Auth Plan (ADR-064) | Proposed | [`2026-08-30_dashboard_api_security_design_gap_and_auth_plan.md`](../journal/2026-08/2026-08-30_dashboard_api_security_design_gap_and_auth_plan.md) |
 | **2026-08-30** | UI Scaffold Documentation, IDE Settings Migration & Clean-Slate Commit | Complete | [`2026-08-30_ui_scaffold_documentation_and_clean_slate.md`](../journal/2026-08/2026-08-30_ui_scaffold_documentation_and_clean_slate.md) |
+| **2026-08-31** | App-Shell Stage Build-Out — Chat Reading Column & Markdown Editor/Reader Panels (mockups) | In progress | [`2026-08-31_web_dashboard_chat_and_markdown_panels.md`](../journal/2026-08/2026-08-31_web_dashboard_chat_and_markdown_panels.md) |
 
 
 ---

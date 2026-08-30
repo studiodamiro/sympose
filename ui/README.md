@@ -68,8 +68,10 @@ at [`/components`](http://localhost:5173/components) (`src/routes/components-gal
 | :-- | :-- |
 | `MainMenu` | app-shell sidebar (`/menu`, `/shell`) — one fixed icon axis, drag-resizable right edge (cookie-persisted), snaps collapsed near the minimum; active row fuses into the content panel (§5) |
 | `ContentPanel` | the panel that docks flush against `MainMenu` — drag-resizable between ¼ and ½ of the stage, cookie-persisted (§5) |
+| `MarkdownPanel` | markdown editor/reader in the `/shell` stage — `bg-panel` fill, mark toolbar (H1/H2 · B/I/U/S · lists · code · quote) + save, read-only frontmatter header, prose + outbound-links footer; drag-resizable, minimum matched to `ContentPanel` (§6.5, §7) — *mock, controls inert* |
+| `ChatPanel` | centred chat reading column — transcript scrolls, composer docks at the bottom on the same axis; column caps at a comfortable measure and centres itself in the space it is given (§7) — *mock* |
 | `PersonaPill`, `ModelChip` | `@handle` identity + muted backend-model chip with on-device marker (§7–§8) |
-| `ChatMessage`, `StreamingCaret` | chat turns by alignment/fill; mid-stream caret (§7) |
+| `ChatMessage`, `StreamingCaret` | chat turns by alignment/fill; mid-stream caret; `reaction` slot — a floated line-icon chip straddling the user bubble's edge (§7) |
 | `ActionBadge` | inline action-event badges — `[WRITE_NOTE]`, `[SEARCH]`, … (§7) |
 | `Composer` | flat `@`-mention input, ⌘/Ctrl-Enter (§7) |
 | `VaultTree` | sandbox-aware directory tree; hides `.obsidian` / `.git` / … (§5, Module C) |

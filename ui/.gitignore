@@ -1,0 +1,8 @@
+# Frontend build tooling (added once the Vite + React + TS app is scaffolded)
+node_modules/
+dist/
+*.local
+.vite/
+
+# Editor
+.DS_Store

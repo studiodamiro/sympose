@@ -50,7 +50,7 @@ This master document serves as the top-level index and Table of Contents.
 | **2026-08-29** | Robust Code-Fence Action Parser Hardening & Interactive `/skill` Suite (ADR-049 – ADR-050) | Complete | [`2026-08-29_skill_command_suite_and_action_parser_hardening.md`](../journal/2026-08/2026-08-29_skill_command_suite_and_action_parser_hardening.md) |
 | **2026-08-29** | Web Dashboard UI/UX Specification, 2D/3D Knowledge Nebula, shadcn Theme Engine & Native Desktop Launchers (ADR-051 – ADR-053) | Complete | [`2026-08-29_web_dashboard_ui_ux_and_3d_knowledge_nebula.md`](../journal/2026-08/2026-08-29_web_dashboard_ui_ux_and_3d_knowledge_nebula.md) |
 | **2026-08-30** | Dashboard/API Gateway Security Design Gap & Zero-Dependency Auth Plan (ADR-064) | Proposed | [`2026-08-30_dashboard_api_security_design_gap_and_auth_plan.md`](../journal/2026-08/2026-08-30_dashboard_api_security_design_gap_and_auth_plan.md) |
-
+| **2026-08-30** | UI Scaffold Documentation, IDE Settings Migration & Clean-Slate Commit | Complete | [`2026-08-30_ui_scaffold_documentation_and_clean_slate.md`](../journal/2026-08/2026-08-30_ui_scaffold_documentation_and_clean_slate.md) |
 
 
 ---
@@ -216,4 +216,5 @@ This master document serves as the top-level index and Table of Contents.
 * **[Autonomous Agent Memory Architecture Standard](../MEMORY_ARCHITECTURE_STANDARD.md):** The definitive standard for triad memory management, anti-hallucination grounding, shadow extraction, and Obsidian integration.
 * **[Latency & Performance Tuning Guide](../LATENCY_TUNING_GUIDE.md):** Complete catalog of knobs, timeouts, context windows, and model configurations governing sub-second SLA.
 * **[Web Dashboard & Standalone Vault Explorer Specification](../wiki/architecture/dashboard-and-vault-explorer.md):** Architectural blueprint for the web dashboard, interactive knowledge graph, multi-agent chat stream, and standalone vault explorer.
+* **[Web Dashboard UI Design Reference](../UI_DESIGN_REFERENCE.md):** Self-contained design brief for Claude Design — consolidates the flat "Sovereign Craft" philosophy, theme presets, semantic tokens, layout shell, per-screen artboard list, persona visual identity, and mock content, all derived from ADR-047 and ADR-051–053.
 * **[Wiki Documentation Hub](../wiki/index.md):** Comprehensive guide to skills, MCP workers, profile systems, and command references.

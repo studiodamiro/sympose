@@ -19,6 +19,8 @@ tags:
 > **Session Focus:** Web Dashboard UI/UX Specification, 2D/3D Ambient Knowledge Nebula, Flat Architectural Design Standard, and Dynamic shadcn Theme Customizer Engine.  
 > **Lead Architect:** damiro  
 > **Engineering Partner:** Grace (Rear Admiral Grace Hopper Persona)  
+>
+> **Downstream:** the ADRs below are distilled into a hand-off brief for visual mockups — [Web Dashboard UI Design Reference](../../UI_DESIGN_REFERENCE.md).
 
 ---
 

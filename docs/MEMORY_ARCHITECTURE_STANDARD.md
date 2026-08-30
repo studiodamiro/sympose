@@ -1,5 +1,5 @@
 ---
-title: "Autonomous Agent Memory Architecture Standard"
+title: 'Autonomous Agent Memory Architecture Standard'
 created: 2026-08-24
 type: architecture-standard
 status: approved
@@ -15,6 +15,7 @@ aliases:
 ---
 
 # 🧠 Autonomous Agent Memory Architecture Standard
+
 > **A zero-bloat, sub-second, and self-grounding memory architecture for personal multi-agent hubs.**
 
 ---
@@ -22,8 +23,9 @@ aliases:
 ## 1. Executive Summary & Core Philosophy
 
 Modern AI assistants suffer from two fatal design flaws:
-1. **The Manual Overhead Trap**: Forcing users to explicitly invoke commands like `/remember` or preface sentences with *"Please remember that..."*. If a human must do the cognitive bookkeeping, the assistant fails its primary purpose.
-2. **The Sycophancy & Hallucination Trap**: Base LLMs are trained to be agreeable. When asked *"Do you remember X?"*, they default to fabricating a plausible answer (e.g. *"Yes, you planned to study Astro!"*) rather than admitting ignorance.
+
+1. **The Manual Overhead Trap**: Forcing users to explicitly invoke commands like `/remember` or preface sentences with _"Please remember that..."_. If a human must do the cognitive bookkeeping, the assistant fails its primary purpose.
+2. **The Sycophancy & Hallucination Trap**: Base LLMs are trained to be agreeable. When asked _"Do you remember X?"_, they default to fabricating a plausible answer (e.g. _"Yes, you planned to study Astro!"_) rather than admitting ignorance.
 
 This standard establishes the **Sympose Triad Memory Architecture**: a file-based, sub-second (`<0.8s TTFT`), and autonomous memory framework that captures durable user facts invisibly while strictly eliminating hallucinations.
 
@@ -34,19 +36,19 @@ This standard establishes the **Sympose Triad Memory Architecture**: a file-base
 ```mermaid
 graph TD
     User([User Natural Input]) --> Gate{Heuristic Filter Gate}
-    
+
     subgraph Fast Path [Sub-Second Streaming <0.8s]
         User --> MainLLM[Active Agent LLM]
         MainLLM --> Screen[60 FPS Terminal Output]
     end
-    
+
     subgraph Shadow Path [Detached Async Daemon Thread]
         Gate -- Signal Detected --> Extractor[Shadow Extractor LLM]
         Extractor --> Dedupe[Deduplication & Hygiene]
         Dedupe --> MemoryFile[profiles/_memory.md]
         Gate -- Chit-Chat / Trivial --> Skip[0 Extra Tokens / No-Op]
     end
-    
+
     subgraph Archival Path [Session Exit /save]
         ExitCmd[/exit or /save] --> Archivist[Session Archivist LLM]
         Archivist --> MemoryFile
@@ -56,13 +58,13 @@ graph TD
 
 ### The Core Memory Hierarchy (ADR-010)
 
-| Artifact | Location | Responsibility | Injected To | Token Cost |
-| :--- | :--- | :--- | :--- | :--- |
-| **Profile Manifest** | `profiles/{handle}.yaml` | Declarative identity manifest, model, tool, and `share_memory` flags. | N/A (Config) | 0 prompt tokens |
-| **Universal User Card** | `profiles/user_profile.md` | Universal user identity (`Name: <user>`, OS, workflow philosophy). | **All Personas** | ~40 tokens |
-| **Shared Team Memory** | `profiles/_shared_memory.md` | Collaborative project stack, architecture decisions, and roadmap. | Personas with `share_memory: true` | ~100–250 tokens |
-| **Persona Working Memory** | `profiles/{handle}_memory.md` | Persona-specific directives and private memories (Air-gapped when `share_memory: false`). | Assigned Persona | ~100–250 tokens |
-| **Agent Soul** | `profiles/{handle}_soul.md` | Cognitive directives, domain heuristics, tone, and anti-hallucination rules. | Assigned Persona | ~200 prompt tokens |
+| Artifact                   | Location                      | Responsibility                                                                            | Injected To                        | Token Cost         |
+| :------------------------- | :---------------------------- | :---------------------------------------------------------------------------------------- | :--------------------------------- | :----------------- |
+| **Profile Manifest**       | `profiles/{handle}.yaml`      | Declarative identity manifest, model, tool, and `share_memory` flags.                     | N/A (Config)                       | 0 prompt tokens    |
+| **Universal User Card**    | `profiles/user_profile.md`    | Universal user identity (`Name: <user>`, OS, workflow philosophy).                        | **All Personas**                   | ~40 tokens         |
+| **Shared Team Memory**     | `profiles/_shared_memory.md`  | Collaborative project stack, architecture decisions, and roadmap.                         | Personas with `share_memory: true` | ~100–250 tokens    |
+| **Persona Working Memory** | `profiles/{handle}_memory.md` | Persona-specific directives and private memories (Air-gapped when `share_memory: false`). | Assigned Persona                   | ~100–250 tokens    |
+| **Agent Soul**             | `profiles/{handle}_soul.md`   | Cognitive directives, domain heuristics, tone, and anti-hallucination rules.              | Assigned Persona                   | ~200 prompt tokens |
 
 ---
 
@@ -71,35 +73,37 @@ graph TD
 To guarantee **100% brutal honesty**, eliminate conversational guessing, and prevent lost state during context resets, five mechanical constraints must be enforced:
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│ 1. THE AMNESIA BOUNDARY                                     │
+┌─────────────────────────────────────────────────────────┐
+│ 1. THE AMNESIA BOUNDARY                                      │
 │    Agent is instructed that it possesses ZERO organic memory │
-│    outside of `### Persistent Working Memory:` and turns.   │
-├─────────────────────────────────────────────────────────────┤
-│ 2. ZERO TOLERANCE FOR GUESSING                              │
+│    outside of `### Persistent Working Memory:` and turns.    │
+├─────────────────────────────────────────────────────────┤
+│ 2. ZERO TOLERANCE FOR GUESSING                               │
 │    Guessing or pretending to remember is a critical failure. │
-├─────────────────────────────────────────────────────────────┤
-│ 3. CANDID IGNORANCE PROTOCOL                                │
-│    If a fact is missing, output: "I have no record of that. │
-│    Tell me what it is and I'll log it."                     │
-├─────────────────────────────────────────────────────────────┤
-│ 4. TEMPERATURE DISCIPLINE                                   │
-│    Set `temperature: 0.1` for factual & engineering agents. │
-├─────────────────────────────────────────────────────────────┤
-│ 5. ASSUME INTERRUPTION (Write-Through State Memory)         │
+├─────────────────────────────────────────────────────────┤
+│ 3. CANDID IGNORANCE PROTOCOL                                 │
+│    If a fact is missing, output: "I have no record of that.  │
+│    Tell me what it is and I'll log it."                      │
+├─────────────────────────────────────────────────────────┤
+│ 4. TEMPERATURE DISCIPLINE                                    │
+│    Set `temperature: 0.1` for factual & engineering agents.  │
+├─────────────────────────────────────────────────────────┤
+│ 5. ASSUME INTERRUPTION (Write-Through State Memory)          │
 │  5. Assume Interruption & Write-Through State                │
-│    Context windows are volatile (L1 cache). Proactively     │
-│    persist milestones to disk via `[REMEMBER]` in-turn.     │
-├─────────────────────────────────────────────────────────────┤
-│  6. Zero Time-Delay Simulation & Immediate Synchronous Turn │
+│    Context windows are volatile (L1 cache). Proactively      │
+│    persist milestones to disk via `[REMEMBER]` in-turn.      │
+├─────────────────────────────────────────────────────────┤
+│  6. Zero Time-Delay Simulation & Immediate Synchronous Turn  │
 │    Models operate synchronously. Fake waiting delays         │
-│    ('give me a few minutes') are strictly forbidden.        │
-└─────────────────────────────────────────────────────────────┘
+│    ('give me a few minutes') are strictly forbidden.         │
+└─────────────────────────────────────────────────────────┘
 ```
 
 ### System Prompt Directive Template:
+
 ```markdown
 ### Strict Memory Truthfulness & Anti-Hallucination Protocol:
+
 1. ASSUME INTERRUPTION: Your context window is bounded and might be reset at any moment, so you risk losing any progress that is not recorded in your memory directory. Proactively checkpoint architectural decisions, milestone progress, and user facts using [REMEMBER: <fact>] or [WRITE_NOTE: <filename> | <content>].
 2. Your sole knowledge of user history, preferences, and past agreements begins and ends with `### Persistent Working Memory:` and active session turns.
 3. ZERO TOLERANCE FOR FABRICATION: If the user asks whether you remember a fact, plan, framework, date, or detail, and that detail is NOT explicitly recorded in your memory file, you MUST NEVER guess, assume, or pretend to remember.
@@ -131,6 +135,7 @@ class HeuristicGatedExtractor:
 ```
 
 ### Execution Flow:
+
 1. **Filter Pass (0.01ms)**: If the prompt matches `SKIP_PATTERNS` or lacks `TRIGGER_PATTERNS`, the extractor immediately aborts with **0 network calls**.
 2. **Async Spawning (0.05ms)**: If a trigger is detected, the extractor spawns a detached Python daemon thread (`threading.Thread(daemon=True)`).
 3. **Stream Non-Interference**: The user's streaming output on the main thread is completely unaffected (**0.00s added latency**).
@@ -141,8 +146,10 @@ class HeuristicGatedExtractor:
 ## 5. Latency Zero-Impact & OS-Level Optimizations
 
 ### The GCE Metadata Server Hang (`169.254.169.254`)
-* **Gotcha**: On local macOS, Python Google Cloud SDKs probe `http://169.254.169.254` (the internal Google Compute Engine metadata server). Because that IP is unroutable outside Google Cloud VMs, the socket hangs in a TCP SYN timeout for **10s to 300s** before falling back to `.env` API keys.
-* **The Universal Fix**:
+
+- **Gotcha**: On local macOS, Python Google Cloud SDKs probe `http://169.254.169.254` (the internal Google Compute Engine metadata server). Because that IP is unroutable outside Google Cloud VMs, the socket hangs in a TCP SYN timeout for **10s to 300s** before falling back to `.env` API keys.
+- **The Universal Fix**:
+
 ```python
 os.environ["NO_GCE_CHECK"] = "True"
 os.environ["GOOGLE_CLOUD_DISABLE_METADATA"] = "true"
@@ -158,9 +165,9 @@ Using `gemini-3.5-flash-lite` ($0.075 per 1M input tokens):
 
 $$\text{Cost per 1,000 Turns} = \frac{1,000 \times \text{Trigger Rate (15\%)} \times 250 \text{ tokens}}{1,000,000} \times \$0.075 \approx \mathbf{\$0.0028}$$
 
-* **Manual User Burden**: $0$ seconds.
-* **Financial Overhead**: Less than one-third of a cent per 1,000 messages.
-* **Reliability**: 100% persistent markdown files on local disk.
+- **Manual User Burden**: $0$ seconds.
+- **Financial Overhead**: Less than one-third of a cent per 1,000 messages.
+- **Reliability**: 100% persistent markdown files on local disk.
 
 ---
 
@@ -182,22 +189,26 @@ tags:
 # Session Takeaways: 2026-08-24 18:35
 
 ## Overview & Intent
+
 Brief summary of the discussion.
 
 ## Key Decisions & Architecture Highlights
+
 - Architectural choices made during the session.
 
 ## 8. Hierarchical Daily Notes & Vault Agnosticism (ADR-021)
 
 Sympose strictly enforces **Vault Agnosticism**: it adapts to any user-chosen directory structure without forcing rigid storage schemas.
-* **Hierarchical Daily Resolution**: Automatically formats daily notes to match Obsidian's Periodic Notes standard (`Daily/YYYY/MM-Month/YYYY-MM-DD.md`, e.g. `Daily/2026/08-August/2026-08-25.md`) or custom patterns defined in `config.yaml` (`vault.daily_notes_format`).
-* **Noise Directory Pruning (ADR-023)**: `VaultManager.search` dynamically prunes non-text and system directories (`.obsidian`, `Attachments`, `Drawings`, `.git`, `.trash`) defined in `config.yaml` (`vault.ignore_folders`) to eliminate traversal latency and token waste.
+
+- **Hierarchical Daily Resolution**: Automatically formats daily notes to match Obsidian's Periodic Notes standard (`Daily/YYYY/MM-Month/YYYY-MM-DD.md`, e.g. `Daily/2026/08-August/2026-08-25.md`) or custom patterns defined in `config.yaml` (`vault.daily_notes_format`).
+- **Noise Directory Pruning (ADR-023)**: `VaultManager.search` dynamically prunes non-text and system directories (`.obsidian`, `Attachments`, `Drawings`, `.git`, `.trash`) defined in `config.yaml` (`vault.ignore_folders`) to eliminate traversal latency and token waste.
 
 ---
 
 ## 9. Tiered Local-First Vault Recall (ADR-022)
 
 To avoid burning frontier cloud tokens and leaking personal reflections, historical recall operates on a **3-Tier Funnel**:
+
 1. **Tier 0 (Deterministic Filter)**: Mechanical file/path matching and regex (`<0.005s`, 0 tokens).
 2. **Tier 1 (Local LLM Triage / $0.00)**: Sub-agent worker running `ollama/qwen2.5:14b` or `ollama/gemma2:9b` (or `gemini/gemini-3.5-flash-lite`) executes `skills/vault_recall/SKILL.md` to parse YAML frontmatter and extract `## Key Decisions` and `## Action Items`.
 3. **Tier 2 (Frontier Deep Synthesis - Optional)**: Paid models (Claude Sonnet 4.5 / Gemini 3.7) receive only the isolated high-signal excerpts when complex code synthesis or architecture refactoring is required.
@@ -207,37 +218,43 @@ To avoid burning frontier cloud tokens and leaking personal reflections, histori
 ## 10. The Ground-Truth Sovereignty Axiom & Anti-Simulation Directives (ADR-024)
 
 Markdown documents stored on physical disk are the **sovereign single source of ground truth**. AI models are transient, swappable cognitive processors (ALUs) reading the file data bus.
-* **Strict Verbatim Fidelity**: When presenting or synthesizing past notes, models must quote the user's exact written words verbatim using blockquotes (`>`).
-* **Complete Prohibition of Action Roleplaying**: Models must never emit fake progress markers (`*[Begins retrieval]*`, `*Outputs text*`) or invent fictional filenames/dates (`2017-10-26`). If a note is absent, the model must immediately state its honest ignorance.
-* **Multi-Turn Persistent Context (`self.active_vault_ctx`) (ADR-025)**: Notes retrieved on Turn 1 persist across conversational follow-ups (*"just pick one"*, *"show me the text"*) to prevent prompt context wiping and hallucination fallbacks.
+
+- **Strict Verbatim Fidelity**: When presenting or synthesizing past notes, models must quote the user's exact written words verbatim using blockquotes (`>`).
+- **Complete Prohibition of Action Roleplaying**: Models must never emit fake progress markers (`*[Begins retrieval]*`, `*Outputs text*`) or invent fictional filenames/dates (`2017-10-26`). If a note is absent, the model must immediately state its honest ignorance.
+- **Multi-Turn Persistent Context (`self.active_vault_ctx`) (ADR-025)**: Notes retrieved on Turn 1 persist across conversational follow-ups (_"just pick one"_, _"show me the text"_) to prevent prompt context wiping and hallucination fallbacks.
 
 ---
 
 ## 11. Config-Driven Spatial Compass & Complete Vault Agnosticism (ADR-027)
 
 To ensure universal portability across any operating system and vault layout:
-* **Separation of Logic from Environment**: Codebase modules (`sympose/`) contain zero hardcoded absolute directory paths. All locations are defined centrally in `.env` (`MASTER_VAULT_PATH`) and `config.yaml`.
-* **Worker & Tool Propagation (ADR-026)**: When sub-agents and tools (`run_command`, `read_file`) execute, the runtime dynamically passes the configured vault root, ensuring workers never get trapped in the application codebase.
-* **Inherited Worker Sandboxing (ADR-026)**: Sub-agent workers strictly inherit the parent agent's `vault_folders` whitelist. Unauthorized workers (e.g. spawned by `@samantha` or `@grace`) are hard-blocked from inspecting private reflection domains (`Daily/`) via `read_file` or shell tools (`run_command`).
-* **Universal Structure Compatibility**: Supports Flat, PARA (`01_Projects`, `02_Areas`), Johnny Decimal, and Zettelkasten systems seamlessly.
+
+- **Separation of Logic from Environment**: Codebase modules (`sympose/`) contain zero hardcoded absolute directory paths. All locations are defined centrally in `.env` (`MASTER_VAULT_PATH`) and `config.yaml`.
+- **Worker & Tool Propagation (ADR-026)**: When sub-agents and tools (`run_command`, `read_file`) execute, the runtime dynamically passes the configured vault root, ensuring workers never get trapped in the application codebase.
+- **Inherited Worker Sandboxing (ADR-026)**: Sub-agent workers strictly inherit the parent agent's `vault_folders` whitelist. Unauthorized workers (e.g. spawned by `@samantha` or `@grace`) are hard-blocked from inspecting private reflection domains (`Daily/`) via `read_file` or shell tools (`run_command`).
+- **Universal Structure Compatibility**: Supports Flat, PARA (`01_Projects`, `02_Areas`), Johnny Decimal, and Zettelkasten systems seamlessly.
 
 ---
 
 ## 12. Discrete Working Memory Formatting & Extraction Resilience (ADR-038)
 
 To prevent context contamination and memory pollution:
-* **Discrete Bullet Invariant**: Working memory files (`profiles/*_memory.md` and `_shared_memory.md`) must **strictly** contain high-density bullet points (`- ` / `* `).
-* **Section Bleed Protection**: Multi-section session summarizers must explicitly filter extracted memory outputs to valid bullet lines. If section parsing fails, the full markdown session document must **never** bleed into working memory.
-* **Preamble-Resilient Extraction**: Shadow memory extractors must use line-level bullet extraction rather than fragile prefix matching (`startswith("-")`), ensuring valid facts are preserved even when models include conversational preamble.
+
+- **Discrete Bullet Invariant**: Working memory files (`profiles/*_memory.md` and `_shared_memory.md`) must **strictly** contain high-density bullet points (`- ` / `* `).
+- **Section Bleed Protection**: Multi-section session summarizers must explicitly filter extracted memory outputs to valid bullet lines. If section parsing fails, the full markdown session document must **never** bleed into working memory.
+- **Preamble-Resilient Extraction**: Shadow memory extractors must use line-level bullet extraction rather than fragile prefix matching (`startswith("-")`), ensuring valid facts are preserved even when models include conversational preamble.
 
 ---
 
 ## 13. Concurrency Mutexes & State Reconciliation (ADR-038)
 
 To maintain absolute data integrity during multi-threaded background distillation:
-* **Process-Wide File Mutexes**: Asynchronous background operations (such as `MemoryCompactor.check_and_compact_async`) must acquire process-wide locks (`get_file_lock()`) before snapshotting or writing to memory files.
-* **Snapshot Drift Reconciliation**: When background LLM compaction completes (typically after 1–3s), the compactor must re-read the file under lock, extract any newly appended bullet lines written by foreground user turns during distillation, and append them to the distilled output before saving.
-* **Session-Isolated History Routing**: Multi-agent daemons (e.g. Slack Socket Mode) must pass thread-scoped `session_id` tokens into `chat_stream` and `get_history`, guaranteeing zero history clobbering across concurrent conversations.
+
+- **Process-Wide File Mutexes**: Asynchronous background operations (such as `MemoryCompactor.check_and_compact_async`) must acquire process-wide locks (`get_file_lock()`) before snapshotting or writing to memory files.
+- **Snapshot Drift Reconciliation**: When background LLM compaction completes (typically after 1–3s), the compactor must re-read the file under lock, extract any newly appended bullet lines written by foreground user turns during distillation, and append them to the distilled output before saving.
+- **Session-Isolated History Routing**: Multi-agent daemons (e.g. Slack Socket Mode) must pass thread-scoped `session_id` tokens into `chat_stream` and `get_history`, guaranteeing zero history clobbering across concurrent conversations.
 
 ---
-*Standard ratified on 2026-08-24. Updated with Ground-Truth Sovereignty & Inherited Sandboxing on 2026-08-25. Hardened with Discrete Bullet Formatting, Process Mutexes & Multi-Agent Concurrency on 2026-08-26 (ADR-038). Implemented in Sympose Core Package (`sympose/`).*
+
+_Standard ratified on 2026-08-24. Updated with Ground-Truth Sovereignty & Inherited Sandboxing on 2026-08-25. Hardened with Discrete Bullet Formatting, Process Mutexes & Multi-Agent Concurrency on 2026-08-26 (ADR-038). Implemented in Sympose Core Package (`sympose/`)._
+```

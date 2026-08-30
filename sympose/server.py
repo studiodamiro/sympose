@@ -8,6 +8,7 @@ from typing import Dict, Any, Optional
 from fastapi import FastAPI, Query, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 from sympose.vault import VaultManager
 from sympose.config import config_manager
 
@@ -82,11 +83,23 @@ def create_app(engine: Any) -> FastAPI:
             raise HTTPException(status_code=404, detail=content)
         return {"path": path, "content": content}
 
+    # Resolve the frontend root: a built Vite bundle (ui/dist) wins over the
+    # hand-authored vanilla scaffold (ui/) when present. Both are optional.
+    ui_candidates = [
+        os.path.join(os.getcwd(), "ui", "dist"),
+        os.path.join(os.getcwd(), "ui"),
+    ]
+    ui_root = next((p for p in ui_candidates if os.path.isfile(os.path.join(p, "index.html"))), None)
+
+    if ui_root:
+        assets_dir = os.path.join(ui_root, "assets")
+        if os.path.isdir(assets_dir):
+            app.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
+
     @app.get("/", response_class=HTMLResponse)
     def index() -> str:
-        dist_index = os.path.join(os.getcwd(), "ui", "dist", "index.html")
-        if os.path.exists(dist_index):
-            with open(dist_index, "r", encoding="utf-8") as f:
+        if ui_root:
+            with open(os.path.join(ui_root, "index.html"), "r", encoding="utf-8") as f:
                 return f.read()
 
         try:

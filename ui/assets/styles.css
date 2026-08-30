@@ -1,0 +1,244 @@
+/*
+ * Sympose Dashboard — "Flat Sovereign Craft" foundational tokens + scaffold shell.
+ * Spec: docs/UI_DESIGN_REFERENCE.md §2–§5. Default preset: Obsidian Matte (dark).
+ * These custom properties are the starting palette the future React app should adopt.
+ */
+
+:root {
+  /* Semantic tokens — mirror the CLI design system (ADR-047) for brand continuity */
+  --bg:            #0A0F1D;   /* deep graphite — Obsidian Matte background */
+  --bg-panel:      #0E1524;   /* matte panel fill (solid, never gradient) */
+  --bg-inset:      #131C2E;
+  --border:        #1E293B;   /* primary 1px separator — not shadow */
+  --border-subtle: #172033;
+  --fg:            #C6D0E0;
+  --fg-strong:     #F1F5F9;   /* category subheaders (bold white in CLI) */
+  --fg-muted:      #6B7A90;   /* timestamps, token counts, ms readouts */
+  --brand:         #38BDF8;   /* cyan family — primary headings & active nav, used sparingly */
+  --ok:            #34D399;   /* success / active */
+  --danger:        #F87171;   /* error / missing */
+  --entity:       #C084FC;   /* file paths, [[wikilinks]], note titles (magenta family) */
+  --chip-bg:       #1E293B;
+  --chip-fg:       #FBBF24;   /* @handle pills, inline code, kbd (yellow on grey) */
+
+  --radius:        0rem;      /* live control 0rem → 0.75rem; Obsidian Matte default is sharp */
+  --panel-left:    288px;
+  --panel-right:   320px;
+  --motion:        150ms;     /* snappy UI transitions: 120–180ms */
+
+  --font-sans: "Inter Tight", Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "JetBrains Mono", "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+code {
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+  background: var(--chip-bg);
+  color: var(--chip-fg);
+  padding: 1px 5px;
+  border-radius: var(--radius);
+}
+
+a { color: var(--brand); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+/* ── Three-column shell ─────────────────────────────────────────────────── */
+
+.shell {
+  display: grid;
+  grid-template-columns: var(--panel-left) 1fr var(--panel-right);
+  gap: 1px;
+  background: var(--border);           /* gap lines drawn by the grid background */
+  height: calc(100vh - 33px);          /* leave room for the statusbar */
+}
+
+.panel {
+  background: var(--bg-panel);
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow-y: auto;
+}
+
+.panel__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  background: var(--bg-panel);
+}
+
+.panel__title {
+  color: var(--brand);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: lowercase;
+}
+
+.panel__foot {
+  margin-top: auto;
+  display: flex;
+  gap: 6px;
+  padding: 12px 16px;
+  border-top: 1px solid var(--border);
+}
+
+/* ── Tags / chips ──────────────────────────────────────────────────────── */
+
+.tag {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 2px 7px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--fg-muted);
+}
+.tag[data-status="ok"]      { color: var(--ok);     border-color: var(--ok); }
+.tag[data-status="error"]   { color: var(--danger); border-color: var(--danger); }
+.tag[data-status="loading"] { color: var(--fg-muted); }
+.tag[data-status="stub"]    { color: var(--chip-fg); border-color: var(--border); }
+
+/* ── Vault tree (mock) ─────────────────────────────────────────────────── */
+
+.tree { padding: 10px 8px; }
+.tree__group {
+  padding: 4px 8px;
+  color: var(--fg-muted);
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+.tree__group--nested { padding-left: 20px; }
+.tree__leaf {
+  display: block;
+  padding: 4px 8px 4px 28px;
+  color: var(--entity);
+  font-size: 13px;
+  border-radius: var(--radius);
+}
+.tree__leaf:hover { background: var(--bg-inset); text-decoration: none; }
+
+/* ── Chat timeline + composer ──────────────────────────────────────────── */
+
+.panel--center { flex: 1; }
+
+.timeline {
+  flex: 1;
+  padding: 20px;
+  overflow-y: auto;
+}
+.timeline__empty {
+  max-width: 60ch;
+  color: var(--fg-muted);
+}
+
+.composer {
+  display: flex;
+  gap: 8px;
+  padding: 14px 16px;
+  border-top: 1px solid var(--border);
+}
+.composer__input {
+  flex: 1;
+  background: var(--bg-inset);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--fg);
+  padding: 10px 12px;
+  font-family: var(--font-sans);
+  font-size: 14px;
+}
+.composer__input:focus { outline: none; border-color: var(--brand); }
+.composer__input:disabled { opacity: 0.5; cursor: not-allowed; }
+.composer__send {
+  background: var(--bg-inset);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--brand);
+  padding: 0 16px;
+  cursor: pointer;
+}
+.composer__send:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* ── Nebula control stack ─────────────────────────────────────────────── */
+
+.control-stack { padding: 10px 12px; }
+.control-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 10px 8px;
+  border-bottom: 1px solid var(--border-subtle);
+  font-size: 13px;
+}
+.control-row:last-child { border-bottom: none; }
+.chev { color: var(--fg-muted); }
+
+.quiet-toggle {
+  background: var(--bg-inset);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--fg-muted);
+  font-size: 11px;
+  padding: 5px 8px;
+  cursor: pointer;
+}
+.quiet-toggle:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.hint {
+  margin: 8px 16px 16px;
+  padding: 10px 12px;
+  border: 1px solid var(--border-subtle);
+  border-left: 2px solid var(--chip-fg);
+  color: var(--fg-muted);
+  font-size: 12px;
+}
+
+/* ── Live status bar ──────────────────────────────────────────────────── */
+
+.statusbar {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  height: 32px;
+  padding: 0 16px;
+  border-top: 1px solid var(--border);
+  background: var(--bg-panel);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--fg-muted);
+  overflow-x: auto;
+  white-space: nowrap;
+}
+.statusbar__item strong { color: var(--fg); font-weight: 600; margin-right: 6px; }
+.statusbar__links { margin-left: auto; display: flex; gap: 14px; }
+
+/* ── Blueprint & Paper (light) preview — toggle via data-theme on <html> ── */
+
+:root[data-theme="blueprint-paper"] {
+  --bg:            #F9F7F1;
+  --bg-panel:      #FFFFFF;
+  --bg-inset:      #F1EEE6;
+  --border:        #D8D2C4;
+  --border-subtle: #E7E2D6;
+  --fg:            #2B2B2B;
+  --fg-strong:     #111111;
+  --fg-muted:      #7A7461;
+  --brand:         #1E4FD8;
+  --entity:       #7A3FBF;
+  --chip-bg:       #EDEAE0;
+  --chip-fg:       #8A6D00;
+}

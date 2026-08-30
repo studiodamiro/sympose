@@ -91,11 +91,6 @@ def create_app(engine: Any) -> FastAPI:
     ]
     ui_root = next((p for p in ui_candidates if os.path.isfile(os.path.join(p, "index.html"))), None)
 
-    if ui_root:
-        assets_dir = os.path.join(ui_root, "assets")
-        if os.path.isdir(assets_dir):
-            app.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
-
     @app.get("/", response_class=HTMLResponse)
     def index() -> str:
         if ui_root:
@@ -149,6 +144,25 @@ def create_app(engine: Any) -> FastAPI:
         </body>
         </html>
         """
+
+    # Serve the rest of the frontend bundle (hashed assets, sympose.svg, etc.)
+    # from the resolved root. Registered last so it never shadows an API route;
+    # the explicit "/" handler above still owns the index document. Unknown
+    # non-API paths fall back to index.html so the client-side router
+    # (react-router) can resolve deep links like /components on a hard refresh.
+    if ui_root:
+        from starlette.exceptions import HTTPException as StarletteHTTPException
+
+        class SPAStaticFiles(StaticFiles):
+            async def get_response(self, path: str, scope):  # type: ignore[override]
+                try:
+                    return await super().get_response(path, scope)
+                except StarletteHTTPException as exc:
+                    if exc.status_code == 404 and not path.startswith("api"):
+                        return await super().get_response("index.html", scope)
+                    raise
+
+        app.mount("/", SPAStaticFiles(directory=ui_root, html=True), name="ui")
 
     return app
 

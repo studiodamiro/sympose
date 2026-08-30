@@ -34,12 +34,12 @@ To ensure frictionless out-of-the-box operation, we engineered a native, zero-ke
 ## 2. Architectural Decisions (ADR-033)
 
 ### ADR-033.1: Native Zero-Key Search Tool (`web_search`)
-* Implemented `web_search(query, max_results)` directly in [`sympose/native_tools.py`](file:///Users/damiro/Development/sympose/sympose/native_tools.py).
+* Implemented `web_search(query, max_results)` directly in [`sympose/native_tools.py`](../../../sympose/native_tools.py).
 * Powered by `ddgs` with standard TLS header masking and live URL citation formatting.
 * **$0.00 cost, zero API keys, and zero account requirements.**
 
 ### ADR-033.2: Direct Worker Pipeline Routing
-* Updated [`sympose/workers.py`](file:///Users/damiro/Development/sympose/sympose/workers.py) to route `web_search` through deterministic native execution without requiring an external MCP subprocess.
+* Updated [`sympose/workers.py`](../../../sympose/workers.py) to route `web_search` through deterministic native execution without requiring an external MCP subprocess.
 * Sub-agent workers execute search queries in sub-second timeframes (<0.4s) and synthesize findings with live citations.
 
 ### ADR-033.3: Two-Tier Web Intelligence Pipeline
@@ -48,9 +48,9 @@ To ensure frictionless out-of-the-box operation, we engineered a native, zero-ke
 
 ### ADR-033.4: Complete Deprecation of Proprietary Search Keys
 * Purged `brave_search` configurations and environment variables across:
-  * [`mcp/servers.json`](file:///Users/damiro/Development/sympose/mcp/servers.json)
-  * [`mcp/servers.json.example`](file:///Users/damiro/Development/sympose/mcp/servers.json.example)
-  * [`requirements.txt`](file:///Users/damiro/Development/sympose/requirements.txt)
+  * [`mcp/servers.json`](../../../mcp/servers.json)
+  * [`mcp/servers.json.example`](../../../mcp/servers.json.example)
+  * [`requirements.txt`](../../../requirements.txt)
   * Documentation and skill playbooks.
 
 ---

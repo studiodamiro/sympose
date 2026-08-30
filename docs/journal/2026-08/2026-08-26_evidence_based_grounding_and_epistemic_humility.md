@@ -39,10 +39,10 @@ In high-reliability engineering, **guessing without evidence is unacceptable**. 
 
 ### ADR-035.3: Universal Soul & Rule Injection
 * Injected into all agent profiles:
-  * [`profiles/samantha_soul.md`](file:///Users/damiro/Development/sympose/profiles/samantha_soul.md)
-  * [`profiles/grace_soul.md`](file:///Users/damiro/Development/sympose/profiles/grace_soul.md)
-  * [`profiles/aurelius_soul.md`](file:///Users/damiro/Development/sympose/profiles/aurelius_soul.md)
-  * [`.agents/rules/identity.md`](file:///Users/damiro/Development/sympose/.agents/rules/identity.md)
+  * [`profiles/samantha_soul.md`](../../../profiles/samantha_soul.md)
+  * [`profiles/grace_soul.md`](../../../profiles/grace_soul.md)
+  * [`profiles/aurelius_soul.md`](../../../profiles/aurelius_soul.md)
+  * [`.agents/rules/identity.md`](../../../.agents/rules/identity.md)
 
 ---
 

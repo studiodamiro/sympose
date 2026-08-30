@@ -110,7 +110,7 @@ An integrated appearance drawer providing instantaneous UI re-theming:
   * Clean typography with GitHub-flavored markdown, syntax-highlighted code blocks, and math formulas.
   * Clickable `[[Wikilink]]` routing (clicking `[[OAuth]]` navigates directly to `OAuth.md` or centers the 3D nebula).
   * Dynamic YAML frontmatter inspector and tag editor.
-* **Backlink & Mention Inspector**: Dedicated side panel displaying incoming links, exact line numbers, and verbatim surrounding context lines via our In-Memory Inverted Index ([ADR-044](file:///Users/damiro/Development/sympose/docs/journal/2026-08/2026-08-27_backlink_lookup_engine_and_inverted_index.md)).
+* **Backlink & Mention Inspector**: Dedicated side panel displaying incoming links, exact line numbers, and verbatim surrounding context lines via our In-Memory Inverted Index ([ADR-044](../../../docs/journal/2026-08/2026-08-27_backlink_lookup_engine_and_inverted_index.md)).
 * **Daily Reflections Calendar**: Interactive calendar view mapping `Daily/YYYY/mm-Month/YYYY-MM-DD.md` entries to dates for chronological reminiscence.
 
 ---
@@ -202,10 +202,15 @@ Sympose eliminates terminal friction while strictly avoiding Electron bloat (<60
 
 ---
 
-## 7. Architectural Decision Records
-* **[ADR-051: Flat Architectural Web Dashboard, 2D/3D Knowledge Nebula & shadcn Theme Customizer Engine](file:///Users/damiro/Development/sympose/docs/journal/2026-08/2026-08-29_web_dashboard_ui_ux_and_3d_knowledge_nebula.md#adr-051-flat-architectural-web-dashboard-2d3d-knowledge-nebula--shadcn-theme-customizer-engine)**
-* **[ADR-052: In-Memory Metadata Caching & Sub-5ms Scalability Standard for Multi-Thousand Note Vaults](file:///Users/damiro/Development/sympose/docs/journal/2026-08/2026-08-29_web_dashboard_ui_ux_and_3d_knowledge_nebula.md#adr-052-in-memory-metadata-caching--sub-5ms-scalability-standard-for-multi-thousand-note-vaults)**
-* **[ADR-053: Cross-Platform Native Desktop Launchers & Zero-Bloat Frameless App-Mode Wrappers](file:///Users/damiro/Development/sympose/docs/journal/2026-08/2026-08-29_web_dashboard_ui_ux_and_3d_knowledge_nebula.md#adr-053-cross-platform-native-desktop-launchers--zero-bloat-frameless-app-mode-wrappers)**
-* **[ADR-044: In-Memory Inverted Index & Deterministic Backlink Lookup Engine](file:///Users/damiro/Development/sympose/docs/journal/2026-08/2026-08-27_backlink_lookup_engine_and_inverted_index.md)**
-* **[ADR-011: Multi-Folder Vault Whitelisting & Sandboxing](file:///Users/damiro/Development/sympose/docs/journal/2026-08/2026-08-24_multi_folder_vault.md)**
+## 7. Known Gap: No Authentication Was Ever Designed for This Surface
+
+ADR-051–053 (below) specify UI/UX and performance exclusively — no access-control question was raised anywhere in this spec, and `sympose/server.py` currently exposes every route (including `/api/config` and `/api/vault/note`) with zero authentication, bound to `0.0.0.0` by default. **[ADR-064](../../../docs/journal/2026-08/2026-08-30_dashboard_api_security_design_gap_and_auth_plan.md) documents this gap and proposes a fix** (shared-password guard + auto-generated self-signed HTTPS, both zero-manual-install); it is not yet implemented. Slack access is unaffected either way — it never routes through this server.
+
+## 8. Architectural Decision Records
+* **[ADR-051: Flat Architectural Web Dashboard, 2D/3D Knowledge Nebula & shadcn Theme Customizer Engine](../../../docs/journal/2026-08/2026-08-29_web_dashboard_ui_ux_and_3d_knowledge_nebula.md#adr-051-flat-architectural-web-dashboard-2d3d-knowledge-nebula--shadcn-theme-customizer-engine)**
+* **[ADR-052: In-Memory Metadata Caching & Sub-5ms Scalability Standard for Multi-Thousand Note Vaults](../../../docs/journal/2026-08/2026-08-29_web_dashboard_ui_ux_and_3d_knowledge_nebula.md#adr-052-in-memory-metadata-caching--sub-5ms-scalability-standard-for-multi-thousand-note-vaults)**
+* **[ADR-053: Cross-Platform Native Desktop Launchers & Zero-Bloat Frameless App-Mode Wrappers](../../../docs/journal/2026-08/2026-08-29_web_dashboard_ui_ux_and_3d_knowledge_nebula.md#adr-053-cross-platform-native-desktop-launchers--zero-bloat-frameless-app-mode-wrappers)**
+* **[ADR-064 (Proposed): Dashboard/API Gateway Security Design Gap & Zero-Dependency Auth Plan](../../../docs/journal/2026-08/2026-08-30_dashboard_api_security_design_gap_and_auth_plan.md)**
+* **[ADR-044: In-Memory Inverted Index & Deterministic Backlink Lookup Engine](../../../docs/journal/2026-08/2026-08-27_backlink_lookup_engine_and_inverted_index.md)**
+* **[ADR-011: Multi-Folder Vault Whitelisting & Sandboxing](../../../docs/journal/2026-08/2026-08-24_multi_folder_vault.md)**
 

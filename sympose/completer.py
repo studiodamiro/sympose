@@ -8,6 +8,7 @@ from typing import List, Optional, Any
 from sympose.skills import skill_manager
 from sympose.mcp import mcp_registry
 from sympose.models import ModelCatalog
+from sympose.config import DEFAULT_CHAT_MODEL
 
 try:
     import readline
@@ -65,7 +66,7 @@ class SymposeCompleter:
         "openrouter/deepseek/deepseek-r1",
         "openrouter/google/gemini-2.5-flash",
         "openrouter/meta-llama/llama-3.3-70b-instruct",
-        "gemini/gemini-3.6-flash",
+        DEFAULT_CHAT_MODEL,
         "anthropic/claude-3-5-sonnet-20241022",
         "openai/gpt-4o",
         "ollama/qwen2.5:7b",

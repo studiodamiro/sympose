@@ -31,13 +31,13 @@ To elevate MCP tools to the same organizational standard as `profiles/` and `ski
 
 ### ADR-032.1: First-Class `mcp/` Directory Hierarchy
 * Created a root-level `mcp/` folder containing:
-  * [`mcp/servers.json`](file:///Users/damiro/Development/sympose/mcp/servers.json): Master server definitions (`fetch`, `filesystem`, `github`, `slack`, `brave_search`).
-  * [`mcp/servers.json.example`](file:///Users/damiro/Development/sympose/mcp/servers.json.example): Tracked template for fresh repository clones.
-  * [`mcp/README.md`](file:///Users/damiro/Development/sympose/mcp/README.md): Documentation on configuring standard and custom local MCP servers.
+  * [`mcp/servers.json`](../../../mcp/servers.json): Master server definitions (`fetch`, `filesystem`, `github`, `slack`, `brave_search`).
+  * [`mcp/servers.json.example`](../../../mcp/servers.json.example): Tracked template for fresh repository clones.
+  * [`mcp/README.md`](../../../mcp/README.md): Documentation on configuring standard and custom local MCP servers.
 
 ### ADR-032.2: Dual-Module Engine Split (<200 LOC Ceiling)
-* Extracted `MCPClient` into [`sympose/mcp_client.py`](file:///Users/damiro/Development/sympose/sympose/mcp_client.py) (176 LOC).
-* Maintained `MCPRegistry` in [`sympose/mcp.py`](file:///Users/damiro/Development/sympose/sympose/mcp.py) (106 LOC).
+* Extracted `MCPClient` into [`sympose/mcp_client.py`](../../../sympose/mcp_client.py) (176 LOC).
+* Maintained `MCPRegistry` in [`sympose/mcp.py`](../../../sympose/mcp.py) (106 LOC).
 * Implemented automatic discovery in `MCPRegistry.auto_discover()` to scan `mcp/servers.json` on startup with fallback support for legacy `config.yaml`.
 
 ---

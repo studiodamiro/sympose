@@ -5,11 +5,14 @@ Consolidates working memory files, resolves superseded facts, and eliminates dup
 
 import os
 import re
+import logging
 import threading
 from typing import Optional, Dict, Any
 import litellm
 
-from sympose.config import config_manager
+log = logging.getLogger(__name__)
+
+from sympose.config import config_manager, DEFAULT_WORKER_MODEL
 
 
 _FILE_LOCKS: Dict[str, threading.Lock] = {}
@@ -60,7 +63,7 @@ class MemoryCompactor:
 
         target_model = model or config_manager.get(
             "session.exit_behavior.summarization_model",
-            "gemini/gemini-3.5-flash-lite"
+            DEFAULT_WORKER_MODEL
         )
 
         title = "Shared Team Working Memory" if is_shared else os.path.splitext(os.path.basename(filepath))[0].replace("_memory", "").title() + " Working Memory"
@@ -115,7 +118,7 @@ class MemoryCompactor:
                         f.write(final_text)
                 return True
         except Exception as e:
-            print(f"⚠️ Memory compaction failed for {filepath}: {e}")
+            log.error("Memory compaction failed for %s: %s", filepath, e, exc_info=True)
 
         return False
 

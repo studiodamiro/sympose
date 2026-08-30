@@ -59,7 +59,7 @@ Key breakthroughs achieved:
 
 * **Context**: New notes and daily logs written by agents were missing custom YAML frontmatter defined in the user's authentic Obsidian vault templates (`Templates/`). Appending reflections to daily notes also left frontmatter `tags:` out of sync with new topics introduced in the reflection.
 * **Decision**:
-  1. Implemented `VaultManager.get_template_for_path()` in [`sympose/vault.py`](file:///Users/damiro/Development/sympose/sympose/vault.py):
+  1. Implemented `VaultManager.get_template_for_path()` in [`sympose/vault.py`](../../../sympose/vault.py):
      - Inspects `/Templates/` in the Obsidian vault and maps destination paths to templates (`Daily template.md`, `Thoughts template.md`, `People template.md`, `Note template.md`, etc.).
      - Interpolates Obsidian variables (`{{date}}`, `{{time}}`, `{{title}}`, `{{date:YYYY}}`).
   2. Implemented `VaultManager._sync_frontmatter_tags()`:

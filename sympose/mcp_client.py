@@ -4,10 +4,13 @@ Model Context Protocol (MCP) stdio JSON-RPC 2.0 Client.
 
 import os
 import json
+import logging
 import subprocess
 import threading
 import time
 from typing import Dict, List, Any, Optional, Tuple
+
+log = logging.getLogger(__name__)
 
 
 class MCPClient:
@@ -29,7 +32,8 @@ class MCPClient:
         self.timeout = timeout
         self.process: Optional[subprocess.Popen] = None
         self._request_id = 0
-        self._lock = threading.Lock()
+        self._lock = threading.Lock()       # guards _request_id increments
+        self._io_lock = threading.Lock()    # serialises write+read per request
         self.tools: List[Dict[str, Any]] = []
         self.is_connected = False
 
@@ -68,7 +72,7 @@ class MCPClient:
                 env=self._build_env(),
             )
         except Exception as e:
-            print(f"⚠️ Failed to spawn MCP server [{self.name}]: {e}")
+            log.warning("Failed to spawn MCP server [%s]: %s", self.name, e)
             return False
 
         init_req = {
@@ -79,7 +83,7 @@ class MCPClient:
         }
         resp = self._send_request(init_req)
         if not resp or "error" in resp:
-            print(f"⚠️ MCP server [{self.name}] initialization failed: {resp}")
+            log.warning("MCP server [%s] initialization failed: %s", self.name, resp)
             self.stop()
             return False
 
@@ -98,39 +102,41 @@ class MCPClient:
             pass
 
     def _send_request(self, payload: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """Thread-safe JSON-RPC request/response cycle. Serialised via _io_lock."""
         if not self.process or self.process.poll() is not None or not self.process.stdin or not self.process.stdout:
             return None
         req_id = payload.get("id")
-        try:
-            self.process.stdin.write(json.dumps(payload) + "\n")
-            self.process.stdin.flush()
-        except Exception:
-            return None
+        with self._io_lock:
+            try:
+                self.process.stdin.write(json.dumps(payload) + "\n")
+                self.process.stdin.flush()
+            except Exception:
+                return None
 
-        import select
-        start_time = time.time()
-        while time.time() - start_time < self.timeout:
-            if self.process.poll() is not None:
-                break
-            # Non-blocking poll for available stdout data
-            rlist, _, _ = select.select([self.process.stdout], [], [], 0.05)
-            if not rlist:
-                continue
-            line = self.process.stdout.readline()
-            if not line:
+            import select
+            start_time = time.time()
+            while time.time() - start_time < self.timeout:
                 if self.process.poll() is not None:
                     break
-                time.sleep(0.01)
-                continue
-            clean = line.strip()
-            if not clean:
-                continue
-            try:
-                msg = json.loads(clean)
-                if isinstance(msg, dict) and msg.get("id") == req_id:
-                    return msg
-            except Exception:
-                continue
+                # Non-blocking poll for available stdout data
+                rlist, _, _ = select.select([self.process.stdout], [], [], 0.05)
+                if not rlist:
+                    continue
+                line = self.process.stdout.readline()
+                if not line:
+                    if self.process.poll() is not None:
+                        break
+                    time.sleep(0.01)
+                    continue
+                clean = line.strip()
+                if not clean:
+                    continue
+                try:
+                    msg = json.loads(clean)
+                    if isinstance(msg, dict) and msg.get("id") == req_id:
+                        return msg
+                except Exception:
+                    continue
         return None
 
     def fetch_tools(self) -> List[Dict[str, Any]]:

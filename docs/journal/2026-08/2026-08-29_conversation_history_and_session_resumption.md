@@ -121,11 +121,11 @@ python3 scratch/test_history_sessions.py
 
 ## 4. Modified Files Reference
 
-* [`sympose/sessions.py`](file:///Users/damiro/Development/sympose/sympose/sessions.py) — Core `SessionManager` class with JSONL I/O, milestone titling, and relative time formatting (<200 LOC).
-* [`sympose/engine.py`](file:///Users/damiro/Development/sympose/sympose/engine.py) — Session lifecycle, active session tracking, `resume_session()` sliding window hydration, and milestone titling trigger.
-* [`sympose/ui.py`](file:///Users/damiro/Development/sympose/sympose/ui.py) — `select_session` F-shaped panel layout, `render_session_resumed` replay banner, and binary exit modal.
-* [`sympose/commands.py`](file:///Users/damiro/Development/sympose/sympose/commands.py) — Interceptor for `/history` and `/sessions` with full subcommand routing.
-* [`sympose/completer.py`](file:///Users/damiro/Development/sympose/sympose/completer.py) — Tab auto-completion for `/history`, session IDs, and all runtime config keys.
-* [`sympose/cli.py`](file:///Users/damiro/Development/sympose/sympose/cli.py) — Unified session exit lifecycle.
-* [`config.yaml`](file:///Users/damiro/Development/sympose/config.yaml) — Added `performance.resume_context_turns: 6` and documented `session.exit_behavior`.
-* [`pyproject.toml`](file:///Users/damiro/Development/sympose/pyproject.toml) — Bumped version to `0.2.24`.
+* [`sympose/sessions.py`](../../../sympose/sessions.py) — Core `SessionManager` class with JSONL I/O, milestone titling, and relative time formatting (<200 LOC).
+* [`sympose/engine.py`](../../../sympose/engine.py) — Session lifecycle, active session tracking, `resume_session()` sliding window hydration, and milestone titling trigger.
+* [`sympose/ui.py`](../../../sympose/ui.py) — `select_session` F-shaped panel layout, `render_session_resumed` replay banner, and binary exit modal.
+* [`sympose/commands.py`](../../../sympose/commands.py) — Interceptor for `/history` and `/sessions` with full subcommand routing.
+* [`sympose/completer.py`](../../../sympose/completer.py) — Tab auto-completion for `/history`, session IDs, and all runtime config keys.
+* [`sympose/cli.py`](../../../sympose/cli.py) — Unified session exit lifecycle.
+* [`config.yaml`](../../../config.yaml) — Added `performance.resume_context_turns: 6` and documented `session.exit_behavior`.
+* [`pyproject.toml`](../../../pyproject.toml) — Bumped version to `0.2.24`.

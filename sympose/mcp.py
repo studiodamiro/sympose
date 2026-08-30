@@ -5,8 +5,11 @@ Auto-discovers server configs from mcp/ directory and master config.yaml.
 
 import os
 import json
+import logging
 from typing import Dict, List, Any, Optional
 from sympose.mcp_client import MCPClient
+
+log = logging.getLogger(__name__)
 
 
 class MCPRegistry:
@@ -59,7 +62,7 @@ class MCPRegistry:
                                 )
                         break
                 except Exception as e:
-                    print(f"⚠️ Error parsing MCP config [{c}]: {e}")
+                    log.warning("Error parsing MCP config [%s]: %s", c, e)
 
     def load_from_config(self, config_data: Dict[str, Any]) -> None:
         """Loads fallback server configurations from sympose config.yaml."""

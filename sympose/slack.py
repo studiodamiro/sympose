@@ -4,6 +4,7 @@ Multi-agent concurrent router, thread context fetcher & event dispatcher.
 """
 
 import os, re, sys, time, logging, threading
+from collections import defaultdict
 from typing import Dict, List, Tuple, Any, Optional, Set
 
 try: from slack_bolt import App; from slack_bolt.adapter.socket_mode import SocketModeHandler
@@ -12,6 +13,8 @@ except ImportError: App, SocketModeHandler = None, None
 from sympose.engine import PersonaEngine
 from sympose.actions import ActionProcessor
 from sympose.config import convert_md_to_slack_mrkdwn
+
+log = logging.getLogger(__name__)
 
 
 class SlackDaemon:
@@ -28,13 +31,18 @@ class SlackDaemon:
         self.app_token = (app_token or os.getenv(f"{p}APP_TOKEN") or (os.getenv("SLACK_AURELIUS_APP_TOKEN") if self.default_persona == "archia" else None) or os.getenv("SLACK_APP_TOKEN", "")).strip()
         self.thread_personas, self.thread_histories, self.app, self.handler, self.bot_user_id, self.bot_id, self.boot_ts = {}, {}, None, None, "", "", time.time()
         self._is_setup = False
+        # Per-channel semaphore — caps concurrent in-flight message processing
+        self._channel_semaphores: Dict[str, threading.Semaphore] = defaultdict(lambda: threading.Semaphore(
+            int(self.config.get("performance.slack_max_concurrent", 3))
+        ))
         u_card = self.pm._read_file_safe(os.path.join(getattr(self.pm, "profiles_dir", "profiles"), "user_profile.md"))
         m = re.search(r"[-*]?\s*(?:\*\*|__)?(?:Primary\s+User|User|Name)(?:\*\*|__)?\s*:\s*([^\n\r]+)", u_card, re.I)
         self.primary_user = m.group(1).strip().strip("*_`") if m and m.group(1).strip() else (os.getenv("USER") or "User")
 
     def _validate_tokens(self) -> bool:
         if not self.bot_token or not self.app_token or App is None or SocketModeHandler is None:
-            if App is None: print("⚠️ [Sympose Slack] slack-bolt not installed.", file=sys.stderr)
+            if App is None:
+                log.warning("[Sympose Slack] slack-bolt not installed.")
             return False
         return True
 
@@ -49,7 +57,7 @@ class SlackDaemon:
                 self.name_to_id[name.lower()] = user_id
                 self.name_to_id[u_info.get("name", "").lower()] = user_id
                 return name
-        except Exception: pass
+        except Exception as e: log.debug("[_resolve_user_name] users_info lookup failed for %s: %s", user_id, e)
         self.user_cache[user_id] = self.primary_user
         self.name_to_id[self.primary_user.lower()] = user_id
         return self.primary_user
@@ -123,15 +131,15 @@ class SlackDaemon:
                 streak = sum(1 for m in reversed(msgs) if (m.get("bot_id") or m.get("user") in self.bot_user_ids or m.get("subtype") == "bot_message"))
                 if streak >= int(self.config.get("performance.max_consecutive_bot_turns", 3)):
                     prompt += "\n\n[SYSTEM: Discussion turn limit reached. Deliver concluding summary for the user without tagging other bots.]"
-            except Exception: pass
+            except Exception as e: log.debug("[_process_message] bot-streak lookup failed for %s: %s", channel_id, e)
 
         name = self.pm.get_profile(handle).get("name", handle) if self.pm.get_profile(handle) else handle
         slack_ctx = self._fetch_slack_context(client, channel_id, event.get("thread_ts"), msg_ts, prompt)
         full_prompt = f"{slack_ctx}\n\nUser Request: {prompt}" if slack_ctx else prompt
 
-        print(f"📥 [Slack Event] @{handle} ({name}) handling message: {prompt[:60]}")
+        log.info("[Slack Event] @%s (%s) handling message: %s", handle, name, prompt[:60])
         try: client.reactions_add(channel=channel_id, timestamp=msg_ts, name="eyes")
-        except Exception: pass
+        except Exception as e: log.debug("[_process_message] reactions_add(eyes) failed: %s", e)
 
         th_key = f"{thread_id}:{handle}"
         if bool(re.search(r"\b(?:delete|clear|wipe|erase|purge|reset)\s+(?:our\s+|the\s+|this\s+)?(?:thread|chat|conversation|history|session|context|messages?)", prompt, re.I)) or prompt.strip() in ("/clear", "/delete", "/wipe", "/reset"):
@@ -140,10 +148,10 @@ class SlackDaemon:
                 try:
                     for m in client.conversations_replies(channel=channel_id, ts=event.get("thread_ts"), limit=100).get("messages", []):
                         try: client.chat_delete(channel=channel_id, ts=m.get("ts"))
-                        except Exception: pass
-                except Exception: pass
+                        except Exception as e: log.debug("[thread wipe] chat_delete failed for ts=%s: %s", m.get("ts"), e)
+                except Exception as e: log.debug("[thread wipe] conversations_replies failed for %s: %s", thread_id, e)
             try: client.reactions_remove(channel=channel_id, timestamp=msg_ts, name="eyes"); client.reactions_add(channel=channel_id, timestamp=msg_ts, name="broom")
-            except Exception: pass
+            except Exception as e: log.debug("[thread wipe] reaction swap (eyes->broom) failed: %s", e)
             if not re.search(r"\b(?:do\s*not\s*reply|no\s*reply|do\s*not\s*acknowledge|no\s*response|silent|silence)\b", prompt, re.I): say(text=f"🧹 Conversation history deleted for @{handle}.", thread_ts=thread_ts)
             return
 
@@ -155,12 +163,13 @@ class SlackDaemon:
             is_silent = not clean_text or clean_text.strip().lower() in ("(no response)", "no response", "(silence)", "...", "no response.")
             if not is_silent: say(text=self._format_outgoing_mentions(convert_md_to_slack_mrkdwn(clean_text)), thread_ts=thread_ts)
             try: client.reactions_remove(channel=channel_id, timestamp=msg_ts, name="eyes")
-            except Exception: pass
+            except Exception as e: log.debug("[_process_message] reactions_remove(eyes) failed: %s", e)
             for em in ([m.group(1).strip().strip(":") for m in re.finditer(r"\[(?:ACTION:)?REACT:\s*([a-zA-Z0-9_\-+:]+?)\]", raw_text, re.I)] or (["white_check_mark"] if is_silent else [])):
                 try: client.reactions_add(channel=channel_id, timestamp=msg_ts, name=em)
-                except Exception: pass
+                except Exception as e: log.debug("[_process_message] reactions_add(%s) failed: %s", em, e)
         except Exception as e:
-            print(f"⚠️ [Slack Error] @{handle}: {e}", file=sys.stderr); say(text=f"⚠️ *{name} encountered an error:* `{e}`", thread_ts=thread_ts)
+            log.error("[Slack Error] @%s: %s", handle, e, exc_info=True)
+            say(text=f"⚠️ *{name} encountered an error:* `{e}`", thread_ts=thread_ts)
 
     def setup(self) -> bool:
         if self._is_setup and self.handler:
@@ -175,23 +184,51 @@ class SlackDaemon:
                 for u in self.app.client.users_list().get("members", []):
                     if u.get("is_bot") and u.get("id"): self.bot_user_ids.add(u["id"])
                     for k in [u.get("name"), u.get("real_name"), u.get("profile", {}).get("display_name")]: (self.name_to_id.update({k.lower(): u["id"]}) if k and u.get("id") else None)
-            except Exception: pass
-            self.app.event("app_mention")(lambda client, event, say: self._process_message(client, event, say))
-            self.app.event("message")(lambda client, event, say: self._process_message(client, event, say) if (event.get("channel_type") == "im" or event.get("thread_ts")) else None)
+            except Exception as e: log.debug("[setup] users_list failed while priming bot/name cache: %s", e)
+            self.app.event("app_mention")(lambda client, event, say: self._handle_event_async(client, event, say))
+            self.app.event("message")(lambda client, event, say: self._handle_event_async(client, event, say) if (event.get("channel_type") == "im" or event.get("thread_ts")) else None)
             self.handler = SocketModeHandler(self.app, self.app_token)
             self._is_setup = True
             return True
         except Exception as e:
-            print(f"⚠️ [Sympose Slack] Failed to start @{self.default_persona}: {e}", file=sys.stderr); return False
+            log.error("[Sympose Slack] Failed to start @%s: %s", self.default_persona, e, exc_info=True)
+            return False
+
+    def _handle_event_async(self, client: Any, event: Dict[str, Any], say: Any) -> None:
+        """Dispatches _process_message in a daemon thread, rate-limited per channel."""
+        channel_id = event.get("channel", "default")
+        sem = self._channel_semaphores[channel_id]
+
+        def _run():
+            acquired = sem.acquire(blocking=False)
+            if not acquired:
+                # Channel is at capacity — add a clock reaction and queue
+                try:
+                    client.reactions_add(channel=channel_id, timestamp=event.get("ts", ""), name="hourglass_flowing_sand")
+                except Exception:
+                    pass
+                sem.acquire(blocking=True)  # wait for a slot
+                try:
+                    client.reactions_remove(channel=channel_id, timestamp=event.get("ts", ""), name="hourglass_flowing_sand")
+                except Exception:
+                    pass
+            try:
+                self._process_message(client, event, say)
+            finally:
+                sem.release()
+
+        threading.Thread(target=_run, daemon=True).start()
 
     def start(self) -> None:
         while True:
             try:
-                if self.setup() and self.handler: print(f"⚡ [Sympose] Slack Bot active for @{self.default_persona}"); self.handler.start()
+                if self.setup() and self.handler:
+                    log.info("[Sympose] Slack Bot active for @%s", self.default_persona)
+                    self.handler.start()
             except Exception as e:
                 self._is_setup = False
-                print(f"⚠️ [Slack Reconnect] @{self.default_persona}: {e}. Retrying in 3s...", file=sys.stderr)
-                import time; time.sleep(3)
+                log.warning("[Slack Reconnect] @%s: %s. Retrying in 3s...", self.default_persona, e)
+                time.sleep(3)
 
 
 class MultiAgentSlackRunner:
@@ -200,8 +237,9 @@ class MultiAgentSlackRunner:
     @classmethod
     def run_all(cls, engine: PersonaEngine, persona_override: Optional[str] = None) -> None:
         daemons = [d for h in ([persona_override.lower()] if persona_override else [p["handle"].lower() for p in engine.pm.list_personas()]) if (d := SlackDaemon(engine, default_persona=h))._validate_tokens() and d.setup()]
-        if not daemons: sys.exit("⚠️ [Sympose Slack] Missing or invalid Slack tokens in .env.")
-        print(f"🚀 [Sympose] Launching {len(daemons)} Slack Agent(s)...")
+        if not daemons:
+            sys.exit("⚠️ [Sympose Slack] Missing or invalid Slack tokens in .env.")
+        log.info("[Sympose] Launching %d Slack Agent(s)...", len(daemons))
         threads = [threading.Thread(target=d.start, daemon=True) for d in daemons]
         for t in threads: t.start()
         try:

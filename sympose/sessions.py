@@ -8,8 +8,13 @@ import json
 import uuid
 import threading
 import datetime
+import logging
 from typing import Dict, List, Any, Optional
 from sympose.bootstrap import resolve_workspace_dir
+from sympose.compactor import get_file_lock
+from sympose.config import DEFAULT_CHAT_MODEL
+
+log = logging.getLogger(__name__)
 
 GREETING_PATTERNS = [
     r"^(?:hi|hello|hey|yo|greetings|howdy|sup)\b",
@@ -76,19 +81,22 @@ class SessionManager:
         fpath = os.path.join(cls.get_sessions_dir(), f"{session_id}.jsonl")
         if not os.path.exists(fpath): return False
         clean_title = cls.derive_title(title)
-        try:
-            with open(fpath, "r", encoding="utf-8") as f:
-                lines = [l.strip() for l in f if l.strip()]
-            if not lines: return False
-            meta = json.loads(lines[0])
-            if meta.get("type") == "meta":
-                meta["title"] = clean_title
-                meta["updated_at"] = datetime.datetime.now().isoformat()
-                lines[0] = json.dumps(meta)
-                with open(fpath, "w", encoding="utf-8") as f:
-                    for l in lines: f.write(l + "\n")
-                return True
-        except Exception: return False
+        lock = get_file_lock(fpath)
+        with lock:
+            try:
+                with open(fpath, "r", encoding="utf-8") as f:
+                    lines = [l.strip() for l in f if l.strip()]
+                if not lines: return False
+                meta = json.loads(lines[0])
+                if meta.get("type") == "meta":
+                    meta["title"] = clean_title
+                    meta["updated_at"] = datetime.datetime.now().isoformat()
+                    lines[0] = json.dumps(meta)
+                    with open(fpath, "w", encoding="utf-8") as f:
+                        for l in lines: f.write(l + "\n")
+                    return True
+            except Exception:
+                return False
         return False
 
     @classmethod
@@ -96,7 +104,7 @@ class SessionManager:
         def _worker():
             try:
                 import litellm
-                model = config.get("session.exit_behavior.summarization_model") or os.getenv("DEFAULT_MODEL", "gemini/gemini-3.6-flash")
+                model = config.get("session.exit_behavior.summarization_model") or DEFAULT_CHAT_MODEL
                 snippet = "\n".join(f"{'User' if 'user' in t else t.get('role', 'msg').capitalize()}: {t.get('user', t.get('content', ''))[:100]}" for t in turns[:4])
                 prompt = f"Generate a concise 4-6 word headline topic for this conversation with @{handle}. Output ONLY the plain text headline without quotes or period:\n\n{snippet}"
                 kwargs = {"model": model, "messages": [{"role": "user", "content": prompt}], "stream": False, "timeout": 4.0, "max_tokens": 20}
@@ -106,45 +114,47 @@ class SessionManager:
                 out = (resp.choices[0].message.content or "").strip().strip('"\'').rstrip(".")
                 if out and len(out) > 3 and not out.lower().startswith(("untitled", "none", "error")):
                     cls.update_session_title(session_id, out)
-            except Exception: pass
+            except Exception as e: log.debug("[milestone_title] suppressed error for session %s: %s", session_id, e)
 
         threading.Thread(target=_worker, daemon=True).start()
 
     @classmethod
     def append_turn(cls, session_id: str, handle: str, user_message: str, assistant_reply: str, title: Optional[str] = None) -> Optional[Dict[str, Any]]:
         fpath = os.path.join(cls.get_sessions_dir(), f"{session_id}.jsonl")
-        now_iso = datetime.datetime.now().isoformat()
-        meta, existing_lines = None, []
-        if os.path.exists(fpath):
-            try:
-                with open(fpath, "r", encoding="utf-8") as f:
-                    existing_lines = [l.strip() for l in f if l.strip()]
-                if existing_lines:
-                    first = json.loads(existing_lines[0])
-                    if first.get("type") == "meta": meta = first
-            except Exception: pass
+        lock = get_file_lock(fpath)
+        with lock:
+            now_iso = datetime.datetime.now().isoformat()
+            meta, existing_lines = None, []
+            if os.path.exists(fpath):
+                try:
+                    with open(fpath, "r", encoding="utf-8") as f:
+                        existing_lines = [l.strip() for l in f if l.strip()]
+                    if existing_lines:
+                        first = json.loads(existing_lines[0])
+                        if first.get("type") == "meta": meta = first
+                except Exception as e: log.debug("[append_turn] failed to read existing session %s: %s", session_id, e)
 
-        if not meta:
-            meta = {
-                "type": "meta", "session_id": session_id, "handle": handle.lower(),
-                "title": title or ("New Conversation" if cls.is_generic_prompt(user_message) else cls.derive_title(user_message)),
-                "created_at": now_iso, "updated_at": now_iso, "turns_count": 0,
-            }
-            existing_lines = [json.dumps(meta)]
+            if not meta:
+                meta = {
+                    "type": "meta", "session_id": session_id, "handle": handle.lower(),
+                    "title": title or ("New Conversation" if cls.is_generic_prompt(user_message) else cls.derive_title(user_message)),
+                    "created_at": now_iso, "updated_at": now_iso, "turns_count": 0,
+                }
+                existing_lines = [json.dumps(meta)]
 
-        # If title is generic and current prompt is substantive, upgrade title
-        if meta.get("title") in ("New Conversation", "Untitled Session") and not cls.is_generic_prompt(user_message):
-            meta["title"] = title or cls.derive_title(user_message)
+            # If title is generic and current prompt is substantive, upgrade title
+            if meta.get("title") in ("New Conversation", "Untitled Session") and not cls.is_generic_prompt(user_message):
+                meta["title"] = title or cls.derive_title(user_message)
 
-        meta["turns_count"] = meta.get("turns_count", 0) + 1
-        meta["updated_at"] = now_iso
-        existing_lines[0] = json.dumps(meta)
+            meta["turns_count"] = meta.get("turns_count", 0) + 1
+            meta["updated_at"] = now_iso
+            existing_lines[0] = json.dumps(meta)
 
-        turn_obj = {"type": "turn", "timestamp": now_iso, "user": user_message, "assistant": assistant_reply}
-        with open(fpath, "w", encoding="utf-8") as f:
-            for l in existing_lines: f.write(l + "\n")
-            f.write(json.dumps(turn_obj) + "\n")
-        return meta
+            turn_obj = {"type": "turn", "timestamp": now_iso, "user": user_message, "assistant": assistant_reply}
+            with open(fpath, "w", encoding="utf-8") as f:
+                for l in existing_lines: f.write(l + "\n")
+                f.write(json.dumps(turn_obj) + "\n")
+            return meta
 
     @classmethod
     def prune_ghost_sessions(cls, handle: Optional[str] = None, active_session_id: Optional[str] = None) -> int:

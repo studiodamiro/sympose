@@ -3,9 +3,16 @@ Sandboxed Vault & Markdown Note Manager for Sympose.
 """
 
 import os, re, datetime
+import yaml
 from typing import Dict, Any, Optional, List, Tuple
 from collections import defaultdict
 from sympose.config import is_safe_path, config_manager
+
+# ---------------------------------------------------------------------------
+# Backlink index cache — avoids a full vault walk on every message
+# Key: tuple of allowed_dirs paths → (combined_mtime, index_dict)
+# ---------------------------------------------------------------------------
+_BACKLINK_CACHE: Dict[Tuple[str, ...], Tuple[float, Dict[str, List[Dict[str, Any]]]]] = {}
 
 
 
@@ -185,7 +192,6 @@ class VaultManager:
         raw_yaml, body = match.group(1), match.group(2)
         meta: Dict[str, Any] = {}
         try:
-            import yaml
             parsed = yaml.safe_load(raw_yaml)
             if isinstance(parsed, dict):
                 meta = parsed
@@ -444,10 +450,27 @@ class VaultManager:
 
     @classmethod
     def build_backlink_index(cls, profile: Dict[str, Any]) -> Dict[str, List[Dict[str, Any]]]:
-        """Constructs an in-memory inverted index of backlinks across allowed vault folders."""
+        """Constructs an inverted backlink index, using a mtime cache to skip re-walks on unchanged vaults."""
         mv, allowed_dirs = cls._get_master_vault(), cls.get_allowed_dirs(profile)
         if not mv or not allowed_dirs:
             return {}
+
+        cache_key = tuple(sorted(allowed_dirs))
+
+        # Compute the latest mtime across all allowed dirs (shallow, fast)
+        def _dirs_mtime(dirs: List[str]) -> float:
+            mtime = 0.0
+            for d in dirs:
+                try:
+                    mtime = max(mtime, os.path.getmtime(d))
+                except OSError:
+                    pass
+            return mtime
+
+        current_mtime = _dirs_mtime(allowed_dirs)
+        cached_mtime, cached_index = _BACKLINK_CACHE.get(cache_key, (0.0, {}))
+        if current_mtime == cached_mtime and cached_index:
+            return cached_index
 
         inverted_index: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
         raw_ignore = config_manager.get("vault.ignore_folders") or [".obsidian", ".git", "Attachments", ".trash"]
@@ -489,7 +512,9 @@ class VaultManager:
         except Exception:
             pass
 
-        return dict(inverted_index)
+        result = dict(inverted_index)
+        _BACKLINK_CACHE[cache_key] = (current_mtime, result)
+        return result
 
     @classmethod
     def get_backlinks(cls, profile: Dict[str, Any], note_name: str) -> List[Dict[str, Any]]:

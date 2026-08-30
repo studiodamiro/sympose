@@ -17,6 +17,8 @@ except ImportError:
     Console = None
     ROUNDED = None
 
+from sympose.config import DEFAULT_CHAT_MODEL
+
 
 DEFAULT_CONFIG_YAML = """# Sympose Master Configuration
 performance:
@@ -35,12 +37,12 @@ vault:
   search_mode: "direct"
 """
 
-SAMANTHA_YAML = """name: "Samantha"
+SAMANTHA_YAML = f"""name: "Samantha"
 handle: "samantha"
 title: "Polymath Strategic Master Orchestrator"
 aliases:
   - "sam"
-model: "gemini/gemini-3.6-flash"
+model: "{DEFAULT_CHAT_MODEL}"
 icon_emoji: ":brain:"
 
 vault_folders:
@@ -243,7 +245,7 @@ def run_first_run_onboarding(workspace_dir: str, force: bool = False) -> None:
         prompt_label = "\n[bold cyan]Select provider[/bold cyan] [dim][1-4, Enter for [1]][/dim]"
         choice = Prompt.ask(prompt_label, default="1", show_choices=False, show_default=False).strip()
         provider_map = {
-            "1": ("GEMINI_API_KEY", "gemini/gemini-3.6-flash"),
+            "1": ("GEMINI_API_KEY", DEFAULT_CHAT_MODEL),
             "2": ("OPENROUTER_API_KEY", "openrouter/google/gemini-2.5-flash"),
             "3": ("ANTHROPIC_API_KEY", "anthropic/claude-3-5-sonnet-20241022"),
         }

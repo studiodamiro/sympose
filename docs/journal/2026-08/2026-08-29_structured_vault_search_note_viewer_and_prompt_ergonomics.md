@@ -208,14 +208,14 @@ While replaying history (`/history`) rendered Markdown turns through `TerminalUI
 ## 3. Implementation Summary & Verification
 
 ### Modified Components
-- [`sympose/cli.py`](file:///Users/damiro/Development/sympose/sympose/cli.py): Live stream markdown parsing for badge and worker report chunks.
-- [`sympose/ui.py`](file:///Users/damiro/Development/sympose/sympose/ui.py): `MultiSectionPanel`, `render_worker_report_panel`, frontmatter key filter.
-- [`sympose/workers.py`](file:///Users/damiro/Development/sympose/sympose/workers.py): `execute_worker_task` with structured tool call tracking.
-- [`sympose/actions.py`](file:///Users/damiro/Development/sympose/sympose/actions.py): Worker actor attribution and worker report formatting.
-- [`sympose/engine.py`](file:///Users/damiro/Development/sympose/sympose/engine.py): Redundant synthesis gating for note reads.
-- [`sympose/sessions.py`](file:///Users/damiro/Development/sympose/sympose/sessions.py): Ghost session pruning and substantive history filtering.
-- [`sympose/vault.py`](file:///Users/damiro/Development/sympose/sympose/vault.py): Frontmatter parser, structured search, index caching.
-- [`skills/vault_recall/SKILL.md`](file:///Users/damiro/Development/sympose/skills/vault_recall/SKILL.md) & [`skills/subagent_spawn/SKILL.md`](file:///Users/damiro/Development/sympose/skills/subagent_spawn/SKILL.md): Adaptive deliverable playbooks.
+- [`sympose/cli.py`](../../../sympose/cli.py): Live stream markdown parsing for badge and worker report chunks.
+- [`sympose/ui.py`](../../../sympose/ui.py): `MultiSectionPanel`, `render_worker_report_panel`, frontmatter key filter.
+- [`sympose/workers.py`](../../../sympose/workers.py): `execute_worker_task` with structured tool call tracking.
+- [`sympose/actions.py`](../../../sympose/actions.py): Worker actor attribution and worker report formatting.
+- [`sympose/engine.py`](../../../sympose/engine.py): Redundant synthesis gating for note reads.
+- [`sympose/sessions.py`](../../../sympose/sessions.py): Ghost session pruning and substantive history filtering.
+- [`sympose/vault.py`](../../../sympose/vault.py): Frontmatter parser, structured search, index caching.
+- [`skills/vault_recall/SKILL.md`](../../../skills/vault_recall/SKILL.md) & [`skills/subagent_spawn/SKILL.md`](../../../skills/subagent_spawn/SKILL.md): Adaptive deliverable playbooks.
 
 ### Verification Results
 - Verified live stream badge rendering in `scratch/test_live_rendering.py` with zero syntax errors.

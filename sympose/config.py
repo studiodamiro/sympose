@@ -34,6 +34,13 @@ except ImportError:
     litellm = None
 
 
+# ---------------------------------------------------------------------------
+# Canonical model fallback constants — change here to update everywhere
+# ---------------------------------------------------------------------------
+DEFAULT_CHAT_MODEL: str = os.getenv("DEFAULT_MODEL", "gemini/gemini-3.6-flash")
+DEFAULT_WORKER_MODEL: str = os.getenv("DEFAULT_WORKER_MODEL", DEFAULT_CHAT_MODEL)
+
+
 class ConfigManager:
     """Manages master configuration loading, validation, and dynamic updates."""
 
@@ -52,12 +59,15 @@ class ConfigManager:
                 "default_target": "both",
                 "clear_terminal": True,
                 "obsidian_subfolder": "Sessions",
-                "summarization_model": "gemini/gemini-3.6-flash",
+                "summarization_model": DEFAULT_CHAT_MODEL,
             }
         },
         "memory": {
             "user_profile_file": "profiles/user_profile.md",
             "shared_memory_file": "profiles/_shared_memory.md",
+            "auto_compact": True,
+            "compaction_threshold": 25,
+            "extraction_timeout": 8.0,
         },
         "runtime": {
             "default_persona": "samantha",

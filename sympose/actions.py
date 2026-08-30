@@ -5,6 +5,7 @@ Autonomic Action Tag Processor for Sympose Agents.
 import os
 import shutil
 import re
+import logging
 from typing import Dict, Any, List, Tuple
 from sympose.vault import VaultManager
 from sympose.skills import skill_manager
@@ -12,6 +13,8 @@ from sympose.workers import WorkerEngine, WorkerTask
 from sympose.mcp import mcp_registry
 from sympose.config import config_manager
 from sympose.native_tools import NativeTools
+
+log = logging.getLogger(__name__)
 
 
 class ActionProcessor:
@@ -265,19 +268,20 @@ class ActionProcessor:
                     os.makedirs(arch_dir, exist_ok=True)
                     for src, dst in files_to_move:
                         try: shutil.move(src, dst)
-                        except Exception: pass
+                        except Exception as e: log.debug("[DELETE_PERSONA] failed to archive %s -> %s: %s", src, dst, e)
                     profile_manager.reload_profiles()
                     if config_manager.get("runtime.default_persona") == h_name:
                         config_manager.set("runtime.default_persona", "samantha")
                         config_manager.save()
 
-            # 9. WRITE_CANVAS
             elif tag == "WRITE_CANVAS" and "|" in inner:
                 parts = inner.split("|", 1)
                 target, content = parts[0].strip(), parts[1].strip()
                 if target and content:
                     if target.startswith("#") or target.startswith("C0") or target.lower().startswith("slack:"):
-                        badges.append(f"> 📋 **{name} published Slack Canvas to `{target.replace('slack:', '').strip()}`**")
+                        # Slack Canvas API posting is not yet implemented.
+                        # Emit an honest warning instead of a misleading success badge.
+                        badges.append(f"> ⚠️ **Slack Canvas posting not yet implemented** (target: `{target.replace('slack:', '').strip()}`). Canvas content was not sent.")
                     else:
                         fname = target if target.endswith(".canvas") or target.endswith(".md") else f"{target}.canvas"
                         VaultManager.write_note(profile, fname, content)

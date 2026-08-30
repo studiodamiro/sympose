@@ -6,8 +6,11 @@ Parses, indexes, and formats standard SKILL.md playbooks for agents and workers.
 import os
 import re
 import glob
+import logging
 from typing import Dict, List, Optional, Any
 import yaml
+
+log = logging.getLogger(__name__)
 
 
 class Skill:
@@ -86,7 +89,7 @@ class SkillManager:
                     # User custom skills in workspace override builtins with the same name
                     self.skills[skill.name] = skill
             except Exception as e:
-                print(f"⚠️ Error loading skill from {filepath}: {e}")
+                log.warning("Error loading skill from %s: %s", filepath, e)
 
         return self.skills
 

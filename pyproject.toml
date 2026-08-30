@@ -34,3 +34,20 @@ py-modules = ["app"]
 
 [tool.setuptools.package-data]
 sympose = ["*.yaml", "*.md", "*.json", "builtin_skills/*/*.md", "builtin_skills/*.md"]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-mock>=3.12.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "-v --tb=short"
+markers = [
+    "unit: fast unit tests with no external dependencies",
+    "integration: tests that touch the filesystem or external services",
+]

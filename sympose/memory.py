@@ -4,10 +4,13 @@ Session Archival, Distillation & Heuristic Gated Memory Management for Sympose.
 
 import os
 import re
+import logging
 import threading
 from typing import Dict, List, Any, Optional
 
-from sympose.config import config_manager
+log = logging.getLogger(__name__)
+
+from sympose.config import config_manager, DEFAULT_CHAT_MODEL
 import litellm
 
 from sympose.profiles import ProfileManager
@@ -59,10 +62,13 @@ class HeuristicGatedExtractor:
         """Runs the extraction pass in a detached background daemon thread."""
         def _worker():
             try:
-                model = config.get("session.exit_behavior.summarization_model") or os.getenv("DEFAULT_MODEL", "gemini/gemini-3.6-flash")
+                model = config.get("session.exit_behavior.summarization_model") or DEFAULT_CHAT_MODEL
                 tmpl = _load_prompt_tmpl("memory_extraction.md", "You are the silent memory archivist for Sympose AI.\nUser message: {{user_message}}\nAssistant reply: {{assistant_reply}}\n\nEvaluate if the user shared a DURABLE fact.\nIf NO: Output 'NONE'.\nIf YES: Output 1 bullet point '- '.")
                 prompt = tmpl.replace("{{user_message}}", user_message).replace("{{assistant_reply}}", assistant_reply)
-                kwargs = {"model": model, "messages": [{"role": "user", "content": prompt}], "stream": False, "timeout": float(config.get("performance.request_timeout", 30.0))}
+                # Use a dedicated short timeout for background daemon threads to
+                # prevent pileup under slow API conditions
+                bg_timeout = float(config.get("memory.extraction_timeout", 8.0))
+                kwargs = {"model": model, "messages": [{"role": "user", "content": prompt}], "stream": False, "timeout": bg_timeout}
                 for pfx, key in (("gemini/", "GEMINI_API_KEY"), ("anthropic/", "ANTHROPIC_API_KEY"), ("openai/", "OPENAI_API_KEY"), ("openrouter/", "OPENROUTER_API_KEY")):
                     if model.startswith(pfx) and os.getenv(key):
                         kwargs["api_key"] = os.getenv(key)
@@ -73,7 +79,8 @@ class HeuristicGatedExtractor:
                     bullets = [l.strip() for l in out.splitlines() if l.strip().startswith(("- ", "* "))]
                     if bullets:
                         pm.append_memory(handle, "\n".join(bullets))
-            except Exception: pass
+            except Exception as exc:
+                log.debug("[memory.extract_async] suppressed error for @%s: %s", handle, exc)
 
         threading.Thread(target=_worker, daemon=True).start()
 
@@ -94,7 +101,7 @@ class SessionArchivist:
         if not history: return {"status": "empty", "message": "No active conversation turns to summarize."}
 
         transcript = "\n\n".join(f"{msg.get('role', 'unknown').capitalize()}: {msg.get('content', '')}" for msg in history)
-        summarization_model = self.config.get("session.exit_behavior.summarization_model") or os.getenv("DEFAULT_MODEL", "gemini/gemini-3.6-flash")
+        summarization_model = self.config.get("session.exit_behavior.summarization_model") or DEFAULT_CHAT_MODEL
         tmpl = _load_prompt_tmpl("session_summary.md", "You are the session archivist for Sympose Agent Hub.\nAnalyze session with @{{handle}} ({{name}}):\n\n### SECTION 1: PERSISTENT MEMORY BULLETS\n- Facts\n\n### SECTION 2: OBSIDIAN SESSION LOG\n## Overview\n\nCONVERSATION TRANSCRIPT:\n{{transcript}}")
         prompt = tmpl.replace("{{handle}}", handle).replace("{{name}}", str(profile.get("name", handle))).replace("{{transcript}}", transcript)
 

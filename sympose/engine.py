@@ -6,7 +6,7 @@ import os, re
 from typing import Dict, List, Any, Optional
 import litellm
 
-from sympose.config import config_manager
+from sympose.config import config_manager, DEFAULT_CHAT_MODEL
 from sympose.profiles import ProfileManager
 from sympose.memory import SessionArchivist
 from sympose.commands import CommandInterceptor
@@ -112,7 +112,7 @@ class PersonaEngine:
             return
 
         system_prompt = self.pm.build_system_prompt(target_profile)
-        target_model = self.model_overrides.get(target_handle.lower(), target_profile.get("model") or os.getenv("DEFAULT_MODEL", "gemini/gemini-3.6-flash"))
+        target_model = self.model_overrides.get(target_handle.lower(), target_profile.get("model") or DEFAULT_CHAT_MODEL)
         active_messages = [{"role": "system", "content": system_prompt}, {"role": "user", "content": sub_prompt}]
         if litellm is None:
             yield "⚠️ LiteLLM is not installed."
@@ -170,7 +170,7 @@ class PersonaEngine:
         active_messages.extend(history[-(self.max_turns * 2):])
         active_messages.append({"role": "user", "content": user_message})
 
-        target_model = self.model_overrides.get(handle.lower(), profile.get("model") or os.getenv("DEFAULT_MODEL", "gemini/gemini-3.6-flash"))
+        target_model = self.model_overrides.get(handle.lower(), profile.get("model") or DEFAULT_CHAT_MODEL)
         if litellm is None:
             yield "⚠️ LiteLLM is not installed. Run `pip install -r requirements.txt`."
             return

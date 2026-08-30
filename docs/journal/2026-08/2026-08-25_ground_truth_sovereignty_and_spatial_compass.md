@@ -42,7 +42,7 @@ When smaller open-weight models (like Gemma 2 9B) lack grounded context, their b
 3. **Zero-Fabrication Directives:** If a note is not present on disk or in the pre-turn payload, models are strictly prohibited from inventing plausible text or simulating actions. They must state their honest ignorance immediately.
 
 ### Verification
-`@aurelius` (`gemma2:9b`) successfully retrieved and quoted [`Daily/2018/04-April/2018-04-26.md`](<MASTER_VAULT_PATH>/Daily/2018/04-April/2018-04-26.md) verbatim with zero simulated markers.
+`@aurelius` (`gemma2:9b`) successfully retrieved and quoted [`Daily/2018/04-April/2018-04-26.md`](../../../<MASTER_VAULT_PATH>/Daily/2018/04-April/2018-04-26.md) verbatim with zero simulated markers.
 
 ---
 

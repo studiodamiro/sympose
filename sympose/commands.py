@@ -5,6 +5,7 @@ Slash Command Interceptor & Natural Intent Parser for Sympose.
 import os
 import shutil
 import re
+import logging
 from typing import Any, Dict, Optional, Generator
 from sympose.vault import VaultManager
 from sympose.skills import skill_manager
@@ -13,6 +14,9 @@ from sympose.mcp import mcp_registry
 from sympose.models import ModelCatalog
 from sympose.sessions import SessionManager
 from sympose.ui import TerminalUI
+from sympose.config import DEFAULT_CHAT_MODEL
+
+log = logging.getLogger(__name__)
 
 
 class CommandInterceptor:
@@ -146,7 +150,7 @@ class CommandInterceptor:
                 if os.path.exists(template_file):
                     try:
                         with open(template_file, "r", encoding="utf-8") as tf: initial_content = tf.read()
-                    except Exception: pass
+                    except Exception as e: log.debug("[reset memory] failed to read template %s: %s", template_file, e)
                 with open(mem_file, "w", encoding="utf-8") as f: f.write(initial_content)
                 engine.reset_history(handle)
                 yield f"🧠 Persistent working memory and active conversation deleted for {p_name}. Reset to clean template."
@@ -188,7 +192,7 @@ class CommandInterceptor:
                         f"- `session.exit_behavior.auto_save`: `{cfg.get('session.exit_behavior.auto_save')}`\n"
                         f"- `session.exit_behavior.default_target`: `{cfg.get('session.exit_behavior.default_target')}`\n"
                         f"- `session.exit_behavior.clear_terminal`: `{cfg.get('session.exit_behavior.clear_terminal')}`\n"
-                        f"- `session.exit_behavior.summarization_model`: `{cfg.get('session.exit_behavior.summarization_model') or os.getenv('DEFAULT_MODEL', 'gemini/gemini-3.6-flash')}`\n"
+                        f"- `session.exit_behavior.summarization_model`: `{cfg.get('session.exit_behavior.summarization_model') or DEFAULT_CHAT_MODEL}`\n"
                         f"- `memory.compaction_threshold`: `{cfg.get('memory.compaction_threshold', 25)} lines`\n"
                         f"- `memory.auto_compact`: `{cfg.get('memory.auto_compact', True)}`\n"
                         f"- `vault.search_mode`: `{cfg.get('vault.search_mode')}`\n\n"
@@ -300,7 +304,7 @@ class CommandInterceptor:
                 sub = parts[1].strip() if len(parts) > 1 else ""
                 sub_lower = sub.lower()
                 active_override = engine.model_overrides.get(handle.lower())
-                default_model = profile.get("model") or os.getenv("DEFAULT_MODEL", "gemini/gemini-3.6-flash")
+                default_model = profile.get("model") or DEFAULT_CHAT_MODEL
                 current_model = active_override or default_model
 
                 if not sub or sub_lower in ("list", "help", "status", "ls"):
@@ -328,7 +332,7 @@ class CommandInterceptor:
                         "  - `openrouter/google/gemini-2.5-flash` — Fast, multimodal agentic worker",
                         "  - `openrouter/meta-llama/llama-3.3-70b-instruct` — High-density open weights",
                         "- **Direct Cloud API Keys:**",
-                        "  - `gemini/gemini-3.6-flash` — Sub-second low latency",
+                        f"  - `{DEFAULT_CHAT_MODEL}` — Sub-second low latency",
                         "  - `anthropic/claude-3-5-sonnet-20241022` — Direct Anthropic API",
                         "- **Local Ollama:**",
                         "  - `ollama/qwen2.5:7b` — Sovereign local execution\n",

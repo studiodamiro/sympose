@@ -63,12 +63,12 @@ SKIP_PATTERNS = [
 
 ## 3. Silent Deduplication & Hygiene
 
-When a fact is extracted, [`ProfileManager.append_memory()`](file:///Users/damiro/Development/sympose/sympose/profiles.py) checks the existing `_memory.md` text under process-wide mutex lock before writing, preventing duplicate bullet points from being appended across sessions.
+When a fact is extracted, [`ProfileManager.append_memory()`](../../../sympose/profiles.py) checks the existing `_memory.md` text under process-wide mutex lock before writing, preventing duplicate bullet points from being appended across sessions.
 
 ---
 
 ## 4. Declarative Templates & Preamble-Resilient Parsing (ADR-037 & ADR-038)
 
-Extraction instructions are decoupled from Python code and maintained in [`prompts/memory_extraction.md`](file:///Users/damiro/Development/sympose/prompts/memory_extraction.md):
+Extraction instructions are decoupled from Python code and maintained in [`prompts/memory_extraction.md`](../../../prompts/memory_extraction.md):
 - **Anchored Asset Resolution**: Prompts are discovered relative to package root (`sympose/../prompts/`).
 - **Resilient Line Parsing**: Rather than checking index 0 prefix (`startswith("-")`), the parser extracts bullet lines line-by-line, ensuring facts accompanied by conversational remarks are captured cleanly.

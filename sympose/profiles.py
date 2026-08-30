@@ -2,11 +2,14 @@
 Dynamic Profile, Soul & Tiered Memory Manager for Sympose.
 """
 
-import os, sys, glob, re, datetime
+import os, sys, glob, re, datetime, logging
 from typing import Dict, List, Optional, Any, Tuple
 import yaml
 
+log = logging.getLogger(__name__)
+
 from sympose.skills import skill_manager
+from sympose.config import DEFAULT_CHAT_MODEL
 
 
 class ProfileManager:
@@ -19,6 +22,7 @@ class ProfileManager:
             from sympose.bootstrap import resolve_workspace_dir
             self.profiles_dir = os.path.abspath(os.path.join(resolve_workspace_dir(), "profiles"))
         self.profiles: Dict[str, Dict[str, Any]] = {}
+        self._profiles_mtime: float = 0.0
         self.reload_profiles()
 
     def update_persona_skills(self, handle: str, skill_name: str, action: str = "add") -> Tuple[bool, str]:
@@ -84,15 +88,15 @@ class ProfileManager:
                 if os.path.exists(ex_path):
                     try:
                         with open(ex_path, "r", encoding="utf-8") as ef: content = ef.read()
-                    except Exception: pass
+                    except Exception as e: log.debug("[scaffold] failed to read template %s: %s", ex_path, e)
                 try:
                     with open(path, "w", encoding="utf-8") as f: f.write(content)
-                except Exception: pass
+                except Exception as e: log.debug("[scaffold] failed to write %s: %s", path, e)
 
         profile["soul_file"] = soul_path
         profile["memory_file"] = mem_path
         if not profile.get("model"):
-            profile["model"] = os.getenv("DEFAULT_MODEL", "gemini/gemini-3.6-flash")
+            profile["model"] = DEFAULT_CHAT_MODEL
         if "skills" not in profile or profile.get("skills") is None:
             profile["skills"] = []
         if not profile.get("thinking_phrases"):
@@ -103,7 +107,7 @@ class ProfileManager:
             "name": "Samantha",
             "handle": "samantha",
             "title": "Polymath Strategic Master Orchestrator",
-            "model": "gemini/gemini-3.6-flash",
+            "model": DEFAULT_CHAT_MODEL,
             "icon_emoji": ":brain:",
             "vault_folders": ["General", "Projects", "Thoughts", "Templates"],
             "share_memory": True,
@@ -136,14 +140,25 @@ class ProfileManager:
                         self.bootstrap_missing_artifacts(data)
                         self.profiles[data["handle"].lower()] = data
             except Exception as e:
-                print(f"⚠️ Error loading profile {filepath}: {e}", file=sys.stderr)
+                log.warning("Error loading profile %s: %s", filepath, e)
+        # Record mtime so list_personas() can skip redundant reloads
+        try:
+            self._profiles_mtime = os.path.getmtime(self.profiles_dir)
+        except OSError:
+            self._profiles_mtime = 0.0
         return self.profiles
 
     def get_profile(self, handle: str) -> Optional[Dict[str, Any]]:
         return self.profiles.get(handle.lower())
 
     def list_personas(self) -> List[Dict[str, Any]]:
-        self.reload_profiles()
+        """Returns all loaded personas, reloading from disk only when the profiles directory has changed."""
+        try:
+            current_mtime = os.path.getmtime(self.profiles_dir)
+        except OSError:
+            current_mtime = 0.0
+        if current_mtime != self._profiles_mtime:
+            self.reload_profiles()
         return list(self.profiles.values())
 
     def _read_file_safe(self, path: Optional[str]) -> str:

@@ -6,7 +6,7 @@ performance:
   drop_unsupported_params: true
   stream: true
   resume_context_turns: 6
-  render_mode: hybrid
+  render_mode: buffered
   slack_thread_context_limit: 12
   max_consecutive_bot_turns: 6
 session:
@@ -19,8 +19,9 @@ session:
 memory:
   user_profile_file: profiles/user_profile.md
   shared_memory_file: profiles/_shared_memory.md
-  compaction_threshold: 25
   auto_compact: true
+  compaction_threshold: 25
+  extraction_timeout: 8.0
 runtime:
   default_persona: samantha
   profiles_dir: profiles

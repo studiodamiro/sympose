@@ -1,9 +1,11 @@
 export { ActionBadge, ACTION_META, type ActionKind } from "./action-badge"
 export { CapacityMeter } from "./capacity-meter"
 export { ChatMessage, StreamingCaret } from "./chat-message"
+export { ContentPanel } from "./content-panel"
 export { Composer } from "./composer"
 export { ControlRow, ControlSection } from "./control-section"
 export { EntityPath } from "./entity-path"
+export { MainMenu, type MainMenuItem } from "./main-menu"
 export { LatencyReadout, MetaText } from "./meta-text"
 export { ModelChip } from "./model-chip"
 export {

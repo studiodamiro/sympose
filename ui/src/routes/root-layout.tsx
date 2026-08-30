@@ -8,6 +8,8 @@ import { useTheme } from "@/components/theme-provider"
 const NAV = [
   { to: "/", label: "Dashboard", end: true },
   { to: "/components", label: "Components", end: false },
+  { to: "/menu", label: "Main menu", end: false },
+  { to: "/shell", label: "Shell", end: false },
 ]
 
 export function RootLayout() {

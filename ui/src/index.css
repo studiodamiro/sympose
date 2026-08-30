@@ -54,6 +54,8 @@
     --chip-foreground: oklch(0.5 0.12 74);    /* amber-on-grey */
     --fg-strong: oklch(0.141 0.005 285.823);  /* category subheaders */
     --fg-muted: oklch(0.552 0.016 285.938);   /* timestamps, token counts, ms readouts */
+    --panel: oklch(0.967 0.001 286.375);      /* raised working surface — distinct from --background in both modes (--card is not, in light) */
+    --panel-foreground: oklch(0.141 0.005 285.823);
 }
 
 .dark {
@@ -101,6 +103,8 @@
     --chip-foreground: oklch(0.84 0.13 85);
     --fg-strong: oklch(0.985 0 0);
     --fg-muted: oklch(0.705 0.015 286.067);
+    --panel: oklch(0.21 0.006 285.885);       /* raised working surface (matches the approved dark shade) */
+    --panel-foreground: oklch(0.985 0 0);
 }
 
 @theme inline {
@@ -148,6 +152,8 @@
     --color-chip-foreground: var(--chip-foreground);
     --color-fg-strong: var(--fg-strong);
     --color-fg-muted: var(--fg-muted);
+    --color-panel: var(--panel);
+    --color-panel-foreground: var(--panel-foreground);
     --radius-sm: calc(var(--radius) * 0.6);
     --radius-md: calc(var(--radius) * 0.8);
     --radius-lg: var(--radius);

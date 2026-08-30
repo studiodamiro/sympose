@@ -8,6 +8,7 @@ import {
 
 import { cn } from "@/lib/utils"
 import { PERSONA_LIST } from "@/lib/personas"
+import { VAULT_FOLDERS } from "@/lib/vault-folders"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -64,9 +65,12 @@ import {
   CapacityMeter,
   ChatMessage,
   Composer,
+  ContentPanel,
   ControlRow,
   ControlSection,
   EntityPath,
+  MainMenu,
+  type MainMenuItem,
   MetaText,
   ModelChip,
   Panel,
@@ -97,6 +101,7 @@ const SECTIONS: Section[] = [
   { id: "persona", title: "Persona identity" },
   { id: "chat", title: "Multi-agent chat" },
   { id: "vault", title: "Vault explorer" },
+  { id: "menu", title: "Main menu" },
   { id: "nebula", title: "Nebula controls" },
   { id: "settings", title: "Settings" },
   { id: "status", title: "Status & runtime" },
@@ -143,6 +148,47 @@ function Row({
       <span className="font-mono text-xs text-fg-muted">{label}</span>
       <div className={cn("flex flex-wrap items-center gap-3", className)}>
         {children}
+      </div>
+    </div>
+  )
+}
+
+const MENU_ITEMS: MainMenuItem[] = VAULT_FOLDERS.map((f) => ({
+  id: f.name,
+  label: f.name,
+  icon: f.icon,
+}))
+
+/** Framed MainMenu + connected panel, with a collapse toggle. */
+function MainMenuDemo() {
+  const [active, setActive] = React.useState("Projects")
+  const [collapsed, setCollapsed] = React.useState(false)
+  return (
+    <div className="flex flex-col gap-3">
+      <button
+        type="button"
+        onClick={() => setCollapsed((c) => !c)}
+        className="inline-flex h-8 w-fit items-center rounded-md border border-border bg-card px-3 text-sm font-medium transition-colors hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
+      >
+        {collapsed ? "Expand" : "Collapse"} menu
+      </button>
+      <div className="flex h-110 overflow-hidden rounded-lg border border-border bg-background">
+        <MainMenu
+          items={MENU_ITEMS}
+          activeId={active}
+          collapsed={collapsed}
+          onCollapsedChange={setCollapsed}
+          onSelectItem={(item) => setActive(item.id)}
+        />
+        <ContentPanel contentClassName="p-5 gap-3">
+          <h3 className="font-heading text-lg font-semibold text-fg-strong">
+            {active}
+          </h3>
+          <p className="text-sm leading-relaxed text-muted-foreground">
+            {active} folder — placeholder content for the selected section.
+          </p>
+        </ContentPanel>
+        <div className="min-w-0 flex-1" />
       </div>
     </div>
   )
@@ -362,6 +408,15 @@ export function ComponentsGallery() {
               </Row>
             </div>
           </div>
+        </GallerySection>
+
+        {/* ----------------------------------------------------------- menu -- */}
+        <GallerySection
+          id="menu"
+          title="Main menu"
+          description="The app-shell sidebar. Drag the right edge to resize (snaps collapsed near the minimum); icons stay on one fixed axis. The active row carries the panel fill and attaches flush to the content panel, hover rows stay detached pills. Applied full-page at /shell."
+        >
+          <MainMenuDemo />
         </GallerySection>
 
         {/* --------------------------------------------------------- nebula -- */}

@@ -26,7 +26,7 @@ ui/
 ├── index.html                    # Vite entry
 ├── src/
 │   ├── main.tsx                   # ThemeProvider + TooltipProvider + App mount
-│   ├── App.tsx                    # react-router: / and /components
+│   ├── App.tsx                    # react-router: /, /components, /menu, /shell
 │   ├── index.css                  # Tailwind v4 config + theme tokens
 │   ├── components/
 │   │   ├── theme-provider.tsx
@@ -34,13 +34,18 @@ ui/
 │   │   ├── ui/                    # shadcn primitives (base-maia) — 34 added
 │   │   └── sympose/              # Sympose-specific molecules (see below)
 │   ├── routes/
-│   │   ├── root-layout.tsx        # nav shell
+│   │   ├── root-layout.tsx        # top-nav chrome for /, /components, /menu
 │   │   ├── dashboard-placeholder.tsx
 │   │   ├── components-gallery.tsx # the /components page
+│   │   ├── menu-showcase.tsx      # the /menu page (MainMenu deep-dive)
+│   │   ├── app-shell.tsx          # the /shell page — MainMenu as a real shell
 │   │   └── gallery-data.ts        # mock vault + theme presets
 │   └── lib/
 │       ├── utils.ts              # cn()
-│       └── personas.ts           # persona roster (§8): handle, accent, icon
+│       ├── personas.ts           # persona roster (§8): handle, accent, icon
+│       ├── vault-folders.ts      # top-level vault folders + their icons
+│       ├── cookies.ts            # get/set cookie helpers (UI prefs — §5)
+│       └── use-resizable.ts      # drag/keyboard resize hook (+ cookie persist)
 ├── components.json
 ├── vite.config.ts                # @ alias + dev proxy to :8000
 └── legacy/                        # pre-Vite vanilla shell (see below)
@@ -61,6 +66,8 @@ at [`/components`](http://localhost:5173/components) (`src/routes/components-gal
 
 | Component | Purpose (UI_DESIGN_REFERENCE.md) |
 | :-- | :-- |
+| `MainMenu` | app-shell sidebar (`/menu`, `/shell`) — one fixed icon axis, drag-resizable right edge (cookie-persisted), snaps collapsed near the minimum; active row fuses into the content panel (§5) |
+| `ContentPanel` | the panel that docks flush against `MainMenu` — drag-resizable between ¼ and ½ of the stage, cookie-persisted (§5) |
 | `PersonaPill`, `ModelChip` | `@handle` identity + muted backend-model chip with on-device marker (§7–§8) |
 | `ChatMessage`, `StreamingCaret` | chat turns by alignment/fill; mid-stream caret (§7) |
 | `ActionBadge` | inline action-event badges — `[WRITE_NOTE]`, `[SEARCH]`, … (§7) |

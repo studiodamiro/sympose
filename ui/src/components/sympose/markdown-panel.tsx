@@ -17,13 +17,15 @@ import {
 
 import { cn } from "@/lib/utils"
 import { useResizable } from "@/lib/use-resizable"
+import { useFillWidth } from "@/lib/use-fill-width"
+import { useTransientFlag } from "@/lib/use-transient-flag"
 
 /**
- * The markdown editor / reader that sits between `<ContentPanel>` and
- * `<ChatPanel>` in the app shell (see the wireframe). It splits the stage with
- * the chat: its right edge is a drag handle, the width is free between a third
- * and two-thirds of the stage and defaults to half; the chat takes the rest.
- * `storageKey` persists the dragged width as a cookie preference.
+ * The markdown editor / reader — the middle stage panel, between `<ContentPanel>`
+ * and the chat. When another panel sits to its right its right edge is a drag
+ * handle (width free between a third and two-thirds of the stage, cookie-backed
+ * via `storageKey`); when nothing does, pass `fill` and it takes the leftover
+ * width instead.
  *
  * Scope for now is a *reader* with an editing chrome on top — the toolbar marks
  * are inert placeholders. What a first cut should carry, and why:
@@ -47,6 +49,12 @@ interface MarkdownPanelProps extends React.ComponentProps<"div"> {
    * slides in from the left on reveal and back out on hide.
    */
   open?: boolean
+  /**
+   * Grow into the leftover stage width (in addition to the dragged basis) —
+   * used when nothing sits to the editor's right, so it occupies the chat's
+   * area. No resize handle in this mode. Only meaningful while `open`.
+   */
+  fill?: boolean
 }
 
 interface Frontmatter {
@@ -103,8 +111,9 @@ function MarkButton({ icon, label }: { icon: IconSvgElement; label: string }) {
   )
 }
 
-function ToolbarDivider() {
-  return <span className="mx-1 h-5 w-px bg-border" />
+/** A cluster of related mark buttons — clusters wrap as units on narrow widths. */
+function MarkGroup({ children }: { children: React.ReactNode }) {
+  return <div className="flex items-center gap-0.5">{children}</div>
 }
 
 /** Reader-mode wikilink — de-bracketed, `--brand`, opens the note on click. */
@@ -123,12 +132,20 @@ function MarkdownPanel({
   className,
   storageKey,
   open = true,
+  fill = false,
   style,
   ...props
 }: MarkdownPanelProps) {
   const wrapRef = React.useRef<HTMLDivElement>(null)
   const stageW = useAncestorWidth(wrapRef, 1)
   const shellW = useAncestorWidth(wrapRef, 2)
+  // Space actually free to the editor's right — what it grows to when filling,
+  // remeasured every frame while a panel slides.
+  const availW = useFillWidth(wrapRef)
+  // Arm the max-width transition only while `fill` is actually flipping. The
+  // rest of the time max-width follows the live measurement instantly, so the
+  // editor tracks the content panel sliding out instead of lagging behind it.
+  const fillToggling = useTransientFlag(fill)
 
   // Minimum is a quarter of the shell row — the exact rule `<ContentPanel>`
   // uses — so neither working panel can be dragged narrower than the other.
@@ -163,17 +180,32 @@ function MarkdownPanel({
         // same wrapper insets as <ContentPanel>: py-2 top/bottom margin, pe-2
         // right margin — so the gap to <ContentPanel> (its pe-2), the gap to the
         // chat (this pe-2), and the panel's top/bottom margins are all one step.
-        "group/md relative shrink-0 py-2 pe-2 data-dragging:select-none",
+        // z-10: sits below <ContentPanel> (z-20) but above the chat slot (z-0),
+        // so a parked panel is always hidden behind its left-hand neighbour and
+        // appears to slide out from that neighbour's right edge.
+        "group/md relative z-10 min-w-0 shrink-0 py-2 pe-2 data-dragging:select-none",
         // reveal: a negative inline-start margin parks the whole panel one width
         // to the left (clipped by the stage's overflow-hidden); opening tweens it
         // back to 0 so it fades and slides in left→right, and reverses on hide.
-        // Width itself never animates, so the prose never reflows mid-transition.
-        "transition-[margin,opacity] duration-300 ease-out data-dragging:transition-none",
+        // max-width is only transitioned while `fill` is flipping (ease-in-out,
+        // since ease-out front-loads and still reads as a snap); the rest of the
+        // time it follows the live measurement so the editor glides with a
+        // neighbour's slide rather than lagging it.
+        "transition-[margin,opacity] duration-300 ease-in-out data-dragging:transition-none",
+        fillToggling && "transition-[margin,opacity,max-width]",
         open ? "opacity-100" : "pointer-events-none opacity-0",
         className
       )}
       style={{
-        width: size,
+        // Always growable, but clamped: to the dragged width normally, to the
+        // space actually free to its right when filling. Both are real measured
+        // pixels, so animating the clamp tweens the editor across the whole
+        // distance as the chat panel comes and goes — in lockstep with the chat
+        // slot's own flex-basis tween. (An oversized clamp like `100vw` would
+        // burn most of the duration invisibly, then snap — the old jerk.)
+        flexBasis: size,
+        flexGrow: 1,
+        maxWidth: fill ? availW || size : size,
         marginInlineStart: open ? 0 : -size,
         ...style,
       }}
@@ -182,25 +214,46 @@ function MarkdownPanel({
       {/* the raised surface — same fill as <ContentPanel> so the editor reads as
           a sibling working panel and pops off the stage */}
       <div className="flex h-full w-full flex-col overflow-hidden rounded-lg bg-panel text-panel-foreground">
-        {/* toolbar */}
-        <div className="flex shrink-0 items-center gap-0.5 border-b border-border px-3 py-2">
-          <MarkButton icon={Heading01Icon} label="Heading 1" />
-          <MarkButton icon={Heading02Icon} label="Heading 2" />
-          <ToolbarDivider />
-          <MarkButton icon={TextBoldIcon} label="Bold" />
-          <MarkButton icon={TextItalicIcon} label="Italic" />
-          <MarkButton icon={TextUnderlineIcon} label="Underline" />
-          <MarkButton icon={TextStrikethroughIcon} label="Strikethrough" />
-          <ToolbarDivider />
-          <MarkButton icon={LeftToRightListBulletIcon} label="Bullet list" />
-          <MarkButton icon={LeftToRightListNumberIcon} label="Numbered list" />
-          <ToolbarDivider />
-          <MarkButton icon={SourceCodeIcon} label="Code block" />
-          <MarkButton icon={QuoteDownIcon} label="Blockquote" />
+        {/* toolbar — the mark clusters wrap to multiple rows on narrow widths
+            (tablet); the save action stays pinned to the top-right corner. When
+            the editor fills the stage, extra end padding clears the floating
+            chat action group that overlaps this corner. */}
+        <div
+          className={cn(
+            "flex shrink-0 items-start justify-between gap-2 border-b border-border py-2 ps-3",
+            fill ? "pe-24" : "pe-3"
+          )}
+        >
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <MarkGroup>
+              <MarkButton icon={Heading01Icon} label="Heading 1" />
+              <MarkButton icon={Heading02Icon} label="Heading 2" />
+            </MarkGroup>
+            <MarkGroup>
+              <MarkButton icon={TextBoldIcon} label="Bold" />
+              <MarkButton icon={TextItalicIcon} label="Italic" />
+              <MarkButton icon={TextUnderlineIcon} label="Underline" />
+              <MarkButton icon={TextStrikethroughIcon} label="Strikethrough" />
+            </MarkGroup>
+            <MarkGroup>
+              <MarkButton
+                icon={LeftToRightListBulletIcon}
+                label="Bullet list"
+              />
+              <MarkButton
+                icon={LeftToRightListNumberIcon}
+                label="Numbered list"
+              />
+            </MarkGroup>
+            <MarkGroup>
+              <MarkButton icon={SourceCodeIcon} label="Code block" />
+              <MarkButton icon={QuoteDownIcon} label="Blockquote" />
+            </MarkGroup>
+          </div>
           <button
             type="button"
             aria-label="Save note"
-            className="ml-auto grid size-8 place-items-center rounded-md text-brand transition-colors hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
+            className="grid size-8 shrink-0 place-items-center self-start rounded-md text-brand transition-colors hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
           >
             <HugeiconsIcon icon={FloppyDiskIcon} className="size-4" />
           </button>
@@ -268,14 +321,16 @@ function MarkdownPanel({
         </div>
       </div>
 
-      {/* right-edge resize handle — mirrors <ContentPanel> */}
-      <div
-        {...handleProps}
-        aria-label="Resize editor"
-        className="group/md-handle absolute inset-y-0 right-0 z-10 w-1.5 cursor-col-resize touch-none"
-      >
-        <span className="absolute inset-y-0 right-0 w-px bg-transparent transition-colors group-hover/md-handle:bg-border group-focus-visible/md-handle:bg-brand group-data-dragging/md:bg-brand" />
-      </div>
+      {/* right-edge resize handle — mirrors <ContentPanel>; gone when filling */}
+      {!fill && (
+        <div
+          {...handleProps}
+          aria-label="Resize editor"
+          className="group/md-handle absolute inset-y-0 right-0 z-10 w-1.5 cursor-col-resize touch-none"
+        >
+          <span className="absolute inset-y-0 right-0 w-px bg-transparent transition-colors group-hover/md-handle:bg-border group-focus-visible/md-handle:bg-brand group-data-dragging/md:bg-brand" />
+        </div>
+      )}
     </div>
   )
 }

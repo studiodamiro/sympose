@@ -26,3 +26,15 @@ export function getCookieNumber(name: string): number | null {
   const n = Number(raw)
   return Number.isFinite(n) ? n : null
 }
+
+/** Read a cookie as a boolean (`"1"` / `"0"`); `fallback` when absent. */
+export function getCookieBool(name: string, fallback: boolean): boolean {
+  const raw = getCookie(name)
+  if (raw == null) return fallback
+  return raw === "1"
+}
+
+/** Persist a boolean as `"1"` / `"0"`. */
+export function setCookieBool(name: string, value: boolean, days = 365): void {
+  setCookie(name, value ? "1" : "0", days)
+}

@@ -1,7 +1,7 @@
 export { ActionBadge, ACTION_META, type ActionKind } from "./action-badge"
 export { CapacityMeter } from "./capacity-meter"
 export { ChatMessage, StreamingCaret } from "./chat-message"
-export { ChatPanel } from "./chat-panel"
+export { ChatActionGroup, ChatPanel } from "./chat-panel"
 export { ContentPanel } from "./content-panel"
 export { Composer } from "./composer"
 export { ControlRow, ControlSection } from "./control-section"

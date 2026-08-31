@@ -76,7 +76,11 @@ function ContentPanel({
       data-state={open ? "open" : "closed"}
       data-dragging={dragging || undefined}
       className={cn(
-        "group/panel relative shrink-0 py-2 pe-2 data-dragging:select-none",
+        // never grows — the content panel is navigation, it keeps its dragged
+        // width and leaves the stage to the work surfaces even when it is alone.
+        // z-20: the top of the stage's panel stack (menu is a separate sibling),
+        // so the editor parks *behind* it and slides out from its right edge.
+        "group/panel relative z-20 shrink-0 py-2 pe-2 data-dragging:select-none",
         // reveal: a negative inline-start margin parks the panel one width to the
         // left (clipped by the shell row's overflow-hidden); opening tweens it
         // back to 0 so it fades and slides in from behind <MainMenu>, and

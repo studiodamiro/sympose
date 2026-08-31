@@ -11,6 +11,8 @@ import {
   ContentPanel,
   MainMenu,
   MarkdownPanel,
+  MENU_ACCOUNT_ID,
+  MENU_SETTINGS_ID,
   type MainMenuItem,
 } from "@/components/sympose"
 
@@ -19,6 +21,12 @@ const ITEMS: MainMenuItem[] = VAULT_FOLDERS.map((f) => ({
   label: f.name,
   icon: f.icon,
 }))
+
+/** Labels for the non-folder sections the footer rows can select. */
+const SECTION_LABELS: Record<string, string> = {
+  [MENU_SETTINGS_ID]: "Settings",
+  [MENU_ACCOUNT_ID]: "Agent",
+}
 
 /**
  * `<MainMenu>` mounted as the real app shell — full viewport height, no demo
@@ -30,19 +38,47 @@ const ITEMS: MainMenuItem[] = VAULT_FOLDERS.map((f) => ({
  */
 export function AppShell() {
   const [active, setActive] = React.useState("Projects")
+  // The content panel starts open. Every menu row — folders plus the Settings
+  // and account footer rows — routes through selectSection: re-clicking the
+  // active row toggles the panel (same reveal/slide as the editor), clicking a
+  // different one switches to it and re-opens.
+  const [panelOpen, setPanelOpen] = React.useState(true)
+  // The markdown editor starts hidden; the [WRITE_NOTE] badge in the chat
+  // toggles it, sliding it in from the left.
+  const [mdOpen, setMdOpen] = React.useState(false)
+
+  const selectSection = (id: string) => {
+    if (id === active) {
+      setPanelOpen((v) => !v)
+    } else {
+      setActive(id)
+      setPanelOpen(true)
+    }
+  }
+
+  const activeLabel = SECTION_LABELS[active] ?? active
 
   return (
     <div className="flex h-svh w-full overflow-hidden bg-background text-foreground">
       <MainMenu
         items={ITEMS}
-        activeId={active}
-        onSelectItem={(item) => setActive(item.id)}
+        // above the content panel so it tucks *behind* the menu on hide
+        className="z-20"
+        activeId={panelOpen ? active : undefined}
+        onSelectItem={(item) => selectSection(item.id)}
+        onOpenSettings={() => selectSection(MENU_SETTINGS_ID)}
+        onSelectAccount={() => selectSection(MENU_ACCOUNT_ID)}
         storageKey="sympose:shell.menu"
       />
-      <ContentPanel storageKey="sympose:shell.panel" contentClassName="p-8">
+      <ContentPanel
+        storageKey="sympose:shell.panel"
+        contentClassName="p-8"
+        open={panelOpen}
+        flushBottomLeft={panelOpen && active === MENU_ACCOUNT_ID}
+      >
         <div className="flex items-center justify-between gap-4">
           <h1 className="font-heading text-2xl font-semibold text-fg-strong">
-            {active}
+            {activeLabel}
           </h1>
           <Link
             to="/"
@@ -52,18 +88,20 @@ export function AppShell() {
           </Link>
         </div>
         <p className="max-w-2xl text-sm leading-relaxed text-muted-foreground">
-          {active} folder. This page mounts{" "}
+          {activeLabel} section. This page mounts{" "}
           <span className="font-mono text-xs">&lt;MainMenu&gt;</span> as the app
           shell. Drag either right edge to resize — the widths persist across
-          reloads. Pick a folder on the left; the heading follows it and the
-          active row stays fused to this panel.
+          reloads. Click any menu row to switch sections; click the active row
+          (folder, Settings, or the account) again to slide this panel away, and
+          once more to bring it back.
         </p>
       </ContentPanel>
 
       {/* remaining stage — markdown editor | chat, split down the middle with a
-          draggable edge; the chat column centres itself in whatever it keeps */}
-      <div className="flex min-w-0 flex-1">
-        <MarkdownPanel storageKey="sympose:shell.md" />
+          draggable edge; the chat column centres itself in whatever it keeps.
+          overflow-hidden clips the editor while it is parked off to the left. */}
+      <div className="flex min-w-0 flex-1 overflow-hidden">
+        <MarkdownPanel storageKey="sympose:shell.md" open={mdOpen} />
         <div className="min-w-0 flex-1 pe-2">
           <ChatPanel placeholder="Ask Samantha." model="3.7 Flash">
             <ChatMessage
@@ -81,6 +119,8 @@ export function AppShell() {
                 <ActionBadge
                   action="WRITE_NOTE"
                   detail="Projects/Sympose/Typography.md"
+                  aria-pressed={mdOpen}
+                  onClick={() => setMdOpen((v) => !v)}
                 />
               }
             >

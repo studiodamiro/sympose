@@ -46,6 +46,14 @@ export interface MainMenuItem {
   icon: IconSvgElement
 }
 
+/**
+ * Sentinel `activeId` / select-callback ids for the footer rows (Settings and
+ * the account), which live outside `items` but share the same active-row and
+ * toggle behaviour.
+ */
+export const MENU_SETTINGS_ID = "__settings__"
+export const MENU_ACCOUNT_ID = "__account__"
+
 interface MainMenuProps extends Omit<React.ComponentProps<"nav">, "onSelect"> {
   items: MainMenuItem[]
   activeId?: string
@@ -54,7 +62,10 @@ interface MainMenuProps extends Omit<React.ComponentProps<"nav">, "onSelect"> {
   collapsed?: boolean
   defaultCollapsed?: boolean
   onCollapsedChange?: (collapsed: boolean) => void
+  /** Settings row clicked. Pair with `activeId === MENU_SETTINGS_ID`. */
   onOpenSettings?: () => void
+  /** Account row clicked. Pair with `activeId === MENU_ACCOUNT_ID`. */
+  onSelectAccount?: () => void
   /** Account row label + avatar seed. */
   account?: { name: string }
   /** Cookie key to persist the dragged width as a user preference. */
@@ -105,6 +116,7 @@ function MainMenu({
   defaultCollapsed = false,
   onCollapsedChange,
   onOpenSettings,
+  onSelectAccount,
   account = { name: "Agent" },
   storageKey,
   style,
@@ -112,7 +124,12 @@ function MainMenu({
 }: MainMenuProps) {
   const lastExpanded = React.useRef(MENU_MAX)
 
-  const { size: width, commit, dragging, handleProps } = useResizable({
+  const {
+    size: width,
+    commit,
+    dragging,
+    handleProps,
+  } = useResizable({
     min: MENU_MIN,
     max: MENU_MAX,
     defaultSize: (collapsedProp ?? defaultCollapsed) ? MENU_MIN : MENU_MAX,
@@ -144,7 +161,8 @@ function MainMenu({
   // parent that never listens to onCollapsedChange doesn't fight the drag).
   const prevProp = React.useRef(collapsedProp)
   React.useEffect(() => {
-    if (collapsedProp === undefined || collapsedProp === prevProp.current) return
+    if (collapsedProp === undefined || collapsedProp === prevProp.current)
+      return
     prevProp.current = collapsedProp
     commit(collapsedProp ? MENU_MIN : lastExpanded.current)
   }, [collapsedProp, commit])
@@ -236,14 +254,26 @@ function MainMenu({
           <button
             type="button"
             onClick={onOpenSettings}
-            className={cn(ROW, ROW_MUTED)}
+            aria-current={activeId === MENU_SETTINGS_ID ? "page" : undefined}
+            className={cn(
+              ROW,
+              activeId === MENU_SETTINGS_ID ? ROW_ACTIVE : ROW_MUTED
+            )}
           >
             <span className={SLOT}>
               <HugeiconsIcon icon={Settings01Icon} className="size-4.5" />
             </span>
             <span className={LABEL}>Settings</span>
           </button>
-          <div className={cn(ROW, "text-muted-foreground")}>
+          <button
+            type="button"
+            onClick={onSelectAccount}
+            aria-current={activeId === MENU_ACCOUNT_ID ? "page" : undefined}
+            className={cn(
+              ROW,
+              activeId === MENU_ACCOUNT_ID ? ROW_ACTIVE : ROW_MUTED
+            )}
+          >
             <span className={SLOT}>
               <Avatar size="sm">
                 <AvatarFallback className="bg-accent text-[11px] font-medium uppercase">
@@ -252,7 +282,7 @@ function MainMenu({
               </Avatar>
             </span>
             <span className={LABEL}>{account.name}</span>
-          </div>
+          </button>
         </div>
       </div>
 

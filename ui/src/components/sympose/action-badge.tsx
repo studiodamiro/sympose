@@ -39,12 +39,28 @@ interface ActionMeta {
 const ACTION_META: Record<ActionKind, ActionMeta> = {
   WRITE_NOTE: { icon: Note01Icon, label: "Note saved", interactive: true },
   APPEND_NOTE: { icon: Note01Icon, label: "Note appended", interactive: true },
-  DAILY_NOTE: { icon: Calendar03Icon, label: "Reflection added", interactive: true },
+  DAILY_NOTE: {
+    icon: Calendar03Icon,
+    label: "Reflection added",
+    interactive: true,
+  },
   SEARCH: { icon: SearchAreaIcon, label: "Web search", interactive: true },
   SPAWN_WORKER: { icon: WrenchIcon, label: "Sub-agent", interactive: true },
-  CONFIG_SET: { icon: Settings01Icon, label: "config.yaml updated", interactive: false },
-  CREATE_PERSONA: { icon: Database01Icon, label: "Persona created", interactive: false },
-  DELETE_PERSONA: { icon: DashboardSquare01Icon, label: "Persona archived", interactive: false },
+  CONFIG_SET: {
+    icon: Settings01Icon,
+    label: "config.yaml updated",
+    interactive: false,
+  },
+  CREATE_PERSONA: {
+    icon: Database01Icon,
+    label: "Persona created",
+    interactive: false,
+  },
+  DELETE_PERSONA: {
+    icon: DashboardSquare01Icon,
+    label: "Persona archived",
+    interactive: false,
+  },
 }
 
 interface ActionBadgeProps extends React.ComponentProps<"button"> {
@@ -68,7 +84,10 @@ function ActionBadge({
 
   const content = (
     <>
-      <HugeiconsIcon icon={meta.icon} className="size-3.5 shrink-0 text-fg-muted" />
+      <HugeiconsIcon
+        icon={meta.icon}
+        className="size-3.5 shrink-0 text-fg-muted"
+      />
       <span className="text-fg-strong">{meta.label}</span>
       {detail != null && (
         <>
@@ -79,7 +98,7 @@ function ActionBadge({
       {interactive && (
         <HugeiconsIcon
           icon={ArrowRight01Icon}
-          className="ml-0.5 size-3.5 shrink-0 text-fg-muted transition-transform group-hover/action:translate-x-0.5"
+          className="ml-0.5 size-3.5 shrink-0 text-fg-muted transition-transform group-hover/action:translate-x-0.5 group-aria-pressed/action:translate-x-0 group-aria-pressed/action:-rotate-180"
         />
       )}
     </>
@@ -88,7 +107,7 @@ function ActionBadge({
   const shared = cn(
     "group/action inline-flex max-w-full items-center gap-1.5 rounded-md border border-border bg-card px-2 py-1 text-xs",
     interactive &&
-      "cursor-pointer transition-colors hover:border-brand/40 hover:bg-accent focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none",
+      "cursor-pointer transition-colors hover:border-brand/40 hover:bg-accent focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none aria-pressed:border-brand/50 aria-pressed:bg-accent",
     className
   )
 

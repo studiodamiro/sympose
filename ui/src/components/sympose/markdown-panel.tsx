@@ -41,6 +41,12 @@ import { useResizable } from "@/lib/use-resizable"
  */
 interface MarkdownPanelProps extends React.ComponentProps<"div"> {
   storageKey?: string
+  /**
+   * Revealed when true (default), collapsed when false. The panel stays mounted
+   * either way and transitions its width / opacity / offset, so it fades and
+   * slides in from the left on reveal and back out on hide.
+   */
+  open?: boolean
 }
 
 interface Frontmatter {
@@ -116,6 +122,7 @@ function DocLink({ children }: { children: React.ReactNode }) {
 function MarkdownPanel({
   className,
   storageKey,
+  open = true,
   style,
   ...props
 }: MarkdownPanelProps) {
@@ -150,15 +157,26 @@ function MarkdownPanel({
     <div
       ref={wrapRef}
       data-slot="markdown-panel"
+      data-state={open ? "open" : "closed"}
       data-dragging={dragging || undefined}
       className={cn(
         // same wrapper insets as <ContentPanel>: py-2 top/bottom margin, pe-2
         // right margin — so the gap to <ContentPanel> (its pe-2), the gap to the
         // chat (this pe-2), and the panel's top/bottom margins are all one step.
         "group/md relative shrink-0 py-2 pe-2 data-dragging:select-none",
+        // reveal: a negative inline-start margin parks the whole panel one width
+        // to the left (clipped by the stage's overflow-hidden); opening tweens it
+        // back to 0 so it fades and slides in left→right, and reverses on hide.
+        // Width itself never animates, so the prose never reflows mid-transition.
+        "transition-[margin,opacity] duration-300 ease-out data-dragging:transition-none",
+        open ? "opacity-100" : "pointer-events-none opacity-0",
         className
       )}
-      style={{ width: size, ...style }}
+      style={{
+        width: size,
+        marginInlineStart: open ? 0 : -size,
+        ...style,
+      }}
       {...props}
     >
       {/* the raised surface — same fill as <ContentPanel> so the editor reads as

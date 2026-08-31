@@ -18,6 +18,19 @@ interface ContentPanelProps extends React.ComponentProps<"div"> {
   storageKey?: string
   /** Extra classes on the inner scrolling surface. */
   contentClassName?: string
+  /**
+   * Revealed when true (default), collapsed when false. The panel stays mounted
+   * either way and transitions its inline-start margin / opacity, so it fades
+   * and slides in from behind `<MainMenu>` on reveal and back out on hide. The
+   * ancestor that clips it while parked must be `overflow-hidden`.
+   */
+  open?: boolean
+  /**
+   * Square off the bottom-left corner so the *last* menu row (the account row),
+   * when it is the active row, fuses flush into the panel instead of leaving a
+   * sliver of background inside the rounded corner.
+   */
+  flushBottomLeft?: boolean
 }
 
 function stageWidth(el: HTMLElement | null): number {
@@ -28,6 +41,8 @@ function ContentPanel({
   className,
   contentClassName,
   storageKey,
+  open = true,
+  flushBottomLeft = false,
   children,
   style,
   ...props
@@ -58,17 +73,32 @@ function ContentPanel({
     <div
       ref={wrapRef}
       data-slot="content-panel"
+      data-state={open ? "open" : "closed"}
       data-dragging={dragging || undefined}
       className={cn(
         "group/panel relative shrink-0 py-2 pe-2 data-dragging:select-none",
+        // reveal: a negative inline-start margin parks the panel one width to the
+        // left (clipped by the shell row's overflow-hidden); opening tweens it
+        // back to 0 so it fades and slides in from behind <MainMenu>, and
+        // reverses on hide. Width itself never animates. Suppressed mid-drag.
+        "transition-[margin,opacity] duration-300 ease-out data-dragging:transition-none",
+        open ? "opacity-100" : "pointer-events-none opacity-0",
         className
       )}
-      style={{ width: size, ...style }}
+      style={{
+        width: size,
+        marginInlineStart: open ? 0 : -size,
+        ...style,
+      }}
       {...props}
     >
       <div
         className={cn(
-          "flex h-full w-full flex-col gap-4 overflow-y-auto rounded-lg bg-panel p-6 text-panel-foreground",
+          // explicit per-corner radii — a `rounded-lg` shorthand plus a
+          // `rounded-bl-none` override is unreliable (Tailwind re-emits the
+          // shorthand after the longhand and re-rounds the corner).
+          "flex h-full w-full flex-col gap-4 overflow-y-auto rounded-tl-lg rounded-tr-lg rounded-br-lg bg-panel p-6 text-panel-foreground",
+          flushBottomLeft ? "rounded-bl-none" : "rounded-bl-lg",
           contentClassName
         )}
       >

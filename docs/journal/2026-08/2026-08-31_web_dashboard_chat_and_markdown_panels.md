@@ -115,6 +115,36 @@ menu, image paste/embed, raw ↔ preview toggle, grouped-pill toolbar styling
 (the wireframe shows segmented button groups; the current bar is a flat row with
 thin dividers).
 
+### 2.6 Panel reveal / hide — one slide animation, two triggers
+
+Both working panels now collapse and reveal with the same 300ms transition: a
+negative `margin-inline-start` of one panel-width parks the panel off to the
+left (clipped by an `overflow-hidden` ancestor), and opening tweens it back to
+`0` while `opacity` goes `0 → 1`, so it fades and slides in left→right; hide
+reverses it. **Width itself never animates**, so prose never reflows mid-slide.
+The transition is suppressed while dragging (`data-dragging:transition-none`).
+
+| Panel | Trigger | Behaviour |
+| :-- | :-- | :-- |
+| `MarkdownPanel` | the `[WRITE_NOTE]` "Note saved" `ActionBadge` in a chat turn | starts hidden; the badge toggles it. `ActionBadge` gained an `aria-pressed` affordance (brand-tinted border/fill, chevron flips) |
+| `ContentPanel` | any `MainMenu` row — folders **plus the Settings and account footer rows** | starts open. `selectSection(id)` in `AppShell`: re-click the active row → toggle; click a different row → switch section and re-open. `activeId` is passed as `undefined` while closed, so no orphaned fused row is left on the menu edge |
+
+`MainMenu` changes: the Settings and account rows are now real `<button>`s with
+active-aware styling (`aria-current`, `ROW_ACTIVE` / `ROW_MUTED`); a new
+`onSelectAccount` prop; exported `MENU_SETTINGS_ID` / `MENU_ACCOUNT_ID`
+sentinels for `activeId` comparison. The menu carries `z-20` in the shell so the
+content panel tucks *behind* it on hide rather than sliding over it.
+
+### 2.7 Fused-corner fix for the account row
+
+When the account row (the last footer row, bottom-aligned with the panel) is the
+active row, `ContentPanel`'s rounded bottom-left corner left a sliver of
+background inside the seam. New `flushBottomLeft` prop squares that one corner
+(`rounded-bl-none`); `AppShell` sets it only when the account row is active and
+the panel is open. Per-corner radii are set explicitly rather than
+`rounded-lg` + an override — the shorthand re-rounds the corner (same caveat
+already documented in `main-menu.tsx`).
+
 ---
 
 ## 3. Files
@@ -122,10 +152,13 @@ thin dividers).
 | File | Change |
 | :-- | :-- |
 | `ui/src/components/sympose/chat-panel.tsx` | **new** — centred chat reading column + docked composer mock |
-| `ui/src/components/sympose/markdown-panel.tsx` | **new** — markdown reader + editing toolbar + frontmatter + links footer; `bg-panel` fill, `ContentPanel`-matched resize bounds |
+| `ui/src/components/sympose/markdown-panel.tsx` | **new** — markdown reader + editing toolbar + frontmatter + links footer; `bg-panel` fill, `ContentPanel`-matched resize bounds; `open` prop drives the slide/fade reveal |
+| `ui/src/components/sympose/content-panel.tsx` | `open` prop (slide/fade reveal) + `flushBottomLeft` prop (square the seam corner for the active account row) |
 | `ui/src/components/sympose/chat-message.tsx` | `reaction` prop (floated chip, user role); contrast reset to panel palette; square top-right corner; more bottom padding |
-| `ui/src/components/sympose/index.ts` | export `ChatPanel`, `MarkdownPanel` |
-| `ui/src/routes/app-shell.tsx` | stage is now `MarkdownPanel │ handle │ ChatPanel`; sample transcript with a reaction + a `WRITE_NOTE` `ActionBadge` |
+| `ui/src/components/sympose/main-menu.tsx` | Settings + account rows are buttons with active styling; `onSelectAccount` prop; `MENU_SETTINGS_ID` / `MENU_ACCOUNT_ID` exports |
+| `ui/src/components/sympose/action-badge.tsx` | `aria-pressed` affordance (border/fill + chevron flip) for toggle use |
+| `ui/src/components/sympose/index.ts` | export `ChatPanel`, `MarkdownPanel`, `MENU_SETTINGS_ID`, `MENU_ACCOUNT_ID` |
+| `ui/src/routes/app-shell.tsx` | stage is `MarkdownPanel │ handle │ ChatPanel`; `panelOpen` / `mdOpen` state + `selectSection`; sample transcript with a reaction + a toggling `WRITE_NOTE` `ActionBadge` |
 | `docs/UI_DESIGN_REFERENCE.md` | §7 `[REACT]` row → line-icon reaction chip |
 
 ---
@@ -136,6 +169,7 @@ thin dividers).
 - [ ] Reconcile reader-mode vs source-mode wikilinks (`--brand` de-bracketed vs `--entity` `[[…]]`).
 - [ ] Decide whether MD prose body stays at `text-muted-foreground` or goes higher-contrast for long-form reading.
 - [ ] Toolbar: switch the flat divider row to the segmented button-group styling from the wireframe (if wanted).
-- [ ] Narrow-viewport behaviour: below ~1180px the three columns crowd the chat — auto-collapse `MainMenu` / `ContentPanel` at that breakpoint.
+- [ ] Narrow-viewport behaviour: below ~1180px the three columns crowd the chat. Manual collapse now exists (menu rows toggle `ContentPanel`, the badge toggles `MarkdownPanel`); still want an automatic collapse at that breakpoint.
+- [ ] Persist `panelOpen` / `mdOpen` to cookies like the panel widths (currently reset on reload).
 - [ ] Wire the panels to real data: `GET /api/vault/note`, `POST /api/vault/note`, `POST /api/chat/message` + SSE stream.
 - [ ] Replace inert toolbar / composer controls with a real editor (candidate: a lightweight ProseMirror or CodeMirror markdown mode).

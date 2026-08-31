@@ -55,6 +55,12 @@ interface MarkdownPanelProps extends React.ComponentProps<"div"> {
    * area. No resize handle in this mode. Only meaningful while `open`.
    */
   fill?: boolean
+  /**
+   * Phone shell: fill the view (no dragged width, no handle) and drop the card
+   * — no `bg-panel`, no rounding, no elevation — so the editor reads on the same
+   * plain background as the chat.
+   */
+  phone?: boolean
 }
 
 interface Frontmatter {
@@ -133,6 +139,7 @@ function MarkdownPanel({
   storageKey,
   open = true,
   fill = false,
+  phone = false,
   style,
   ...props
 }: MarkdownPanelProps) {
@@ -183,45 +190,63 @@ function MarkdownPanel({
         // z-10: sits below <ContentPanel> (z-20) but above the chat slot (z-0),
         // so a parked panel is always hidden behind its left-hand neighbour and
         // appears to slide out from that neighbour's right edge.
-        "group/md relative z-10 min-w-0 shrink-0 py-2 pe-2 data-dragging:select-none",
-        // reveal: a negative inline-start margin parks the whole panel one width
-        // to the left (clipped by the stage's overflow-hidden); opening tweens it
-        // back to 0 so it fades and slides in left→right, and reverses on hide.
-        // max-width is only transitioned while `fill` is flipping (ease-in-out,
-        // since ease-out front-loads and still reads as a snap); the rest of the
-        // time it follows the live measurement so the editor glides with a
-        // neighbour's slide rather than lagging it.
-        "transition-[margin,opacity] duration-300 ease-in-out data-dragging:transition-none",
-        fillToggling && "transition-[margin,opacity,max-width]",
+        "group/md z-10 min-w-0 data-dragging:select-none",
+        phone
+          ? // phone: one surface at a time — an absolute layer that crossfades
+            // and slides a touch from the left on reveal
+            "absolute inset-0 flex flex-col transition-[opacity,translate] duration-300 ease-in-out"
+          : cn(
+              "relative shrink-0 py-2 pe-2 transition-[margin,opacity] duration-300 ease-in-out data-dragging:transition-none",
+              // max-width only transitioned while `fill` flips — otherwise it
+              // follows the live measurement so the editor glides with a
+              // neighbour's slide rather than lagging it
+              fillToggling && "transition-[margin,opacity,max-width]"
+            ),
+        phone && !open && "-translate-x-3",
         open ? "opacity-100" : "pointer-events-none opacity-0",
         className
       )}
-      style={{
-        // Always growable, but clamped: to the dragged width normally, to the
-        // space actually free to its right when filling. Both are real measured
-        // pixels, so animating the clamp tweens the editor across the whole
-        // distance as the chat panel comes and goes — in lockstep with the chat
-        // slot's own flex-basis tween. (An oversized clamp like `100vw` would
-        // burn most of the duration invisibly, then snap — the old jerk.)
-        flexBasis: size,
-        flexGrow: 1,
-        maxWidth: fill ? availW || size : size,
-        marginInlineStart: open ? 0 : -size,
-        ...style,
-      }}
+      style={
+        phone
+          ? style
+          : {
+              // Always growable, but clamped: to the dragged width normally, to
+              // the space actually free to its right when filling. Both are real
+              // measured pixels, so animating the clamp tweens the editor across
+              // the whole distance as the chat panel comes and goes — in lockstep
+              // with the chat slot's own flex-basis tween. (An oversized clamp
+              // like `100vw` would burn most of the duration invisibly, then
+              // snap — the old jerk.)
+              flexBasis: size,
+              flexGrow: 1,
+              maxWidth: fill ? availW || size : size,
+              marginInlineStart: open ? 0 : -size,
+              ...style,
+            }
+      }
       {...props}
     >
-      {/* the raised surface — same fill as <ContentPanel> so the editor reads as
-          a sibling working panel and pops off the stage */}
-      <div className="flex h-full w-full flex-col overflow-hidden rounded-lg bg-panel text-panel-foreground">
+      {/* the working surface — a raised `bg-panel` card on the stage; on phone
+          it drops to the plain background the chat also sits on */}
+      <div
+        className={cn(
+          "flex h-full w-full flex-col overflow-hidden",
+          phone
+            ? "text-foreground"
+            : "rounded-lg bg-panel text-panel-foreground"
+        )}
+      >
         {/* toolbar — the mark clusters wrap to multiple rows on narrow widths
             (tablet); the save action stays pinned to the top-right corner. When
             the editor fills the stage, extra end padding clears the floating
             chat action group that overlaps this corner. */}
         <div
           className={cn(
-            "flex shrink-0 items-start justify-between gap-2 border-b border-border py-2 ps-3",
-            fill ? "pe-24" : "pe-3"
+            "flex shrink-0 items-start justify-between gap-2 py-2",
+            // no divider on phone — the editor is a plain surface there; the
+            // toolbar's gutter matches the chat panel's (`px-4`)
+            phone ? "ps-4 pe-4" : "border-b border-border ps-3",
+            !phone && (fill ? "pe-24" : "pe-3")
           )}
         >
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
@@ -259,9 +284,14 @@ function MarkdownPanel({
           </button>
         </div>
 
-        {/* document */}
+        {/* document — on phone the gutter matches the chat panel's (`px-4`) */}
         <div className="min-h-0 flex-1 overflow-y-auto">
-          <div className="mx-auto flex max-w-[68ch] flex-col gap-6 px-6 py-6 sm:px-8">
+          <div
+            className={cn(
+              "mx-auto flex max-w-[68ch] flex-col gap-6",
+              phone ? "px-4 py-6" : "px-6 py-6 sm:px-8"
+            )}
+          >
             {/* frontmatter — inverted to bg-background so it lifts off the
                 panel fill (--card is not distinct from --background in light) */}
             <dl className="grid grid-cols-[max-content_1fr] gap-x-4 gap-y-1.5 rounded-lg border border-border bg-background p-4 font-mono text-xs">
@@ -321,8 +351,9 @@ function MarkdownPanel({
         </div>
       </div>
 
-      {/* right-edge resize handle — mirrors <ContentPanel>; gone when filling */}
-      {!fill && (
+      {/* right-edge resize handle — mirrors <ContentPanel>; gone when filling
+          or on phone (full-view, no dragged width) */}
+      {!fill && !phone && (
         <div
           {...handleProps}
           aria-label="Resize editor"

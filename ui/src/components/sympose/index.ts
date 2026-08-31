@@ -31,5 +31,6 @@ export {
 } from "./segmented-control"
 export { StatusBar, type StatusBarItem, type StatusBarLink } from "./status-bar"
 export { StatusTag } from "./status-tag"
+export { TopBar } from "./top-bar"
 export { filterVaultTree, VaultTree, type VaultNode } from "./vault-tree"
 export { WikiLink } from "./wiki-link"

@@ -36,6 +36,8 @@ interface ChatPanelProps extends React.ComponentProps<"div"> {
   placeholder?: string
   /** Model label shown in the composer footer chip. */
   model?: string
+  /** Phone shell: tighter side gutters, no top gap for a floating action row. */
+  compact?: boolean
 }
 
 function ChatPanel({
@@ -44,6 +46,7 @@ function ChatPanel({
   measure = "42rem",
   placeholder = "Ask Samantha.",
   model = "3.7 Flash",
+  compact = false,
   style,
   ...props
 }: ChatPanelProps) {
@@ -57,17 +60,27 @@ function ChatPanel({
       {/* transcript — scrolls; content bottom-anchored to the composer. The
           column is `mx-auto` so it stays centred in whatever width the slot is
           handed; the side padding is a guaranteed symmetric gutter, so even a
-          narrow slot (two panels on a tablet) reads as a centred reading
-          column rather than flush-cramped text. */}
+          narrow slot (two panels on a tablet, or a phone) reads as a centred
+          reading column rather than flush-cramped text. */}
       <div className="min-h-0 flex-1 overflow-y-auto">
-        <div className="mx-auto flex min-h-full w-full max-w-(--chat-measure) flex-col justify-end gap-6 px-6 pt-14 pb-8 sm:px-8">
+        <div
+          className={cn(
+            "mx-auto flex min-h-full w-full max-w-(--chat-measure) flex-col justify-end gap-6",
+            compact ? "px-4 pt-6 pb-6" : "px-6 pt-14 pb-8 sm:px-8"
+          )}
+        >
           {children}
         </div>
       </div>
 
       {/* composer dock — same column axis + gutter as the transcript */}
       <div className="shrink-0">
-        <div className="mx-auto w-full max-w-(--chat-measure) px-6 pb-6 sm:px-8">
+        <div
+          className={cn(
+            "mx-auto w-full max-w-(--chat-measure) pb-6",
+            compact ? "px-4" : "px-6 sm:px-8"
+          )}
+        >
           <div className="rounded-lg border border-border bg-background transition-colors focus-within:border-brand">
             <textarea
               rows={1}

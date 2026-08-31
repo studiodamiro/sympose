@@ -53,6 +53,7 @@ This master document serves as the top-level index and Table of Contents.
 | **2026-08-30** | UI Scaffold Documentation, IDE Settings Migration & Clean-Slate Commit | Complete | [`2026-08-30_ui_scaffold_documentation_and_clean_slate.md`](../journal/2026-08/2026-08-30_ui_scaffold_documentation_and_clean_slate.md) |
 | **2026-08-31** | App-Shell Stage Build-Out — Chat Reading Column & Markdown Editor/Reader Panels (mockups) | In progress | [`2026-08-31_web_dashboard_chat_and_markdown_panels.md`](../journal/2026-08/2026-08-31_web_dashboard_chat_and_markdown_panels.md) |
 | **2026-08-31** | App-Shell Tablet Responsiveness — Breakpoint Model, Panel-Cap State Machine & Live Width Adoption (mockups) | In progress | [`2026-08-31_web_dashboard_tablet_responsiveness_and_panel_layout.md`](../journal/2026-08/2026-08-31_web_dashboard_tablet_responsiveness_and_panel_layout.md) |
+| **2026-08-31** | App-Shell Phone Shell — TopBar, Sliding Menu Rail & Per-View Surfaces (mockups) | In progress | [`2026-08-31_web_dashboard_phone_shell.md`](../journal/2026-08/2026-08-31_web_dashboard_phone_shell.md) |
 
 
 ---

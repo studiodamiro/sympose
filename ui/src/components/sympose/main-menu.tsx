@@ -70,6 +70,20 @@ interface MainMenuProps extends Omit<React.ComponentProps<"nav">, "onSelect"> {
   account?: { name: string }
   /** Cookie key to persist the dragged width as a user preference. */
   storageKey?: string
+  /**
+   * Phone mode: drop the brand header and the Settings · account footer rows —
+   * those live in `<TopBar>`. Everything else is unchanged: the Collapse row,
+   * the resize handle, and the rail ↔ labels toggle all work exactly as on
+   * tablet / desktop.
+   */
+  hideChrome?: boolean
+  /**
+   * Revealed when true (default). When false the menu parks one width to the
+   * inline-start (clipped by the parent's `overflow-hidden`) and fades — the
+   * same slide/park reveal the stage panels use. On phone the TopBar's vault
+   * button drives this; on tablet/desktop it stays open.
+   */
+  open?: boolean
 }
 
 /**
@@ -119,6 +133,8 @@ function MainMenu({
   onSelectAccount,
   account = { name: "Agent" },
   storageKey,
+  hideChrome = false,
+  open = true,
   style,
   ...props
 }: MainMenuProps) {
@@ -175,13 +191,17 @@ function MainMenu({
       aria-label="Main menu"
       className={cn(
         "group/menu relative flex h-full flex-col overflow-x-hidden bg-background text-foreground",
-        "transition-[width] duration-200 ease-out data-dragging:transition-none data-dragging:select-none",
+        // width tween for resize; margin+opacity tween for the phone show/hide
+        // reveal (parked one width to the inline-start when closed)
+        "transition-[width,margin,opacity] duration-200 ease-out data-dragging:transition-none data-dragging:select-none",
         "*:ps-(--menu-pad)",
+        !open && "pointer-events-none opacity-0",
         className
       )}
       style={
         {
           width,
+          marginInlineStart: open ? 0 : -width,
           "--menu-pad": "0.5rem",
           "--menu-slot": "2rem",
           ...style,
@@ -190,25 +210,32 @@ function MainMenu({
       {...props}
     >
       {/* header — logo doubles as the expand/collapse toggle */}
-      <div className="flex h-14 shrink-0 items-center gap-2">
-        <div className={SLOT}>
-          <button
-            type="button"
-            onClick={() => setCollapsed(!collapsed)}
-            aria-label={collapsed ? "Expand menu" : "Collapse menu"}
-            aria-expanded={!collapsed}
-            className="grid size-8 place-items-center rounded-md transition-colors hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
-          >
-            <Logo className="size-6" />
-          </button>
+      {!hideChrome && (
+        <div className="flex h-14 shrink-0 items-center gap-2">
+          <div className={SLOT}>
+            <button
+              type="button"
+              onClick={() => setCollapsed(!collapsed)}
+              aria-label={collapsed ? "Expand menu" : "Collapse menu"}
+              aria-expanded={!collapsed}
+              className="grid size-8 place-items-center rounded-md transition-colors hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
+            >
+              <Logo className="size-6" />
+            </button>
+          </div>
+          <span className={cn(LABEL, "text-base font-semibold tracking-tight")}>
+            Sympose
+          </span>
         </div>
-        <span className={cn(LABEL, "text-base font-semibold tracking-tight")}>
-          Sympose
-        </span>
-      </div>
+      )}
 
       {/* folders */}
-      <ul className="flex min-h-0 flex-1 flex-col gap-1 overflow-x-hidden overflow-y-auto py-2">
+      <ul
+        className={cn(
+          "flex min-h-0 flex-1 flex-col gap-1 overflow-x-hidden overflow-y-auto py-2",
+          hideChrome && "pt-3"
+        )}
+      >
         {items.map((item) => {
           const active = item.id === activeId
           return (
@@ -230,10 +257,14 @@ function MainMenu({
         })}
       </ul>
 
-      {/* footer — collapse · settings · account */}
+      {/* footer — collapse · settings · account. On phone (`hideChrome`) the
+          Collapse row stays and works exactly as elsewhere (rail ↔ labels);
+          only Settings + account drop out, into `<TopBar>`. */}
       <div className="shrink-0 py-2">
         {/* divider spans exactly the hover-pill footprint (ROW_MUTED width) */}
-        <div className="mb-2 w-[calc(100%-var(--menu-pad))] border-t border-border" />
+        {!hideChrome && (
+          <div className="mb-2 w-[calc(100%-var(--menu-pad))] border-t border-border" />
+        )}
         <div className="flex flex-col gap-1">
           <button
             type="button"
@@ -251,38 +282,44 @@ function MainMenu({
             </span>
             <span className={LABEL}>Collapse</span>
           </button>
-          <button
-            type="button"
-            onClick={onOpenSettings}
-            aria-current={activeId === MENU_SETTINGS_ID ? "page" : undefined}
-            className={cn(
-              ROW,
-              activeId === MENU_SETTINGS_ID ? ROW_ACTIVE : ROW_MUTED
-            )}
-          >
-            <span className={SLOT}>
-              <HugeiconsIcon icon={Settings01Icon} className="size-4.5" />
-            </span>
-            <span className={LABEL}>Settings</span>
-          </button>
-          <button
-            type="button"
-            onClick={onSelectAccount}
-            aria-current={activeId === MENU_ACCOUNT_ID ? "page" : undefined}
-            className={cn(
-              ROW,
-              activeId === MENU_ACCOUNT_ID ? ROW_ACTIVE : ROW_MUTED
-            )}
-          >
-            <span className={SLOT}>
-              <Avatar size="sm">
-                <AvatarFallback className="bg-accent text-[11px] font-medium uppercase">
-                  {account.name.slice(0, 1)}
-                </AvatarFallback>
-              </Avatar>
-            </span>
-            <span className={LABEL}>{account.name}</span>
-          </button>
+          {!hideChrome && (
+            <>
+              <button
+                type="button"
+                onClick={onOpenSettings}
+                aria-current={
+                  activeId === MENU_SETTINGS_ID ? "page" : undefined
+                }
+                className={cn(
+                  ROW,
+                  activeId === MENU_SETTINGS_ID ? ROW_ACTIVE : ROW_MUTED
+                )}
+              >
+                <span className={SLOT}>
+                  <HugeiconsIcon icon={Settings01Icon} className="size-4.5" />
+                </span>
+                <span className={LABEL}>Settings</span>
+              </button>
+              <button
+                type="button"
+                onClick={onSelectAccount}
+                aria-current={activeId === MENU_ACCOUNT_ID ? "page" : undefined}
+                className={cn(
+                  ROW,
+                  activeId === MENU_ACCOUNT_ID ? ROW_ACTIVE : ROW_MUTED
+                )}
+              >
+                <span className={SLOT}>
+                  <Avatar size="sm">
+                    <AvatarFallback className="bg-accent text-[11px] font-medium uppercase">
+                      {account.name.slice(0, 1)}
+                    </AvatarFallback>
+                  </Avatar>
+                </span>
+                <span className={LABEL}>{account.name}</span>
+              </button>
+            </>
+          )}
         </div>
       </div>
 

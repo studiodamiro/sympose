@@ -1,6 +1,7 @@
 import * as React from "react"
 
 import { cn } from "@/lib/utils"
+import { getCookieNumber, setCookie } from "@/lib/cookies"
 import { useResizable } from "@/lib/use-resizable"
 
 /**
@@ -31,6 +32,24 @@ interface ContentPanelProps extends React.ComponentProps<"div"> {
    * sliver of background inside the rounded corner.
    */
   flushBottomLeft?: boolean
+  /**
+   * Phone shell: fill the row next to the icon rail (no dragged width, no
+   * handle), sit flush to every edge, and round only the top-left corner where
+   * it meets the rail.
+   */
+  phone?: boolean
+  /**
+   * Phone shell: drop the panel fill + rounding so the surface reads on the
+   * same plain background as the chat and editor — used for the Settings and
+   * Agent pages, which are destinations, not the vault navigation surface.
+   */
+  plain?: boolean
+  /**
+   * Cookie key for the inner scroll offset. Restored on mount and written back
+   * (debounced) as the user scrolls — the panel is often hidden on phone, so it
+   * should come back exactly where it was left.
+   */
+  scrollKey?: string
 }
 
 function stageWidth(el: HTMLElement | null): number {
@@ -43,11 +62,38 @@ function ContentPanel({
   storageKey,
   open = true,
   flushBottomLeft = false,
+  phone = false,
+  plain = false,
+  scrollKey,
   children,
   style,
   ...props
 }: ContentPanelProps) {
   const wrapRef = React.useRef<HTMLDivElement>(null)
+
+  // Persist / restore the inner scroll offset (see `scrollKey`).
+  const scrollRef = React.useRef<HTMLDivElement>(null)
+  const saveTimer = React.useRef<ReturnType<typeof setTimeout> | undefined>(
+    undefined
+  )
+  React.useLayoutEffect(() => {
+    if (!scrollKey || !scrollRef.current) return
+    const saved = getCookieNumber(scrollKey)
+    if (saved != null) scrollRef.current.scrollTop = saved
+  }, [scrollKey])
+  React.useEffect(() => () => clearTimeout(saveTimer.current), [])
+  const handleScroll = React.useCallback(
+    (e: React.UIEvent<HTMLDivElement>) => {
+      if (!scrollKey) return
+      const top = Math.round(e.currentTarget.scrollTop)
+      clearTimeout(saveTimer.current)
+      saveTimer.current = setTimeout(
+        () => setCookie(scrollKey, String(top)),
+        250
+      )
+    },
+    [scrollKey]
+  )
 
   const min = React.useCallback(
     () => Math.round(stageWidth(wrapRef.current) / 4),
@@ -80,42 +126,62 @@ function ContentPanel({
         // width and leaves the stage to the work surfaces even when it is alone.
         // z-20: the top of the stage's panel stack (menu is a separate sibling),
         // so the editor parks *behind* it and slides out from its right edge.
-        "group/panel relative z-20 shrink-0 py-2 pe-2 data-dragging:select-none",
-        // reveal: a negative inline-start margin parks the panel one width to the
-        // left (clipped by the shell row's overflow-hidden); opening tweens it
-        // back to 0 so it fades and slides in from behind <MainMenu>, and
-        // reverses on hide. Width itself never animates. Suppressed mid-drag.
-        "transition-[margin,opacity] duration-300 ease-out data-dragging:transition-none",
+        "group/panel z-20 data-dragging:select-none",
+        phone
+          ? // phone: one surface at a time, so the panel is an absolute layer
+            // that crossfades + slides a touch from the left on reveal
+            "absolute inset-0 flex flex-col transition-[opacity,translate] duration-300 ease-in-out"
+          : "relative shrink-0 py-2 pe-2 transition-[margin,opacity] duration-300 ease-out data-dragging:transition-none",
+        // desktop reveal: a negative inline-start margin parks the panel one
+        // width to the left (clipped by the shell row's overflow-hidden), opening
+        // tweens it back to 0 so it fades and slides in from behind <MainMenu>.
+        phone && !open && "-translate-x-3",
         open ? "opacity-100" : "pointer-events-none opacity-0",
         className
       )}
-      style={{
-        width: size,
-        marginInlineStart: open ? 0 : -size,
-        ...style,
-      }}
+      style={
+        phone
+          ? style
+          : { width: size, marginInlineStart: open ? 0 : -size, ...style }
+      }
       {...props}
     >
       <div
+        ref={scrollRef}
+        onScroll={handleScroll}
         className={cn(
+          "flex h-full w-full flex-col gap-4 overflow-y-auto p-6",
+          // plain phone pages (Settings / Agent) sit on the same background as
+          // chat and the editor — no fill, no rounding
+          phone && plain
+            ? "text-foreground"
+            : "bg-panel text-panel-foreground",
           // explicit per-corner radii — a `rounded-lg` shorthand plus a
           // `rounded-bl-none` override is unreliable (Tailwind re-emits the
           // shorthand after the longhand and re-rounds the corner).
-          "flex h-full w-full flex-col gap-4 overflow-y-auto rounded-tl-lg rounded-tr-lg rounded-br-lg bg-panel p-6 text-panel-foreground",
-          flushBottomLeft ? "rounded-bl-none" : "rounded-bl-lg",
+          phone
+            ? // phone: flush to every edge; only the top-left corner (where it
+              // meets the icon rail) is rounded, and not for a plain page
+              !plain && "rounded-tl-lg"
+            : cn(
+                "rounded-tl-lg rounded-tr-lg rounded-br-lg",
+                flushBottomLeft ? "rounded-bl-none" : "rounded-bl-lg"
+              ),
           contentClassName
         )}
       >
         {children}
       </div>
 
-      <div
-        {...handleProps}
-        aria-label="Resize panel"
-        className="group/panel-handle absolute inset-y-0 right-0 z-10 w-1.5 cursor-col-resize touch-none"
-      >
-        <span className="absolute inset-y-0 right-0 w-px bg-transparent transition-colors group-hover/panel-handle:bg-border group-focus-visible/panel-handle:bg-brand group-data-dragging/panel:bg-brand" />
-      </div>
+      {!phone && (
+        <div
+          {...handleProps}
+          aria-label="Resize panel"
+          className="group/panel-handle absolute inset-y-0 right-0 z-10 w-1.5 cursor-col-resize touch-none"
+        >
+          <span className="absolute inset-y-0 right-0 w-px bg-transparent transition-colors group-hover/panel-handle:bg-border group-focus-visible/panel-handle:bg-brand group-data-dragging/panel:bg-brand" />
+        </div>
+      )}
     </div>
   )
 }

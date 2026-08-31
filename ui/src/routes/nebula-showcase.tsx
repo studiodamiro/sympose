@@ -5,6 +5,8 @@ import {
   KnowledgeNebula,
   type KnowledgeNebulaHandle,
 } from "@/components/sympose/knowledge-nebula"
+import type { NebulaMode } from "@/components/sympose/knowledge-nebula-shared"
+import { getCookie, setCookie } from "@/lib/cookies"
 import {
   FOLDER_COLORS,
   FOLDER_COLORS_LIGHT,
@@ -63,6 +65,37 @@ const masterGraph: NebulaGraph = (() => {
   }
 })()
 
+// Helper toggle component matching Obsidian pink pill switches. Declared at
+// module scope so it keeps a stable identity across renders (a nested component
+// would remount every keystroke, killing its transition and focus).
+function ToggleSwitch({
+  checked,
+  onChange,
+  isLight,
+}: {
+  checked: boolean
+  onChange: (v: boolean) => void
+  isLight: boolean
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      onClick={() => onChange(!checked)}
+      className={`relative inline-flex h-4.5 w-8 shrink-0 cursor-pointer rounded-full transition-colors duration-200 ease-in-out focus:outline-none ${
+        checked ? "bg-rose-500" : isLight ? "bg-slate-300" : "bg-neutral-700"
+      }`}
+    >
+      <span
+        className={`pointer-events-none inline-block size-3.5 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
+          checked ? "translate-x-4" : "translate-x-0.5"
+        } my-0.5`}
+      />
+    </button>
+  )
+}
+
 export function NebulaShowcase() {
   const nebulaRef = React.useRef<KnowledgeNebulaHandle>(null)
 
@@ -71,9 +104,16 @@ export function NebulaShowcase() {
   const [controlsOpen, setControlsOpen] = React.useState(true)
   const isLight = theme === "light"
 
+  // 2D / 3D renderer, remembered across visits (cookie, per UI-pref convention)
+  const [mode, setMode] = React.useState<NebulaMode>(() =>
+    getCookie("nebula-view-mode") === "2d" ? "2d" : "3d"
+  )
+  React.useEffect(() => {
+    setCookie("nebula-view-mode", mode)
+  }, [mode])
+
   // Accordion Sections State
   const [filtersOpen, setFiltersOpen] = React.useState(true)
-  const [groupsOpen, setGroupsOpen] = React.useState(false)
   const [displayOpen, setDisplayOpen] = React.useState(true)
   const [forcesOpen, setForcesOpen] = React.useState(true)
 
@@ -84,13 +124,10 @@ export function NebulaShowcase() {
   const [existingOnly, setExistingOnly] = React.useState(false)
   const [showOrphans, setShowOrphans] = React.useState(false) // default false = dim orphans
 
-  // Groups State
-  const [customGroups, setCustomGroups] = React.useState<{ id: string; query: string; color: string }[]>([])
-
   // Display State
   const [showArrows, setShowArrows] = React.useState(false)
   const [autoRotate, setAutoRotate] = React.useState(false)
-  const [textFadeThreshold, setTextFadeThreshold] = React.useState(0.00)
+  const [showLabels, setShowLabels] = React.useState(true)
   const [nodeRelSize, setNodeRelSize] = React.useState(1.67 * 2.4)
   const [linkWidth, setLinkWidth] = React.useState(0.8)
   const [noteDelayMs, setNoteDelayMs] = React.useState(25)
@@ -112,8 +149,8 @@ export function NebulaShowcase() {
     setShowOrphans(false)
     setShowArrows(false)
     setAutoRotate(false)
-    setTextFadeThreshold(0.00)
-    setNodeRelSize(4.0)
+    setShowLabels(true)
+    setNodeRelSize(1.67 * 2.4)
     setLinkWidth(0.8)
     setNoteDelayMs(25)
     setClickZoomDistance(60)
@@ -161,23 +198,25 @@ export function NebulaShowcase() {
         return
       }
 
-      // 4. Orphan check: if showOrphans is false and node has no connections, fade it
+      // 4. Search query match — computed before the orphan check so a matching
+      // disconnected note can still be highlighted / framed.
+      const matchesQuery =
+        !query ||
+        n.id.toLowerCase().includes(query) ||
+        n.label.toLowerCase().includes(query) ||
+        n.folder.toLowerCase().includes(query) ||
+        (n.tags?.some((t) => t.toLowerCase().includes(query)) ?? false)
+
+      // 5. Orphan check: if showOrphans is false and node has no connections,
+      // fade it — unless an active search query matches it.
       const isConnected = connectedNodeIds.has(n.id)
-      if (!showOrphans && !isConnected && !n.isTag) {
+      const isOrphan = !isConnected && !n.isTag
+      if (!showOrphans && isOrphan && !(query && matchesQuery)) {
         return // Dim orphan node
       }
 
-      // 5. Search query check
-      if (query) {
-        const match =
-          n.id.toLowerCase().includes(query) ||
-          n.label.toLowerCase().includes(query) ||
-          n.folder.toLowerCase().includes(query) ||
-          n.tags?.some((t) => t.toLowerCase().includes(query))
-        if (match) {
-          highlighted.add(n.id)
-        }
-      } else {
+      // 6. Highlight everything that matches the query (or all, when no query)
+      if (matchesQuery) {
         highlighted.add(n.id)
       }
     })
@@ -234,23 +273,6 @@ export function NebulaShowcase() {
   const folders = foldersInGraph(masterGraph)
   const folderColors = isLight ? FOLDER_COLORS_LIGHT : FOLDER_COLORS
 
-  // Helper toggle component matching Obsidian pink pill switches
-  const ToggleSwitch = ({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) => (
-    <button
-      type="button"
-      onClick={() => onChange(!checked)}
-      className={`relative inline-flex h-4.5 w-8 shrink-0 cursor-pointer rounded-full transition-colors duration-200 ease-in-out focus:outline-none ${
-        checked ? "bg-rose-500" : isLight ? "bg-slate-300" : "bg-neutral-700"
-      }`}
-    >
-      <span
-        className={`pointer-events-none inline-block size-3.5 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
-          checked ? "translate-x-4" : "translate-x-0.5"
-        } my-0.5`}
-      />
-    </button>
-  )
-
   return (
     <div
       className={`relative h-svh w-full overflow-hidden transition-colors duration-300 ${
@@ -260,8 +282,10 @@ export function NebulaShowcase() {
       <KnowledgeNebula
         ref={nebulaRef}
         graph={masterGraph}
+        mode={mode}
         isLight={isLight}
         autoRotate={autoRotate}
+        showLabels={showLabels}
         highlightedNodeIds={highlightedNodeIds}
         hiddenNodeIds={hiddenNodeIds}
         clickZoomDistance={clickZoomDistance}
@@ -284,10 +308,41 @@ export function NebulaShowcase() {
             Ambient Knowledge Nebula
           </h1>
           <p className={`mt-0.5 font-mono text-xs ${isLight ? "text-slate-600" : "text-neutral-400"}`}>
-            {activeCount} active notes · vault graph
+            {activeCount} active notes · {mode.toUpperCase()} vault graph
           </p>
         </div>
         <div className="pointer-events-auto flex items-center gap-2">
+          <div
+            className={`flex items-center overflow-hidden rounded-md border text-xs font-mono ${
+              isLight ? "border-slate-300 bg-white/80 shadow-xs" : "border-white/15"
+            }`}
+            role="radiogroup"
+            aria-label="Graph renderer"
+          >
+            {(["2d", "3d"] as const).map((m) => {
+              const active = mode === m
+              return (
+                <button
+                  key={m}
+                  type="button"
+                  role="radio"
+                  aria-checked={active}
+                  onClick={() => setMode(m)}
+                  className={`px-2.5 py-1 transition-colors ${
+                    active
+                      ? isLight
+                        ? "bg-slate-900 text-white"
+                        : "bg-white/15 text-white"
+                      : isLight
+                        ? "text-slate-600 hover:text-slate-900"
+                        : "text-neutral-400 hover:text-white"
+                  }`}
+                >
+                  {m.toUpperCase()}
+                </button>
+              )
+            })}
+          </div>
           <button
             onClick={() => nebulaRef.current?.zoomToFit(600, 48)}
             className={`rounded-md border px-2.5 py-1 text-xs font-mono transition-colors ${
@@ -382,63 +437,25 @@ export function NebulaShowcase() {
                   <div className="space-y-2 pt-1 font-sans text-xs">
                     <div className="flex items-center justify-between opacity-90">
                       <span>Tags</span>
-                      <ToggleSwitch checked={showTags} onChange={setShowTags} />
+                      <ToggleSwitch checked={showTags} onChange={setShowTags} isLight={isLight} />
                     </div>
                     <div className="flex items-center justify-between opacity-90">
                       <span>Attachments</span>
-                      <ToggleSwitch checked={showAttachments} onChange={setShowAttachments} />
+                      <ToggleSwitch checked={showAttachments} onChange={setShowAttachments} isLight={isLight} />
                     </div>
                     <div className="flex items-center justify-between opacity-90">
                       <span>Existing files only</span>
-                      <ToggleSwitch checked={existingOnly} onChange={setExistingOnly} />
+                      <ToggleSwitch checked={existingOnly} onChange={setExistingOnly} isLight={isLight} />
                     </div>
                     <div className="flex items-center justify-between opacity-90">
                       <span>Orphans</span>
-                      <ToggleSwitch checked={showOrphans} onChange={setShowOrphans} />
+                      <ToggleSwitch checked={showOrphans} onChange={setShowOrphans} isLight={isLight} />
                     </div>
                   </div>
                 </div>
               )}
 
-              {/* 2. GROUPS SECTION */}
-              <div className="border-t pt-3 border-white/10">
-                <button
-                  onClick={() => setGroupsOpen((v) => !v)}
-                  className="flex w-full items-center gap-1.5 font-heading text-xs font-semibold text-left opacity-90 hover:opacity-100"
-                >
-                  <span className={`text-[10px] transition-transform ${groupsOpen ? "rotate-0" : "-rotate-90"}`}>
-                    ▾
-                  </span>
-                  <span>Groups</span>
-                </button>
-                {groupsOpen && (
-                  <div className="mt-2 space-y-2">
-                    <button
-                      onClick={() =>
-                        setCustomGroups((g) => [
-                          ...g,
-                          { id: String(Date.now()), query: "path:Projects", color: "#ec4899" },
-                        ])
-                      }
-                      className={`w-full rounded-lg border py-1.5 font-sans text-xs transition-colors ${
-                        isLight
-                          ? "border-slate-300 bg-slate-100 hover:bg-slate-200 text-slate-800"
-                          : "border-white/15 bg-white/5 hover:bg-white/10 text-neutral-200"
-                      }`}
-                    >
-                      New group
-                    </button>
-                    {customGroups.map((g) => (
-                      <div key={g.id} className="flex items-center justify-between rounded-md border p-1.5 border-white/10">
-                        <span className="font-mono text-[11px] opacity-80">{g.query}</span>
-                        <span className="size-2.5 rounded-full" style={{ background: g.color }} />
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* 3. DISPLAY SECTION */}
+              {/* 2. DISPLAY SECTION */}
               <div className="border-t pt-3 border-white/10">
                 <button
                   onClick={() => setDisplayOpen((v) => !v)}
@@ -454,28 +471,19 @@ export function NebulaShowcase() {
                   <div className="mt-2.5 space-y-3">
                     <div className="flex items-center justify-between opacity-90">
                       <span>Arrows</span>
-                      <ToggleSwitch checked={showArrows} onChange={setShowArrows} />
+                      <ToggleSwitch checked={showArrows} onChange={setShowArrows} isLight={isLight} />
                     </div>
+
+                    {mode === "3d" && (
+                      <div className="flex items-center justify-between opacity-90">
+                        <span>Auto Rotate Camera</span>
+                        <ToggleSwitch checked={autoRotate} onChange={setAutoRotate} isLight={isLight} />
+                      </div>
+                    )}
 
                     <div className="flex items-center justify-between opacity-90">
-                      <span>Auto Rotate Camera</span>
-                      <ToggleSwitch checked={autoRotate} onChange={setAutoRotate} />
-                    </div>
-
-                    <div>
-                      <div className="mb-1 flex justify-between font-sans text-[11px] opacity-80">
-                        <span>Text fade threshold</span>
-                        <span>{textFadeThreshold.toFixed(2)}</span>
-                      </div>
-                      <input
-                        type="range"
-                        min="0"
-                        max="1"
-                        step="0.05"
-                        value={textFadeThreshold}
-                        onChange={(e) => setTextFadeThreshold(parseFloat(e.target.value))}
-                        className="w-full accent-rose-500 cursor-pointer"
-                      />
+                      <span>Node labels</span>
+                      <ToggleSwitch checked={showLabels} onChange={setShowLabels} isLight={isLight} />
                     </div>
 
                     <div>
@@ -572,7 +580,7 @@ export function NebulaShowcase() {
                 )}
               </div>
 
-              {/* 4. FORCES SECTION */}
+              {/* 3. FORCES SECTION */}
               <div className="border-t pt-3 border-white/10">
                 <button
                   onClick={() => setForcesOpen((v) => !v)}

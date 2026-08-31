@@ -115,25 +115,30 @@ menu, image paste/embed, raw ↔ preview toggle, grouped-pill toolbar styling
 (the wireframe shows segmented button groups; the current bar is a flat row with
 thin dividers).
 
-### 2.6 Panel reveal / hide — one slide animation, two triggers
+### 2.6 Panel reveal / hide — one slide-and-fade family, three triggers
 
-Both working panels now collapse and reveal with the same 300ms transition: a
-negative `margin-inline-start` of one panel-width parks the panel off to the
-left (clipped by an `overflow-hidden` ancestor), and opening tweens it back to
-`0` while `opacity` goes `0 → 1`, so it fades and slides in left→right; hide
-reverses it. **Width itself never animates**, so prose never reflows mid-slide.
-The transition is suppressed while dragging (`data-dragging:transition-none`).
+Each panel collapses and reveals with a 300ms fade plus a slide; all clipped by
+an `overflow-hidden` ancestor. The two side panels park with a negative
+`margin-inline-start` of one panel-width (opening tweens it back to `0`) —
+**width never animates**, so prose never reflows mid-slide, and the transition
+is suppressed while dragging (`data-dragging:transition-none`). The chat body
+slides on the `translate` axis instead.
 
 | Panel | Trigger | Behaviour |
 | :-- | :-- | :-- |
 | `MarkdownPanel` | the `[WRITE_NOTE]` "Note saved" `ActionBadge` in a chat turn | starts hidden; the badge toggles it. `ActionBadge` gained an `aria-pressed` affordance (brand-tinted border/fill, chevron flips) |
 | `ContentPanel` | any `MainMenu` row — folders **plus the Settings and account footer rows** | starts open. `selectSection(id)` in `AppShell`: re-click the active row → toggle; click a different row → switch section and re-open. `activeId` is passed as `undefined` while closed, so no orphaned fused row is left on the menu edge |
+| `ChatPanel` body (transcript + composer) | the "new conversation" icon in the stage action group | starts open; internal state. Fades and slides **up from below** (`translate-y-8 → 0`); the action row itself stays put so the toggle is always reachable. Transition names `translate` explicitly — a bare `transition-[transform,…]` does not cover Tailwind v4's standalone `translate` property, which made the slide snap while the fade eased |
 
 `MainMenu` changes: the Settings and account rows are now real `<button>`s with
 active-aware styling (`aria-current`, `ROW_ACTIVE` / `ROW_MUTED`); a new
 `onSelectAccount` prop; exported `MENU_SETTINGS_ID` / `MENU_ACCOUNT_ID`
 sentinels for `activeId` comparison. The menu carries `z-20` in the shell so the
 content panel tucks *behind* it on hide rather than sliding over it.
+
+`ChatPanel` also gained a **stage action group** — a `bg-secondary` pill of two
+mock icons (new conversation, bookmark) parked top-right and metric-aligned to
+`MarkdownPanel`'s toolbar row so the two panels' chrome reads as one line.
 
 ### 2.7 Fused-corner fix for the account row
 
@@ -151,7 +156,7 @@ already documented in `main-menu.tsx`).
 
 | File | Change |
 | :-- | :-- |
-| `ui/src/components/sympose/chat-panel.tsx` | **new** — centred chat reading column + docked composer mock |
+| `ui/src/components/sympose/chat-panel.tsx` | **new** — centred chat reading column + docked composer mock; top-right stage action group (editor-toolbar-aligned); "new conversation" icon toggles the body with a fade + slide-from-below |
 | `ui/src/components/sympose/markdown-panel.tsx` | **new** — markdown reader + editing toolbar + frontmatter + links footer; `bg-panel` fill, `ContentPanel`-matched resize bounds; `open` prop drives the slide/fade reveal |
 | `ui/src/components/sympose/content-panel.tsx` | `open` prop (slide/fade reveal) + `flushBottomLeft` prop (square the seam corner for the active account row) |
 | `ui/src/components/sympose/chat-message.tsx` | `reaction` prop (floated chip, user role); contrast reset to panel palette; square top-right corner; more bottom padding |

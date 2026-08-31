@@ -10,6 +10,7 @@ const NAV = [
   { to: "/components", label: "Components", end: false },
   { to: "/menu", label: "Main menu", end: false },
   { to: "/shell", label: "Shell", end: false },
+  { to: "/nebula", label: "Nebula", end: false },
 ]
 
 export function RootLayout() {

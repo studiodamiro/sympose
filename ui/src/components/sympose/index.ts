@@ -6,6 +6,9 @@ export { ContentPanel } from "./content-panel"
 export { Composer } from "./composer"
 export { ControlRow, ControlSection } from "./control-section"
 export { EntityPath } from "./entity-path"
+// `KnowledgeNebula` is intentionally NOT re-exported here — it pulls in
+// three.js / 3d-force-graph, and this barrel is imported by the app shell.
+// Import it directly from "@/components/sympose/knowledge-nebula", lazily.
 export {
   MainMenu,
   MENU_ACCOUNT_ID,

@@ -55,3 +55,7 @@ profiles/aurelius_memory.md
 sessions/
 *.jsonl
 !*.example
+
+# Agent Rules Overrides
+CLAUDE.md
+

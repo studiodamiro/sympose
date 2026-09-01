@@ -3,10 +3,11 @@ import ForceGraph2D, { type ForceGraphMethods } from "react-force-graph-2d"
 import { forceRadial } from "d3-force"
 
 import { cn } from "@/lib/utils"
-import { nodeColor, type NebulaGraph, type NebulaNode } from "@/lib/nebula-graph"
+import { type NebulaGraph, type NebulaNode } from "@/lib/nebula-graph"
 import {
   clamp,
   createNodeTooltip,
+  nebulaNodeColor,
   nodeRenderVal,
   useElementSize,
   type KnowledgeNebulaHandle,
@@ -45,6 +46,8 @@ const KnowledgeNebula2D = React.forwardRef<
       hiddenNodeIds,
       clickZoomDistance = 60,
       nodeRelSize = 4,
+      nodeSeparation = 0,
+      nodeVividness = 0,
       linkWidth,
       linkParticles = 0,
       showArrows = false,
@@ -300,7 +303,7 @@ const KnowledgeNebula2D = React.forwardRef<
               if (isDimmed(n.id)) {
                 return isLight ? "rgba(148,163,184,0.22)" : "rgba(100,116,139,0.18)"
               }
-              return nodeColor(n as NebulaNode, isLight)
+              return nebulaNodeColor(n, isLight, nodeSeparation, nodeVividness)
             }}
             nodeCanvasObjectMode={() => "after"}
             nodeCanvasObject={paintNodeLabel}

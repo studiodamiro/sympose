@@ -8,13 +8,13 @@ import SpriteText from "three-spritetext"
 
 import { cn } from "@/lib/utils"
 import {
-  nodeColor,
   type NebulaGraph,
   type NebulaNode,
 } from "@/lib/nebula-graph"
 import {
   clamp,
   createNodeTooltip,
+  nebulaNodeColor,
   nodeRenderVal,
   useElementSize,
   type KnowledgeNebulaHandle,
@@ -53,6 +53,8 @@ const KnowledgeNebula3D = React.forwardRef<
       hiddenNodeIds,
       clickZoomDistance = 60,
       nodeRelSize = 4,
+      nodeSeparation = 0,
+      nodeVividness = 0,
       linkWidth,
       linkParticles = 0,
       showArrows = false,
@@ -573,7 +575,7 @@ const KnowledgeNebula3D = React.forwardRef<
               if (highlightedNodeIds && !highlightedNodeIds.has(node.id)) {
                 return isLight ? "rgba(148,163,184,0.18)" : "rgba(100,116,139,0.15)"
               }
-              return nodeColor(node, isLight)
+              return nebulaNodeColor(node, isLight, nodeSeparation, nodeVividness)
             }}
             nodeLabel={tooltipFn}
             nodeThreeObjectExtend={true}

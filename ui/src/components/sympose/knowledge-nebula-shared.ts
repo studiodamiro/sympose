@@ -1,6 +1,10 @@
 import * as React from "react"
 
-import { type NebulaGraph, type NebulaNode } from "@/lib/nebula-graph"
+import {
+  nodeColor,
+  type NebulaGraph,
+  type NebulaNode,
+} from "@/lib/nebula-graph"
 
 /**
  * Shared contract + helpers for the Knowledge Nebula renderers. Module A of the
@@ -70,6 +74,19 @@ export interface KnowledgeNebulaProps {
   clickZoomDistance?: number
   /** Node relative size multiplier (default 4). */
   nodeRelSize?: number
+  /**
+   * Signed knob that shifts node folder colours relative to the background.
+   * Positive pushes them away for contrast (toward black in light mode, toward
+   * white in dark mode); negative pulls them toward the background so they read
+   * softer. `0` = palette as-is; `±1` = fully black / white. Default `0`.
+   */
+  nodeSeparation?: number
+  /**
+   * Signed saturation knob for node folder colours. Positive makes the hue pop,
+   * negative fades it toward grey. `0` = palette as-is; `-1` = greyscale,
+   * `+1` = fully saturated. Default `0`.
+   */
+  nodeVividness?: number
   /** Link line width (falls back to a per-theme default). */
   linkWidth?: number
   /** Number of animated link directional particles per edge (default 0). */
@@ -130,6 +147,112 @@ export function createNodeTooltip(isLight: boolean) {
 /** Clamp `v` into `[lo, hi]`. */
 export function clamp(v: number, lo: number, hi: number): number {
   return Math.max(lo, Math.min(hi, v))
+}
+
+/**
+ * Linear-blend a `#rrggbb` colour toward `target` (also `#rrggbb`). `amount`
+ * 0 = unchanged, 1 = fully `target`. Non-hex inputs pass through untouched.
+ */
+export function blendHex(hex: string, target: string, amount: number): string {
+  const a = clamp(amount, 0, 1)
+  const re = /^#[0-9a-fA-F]{6}$/
+  if (a <= 0 || !re.test(hex) || !re.test(target)) return hex
+  const ch = (i: number) => {
+    const from = parseInt(hex.slice(i, i + 2), 16)
+    const to = parseInt(target.slice(i, i + 2), 16)
+    return Math.round(from + (to - from) * a)
+      .toString(16)
+      .padStart(2, "0")
+  }
+  return `#${ch(1)}${ch(3)}${ch(5)}`
+}
+
+function hexToHsl(hex: string): [number, number, number] | null {
+  const m = /^#([0-9a-fA-F]{2})([0-9a-fA-F]{2})([0-9a-fA-F]{2})$/.exec(hex)
+  if (!m) return null
+  const r = parseInt(m[1], 16) / 255
+  const g = parseInt(m[2], 16) / 255
+  const b = parseInt(m[3], 16) / 255
+  const max = Math.max(r, g, b)
+  const min = Math.min(r, g, b)
+  const l = (max + min) / 2
+  const d = max - min
+  if (d === 0) return [0, 0, l]
+  const s = l > 0.5 ? d / (2 - max - min) : d / (max + min)
+  let h: number
+  if (max === r) h = (g - b) / d + (g < b ? 6 : 0)
+  else if (max === g) h = (b - r) / d + 2
+  else h = (r - g) / d + 4
+  return [h / 6, s, l]
+}
+
+function hslToHex(h: number, s: number, l: number): string {
+  const hue = (p: number, q: number, t: number) => {
+    if (t < 0) t += 1
+    if (t > 1) t -= 1
+    if (t < 1 / 6) return p + (q - p) * 6 * t
+    if (t < 1 / 2) return q
+    if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6
+    return p
+  }
+  let r: number
+  let g: number
+  let b: number
+  if (s === 0) {
+    r = g = b = l
+  } else {
+    const q = l < 0.5 ? l * (1 + s) : l + s - l * s
+    const p = 2 * l - q
+    r = hue(p, q, h + 1 / 3)
+    g = hue(p, q, h)
+    b = hue(p, q, h - 1 / 3)
+  }
+  const to = (v: number) =>
+    Math.round(clamp(v, 0, 1) * 255)
+      .toString(16)
+      .padStart(2, "0")
+  return `#${to(r)}${to(g)}${to(b)}`
+}
+
+/**
+ * Scale a `#rrggbb` colour's HSL saturation. `amount` in `[-1, 1]`: `0` =
+ * unchanged, `-1` = greyscale, `+1` = fully saturated. Non-hex passes through.
+ */
+export function adjustSaturation(hex: string, amount: number): string {
+  const a = clamp(amount, -1, 1)
+  if (a === 0) return hex
+  const hsl = hexToHsl(hex)
+  if (!hsl) return hex
+  const [h, s, l] = hsl
+  const next = a < 0 ? s * (1 + a) : s + (1 - s) * a
+  return hslToHex(h, clamp(next, 0, 1), l)
+}
+
+/**
+ * Folder colour for a node with the two signed colour knobs applied:
+ * {@link KnowledgeNebulaProps.nodeVividness} scales saturation first, then
+ * {@link KnowledgeNebulaProps.nodeSeparation} blends the result away from the
+ * background (black in light mode, white in dark) when positive, or toward it
+ * when negative. Both `0` leaves the palette untouched.
+ */
+export function nebulaNodeColor(
+  node: any,
+  isLight: boolean,
+  separation = 0,
+  vividness = 0
+): string {
+  let color = nodeColor(node as NebulaNode, isLight)
+  if (vividness) color = adjustSaturation(color, vividness)
+  if (separation) {
+    const awayFromBg = isLight ? "#000000" : "#ffffff"
+    const towardBg = isLight ? "#ffffff" : "#000000"
+    color = blendHex(
+      color,
+      separation >= 0 ? awayFromBg : towardBg,
+      Math.abs(separation)
+    )
+  }
+  return color
 }
 
 /** Highlight-weighted render value for a node (matches across both renderers). */

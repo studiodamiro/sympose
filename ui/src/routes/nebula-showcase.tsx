@@ -128,6 +128,8 @@ export function NebulaShowcase() {
   const [showArrows, setShowArrows] = React.useState(false)
   const [autoRotate, setAutoRotate] = React.useState(false)
   const [showLabels, setShowLabels] = React.useState(true)
+  const [nodeSeparation, setNodeSeparation] = React.useState(0)
+  const [nodeVividness, setNodeVividness] = React.useState(0)
   const [nodeRelSize, setNodeRelSize] = React.useState(1.67 * 2.4)
   const [linkWidth, setLinkWidth] = React.useState(0.8)
   const [noteDelayMs, setNoteDelayMs] = React.useState(25)
@@ -150,6 +152,8 @@ export function NebulaShowcase() {
     setShowArrows(false)
     setAutoRotate(false)
     setShowLabels(true)
+    setNodeSeparation(0)
+    setNodeVividness(0)
     setNodeRelSize(1.67 * 2.4)
     setLinkWidth(0.8)
     setNoteDelayMs(25)
@@ -286,6 +290,8 @@ export function NebulaShowcase() {
         isLight={isLight}
         autoRotate={autoRotate}
         showLabels={showLabels}
+        nodeSeparation={nodeSeparation}
+        nodeVividness={nodeVividness}
         highlightedNodeIds={highlightedNodeIds}
         hiddenNodeIds={hiddenNodeIds}
         clickZoomDistance={clickZoomDistance}
@@ -484,6 +490,44 @@ export function NebulaShowcase() {
                     <div className="flex items-center justify-between opacity-90">
                       <span>Node labels</span>
                       <ToggleSwitch checked={showLabels} onChange={setShowLabels} isLight={isLight} />
+                    </div>
+
+                    <div>
+                      <div className="mb-1 flex justify-between font-sans text-[11px] opacity-80">
+                        <span>Background separation</span>
+                        <span>
+                          {nodeSeparation > 0 ? "+" : ""}
+                          {Math.round(nodeSeparation * 100)}%
+                        </span>
+                      </div>
+                      <input
+                        type="range"
+                        min="-0.75"
+                        max="0.75"
+                        step="0.05"
+                        value={nodeSeparation}
+                        onChange={(e) => setNodeSeparation(parseFloat(e.target.value))}
+                        className="w-full accent-rose-500 cursor-pointer"
+                      />
+                    </div>
+
+                    <div>
+                      <div className="mb-1 flex justify-between font-sans text-[11px] opacity-80">
+                        <span>Color vividness</span>
+                        <span>
+                          {nodeVividness > 0 ? "+" : ""}
+                          {Math.round(nodeVividness * 100)}%
+                        </span>
+                      </div>
+                      <input
+                        type="range"
+                        min="-1"
+                        max="1"
+                        step="0.05"
+                        value={nodeVividness}
+                        onChange={(e) => setNodeVividness(parseFloat(e.target.value))}
+                        className="w-full accent-rose-500 cursor-pointer"
+                      />
                     </div>
 
                     <div>

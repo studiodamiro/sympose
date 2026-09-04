@@ -169,7 +169,7 @@ npx pm2 stop sympose-slack
 
 For a permanent "always-on" daemon that starts automatically when your Mac boots:
 
-1. Create `~/Library/LaunchAgents/com.sympose.slack.plist`:
+1. Create `~/Library/LaunchAgents/com.sympose.slack.plist`, replacing `/path/to/sympose` below with your actual clone path:
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
@@ -182,16 +182,16 @@ For a permanent "always-on" daemon that starts automatically when your Mac boots
     <array>
         <string>/bin/bash</string>
         <string>-c</string>
-        <string>cd /Users/damiro/Development/sympose &amp;&amp; ./chat.sh --slack</string>
+        <string>cd /path/to/sympose &amp;&amp; ./chat.sh --slack</string>
     </array>
     <key>RunAtLoad</key>
     <true/>
     <key>KeepAlive</key>
     <true/>
     <key>StandardOutPath</key>
-    <string>/Users/damiro/Development/sympose/slack_daemon.log</string>
+    <string>/path/to/sympose/slack_daemon.log</string>
     <key>StandardErrorPath</key>
-    <string>/Users/damiro/Development/sympose/slack_daemon.err</string>
+    <string>/path/to/sympose/slack_daemon.err</string>
 </dict>
 </plist>
 ```

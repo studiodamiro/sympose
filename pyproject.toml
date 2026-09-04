@@ -26,6 +26,11 @@ dependencies = [
     "cryptography>=41.0.0",
 ]
 
+[project.urls]
+Repository = "https://github.com/studiodamiro/sympose"
+Issues = "https://github.com/studiodamiro/sympose/issues"
+Documentation = "https://github.com/studiodamiro/sympose/blob/main/docs/wiki/index.md"
+
 [project.scripts]
 sympose = "app:main"
 

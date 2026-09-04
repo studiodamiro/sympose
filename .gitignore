@@ -55,7 +55,12 @@ profiles/aurelius_memory.md
 sessions/
 *.jsonl
 !*.example
+.vscode/*
 
 # Agent Rules Overrides
 CLAUDE.md
+.agents/*
 
+# AI tooling — never committed
+.agents/
+.claude/

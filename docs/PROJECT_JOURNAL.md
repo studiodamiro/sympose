@@ -112,6 +112,7 @@ one in [`docs/wiki/index.md`](./wiki/index.md) are kept in sync per the
 
 | Date | Entry |
 | ---- | ----- |
+| 2026-09-05 | [Typewriter Reveal for `buffered` Render Mode](./journal/2026-09/2026-09-05_typewriter-reveal-buffered-mode.md) |
 | 2026-09-05 | [Animated Thinking Status](./journal/2026-09/2026-09-05_animated-thinking-status.md) |
 | 2026-09-05 | [Persona Soul Content Implementation (ADR-075)](./journal/2026-09/2026-09-05_persona-soul-content-implementation.md) |
 | 2026-09-05 | [ADR-075 — Persona Soul Content in CREATE_PERSONA](./journal/2026-09/2026-09-05_adr-075-persona-soul-content-in-create-persona.md) |

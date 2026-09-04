@@ -153,7 +153,7 @@ def create_app(engine: Any) -> FastAPI:
     return app
 
 
-def run_server(engine: Any, host: str = "0.0.0.0", port: int = 8000) -> None:
+def run_server(engine: Any, host: str = "127.0.0.1", port: int = 8000) -> None:
     """Launches the Uvicorn ASGI server hosting the Sympose Dashboard API."""
     import uvicorn
     app = create_app(engine)

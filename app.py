@@ -51,7 +51,9 @@ def main():
 
     if args.dashboard:
         from sympose.server import run_server
-        run_server(engine, host="0.0.0.0", port=8000)
+        # Defaults to localhost-only; set SYMPOSE_DASHBOARD_HOST=0.0.0.0 to opt into
+        # LAN exposure explicitly (see ADR-064 — no auth exists on this API yet).
+        run_server(engine, host=os.getenv("SYMPOSE_DASHBOARD_HOST", "127.0.0.1"), port=8000)
     elif args.slack:
         MultiAgentSlackRunner.run_all(engine, persona_override=args.persona)
     else:

@@ -45,11 +45,13 @@ aliases:
 model: "{DEFAULT_CHAT_MODEL}"
 icon_emoji: ":brain:"
 
+# "*" = full vault access. Samantha is the master orchestrator and Sympose
+# adapts to any folder taxonomy (Flat, PARA, Johnny Decimal, Zettelkasten) —
+# a fixed folder list would only work for one taxonomy and would auto-create
+# those folders inside whatever vault gets linked. Narrow this to specific
+# folder names only if you want to sandbox her deliberately.
 vault_folders:
-  - "General"
-  - "Projects"
-  - "Thoughts"
-  - "Templates"
+  - "*"
 
 soul_file: "profiles/samantha_soul.md"
 memory_file: "profiles/samantha_memory.md"
@@ -238,7 +240,7 @@ def run_first_run_onboarding(workspace_dir: str, force: bool = False) -> None:
         ]
         TerminalUI.render_option_panel(
             console,
-            title="🔑  STEP 1/2: CONNECT YOUR AI PROVIDER",
+            title="🔑  STEP 1/3: CONNECT YOUR AI PROVIDER",
             options=provider_options
         )
         
@@ -269,7 +271,7 @@ def run_first_run_onboarding(workspace_dir: str, force: bool = False) -> None:
         console.print(Panel(
             vault_panel_text,
             box=ROUNDED,
-            title="📁  STEP 2/2: OBSIDIAN VAULT CONNECTION (OPTIONAL)",
+            title="📁  STEP 2/3: OBSIDIAN VAULT CONNECTION (OPTIONAL)",
             title_align="left",
             border_style="cyan",
             padding=(0, 2)
@@ -283,5 +285,23 @@ def run_first_run_onboarding(workspace_dir: str, force: bool = False) -> None:
             with open(env_file, "a", encoding="utf-8") as f:
                 f.write(f"\nMASTER_VAULT_PATH=\"{vault_path}\"\n")
             console.print(f"\n[bold green]✓ Linked vault: {vault_path}[/bold green]")
-        
+
+        # Step 3: Persona Genesis nudge — Samantha is the only persona that
+        # ships. Without this, a first-run user has no in-app signal that
+        # spawning their own companion is a thing, let alone how.
+        console.print()
+        console.print(Panel(
+            "[bold]@samantha[/bold] is your only agent out of the box. Want a companion "
+            "for something specific — engineering, journaling, a domain specialist?\n\n"
+            "[dim]Just ask her, in plain language, once you're chatting:[/dim]\n"
+            '  [cyan]"Create an agent modeled after Grace Hopper for surgical code reviews."[/cyan]\n\n'
+            "[dim]She writes the new persona to disk and switches you to it immediately — "
+            "no YAML required. `/switch @samantha` to come back anytime.[/dim]",
+            box=ROUNDED,
+            title="🧬  STEP 3/3: MEET YOUR ORCHESTRATOR",
+            title_align="left",
+            border_style="cyan",
+            padding=(0, 2)
+        ))
+
         console.print("\n[bold green]🎉 Setup completed! Launching @samantha...[/bold green]\n")

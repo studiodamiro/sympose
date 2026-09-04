@@ -6,17 +6,13 @@ aliases:
 model: "gemini/gemini-3.6-flash"
 icon_emoji: ":brain:"
 
+# "*" = full vault access. Samantha is the master orchestrator and Sympose
+# adapts to any folder taxonomy (Flat, PARA, Johnny Decimal, Zettelkasten) —
+# a fixed folder list would only work for one taxonomy and would auto-create
+# those folders inside whatever vault gets linked. Narrow this to specific
+# folder names only if you want to sandbox her deliberately.
 vault_folders:
-  - "General"
-  - "Projects"
-  - "Thoughts"
-  - "Quotes"
-  - "People"
-  - "Limbo"
-  - "Code"
-  - "Movies"
-  - "Attachments"
-  - "Templates"
+  - "*"
 
 soul_file: "profiles/samantha_soul.md"
 memory_file: "profiles/samantha_memory.md"

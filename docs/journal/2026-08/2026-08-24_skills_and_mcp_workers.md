@@ -27,41 +27,25 @@ tags:
 
 ---
 
-## 🏗️ Architectural Decisions Recorded (ADR Index)
+## 🏗️ Architectural Decisions Recorded
 
-### ADR-012: Modular Procedural Skills System (`SKILL.md`)
-* **Context**: Agents needed reusable domain heuristics (Git Hygiene, Code Review, Strategic Decision-Making) without modifying their core identity souls (`_soul.md`).
-* **Decision**: Adopt the open standard `skills/<skill_name>/SKILL.md` format (YAML frontmatter + markdown playbook body).
-* **Implementation**:
-  * [`sympose/skills.py`](./sympose/skills.py): `SkillManager` automatically discovers, parses, and formats skills into system prompt blocks.
-  * Manifest integration: Profiles specify `skills: [git_workflow, code_review]` in `profiles/*.yaml`.
-  * Built starter skills: `skills/git_workflow/SKILL.md`, `skills/code_review/SKILL.md`, `skills/system_architecture/SKILL.md`, `skills/strategic_analysis/SKILL.md`.
-
----
-
-### ADR-013: Model Context Protocol (MCP) & Ephemeral Sub-Agent Worker Sandbox
-* **Context**: Dumping 50 tool schemas into primary agents costs 5,000+ tokens per turn and pollutes conversation history with raw terminal/JSON outputs.
-* **Decision**: Adopt the **Supervisor-Worker Pattern** combined with **MCP (Model Context Protocol)**.
-* **Implementation**:
-  * [`sympose/mcp.py`](./sympose/mcp.py): Standard-library JSON-RPC 2.0 client over `stdio` subprocesses connecting to local/community MCP servers (Filesystem, GitHub, Brave Search).
-  * [`sympose/workers.py`](./sympose/workers.py): `WorkerEngine` executes isolated multi-turn tool loops. Context memory and child processes are freed upon task completion.
-  * Autonomic tag: `[SPAWN_WORKER: <skill_or_mcp> | <task_instructions>]` in [`sympose/actions.py`](./sympose/actions.py).
-  * Configurable knob: `performance.max_worker_tool_turns: 8` in [`config.yaml`](./config.yaml).
-
----
-
-### ADR-014: Deterministic Native Tools & In-Turn Proactive Synthesis
-* **Context**: When sub-agents lacked direct terminal execution tools, models attempted to simulate/hallucinate plausible mock outputs. Additionally, users were forced to ask multiple follow-up turns to get orchestrator summaries.
-* **Decision**:
-  1. Built [`sympose/native_tools.py`](./sympose/native_tools.py) (`run_command`, `read_file`) providing real, safe `subprocess.run` execution on macOS.
-  2. Implemented strict anti-simulation directives forbidding simulated `> 🛠️ Sub-Agent Worker Report` badges.
-  3. Implemented **In-Turn Proactive Synthesis** in [`sympose/engine.py`](./sympose/engine.py): upon worker completion, the primary agent immediately streams its executive synthesis and recommendations in the exact same response turn.
+- **[ADR-012 — Modular Procedural Skills System (`SKILL.md`)](./2026-08-24_adr-012-modular-procedural-skills-system.md):**
+  the open `skills/<name>/SKILL.md` format (frontmatter + playbook), discovered
+  and compiled by `sympose/skills.py`, mounted per profile via `skills: [...]`.
+- **[ADR-013 — Model Context Protocol & Ephemeral Sub-Agent Worker Sandbox](./2026-08-24_adr-013-mcp-ephemeral-subagent-worker-sandbox.md):**
+  the supervisor–worker pattern over a stdlib JSON-RPC 2.0 MCP client
+  (`sympose/mcp.py`) with disposable worker context (`sympose/workers.py`) and
+  the `[SPAWN_WORKER]` tag — rejecting the 5,000+-token cost of dumping all tool
+  schemas into primary agents.
+- **[ADR-014 — Deterministic Native Tools & In-Turn Proactive Synthesis](./2026-08-24_adr-014-deterministic-native-tools-in-turn-synthesis.md):**
+  real `run_command` / `read_file` execution, anti-simulation directives, and an
+  immediate in-turn orchestrator synthesis after a worker run.
 
 ---
 
 ## 🧪 Verification & SLA Metrics
 
-* **Test Suite**: 8/8 automated unit and integration tests passing in `0.034s` ([`scratch/test_skills_and_mcp.py`](./scratch/test_skills_and_mcp.py)).
+* **Test Suite**: 8/8 automated unit and integration tests passing in `0.034s` ([`scratch/test_skills_and_mcp.py`](../../../scratch/test_skills_and_mcp.py)).
 * **LOC Metric**: Every package module in `sympose/` strictly complies with the **`< 200 LOC per file`** rule:
   * `sympose/native_tools.py`: 85 LOC
   * `sympose/workers.py`: 168 LOC

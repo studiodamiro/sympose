@@ -62,7 +62,7 @@ Marcus Aurelius occupies Sympose's **Inner Privacy Ring**:
 
 ## 3. Core Soul Directives & Stoic Heuristics
 
-Aurelius’s soul directives ([`profiles/aurelius_soul.md`](./profiles/aurelius_soul.md)) guide every conversational reflection:
+Aurelius’s soul directives ([`profiles/aurelius_soul.md`](../../../profiles/aurelius_soul.md)) guide every conversational reflection:
 
 1. **The Dichotomy of Control**:
    - Methodically separates what is within the user's control (intent, effort, reaction) from what is not (external outcomes, other people's actions).
@@ -123,7 +123,7 @@ You (to @aurelius): Help me evaluate whether taking on this new advisory role al
 ---
 
 ## 🔗 Related Documentation
-* [Selective Memory Sharing & Privacy Rings](./docs/wiki/memory/selective-sharing.md)
-* [Agent Profile System Guide](./docs/wiki/agents/profile-system.md)
-* [Samantha Agent Specification](./docs/wiki/agents/samantha.md)
-* [Grace Hopper Agent Specification](./docs/wiki/agents/grace.md)
+* [Selective Memory Sharing & Privacy Rings](../memory/selective-sharing.md)
+* [Agent Profile System Guide](./profile-system.md)
+* [Samantha Agent Specification](./samantha.md)
+* [Grace Hopper Agent Specification](./grace.md)

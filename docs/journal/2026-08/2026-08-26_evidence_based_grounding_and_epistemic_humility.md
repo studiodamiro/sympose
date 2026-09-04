@@ -27,22 +27,12 @@ In high-reliability engineering, **guessing without evidence is unacceptable**. 
 
 ---
 
-## 2. Architectural Decisions (ADR-035)
+## 2. Architectural Decisions
 
-### ADR-035.1: The "No Evidence = No Assumptions" Mandate
-* When an input lacks explicit antecedent data or refers to an ambiguous subject (*"this"*, *"that"*, *"the thread"*), agents are strictly forbidden from guessing or assuming context from working memory.
-* Agents must **pause and ask clarifying questions** before executing or generating plans.
-
-### ADR-035.2: Channel & Thread Boundary Awareness
-* Agents acknowledge that they only have live visibility into the active conversation thread.
-* If a user asks about an external channel (e.g. `#general`) or another thread, the agent must not fabricate or guess the contents—it must explicitly request the snippet or context.
-
-### ADR-035.3: Universal Soul & Rule Injection
-* Injected into all agent profiles:
-  * [`profiles/samantha_soul.md`](../../../profiles/samantha_soul.md)
-  * [`profiles/grace_soul.md`](../../../profiles/grace_soul.md)
-  * [`profiles/aurelius_soul.md`](../../../profiles/aurelius_soul.md)
-  * [`.agents/rules/identity.md`](../../../.agents/rules/identity.md)
+- **[ADR-035 — Evidence-Based Grounding & Epistemic Humility Standard](./2026-08-26_adr-035-evidence-based-grounding-epistemic-humility.md):**
+  "no evidence = no assumptions" — pause and ask on ambiguous subjects (035.1);
+  channel / thread boundary awareness, no fabricating other channels (035.2);
+  universal injection into every soul and `identity.md` (035.3).
 
 ---
 

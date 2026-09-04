@@ -31,7 +31,7 @@ User Prompt ──> Direct TLS Connection to Google AI Studio ──> Stream Rep
 ```
 
 ### The Universal Resolution:
-In [`sympose/config.py`](./sympose/config.py#L20), Sympose enforces environment flags before any client library loads:
+In [`sympose/config.py`](../../../sympose/config.py#L20), Sympose enforces environment flags before any client library loads:
 ```python
 os.environ["NO_GCE_CHECK"] = "True"
 os.environ["GOOGLE_CLOUD_DISABLE_METADATA"] = "true"
@@ -49,7 +49,7 @@ os.environ.pop("GOOGLE_CLOUD_PROJECT", None)
 As conversations progress past 20–50 turns, context payloads can exceed 10,000+ tokens. Cloud LLMs must process all historical tokens (pre-fill phase) before generating the first token, adding 2–6 seconds of latency to every turn.
 
 ### The Resolution:
-Sympose enforces a strict **Sliding Context Window** in [`sympose/engine.py`](./sympose/engine.py#L123):
+Sympose enforces a strict **Sliding Context Window** in [`sympose/engine.py`](../../../sympose/engine.py#L123):
 ```python
 active_messages = [{"role": "system", "content": system_prompt}]
 active_messages.extend(history[-(self.max_turns * 2):])

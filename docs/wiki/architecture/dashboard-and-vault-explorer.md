@@ -20,7 +20,7 @@ tags:
 > **Design Philosophy: Engine First, Face Second & Flat Sovereign Craft**  
 > The Sympose Dashboard provides an integrated, local-first web interface for multi-agent conversations, real-time configuration, a **2D/3D Ambient Knowledge Nebula**, and a **standalone Vault Explorer** that eliminates the requirement for users to install or run Obsidian.
 
-> **Designing the UI?** See the [Web Dashboard UI Design Reference](../../UI_DESIGN_REFERENCE.md) — a self-contained brief (visual language, theme presets, layout shell, per-screen artboard list, mock content) built from this spec and ADR-047 / ADR-051–053, meant to be fed directly into Claude Design.
+> **Designing the UI?** See the [Web Dashboard UI Design Reference](../reference/ui-design-reference.md) — a self-contained brief (visual language, theme presets, layout shell, per-screen artboard list, mock content) built from this spec and ADR-047 / ADR-051–053, meant to be fed directly into Claude Design.
 
 ---
 
@@ -209,7 +209,7 @@ Sympose eliminates terminal friction while strictly avoiding Electron bloat (<60
 ADR-051–053 (below) specify UI/UX and performance exclusively — no access-control question was raised anywhere in this spec, and `sympose/server.py` currently exposes every route (including `/api/config` and `/api/vault/note`) with zero authentication, bound to `0.0.0.0` by default. **[ADR-064](../../../docs/journal/2026-08/2026-08-30_dashboard_api_security_design_gap_and_auth_plan.md) documents this gap and proposes a fix** (shared-password guard + auto-generated self-signed HTTPS, both zero-manual-install); it is not yet implemented. Slack access is unaffected either way — it never routes through this server.
 
 ## 8. Architectural Decision Records
-* **[Web Dashboard UI Design Reference](../../UI_DESIGN_REFERENCE.md)** — design brief distilled from this spec for Claude Design.
+* **[Web Dashboard UI Design Reference](../reference/ui-design-reference.md)** — design brief distilled from this spec for Claude Design.
 * **[ADR-051: Flat Architectural Web Dashboard, 2D/3D Knowledge Nebula & shadcn Theme Customizer Engine](../../../docs/journal/2026-08/2026-08-29_web_dashboard_ui_ux_and_3d_knowledge_nebula.md#adr-051-flat-architectural-web-dashboard-2d3d-knowledge-nebula--shadcn-theme-customizer-engine)**
 * **[ADR-052: In-Memory Metadata Caching & Sub-5ms Scalability Standard for Multi-Thousand Note Vaults](../../../docs/journal/2026-08/2026-08-29_web_dashboard_ui_ux_and_3d_knowledge_nebula.md#adr-052-in-memory-metadata-caching--sub-5ms-scalability-standard-for-multi-thousand-note-vaults)**
 * **[ADR-053: Cross-Platform Native Desktop Launchers & Zero-Bloat Frameless App-Mode Wrappers](../../../docs/journal/2026-08/2026-08-29_web_dashboard_ui_ux_and_3d_knowledge_nebula.md#adr-053-cross-platform-native-desktop-launchers--zero-bloat-frameless-app-mode-wrappers)**

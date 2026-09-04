@@ -25,30 +25,16 @@ tags:
 
 ---
 
-## 🏗️ Architectural Decisions Recorded (ADR Index)
+## 🏗️ Architectural Decisions Recorded
 
-### ADR-019: Automated Memory Compaction & Distillation Protocol
-* **Context**: As agents interact with the user, `_memory.md` files accumulate duplicate assertions (e.g. repeated user identity statements), superseded state (e.g. outdated secret codes or abandoned frameworks), and formatting noise (`- ---`), bloating system prompt pre-fills and causing attention dilution.
-* **Decision**:
-  * Built `sympose/compactor.py` (`MemoryCompactor`) using standard LLM distillation passes over memory files.
-  * Added configurable parameters to `config.yaml`:
-    ```yaml
-    memory:
-      compaction_threshold: 25  # Triggers compaction pass when bullet count >= 25
-      auto_compact: true
-    ```
-  * Hooked `MemoryCompactor.check_and_compact_async` into `append_memory()` in `sympose/profiles.py` to trigger background daemon compaction without blocking main chat turns.
-  * Added `/compact` and `/compact shared` slash commands with Readline Tab auto-completion in `sympose/commands.py` and `sympose/completer.py`.
-
----
-
-### ADR-020: The Zero-Maintenance Mandate & The Assistant Paradox
-* **Context**: Traditional AI agent frameworks burden users with database administration, vector database indexing, manual prompt curation, and static config maintenance. An assistant that requires human maintenance is an architectural failure because it creates the exact cognitive load it was built to alleviate.
-* **Decision**: Enshrine the **Zero-Maintenance Mandate** across all Sympose components:
-  1. *Memory*: Autonomous self-compaction & shadow extraction (no manual memory curation needed).
-  2. *Models*: Live catalog discovery via `ModelCatalog` (no hardcoded dictionaries to maintain).
-  3. *Profiles*: Auto-bootstrapping of souls & memories on boot (no database provisioning needed).
-  4. *Infrastructure*: Pure file-based Markdown over Python stdlib (no Docker, Postgres, or ChromaDB daemons to babysit or debug).
+- **[ADR-019 — Automated Memory Compaction & Distillation Protocol](./2026-08-25_adr-019-automated-memory-compaction-distillation.md):**
+  `sympose/compactor.py` runs background LLM distillation over memory files once
+  they cross `memory.compaction_threshold` (25), hooked into `append_memory()`
+  and exposed as `/compact` / `/compact shared`.
+- **[ADR-020 — The Zero-Maintenance Mandate & The Assistant Paradox](./2026-08-25_adr-020-zero-maintenance-mandate.md):**
+  every subsystem (memory, models, profiles, infrastructure) must be
+  self-maintaining — no DB admin, vector indexing, or config upkeep; flat
+  Markdown over stdlib, no Docker / Postgres / ChromaDB.
 
 ---
 

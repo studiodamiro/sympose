@@ -118,10 +118,10 @@ When a worker executes this skill, the runtime forces the model to fill each man
 
 | Skill Name | Path | Domain | Description |
 | :--- | :--- | :--- | :--- |
-| **`git_workflow`** | [`skills/git_workflow/SKILL.md`](./skills/git_workflow/SKILL.md) | Dev / Git | Conventional commits, atomic branch safety, and PR synthesis. |
-| **`code_review`** | [`skills/code_review/SKILL.md`](./skills/code_review/SKILL.md) | Engineering | Zero-bloat static analysis across Blockers, Warnings, and Suggestions. |
-| **`system_architecture`** | [`skills/system_architecture/SKILL.md`](./skills/system_architecture/SKILL.md) | Systems | Decoupled architecture, sub-second TTFT, and fault isolation. |
-| **`strategic_analysis`** | [`skills/strategic_analysis/SKILL.md`](./skills/strategic_analysis/SKILL.md) | Strategy | Tradeoff matrices, one-way/two-way door tests, and kill criteria. |
+| **`git_workflow`** | [`skills/git_workflow/SKILL.md`](../../../skills/git_workflow/SKILL.md) | Dev / Git | Conventional commits, atomic branch safety, and PR synthesis. |
+| **`code_review`** | [`skills/code_review/SKILL.md`](../../../skills/code_review/SKILL.md) | Engineering | Zero-bloat static analysis across Blockers, Warnings, and Suggestions. |
+| **`system_architecture`** | [`skills/system_architecture/SKILL.md`](../../../skills/system_architecture/SKILL.md) | Systems | Decoupled architecture, sub-second TTFT, and fault isolation. |
+| **`strategic_analysis`** | [`skills/strategic_analysis/SKILL.md`](../../../skills/strategic_analysis/SKILL.md) | Strategy | Tradeoff matrices, one-way/two-way door tests, and kill criteria. |
 
 ---
 

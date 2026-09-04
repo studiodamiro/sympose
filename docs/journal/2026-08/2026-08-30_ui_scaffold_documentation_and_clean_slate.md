@@ -26,7 +26,7 @@ tags:
 Short maintenance and housekeeping session before committing the dashboard scaffold work from 2026-08-29. Three discrete tasks completed:
 
 1. **IDE Settings Migration** — migrated all personal editor/UI preferences (font, scrollbar, terminal, colour customisations, Prettier rules, workbench layout) from the project-scoped `.vscode/settings.json` into the global Antigravity IDE user settings. The project file now contains only the three Python-specific path settings that require `${workspaceFolder}` resolution.
-2. **Documentation pass** — verified `ui/README.md`, `docs/UI_DESIGN_REFERENCE.md`, and `docs/wiki/architecture/dashboard-and-vault-explorer.md` are consistent with each other and with the current scaffold state.
+2. **Documentation pass** — verified `ui/README.md`, `docs/wiki/reference/ui-design-reference.md`, and `docs/wiki/architecture/dashboard-and-vault-explorer.md` are consistent with each other and with the current scaffold state.
 3. **Clean-slate commit** — staged all pending changes (modified docs, new `ui/` scaffold, updated `sympose/server.py`) and pushed to `origin/main`.
 
 ---

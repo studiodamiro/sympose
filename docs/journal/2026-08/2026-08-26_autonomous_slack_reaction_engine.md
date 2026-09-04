@@ -30,21 +30,13 @@ To create an authentic, responsive conversational dynamic in Slack, agents shoul
 
 ---
 
-## 2. Architectural Decisions (ADR-034)
+## 2. Architectural Decisions
 
-### ADR-034.1: Autonomous `[REACT: <emoji_name>]` Action Tag
-* Added `REACT` regex pattern to [`sympose/actions.py`](../../../sympose/actions.py).
-* Strips reaction syntax cleanly from user-facing text while passing emoji intents to the Slack event dispatcher.
-
-### ADR-034.2: Dynamic Reaction Resolution in `sympose/slack.py`
-* While processing: Reacts immediately with `👀` (`eyes`) to confirm reading/thinking state.
-* Upon reply completion:
-  * Removes `👀`.
-  * Executes whatever emoji(s) the agent autonomously chose (e.g. `[REACT: coffee] [REACT: rocket]`).
-  * Falls back to a clean `✅` (`white_check_mark`) if no custom reaction was needed.
-
-### ADR-034.3: Soul Directives for Contextual Reaction Autonomy
-* Updated [`profiles/samantha_soul.md`](../../../profiles/samantha_soul.md), [`profiles/grace_soul.md`](../../../profiles/grace_soul.md), and [`profiles/aurelius_soul.md`](../../../profiles/aurelius_soul.md) to grant full autonomy over emotional expression and silence.
+- **[ADR-034 — Autonomous Slack Emotion & Reaction Autonomy](./2026-08-26_adr-034-autonomous-slack-reaction-autonomy.md):**
+  the `[REACT: <emoji>]` action tag (034.1), dynamic resolution in
+  `sympose/slack.py` — `👀` on read, the agent's chosen emoji(s) or `✅` on
+  completion (034.2) — and soul directives granting autonomy over expression and
+  silence (034.3). Rejects hardcoded static emoji maps.
 
 ---
 

@@ -1,17 +1,11 @@
 ---
-title: 'Autonomous Agent Memory Architecture Standard'
+title: "Autonomous Agent Memory Architecture Standard"
 created: 2026-08-24
-type: architecture-standard
-status: approved
+type: wiki-memory
+parent: index
 tags:
-  - sympose/architecture
-  - ai/memory-systems
-  - prompt-engineering
-  - system-design
-  - obsidian-standard
-aliases:
-  - Memory Standard
-  - Autonomous Agent Memory Standard
+  - sympose/wiki
+  - engineering/standard
 ---
 
 # 🧠 Autonomous Agent Memory Architecture Standard

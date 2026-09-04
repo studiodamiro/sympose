@@ -33,7 +33,7 @@ This entry records the architectural standard and developer operating playbook f
 ## Key Principles & Architectural Decisions
 
 ### 1. Dual Local Execution Ergonomics
-- **In-IDE Agent Mode (Antigravity)**: Leverages workspace rules ([`.agents/rules/identity.md`](../../.agents/rules/identity.md)) to bind Grace's soul directives directly to the IDE's autonomous tool layer (file edits, live diff inspection, test execution).
+- **In-IDE Agent Mode (Antigravity)**: Leverages workspace rules ([`.agents/rules/identity.md`](../../../.agents/rules/identity.md)) to bind Grace's soul directives directly to the IDE's autonomous tool layer (file edits, live diff inspection, test execution).
 - **Integrated Terminal REPL (`./chat.sh --persona grace`)**: Runs Sympose's native Python engine inside VS Code / Antigravity terminal splits, providing instant clickable jump-to-file paths in terminal output while maintaining live access to `VaultManager` and `WorkerEngine`.
 
 ### 2. Multi-Environment Tool Boundaries
@@ -49,6 +49,6 @@ This entry records the architectural standard and developer operating playbook f
 ---
 
 ## Verification & Documentation Sync
-- Published comprehensive guide at [`docs/wiki/guides/developer-workflows.md`](../wiki/guides/developer-workflows.md).
-- Updated master wiki index at [`docs/wiki/index.md`](../wiki/index.md).
-- Updated project master journal index at [`docs/PROJECT_JOURNAL.md`](../PROJECT_JOURNAL.md).
+- Published comprehensive guide at [`docs/wiki/guides/developer-workflows.md`](../../wiki/guides/developer-workflows.md).
+- Updated master wiki index at [`docs/wiki/index.md`](../../wiki/index.md).
+- Updated project master journal index at [`docs/PROJECT_JOURNAL.md`](../../PROJECT_JOURNAL.md).

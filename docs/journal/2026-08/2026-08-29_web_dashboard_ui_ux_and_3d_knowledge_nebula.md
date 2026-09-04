@@ -20,7 +20,7 @@ tags:
 > **Lead Architect:** damiro  
 > **Engineering Partner:** Grace (Rear Admiral Grace Hopper Persona)  
 >
-> **Downstream:** the ADRs below are distilled into a hand-off brief for visual mockups — [Web Dashboard UI Design Reference](../../UI_DESIGN_REFERENCE.md).
+> **Downstream:** the ADRs below are distilled into a hand-off brief for visual mockups — [Web Dashboard UI Design Reference](../../wiki/reference/ui-design-reference.md).
 
 ---
 
@@ -50,73 +50,21 @@ Key architectural breakthroughs:
 
 ---
 
-## 2. Architectural Decision Records (ADRs)
+## 2. Architectural Decision Records
 
-### ADR-051: Flat Architectural Web Dashboard, 2D/3D Knowledge Nebula & shadcn Theme Customizer Engine
-
-* **Context**:
-  Most modern AI web interfaces copy generic dark-purple neon glows and heavy blur effects that cause visual fatigue, reduce text contrast, and lack customization. Users need a sovereign, high-contrast, flat architectural interface that works seamlessly in light and dark modes, provides full control over visualizer physics/colors, and supports both 2D and 3D knowledge exploration.
-* **Decision**:
-  * **Design Philosophy**: Reject gratuitous neon glows. Default to flat matte cards, crisp 1px borders (`border: 1px solid var(--border)`), and Swiss/editorial typography.
-  * **Dual 2D/3D Renderer**: Feed a single backend graph contract (`/api/vault/graph`) into either a 2D HTML5 Canvas/SVG engine or a 3D WebGL (Three.js) orbital universe.
-  * **Ambient Background States**:
-    * *Explore Mode*: Background canvas is 100% sharp and interactive (`pointer-events: auto`).
-    * *Focus/Chat Mode*: Background canvas dims by ~75% with a slow ambient drift (`pointer-events: none`), allowing users to chat and edit notes without visual distraction or click hijacking.
-  * **Theme & Style Customizer**:
-    * Adopt the `ui.shadcn.com/create` control pattern with custom Sympose tokens.
-    * Support dynamic shadcn styles (`data-style="nova|maia|sera"`), corner radius (`0rem` flat to `0.75rem`), and interchangeable icon libraries (`lucide`, `phosphor`, `hugeicons`).
-    * Provide curated presets (*Obsidian Matte*, *Blueprint & Paper*, *Nordic Spruce*, *Swiss Grid*) and live color pickers for node bubbles, link strings, and folder domains.
-  * **Obsidian Graph Control Suite**: Implement full 1:1 control parity (Filters: Search, Tags, Existing, Orphans, Groups; Display: Arrows, Text fade, Node size, Link thickness; Forces: Center, Repel, Link force, Link distance).
-* **Consequences**:
-  * ✅ Timeless, distraction-free aesthetic with perfect WCAG contrast.
-  * ✅ Instant 1-click theme and light/dark switching.
-  * ✅ Complete parity with Obsidian's power-user graph controls.
-  * ✅ Seamless multi-agent visual cues (nodes pulse when referenced by `@samantha`, `@grace`, or `@anais`).
-
----
-
-### ADR-052: In-Memory Metadata Caching & Sub-5ms Scalability Standard for Multi-Thousand Note Vaults
-
-* **Context**:
-  Walking the filesystem and parsing regex across 5,000 to 20,000 Markdown files on every web request takes 200ms–800ms of disk I/O, violating Sympose's sub-second SLA. Rendering 10,000 individual DOM elements in the browser causes severe layout thrashing and drops frame rates to 5 FPS.
-* **Decision**:
-  * **Tiered Data Pipeline**:
-    * *Tier 1 (Graph/Cloud Manifest)*: `/api/vault/graph` and `/api/vault/cloud` return high-density node metadata (stem, tags, folder, link count, weight) compiled from Python RAM in $<2\text{ms}$.
-    * *Tier 2 (Lazy Loading)*: Full note Markdown content is only loaded when a specific node is clicked (`GET /api/vault/note?path=...`).
-  * **Python In-Memory Invalidation**:
-    * Cache parsed note metadata in RAM.
-    * Check `st_mtime` on file access and selectively patch updated notes when agent actions (`[WRITE_NOTE]`, `[APPEND_NOTE]`) execute.
-  * **GPU Instanced Rendering & Physics Sleep**:
-    * WebGL renders note nodes using `THREE.InstancedMesh` / Point Particles in a single GPU draw call.
-    * Force-directed physics calculation automatically sleeps (`simulation.stop()`) after equilibrium is reached (~3s), reducing idle CPU to $<0.5\%$.
-    * Background throttling halts animation loop when browser tab is inactive.
-* **Consequences**:
-  * ✅ Sub-5ms API response times across 20,000+ notes.
-  * ✅ Total combined system RAM footprint under 165 MB (Python + Browser).
-  * ✅ Silky 60 FPS rendering on entry-level hardware (Apple M-Series, Intel Core i3 8th Gen+).
-  * ✅ Zero fan noise and minimal battery impact.
-
----
-
-### ADR-053: Cross-Platform Native Desktop Launchers & Zero-Bloat Frameless App-Mode Wrappers
-
-* **Context**:
-  Requiring users to open a terminal, remember flags (`sympose --web`), and manually navigate to `http://localhost:8000` creates significant daily friction. However, bundling Electron to get a native desktop icon introduces 150MB+ download bloat, 600MB+ RAM usage, and complex subprocess management.
-* **Decision**:
-  * **Zero-Bloat Native Launchers**:
-    * **macOS**: Generate a lightweight (~60 KB) `/Applications/Sympose.app` bundle containing a native shell launcher and custom vector icon. Fully supports **Spotlight (`Cmd + Space`)**, Launchpad, and Dock pinning.
-    * **Windows**: Generate a standard `Sympose.lnk` shortcut in the **Start Menu** and on the **Desktop**, targeting `msedge.exe --app="http://localhost:8000"`. Fully supports Windows Search (`Win + S`) and Taskbar pinning.
-    * **Linux**: Generate a standard `~/.local/share/applications/sympose.desktop` entry integrating with GNOME Dash, KDE Kickoff, RoFi, and desktop panels.
-  * **Frameless "App Mode" Execution**:
-    * Launchers invoke the system's native browser engine in dedicated **App Mode** (`--app="http://localhost:8000"` or `pywebview` Cocoa/Edge WebView2).
-    * Eliminates browser chrome, tabs, URL bars, and bookmark clutter, presenting a pristine standalone application window.
-  * **Automated Post-Install Provisioning**:
-    * Provide a built-in `sympose --install-app` command and automatic detection during 1-line installation (`pipx install git+https://github.com/studiodamiro/sympose.git`).
-* **Consequences**:
-  * ✅ 1-Click desktop launching from Spotlight, Start Menu, or Dock without terminal interaction.
-  * ✅ Clean frameless window experience with zero browser tab clutter.
-  * ✅ 100% cross-platform parity across macOS, Windows, and Linux.
-  * ✅ **Zero Electron overhead**: <60 KB launcher footprint with <165 MB total system RAM.
+- **[ADR-051 - Flat Architectural Web Dashboard, 2D/3D Knowledge Nebula & shadcn Theme Customizer Engine](./2026-08-29_adr-051-flat-web-dashboard-knowledge-nebula-theme-engine.md):**
+  flat matte design, one `/api/vault/graph` contract feeding a 2D or 3D
+  renderer, Explore/Focus ambient states, a shadcn-style theme customizer, and
+  full Obsidian graph control parity - rejecting the generic neon/glassmorphism
+  aesthetic. (Security was out of scope - see
+  [ADR-064](./2026-08-30_adr-064-dashboard-api-auth-plan.md).)
+- **[ADR-052 - In-Memory Metadata Caching & Sub-5ms Scalability Standard](./2026-08-29_adr-052-in-memory-metadata-caching-scalability.md):**
+  a tiered manifest/lazy pipeline, RAM cache with `st_mtime` invalidation, GPU
+  `InstancedMesh` single-draw rendering, physics sleep - sub-5 ms API, < 165 MB
+  RAM, 60 FPS. Rejected per-request filesystem walks and per-note DOM nodes.
+- **[ADR-053 - Cross-Platform Native Desktop Launchers & Zero-Bloat Frameless App-Mode Wrappers](./2026-08-29_adr-053-cross-platform-native-desktop-launchers.md):**
+  ~60 KB macOS / Windows / Linux launchers invoking the system browser engine in
+  frameless app mode - rejecting a 150 MB+ / 600 MB+ Electron bundle.
 
 ---
 

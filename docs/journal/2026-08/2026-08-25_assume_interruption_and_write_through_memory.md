@@ -29,33 +29,13 @@ This ADR ratifies **ADR-029**, injecting the universal **"ASSUME INTERRUPTION"**
 
 ---
 
-## ADR-029: Assume Interruption Meta-Directive & Write-Through State Checkpointing
+## Architectural Decision Record
 
-### Context & Problem Statement
-1. **Bounded Sliding Window Latency SLA**: Sympose enforces a strict 15-turn sliding context window (`performance.max_context_turns: 15`) to guarantee sub-0.8s TTFT.
-2. **Context Eviction Risk**: Long discussions on complex refactors risk having early architectural decisions evicted from active context.
-3. **Cross-Client Session Resets**: Users switch between local terminal CLI (`./chat.sh`), IDE agents, and Slack mobile Socket Mode. Unpersisted conversational context does not follow the user across channels.
-
-### The Injected Directive
-```text
-"ASSUME INTERRUPTION: Your context window is bounded and might be reset at any moment, so you risk losing any progress that is not recorded in your memory directory. Proactively checkpoint architectural decisions, milestone progress, and user facts using [REMEMBER: <fact>] or [WRITE_NOTE: <filename> | <content>]."
-```
-
-### Architectural Decisions & Consequences
-
-1. **Survival Pressure & Proactive Checkpointing**:
-   - Rather than waiting for an explicit `/save` or session termination, models immediately emit autonomic action tags (`[REMEMBER]`, `[WRITE_NOTE]`) when key milestones or architectural decisions are reached.
-   - Progress is committed directly to disk before executing subsequent steps.
-
-2. **Zero-Friction Crash & Truncation Recovery**:
-   - If a session terminates unexpectedly, the next session instantly recovers full state by reading the agent's memory files on turn 1.
-
-3. **Asynchronous Cross-Channel State Parity**:
-   - Work started in the terminal or VS Code is immediately available to mobile Slack DMs because facts are written directly to `profiles/*_memory.md` and shared team pools.
-
-4. **Preserved Modularity & Token Budget**:
-   - Added zero runtime latency or external dependencies.
-   - Seamlessly integrates with the non-blocking background `MemoryCompactor` daemon.
+- **[ADR-029 — Assume Interruption Meta-Directive & Write-Through State Checkpointing](./2026-08-25_adr-029-assume-interruption-write-through-state.md):**
+  a universal "ASSUME INTERRUPTION" directive injected into the prompt engine
+  and every soul, driving agents to checkpoint milestones and user facts with
+  `[REMEMBER]` / `[WRITE_NOTE]` on reaching them rather than waiting for `/save`
+  or exit — so a reset, truncation, or client switch loses nothing.
 
 ---
 

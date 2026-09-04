@@ -36,29 +36,21 @@ Key achievements:
 
 ---
 
-## 2. Architectural Decision Record (ADR)
+## 2. Architectural Decision Record
 
-### ADR-044: In-Memory Inverted Index & Deterministic Backlink Lookup Engine
-
-* **Context**: Knowledge graphs and bi-directional idea linkages in personal knowledge management (PKM) depend heavily on backlinks ("Which documents reference Note X?"). Relying on an Obsidian MCP server or desktop plugin requires running Obsidian in the background, adding 400–900ms latency and 1,000+ schema tokens.
-* **Decision**:
-  * Implement an in-memory Inverted Index in [`sympose/vault.py`](../../sympose/vault.py) using standard Python data structures (`collections.defaultdict`, `re`, `os.walk`).
-  * Enforce strict sandbox boundaries per agent profile (`vault_folders`) and ignore filters (`vault.ignore_folders`).
-  * Deliver structured output via `VaultManager.get_backlinks()` and high-density Markdown digests via `VaultManager.get_backlinks_digest()`.
-  * Support forward link extraction via `VaultManager.get_forward_links()`.
-  * Wire natural language backlink resolution directly into `VaultManager.resolve_turn_context()`.
-  * Wire tactical commands into [`sympose/commands.py`](../../sympose/commands.py) (`/vault backlinks <note>` and `/backlinks <note>`).
-* **Consequences**:
-  * ✅ **Sub-4ms Execution**: Zero external subprocesses or HTTP roundtrips.
-  * ✅ **Zero-Daemon Independence**: Operates seamlessly in headless environments, terminal sessions, and Slack Socket Mode.
-  * ✅ **Ground-Truth Precision**: Exact line numbers and verbatim context snippets provided to LLMs.
-  * ✅ **Future-Proof**: Provides the underlying data structure for the upcoming Web Dashboard Knowledge Graph.
+- **[ADR-044 - In-Memory Inverted Index & Deterministic Backlink Lookup Engine](./2026-08-27_adr-044-in-memory-inverted-index-backlink-engine.md):**
+  a native stdlib inverted index in `sympose/vault.py` (`get_backlinks`,
+  `get_backlinks_digest`, `get_forward_links`, alias/anchor-aware
+  `extract_wikilinks`), Tier-0 natural-language intent interception, per-profile
+  sandboxing, and `/vault backlinks <note>` / `/backlinks <note>`. Sub-4 ms;
+  rejected an Obsidian MCP server / plugin (400-900 ms, 1,000+ schema tokens,
+  background daemon).
 
 ---
 
 ## 3. Empirical Test Results
 
-Automated test suite [`scratch/test_backlink_engine.py`](../../scratch/test_backlink_engine.py) and [`scratch/test_backlink_command.py`](../../scratch/test_backlink_command.py):
+Automated test suite [`scratch/test_backlink_engine.py`](../../../scratch/test_backlink_engine.py) and [`scratch/test_backlink_command.py`](../../../scratch/test_backlink_command.py):
 ```text
 ✅ Test 1 Passed: Wikilink extraction is accurate and handles aliases & headings.
 ✅ Test 2 Passed: Inverted index, lookups, digests, and sandboxing work perfectly.

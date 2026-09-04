@@ -28,44 +28,21 @@ tags:
 
 ---
 
-## 🏗️ Architectural Decisions Recorded (ADR Index)
+## 🏗️ Architectural Decisions Recorded
 
-### ADR-015: Multi-Provider Routing & Explicit OpenRouter Key Injection
-
-- **Context**: Sympose uses `litellm` for backend completions. While LiteLLM reads standard environment variables, our explicit key handshake in `engine.py`, `workers.py`, and `memory.py` lacked explicit branching for `openrouter/` models, which caused ambiguity for new users with OpenRouter credits.
-- **Decision**:
-  - Explicitly inject `OPENROUTER_API_KEY` across all completion invocation points (`engine.py`, `workers.py`, `memory.py`) whenever an `openrouter/*` model is targeted.
-  - Standardize model naming prefixes (`openrouter/<provider>/<model>`, `gemini/<model>`, `anthropic/<model>`, `openai/<model>`, `ollama/<model>`).
-  - Updated `.env.example` and `quickstart.md` to establish OpenRouter as a first-class supported provider.
-
----
-
-### ADR-016: Skill-Driven Sub-Agent Worker Model Auto-Resolution
-
-- **Context**: Specialized skills (e.g. `code_review`, `system_architecture`) perform best when paired with high-precision models (like Claude Sonnet or DeepSeek Pro), while simple lookup skills can run on lightweight models.
-- **Decision**: Adopt a 4-tier worker model resolution hierarchy in `sympose/workers.py`:
-  1. **Explicit Task Override**: `WorkerTask(..., model="...")` passed programmatically.
-  2. **Skill Frontmatter Recommendation**: First entry from `recommended_models:` in the loaded skill's `SKILL.md`.
-  3. **Global Environment Variable**: `DEFAULT_MODEL` configured in `.env`.
-  4. **System Fallback**: `gemini/gemini-3.5-flash-lite`.
-
----
-
-### ADR-017: Dynamic OpenRouter Model Discovery & Live Catalog Search (`sympose/models.py`)
-
-- **Context**: OpenRouter adds dozens of cutting-edge models weekly. Static lists become stale quickly, but network-blocking on every keystroke hurts CLI latency.
-- **Decision**:
-  - Created `sympose/models.py` (`ModelCatalog`) with a 24-hour local disk cache (`~/.sympose_models_cache.json`).
-  - Implemented `/model find <keyword>` (or `/model search <keyword>`) to query the cached catalog instantaneously with context lengths and pricing information.
-  - Implemented `/model refresh` to force-sync the latest catalog directly from OpenRouter's API on demand.
-  - Augmented `sympose/completer.py` with intelligent Readline Tab auto-completion for `/model`, `/model find <term>`, and dynamic `openrouter/*` slug completion.
-
----
-
-### ADR-018: Multi-Model Concierge Integration (`sympose_mastery`)
-
-- **Context**: Users asking natural language questions about model choices or provider setup should be guided conversationally by the orchestrator (@samantha).
-- **Decision**: Updated `skills/sympose_mastery/SKILL.md` with Section 7 ("Multi-Model & OpenRouter Concierge") to guide users on task-specific model selection (coding vs reasoning vs distillation) and interactive `/model` command usage.
+- **[ADR-015 — Multi-Provider Routing & Explicit OpenRouter Key Injection](./2026-08-25_adr-015-multi-provider-routing-openrouter-key-injection.md):**
+  inject `OPENROUTER_API_KEY` at every completion site for `openrouter/*`;
+  standardized provider prefixes; OpenRouter documented as first-class.
+- **[ADR-016 — Skill-Driven Sub-Agent Worker Model Auto-Resolution](./2026-08-25_adr-016-skill-driven-worker-model-auto-resolution.md):**
+  a 4-tier worker model chain — task override → skill `recommended_models[0]` →
+  `DEFAULT_MODEL` → system fallback.
+- **[ADR-017 — Dynamic OpenRouter Model Discovery & Live Catalog Search](./2026-08-25_adr-017-openrouter-model-discovery-live-catalog.md):**
+  `ModelCatalog` with a 24-hour disk cache; `/model find` instant search;
+  `/model refresh` on demand; tab completion — no hardcoded model list, no
+  per-keystroke network call.
+- **[ADR-018 — Multi-Model Concierge Integration (`sympose_mastery`)](./2026-08-25_adr-018-multi-model-concierge-integration.md):**
+  Section 7 of the `sympose_mastery` playbook guides task-specific model choice
+  and `/model` usage conversationally.
 
 ---
 

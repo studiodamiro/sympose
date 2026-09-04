@@ -33,23 +33,17 @@ A narrower, already-shipped mitigation exists: `allow_origins` on `CORSMiddlewar
 
 ---
 
-## 2. Decision (ADR-064) — Proposed
+## 2. Decision (ADR-064) - Proposed
 
-We propose closing this gap with a design that preserves Sympose's standing **Zero-Maintenance Mandate** ([ADR-020](../../../docs/journal/2026-08/2026-08-25_automated_memory_compactor.md)) and pipx-installable, self-resolving-dependency model ([ADR-045](../../../docs/journal/2026-08/2026-08-29_sovereign_packaging_and_cli_design_system.md)): no step should ever require the user to manually install an external system tool.
-
-### ADR-064.1: Shared-Secret Password Guard with Long-Lived Session Cookie
-* A single operator-set secret (`DASHBOARD_PASSWORD` env var) gates every dashboard/API route via a FastAPI dependency.
-* First visit per browser prompts once; on success, the server issues a long-lived signed session cookie so subsequent visits from that browser (including other devices on the LAN once they've completed the same one-time step) are frictionless.
-* An unauthenticated request receives a `401` before any handler logic runs — no vault content, config, or persona data is ever computed for an unrecognized caller.
-
-### ADR-064.2: Zero-Dependency TLS via In-Process Self-Signed Certificate
-* At first server boot, Sympose generates its own self-signed certificate directly in Python using the `cryptography` package — a normal `pip`/`pipx` dependency, resolved automatically like every other requirement in [`pyproject.toml`](../../../pyproject.toml). No external binary, no separate install step, no OS trust-store mutation.
-* This encrypts the password and session cookie in transit, closing the plaintext-sniffing gap that a bare password alone leaves open on a shared or untrusted network segment.
-* **Accepted trade-off:** because the certificate is self-signed rather than backed by a locally-trusted CA, each browser shows a one-time "not secure, proceed anyway" warning per device on first connection. This is judged an acceptable cost for a zero-manual-step guarantee, and matches the default posture of comparable self-hosted personal tools (Home Assistant, Sonarr/Radarr) out of the box.
-
-### ADR-064.3: Alternatives Considered & Rejected (for now)
-* **`mkcert`-issued locally-trusted certificate:** Eliminates the browser warning entirely, but requires either a manual `brew install mkcert` (violates the zero-manual-step goal outright) or Sympose auto-downloading and running an external binary — which still requires at least one explicit OS keychain/admin consent prompt to install a trusted root CA, a security boundary that cannot and should not be bypassed silently. Deferred; revisit if the one-time browser warning proves to be a real point of user friction.
-* **VPN overlay (e.g. Tailscale):** Would provide real, warning-free HTTPS certificates and additionally restrict reachability to an explicit private device list rather than the whole LAN — the strongest option, and the right one if remote (outside-LAN) dashboard access is ever wanted. Rejected for the current scope as disproportionate infrastructure for a single-user LAN dashboard, and it is an adopted-service dependency rather than a self-resolving one.
+- **[ADR-064 - Dashboard/API Gateway Security Design Gap & Zero-Dependency Auth Plan](./2026-08-30_adr-064-dashboard-api-auth-plan.md):**
+  status **Proposed - pending implementation**. Proposes a `DASHBOARD_PASSWORD`
+  shared-secret guard with a long-lived signed session cookie (064.1) and a
+  zero-dependency in-process self-signed TLS certificate generated with
+  `cryptography` (064.2), accepting a one-time per-device browser warning.
+  `mkcert` (manual install / root-CA consent) and a Tailscale VPN overlay
+  (disproportionate for a single-user LAN; revisit if outside-LAN access is
+  wanted) were considered and deferred. Slack is out of scope - it authenticates
+  independently via Socket Mode tokens. No code has landed.
 
 ---
 

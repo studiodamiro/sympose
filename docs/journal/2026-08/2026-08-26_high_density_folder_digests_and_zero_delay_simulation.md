@@ -30,20 +30,14 @@ During Slack interactions with `@aurelius` (running `ollama/gemma2:9b`), the age
 
 ---
 
-## 2. Architectural Decisions (ADR-030)
+## 2. Architectural Decisions
 
-### ADR-030.1: High-Density Folder Digests (Small-to-Big Parsing)
-* Instead of injecting full note bodies when analyzing whole folders, `VaultManager.get_folder_digest()` extracts a compact 1-line metadata manifest for every file in the directory.
-* Extracts `name:`, `aka:`, `tags:`, `birthday:`, `created:`, and `up:` links.
-* **Token Efficiency**: 45 individual notes are compressed from ~25,000 tokens into ~450 tokens.
-* Allows any model (including local 9B open-weights) to synthesize the *entire* directory in a single turn without hallucinating or overflowing context.
-
-### ADR-030.2: Universal Ban on Time-Delay Simulation (Pillar 6)
-* Codified Pillar 6 in `docs/MEMORY_ARCHITECTURE_STANDARD.md` and injected into the universal system prompt builder (`sympose/profiles.py`):
-  > *"ZERO TIME-DELAY SIMULATION: You process requests immediately in the current turn. You do NOT have background execution threads across minutes or hours. NEVER say 'Give me a few minutes', 'I will look into this and come back', 'hang tight', or 'Give me a moment to process'. Always deliver your findings immediately in the current turn or state what specific information is missing."*
-
-### ADR-030.3: Direct Entity & Title Resolution
-* Any entity or person mentioned in a prompt (e.g. `Miro`, `Summit`, `Virginia`) automatically resolves against note filenames across all allowed directories in `_resolve_vault_context()`.
+- **[ADR-030 — High-Density Folder Digests & Universal Ban on Time-Delay Simulation](./2026-08-26_adr-030-high-density-folder-digests-zero-delay.md):**
+  `get_folder_digest()` emits a 1-line metadata manifest per file (45 notes:
+  ~25,000 → ~450 tokens) (030.1); Pillar 6 bans "give me a few minutes"
+  simulation (030.2); direct entity/title resolution against filenames (030.3).
+  Rejected injecting full note bodies (overflow) and only the first few
+  (invisibility).
 
 ---
 

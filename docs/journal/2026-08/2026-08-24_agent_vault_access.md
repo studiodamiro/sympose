@@ -31,28 +31,16 @@ To close this capability gap while maintaining our sub-second Time-To-First-Toke
 
 ---
 
-## 2. Architectural Decision Record (ADR-009)
+## 2. Architectural Decision Record
 
-### ADR-009: Autonomous Agent Vault Read/Write Access & Action Protocol
+This milestone ratified one decision, now a first-class record:
 
-#### Context & Problem Statement
-* Base LLMs in conversational hubs often generate rich markdown artifacts (e.g. database schemas, architecture specs, meeting reflections) directly into terminal stdout, forcing the human user to copy-paste or manually issue `/note` commands.
-* Introducing heavyweight agentic function-calling roundtrips (like OpenAI Tool Calls or ReAct loops) adds 1.5s–4.0s of network roundtrip latency per turn, violating our strict sub-second performance SLA.
-
-#### Decision
-* **Autonomic Streaming Action Tags**: Model prompts are grounded with explicit action tag protocols:
-  * `[WRITE_NOTE: <filename.md> | <content>]`: Creates or overwrites a sandboxed note with structured Obsidian YAML frontmatter.
-  * `[APPEND_NOTE: <filename.md> | <content>]`: Appends content sections to existing sandboxed notes.
-  * `[DAILY_NOTE: <reflection>]`: Appends timestamped reflection to `Daily Notes/YYYY-MM-DD.md`.
-  * `[REMEMBER: <fact>]`: Persists dynamic facts to `profiles/{handle}_memory.md`.
-* **Zero-Latency Execution**: Action tags are emitted inline during streaming, intercepted upon stream completion by `ActionProcessor`, executed atomically, and formatted into clean confirmation badges (`> 📝 Saved note to Vault`).
-* **Pre-Turn Grounded Retrieval**: Queries referencing specific notes or vault searches are resolved in `<3ms` via local filesystem access and injected into the turn's prompt context, avoiding LLM pre-computation delay.
-* **Modular Cleanliness**: All operations are partitioned into `sympose/vault.py` (164 LOC), `sympose/actions.py` (74 LOC), `sympose/engine.py` (186 LOC), and `sympose/profiles.py` (164 LOC), all strictly under the 200 LOC ceiling.
-
-#### Consequences
-* **Positive**: Full autonomy for agents to read/write Obsidian notes without human friction or latency penalties.
-* **Positive**: Zero external dependencies added.
-* **Positive**: Strict domain sandboxing guarantees private personal notes cannot be leaked or written to by engineering or general agents.
+- **[ADR-009 — Autonomous Agent Vault Read/Write Access & Action Protocol](./2026-08-24_adr-009-autonomous-agent-vault-access-action-protocol.md):**
+  autonomic streaming action tags (`[WRITE_NOTE]`, `[APPEND_NOTE]`,
+  `[DAILY_NOTE]`, `[REMEMBER]`) executed by a dedicated `ActionProcessor`
+  (`sympose/actions.py`), plus `< 3 ms` pre-turn grounded retrieval and
+  `is_safe_path` domain sandboxing — chosen over heavyweight tool-call / ReAct
+  roundtrips that would add 1.5s–4.0s per turn.
 
 ---
 
@@ -86,7 +74,7 @@ sequenceDiagram
 
 ## 4. Verification & Benchmarks
 
-* **Unit Test Suite ([`scratch/test_vault_actions.py`](./scratch/test_vault_actions.py))**:
+* **Unit Test Suite ([`scratch/test_vault_actions.py`](../../../scratch/test_vault_actions.py))**:
   * Direct note creation with Obsidian YAML frontmatter: **PASSED**
   * Note appending to existing sandboxed files: **PASSED**
   * Path traversal attack prevention (`../../etc/passwd` rejection): **PASSED**

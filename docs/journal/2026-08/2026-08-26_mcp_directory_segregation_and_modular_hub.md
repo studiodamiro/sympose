@@ -27,18 +27,13 @@ To elevate MCP tools to the same organizational standard as `profiles/` and `ski
 
 ---
 
-## 2. Architectural Decisions (ADR-032)
+## 2. Architectural Decisions
 
-### ADR-032.1: First-Class `mcp/` Directory Hierarchy
-* Created a root-level `mcp/` folder containing:
-  * [`mcp/servers.json`](../../../mcp/servers.json): Master server definitions (`fetch`, `filesystem`, `github`, `slack`, `brave_search`).
-  * [`mcp/servers.json.example`](../../../mcp/servers.json.example): Tracked template for fresh repository clones.
-  * [`mcp/README.md`](../../../mcp/README.md): Documentation on configuring standard and custom local MCP servers.
-
-### ADR-032.2: Dual-Module Engine Split (<200 LOC Ceiling)
-* Extracted `MCPClient` into [`sympose/mcp_client.py`](../../../sympose/mcp_client.py) (176 LOC).
-* Maintained `MCPRegistry` in [`sympose/mcp.py`](../../../sympose/mcp.py) (106 LOC).
-* Implemented automatic discovery in `MCPRegistry.auto_discover()` to scan `mcp/servers.json` on startup with fallback support for legacy `config.yaml`.
+- **[ADR-032 — First-Class `mcp/` Directory Hierarchy & Modular Hub Refactor](./2026-08-26_adr-032-first-class-mcp-directory-modular-hub.md):**
+  a root `mcp/` tree (`servers.json`, `.example`, `README.md`) (032.1) and a
+  dual-module split — `MCPClient` → `sympose/mcp_client.py`, `MCPRegistry` in
+  `sympose/mcp.py` with `auto_discover()` (032.2). Amends
+  [ADR-013](./2026-08-24_adr-013-mcp-ephemeral-subagent-worker-sandbox.md).
 
 ---
 

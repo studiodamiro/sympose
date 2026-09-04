@@ -37,65 +37,24 @@ Key breakthroughs achieved:
 
 ---
 
-## 2. Architectural Decision Records (ADR)
+## 2. Architectural Decision Records
 
-### ADR-039: Modular `vault_write` Skill, Obsidian Wikilink Taxonomy & Nested Hierarchies
-
-* **Context**: Agents previously lacked formal knowledge of Obsidian's graph conventions, mixing up `#tags` with `[[wikilinks]]`, outputting flat project files in the root folder, and dumping full markdown notes into Slack chat instead of writing silently.
-* **Decision**:
-  1. Created `skills/vault_write/SKILL.md` codifying the 6-Category Wikilink Taxonomy:
-     - **People**: `[[Virginia]]`, `[[Anaïs Nin]]`, `[[Grace Hopper]]`, `[[Lea]]`, `[[Ava]]`, `[[Damiro]]`.
-     - **Dates / Daily Notes**: `[[YYYY-MM-DD]]` (e.g. `[[2026-08-27]]`, `[[2024-10-07]]`).
-     - **Projects & Products**: `[[Sympose]]`, `[[Revwr v2]]`, `[[Garden]]`.
-     - **Tech & Frameworks**: `[[Python]]`, `[[React]]`, `[[FastAPI]]`, `[[Obsidian]]`.
-     - **Collections / MOCs**: `[[Thoughts]]`, `[[Projects]]`, `[[People]]`.
-     - **Media / Books / Music**: `[[Parting Time]]`, `[[If I Stay]]`.
-  2. Enforced nested project folder hierarchies: `Projects/<Project Name>/<file>.md` rather than loose root files.
-  3. Enforced the **Conversational Efficiency Contract**: Agents provide a 2–3 sentence natural summary in chat, delivering the pure markdown payload silently via action tags without dumping raw code blocks into Slack.
-
----
-
-### ADR-040: Native Obsidian `Templates/` Engine & Dynamic Frontmatter Tag Syncing
-
-* **Context**: New notes and daily logs written by agents were missing custom YAML frontmatter defined in the user's authentic Obsidian vault templates (`Templates/`). Appending reflections to daily notes also left frontmatter `tags:` out of sync with new topics introduced in the reflection.
-* **Decision**:
-  1. Implemented `VaultManager.get_template_for_path()` in [`sympose/vault.py`](../../../sympose/vault.py):
-     - Inspects `/Templates/` in the Obsidian vault and maps destination paths to templates (`Daily template.md`, `Thoughts template.md`, `People template.md`, `Note template.md`, etc.).
-     - Interpolates Obsidian variables (`{{date}}`, `{{time}}`, `{{title}}`, `{{date:YYYY}}`).
-  2. Implemented `VaultManager._sync_frontmatter_tags()`:
-     - When a reflection is appended to a daily note, all topic tags are extracted and merged into the top-level YAML frontmatter `tags:` array cleanly without corrupting other metadata keys.
-
----
-
-### ADR-041: Multi-Turn Slack Thread Active Context Isolation & Single-Source Action Execution
-
-* **Context**: 
-  1. In Slack threads, `slack.py` passes thread history (`slack_ctx`) into `user_prompt`. The action processor fallback scanned `user_prompt` for journaling keywords, causing old requests from 3 turns ago to trigger ghost daily note writes on subsequent turns (e.g. asking about AXS prices).
-  2. Both `engine.py` and `slack.py` were executing actions independently, causing duplicate badge prints.
-* **Decision**:
-  1. **Active Turn Isolation**: `ActionProcessor` strictly isolates `active_prompt = user_prompt.split("User Request:")[-1].strip()`, evaluating action heuristics ONLY against the current turn's active message.
-  2. **Single Source of Action Execution**: `engine.py` alone executes actions. `slack.py` calls `ActionProcessor.strip_action_tags()` for clean display, eliminating all duplicate action execution and triple badges.
-  3. **Balanced-Bracket Parsing & Code Block Masking**: `ActionProcessor.parse_action_tags()` masks fenced code blocks so code demonstrations aren't executed, and uses depth-counted bracket parsing to safely handle nested `[[wikilinks]]`.
-
----
-
-### ADR-042: Autonomous Live Internet Search (`web_search`) & Zero-Key `ddgs` Standard
-
-* **Context**: When asked for real-time market prices (e.g. AXS crypto price) or online news, agents outputted canned LLM refusals (*"Since I don't have real-time market data access, you might want to visit an exchange..."*), turning the user into the assistant.
-* **Decision**:
-  1. Created `skills/web_search/SKILL.md` and added autonomic `[SEARCH: <query>]` and `[WEB_SEARCH: <query>]` tags to `ActionProcessor`.
-  2. Integrated `ddgs` (DuckDuckGo Search) into `NativeTools.execute("web_search", ...)`. Fast (<0.5s), reliable, and requires $0 in API keys.
-  3. Added the **Live Internet Access & Anti-Helplessness Axiom** to `workspace_rules.md`: Banned all canned refusals. Agents must proactively dispatch `[SEARCH: <query>]` or `[SPAWN_WORKER: web_search | <task>]` and synthesize live calculations directly in-turn.
-
----
-
-### ADR-043: Three-Layer Architectural Separation (Soul vs. Skill vs. System Physics)
-
-* **Context**: Persona soul files (`samantha_soul.md`, `anais_soul.md`) were accumulating 40+ lines of operational rules (Slack DM etiquette, group moderation, YAML schemas, grounding rules), diluting their character voice.
-* **Decision**:
-  1. **Soul (`profiles/*_soul.md`)**: Strictly defines *Who the agent is* (personality, demeanor, voice, emotional depth, conversational cadence, wit).
-  2. **Skills (`skills/*/SKILL.md`)**: Strictly defines *What the agent does* (Slack thread etiquette, group moderation, vault write protocols, web search playbooks).
-  3. **Workspace Rules (`workspace_rules.md`)**: Strictly defines the *Universal physics of Sympose* (amnesia boundary, zero guessing, assume interruption, anti-helplessness).
+- **[ADR-039 - Modular `vault_write` Skill, Obsidian Wikilink Taxonomy & Nested Hierarchies](./2026-08-27_adr-039-vault-write-skill-wikilink-taxonomy.md):**
+  a 6-category wikilink taxonomy, `Projects/<Project>/<file>.md` nesting, and the
+  Conversational Efficiency Contract (summary in chat, payload via tag).
+- **[ADR-040 - Native Obsidian `Templates/` Engine & Dynamic Frontmatter Tag Syncing](./2026-08-27_adr-040-native-obsidian-templates-frontmatter-sync.md):**
+  `get_template_for_path()` resolves and interpolates the user's real
+  `Templates/`; `_sync_frontmatter_tags()` merges reflection tags into YAML.
+- **[ADR-041 - Multi-Turn Slack Thread Active Context Isolation & Single-Source Action Execution](./2026-08-27_adr-041-slack-thread-active-context-isolation.md):**
+  evaluate heuristics only against the active turn; `engine.py` alone executes
+  actions; balanced-bracket parsing with code-block masking.
+- **[ADR-042 - Autonomous Live Internet Search (`web_search`) & Zero-Key `ddgs` Standard](./2026-08-27_adr-042-autonomous-live-internet-search.md):**
+  the `[SEARCH]` tag, a `web_search` playbook, and the Anti-Helplessness Axiom
+  banning canned refusals. Extends
+  [ADR-033](./2026-08-26_adr-033-zero-key-native-web-search-ddgs.md).
+- **[ADR-043 - Three-Layer Architectural Separation (Soul vs. Skill vs. System Physics)](./2026-08-27_adr-043-three-layer-separation-soul-skill-physics.md):**
+  Soul = who the agent is; Skills = what it does; `workspace_rules.md` = the
+  universal physics.
 
 ---
 

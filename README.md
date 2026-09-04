@@ -262,7 +262,7 @@ sympose --slack
 ## 📜 Documentation & ADRs
 
 - **[Master Journal & ADR Index (`docs/PROJECT_JOURNAL.md`)](docs/PROJECT_JOURNAL.md)**: Complete record of architectural decisions from ADR-001 through ADR-043.
-- **[Slack Socket Mode Setup Guide (`docs/SLACK_SETUP_GUIDE.md`)](docs/SLACK_SETUP_GUIDE.md)**: Step-by-step 1-click App Manifest and multi-agent setup guide for Slack.
-- **[Latency & Performance Tuning Guide (`docs/LATENCY_TUNING_GUIDE.md`)](docs/LATENCY_TUNING_GUIDE.md)**: Complete parameter catalog governing sub-second SLA.
-- **[Autonomous Agent Memory Architecture Standard (`docs/MEMORY_ARCHITECTURE_STANDARD.md`)](docs/MEMORY_ARCHITECTURE_STANDARD.md)**: Triad memory management, shadow extraction, and anti-hallucination grounding.
+- **[Slack Socket Mode Setup Guide (`docs/wiki/guides/slack-setup.md`)](docs/wiki/guides/slack-setup.md)**: Step-by-step 1-click App Manifest and multi-agent setup guide for Slack.
+- **[Latency & Performance Tuning Guide (`docs/wiki/guides/latency-tuning.md`)](docs/wiki/guides/latency-tuning.md)**: Complete parameter catalog governing sub-second SLA.
+- **[Autonomous Agent Memory Architecture Standard (`docs/wiki/memory/architecture-standard.md`)](docs/wiki/memory/architecture-standard.md)**: Triad memory management, shadow extraction, and anti-hallucination grounding.
 - **[Wiki Documentation Hub (`docs/wiki/index.md`)](docs/wiki/index.md)**: Comprehensive guide to skills, MCP workers, and profile systems.

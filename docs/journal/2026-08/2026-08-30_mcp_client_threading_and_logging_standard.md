@@ -32,66 +32,16 @@ filter, route, or suppress MCP noise in production without patching source.
 
 ---
 
-## 2. Architectural Decisions (ADR-065)
+## 2. Architectural Decisions
 
-### ADR-065.1: Dual-Lock Threading Model
-
-`MCPClient` now carries **two** locks with distinct responsibilities:
-
-```python
-self._lock     = threading.Lock()   # guards _request_id counter (increment atomicity)
-self._io_lock  = threading.Lock()   # serialises one write+read cycle at a time
-```
-
-`_send_request()` acquires `_io_lock` for the entire write-then-readline loop.
-This means only one in-flight JSON-RPC request is active per client at a time — correct,
-simple, and safe without the complexity of a full async dispatch table.
-
-```python
-def _send_request(self, payload):
-    """Thread-safe JSON-RPC request/response cycle. Serialised via _io_lock."""
-    with self._io_lock:
-        self.process.stdin.write(json.dumps(payload) + "\n")
-        self.process.stdin.flush()
-        # ... select() read loop ...
-```
-
-**Why not an async dispatch table?**  
-Worker tasks are already isolated in threads; adding a per-request `asyncio` layer would
-require migrating the entire engine to async, which violates the Zero-Maintenance Mandate
-(ADR-020). The single-lock approach is a correct, zero-dependency fix.
-
-### ADR-065.2: Structured Logging Standard
-
-All `print()` calls in backend/daemon modules are replaced with `logging.getLogger(__name__)`:
-
-| Module | Level | Rationale |
-|---|---|---|
-| `mcp_client.py` | `log.warning(...)` | Spawn failures & init errors are operator-relevant warnings |
-| `mcp.py` | `log.warning(...)` | Registry-level tool load failures |
-| `profiles.py` | `log.warning(...)` | Missing or malformed profile files |
-| `skills.py` | `log.warning(...)` | Skill parse errors |
-| `slack.py` | `log.info/warning/error` | Connection, message, and rate-limit events |
-| `server.py` | `log.info(...)` | Request lifecycle events |
-| `compactor.py` | `log.info/warning` | Compaction progress and lock events |
-
-> **Carve-out:** `cli.py` and `ui.py` use `rich.console.print()` for intentional terminal
-> UI output. These are **not** logging calls and are **not** changed.
-
-### ADR-065.3: `select()` Non-Blocking Read Loop
-
-The read loop in `_send_request()` uses `select.select()` with a 50 ms poll interval
-instead of a blocking `readline()`. This prevents the lock from hanging forever if the
-subprocess stalls, and allows the timeout to be enforced reliably:
-
-```python
-while time.time() - start_time < self.timeout:
-    rlist, _, _ = select.select([self.process.stdout], [], [], 0.05)
-    if not rlist:
-        continue
-    line = self.process.stdout.readline()
-    ...
-```
+- **[ADR-065 - MCP Client Threading & Logging Standard](./2026-08-30_adr-065-mcp-client-threading-logging-standard.md):**
+  a dual-lock model - `_lock` for the request-id counter, `_io_lock` serialising
+  one write+read cycle per client (065.1); a structured `logging` standard
+  replacing `print()` in backend/daemon modules, with a `cli.py` / `ui.py`
+  `rich.console` carve-out (065.2); a `select()` non-blocking read loop so a
+  stalled subprocess cannot hold the lock (065.3). Rejected a full async
+  dispatch table (would force an async engine migration, against
+  [ADR-020](./2026-08-25_adr-020-zero-maintenance-mandate.md)).
 
 ---
 

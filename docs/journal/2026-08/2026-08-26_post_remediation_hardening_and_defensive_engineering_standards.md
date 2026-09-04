@@ -35,35 +35,16 @@ These anomalies revealed subtle architectural failure modes that required formal
 
 ---
 
-## 2. Decision (ADR-038)
+## 2. Decision
 
-We formally establish and ratify the **6 Defensive Engineering & Hardening Standards**:
-
-### Standard 1: Zero Hardcoded Identity & Dynamic Persona Resolution
-- **Rule**: No username, persona name, or handle may be hardcoded anywhere in the codebase.
-- **Implementation**: Profile managers, UI tables, completers, and regex parsers dynamically inspect `ProfileManager` and `os.getenv("USER")`. Regex parsers dynamically strip Markdown decorators (`**`, `__`, `` ` ``).
-
-### Standard 2: Directory-Delimited Path Boundary Validation
-- **Rule**: Plain string `.startswith()` for directory sandbox checks is strictly prohibited.
-- **Implementation**: All path security checks must use `os.path.commonpath([resolved_target, resolved_base]) == resolved_base` or `Path.is_relative_to()`.
-
-### Standard 3: Anchored Relative Asset Discovery
-- **Rule**: External declarative assets (prompt templates, config files) must never rely on bare CWD relative paths.
-- **Implementation**: All template lookups anchor to the package root (`os.path.dirname(os.path.dirname(os.path.abspath(__file__)))`), with CWD as a secondary fallback.
-
-### Standard 4: Session-Isolated Multi-Client Concurrency & Lifecycle Hooks
-- **Rule**: Multi-client and multi-threaded integrations must maintain thread-isolated history state and clean up child processes.
-- **Implementation**:
-  - `PersonaEngine.chat_stream`, `get_history`, and `reset_history` accept explicit `session_id` tokens (e.g. `channel_id:thread_ts:handle`).
-  - All spawned background subprocesses (MCP servers) register process cleanup hooks via `atexit.register()`.
-
-### Standard 5: Thread-Safe Memory Compaction & Snapshot Reconciliation
-- **Rule**: Asynchronous memory operations must never overwrite foreground user writes.
-- **Implementation**: Asynchronous compaction acquires a process-wide mutex (`get_file_lock(filepath)`), snapshots initial lines, and upon LLM completion re-reads the file under lock to reconcile and preserve any newly appended facts before write-back.
-
-### Standard 6: Discrete Working Memory Line Standard
-- **Rule**: Working memory files (`profiles/*_memory.md` and `_shared_memory.md`) must strictly contain discrete bullet points (`- ` / `* `).
-- **Implementation**: Extraction and summarization pipelines strictly filter lines to bullet points before appending to memory files, preventing Markdown session logs from polluting memory files.
+- **[ADR-038 — Post-Remediation Hardening & Defensive Engineering Standards](./2026-08-26_adr-038-defensive-engineering-hardening-standards.md):**
+  the 6 binding standards distilled from a 25-anomaly audit — (1) zero hardcoded
+  identity; (2) `os.path.commonpath` / `Path.is_relative_to` path boundaries, no
+  `str.startswith`; (3) package-root-anchored asset discovery; (4) explicit
+  `session_id` isolation + `atexit` subprocess cleanup; (5) mutex + snapshot
+  reconcile for async memory compaction; (6) discrete bullet-only working memory.
+  This pass predates `sympose/server.py`, whose auth gap
+  [ADR-064](./2026-08-30_adr-064-dashboard-api-auth-plan.md) later documents.
 
 ---
 

@@ -36,7 +36,7 @@ When you type `/exit` (or `quit` / `exit`), Sympose presents an interactive choi
 
 ## 2. LLM Transcript Distillation
 
-The [`SessionArchivist`](./sympose/memory.py#L90) executes a distillation pass over the conversation transcript, separating signal from conversational noise:
+The [`SessionArchivist`](../../../sympose/memory.py#L90) executes a distillation pass over the conversation transcript, separating signal from conversational noise:
 
 - **Section 1 (Memory Bullets)**: 2–4 permanent facts or decisions appended to working memory.
 - **Section 2 (Obsidian Session Note)**: A Markdown log formatted with YAML frontmatter, overview, technical decisions, and next steps.

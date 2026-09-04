@@ -83,6 +83,7 @@ graph TD
 
 ### 📖 [Reference](./reference/cli-commands.md)
 * **[CLI Commands & Shortcuts](./reference/cli-commands.md):** Complete guide to `/save`, `/config`, `/switch`, `/note`, `/daily`, and `/ask`.
+* **[Action Tags Reference](./reference/action-tags.md):** Every `[TAG: args]` an agent can emit — `WRITE_NOTE`, `SPAWN_WORKER`, `CREATE_PERSONA`, and the rest — plus the malformed-tag warning contract.
 * **[Python API Reference](./reference/python-api.md):** Package internals, class hierarchies, and integration hooks.
 * **[Web Dashboard UI Design Reference](./reference/ui-design-reference.md):** The flat "Sovereign Craft" design brief — theme presets, semantic tokens, layout shell, per-screen artboards.
 

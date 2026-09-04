@@ -84,6 +84,13 @@ sympose --slack
 # or: ./chat.sh --slack
 ```
 
+The dashboard requires a login on every device: on first launch Sympose
+generates a `DASHBOARD_PASSWORD`, saves it to your workspace `.env`, and logs
+it once to the console. It also serves over a self-signed HTTPS certificate
+generated the same way — accept the one-time "not secure" browser warning per
+device, then log in with the generated password (see
+[ADR-064](../../journal/2026-08/2026-08-30_adr-064-dashboard-api-auth-plan.md)).
+
 ---
 
 ## 5. First Conversation

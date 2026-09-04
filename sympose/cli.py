@@ -5,7 +5,6 @@ Interactive Terminal UI for Sympose.
 import sys
 import os
 import time
-import random
 from typing import Optional
 
 try:
@@ -17,7 +16,7 @@ except ImportError:
     Markdown = None
 
 from sympose.engine import PersonaEngine
-from sympose.ui import TerminalUI
+from sympose.ui import TerminalUI, AnimatedStatus
 from sympose.completer import SymposeCompleter
 
 
@@ -169,9 +168,7 @@ class TerminalInterface:
 
             if self.console:
                 phrases = profile.get("thinking_phrases", ["Thinking..."]) if profile else ["Thinking..."]
-                chosen_phrase = random.choice(phrases) if phrases else "Thinking..."
-                status = self.console.status(f"[dim italic cyan]{name} is {chosen_phrase.lower()}[/dim italic cyan]", spinner="dots")
-                status.start()
+                status = AnimatedStatus(self.console, name, phrases).start()
 
             first_chunk, first_time, cleared = False, 0.0, False
             render_mode = str(self.engine.config.get("performance.render_mode", "hybrid")).lower().strip()

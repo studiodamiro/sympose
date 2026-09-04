@@ -203,3 +203,66 @@ class TestExecuteActionsMalformedTags:
         _, badges = ActionProcessor.execute_actions(pm, "test", "[WRITE_NOTE: todo.md | Buy milk]")
         assert not any("Malformed" in b for b in badges)
         assert any("saved note" in b for b in badges)
+
+
+# ---------------------------------------------------------------------------
+# execute_actions — CREATE_PERSONA soul_content extraction (ADR-075)
+#
+# A manifest's `soul_content` field must be written directly to
+# <handle>_soul.md and stripped out of the saved .yaml, so a persona created
+# from a described reference figure actually gets a grounded soul instead of
+# ProfileManager's generic one-sentence auto-bootstrap fallback.
+# ---------------------------------------------------------------------------
+
+class _FakeProfileManagerWithDisk:
+    """Stand-in for ProfileManager backed by a real tmp_path profiles_dir, so
+    CREATE_PERSONA's direct file writes can be inspected afterward."""
+
+    def __init__(self, profiles_dir):
+        self.profiles_dir = str(profiles_dir)
+
+    def reload_profiles(self):
+        pass
+
+    def get_profile(self, handle):
+        return {"name": handle.title(), "handle": handle}
+
+
+class TestExecuteActionsCreatePersonaSoulContent:
+    def test_soul_content_written_to_soul_file_not_yaml(self, tmp_path):
+        pm = _FakeProfileManagerWithDisk(tmp_path)
+        manifest = (
+            "name: \"Marie Curie\"\n"
+            "handle: \"curie\"\n"
+            "title: \"Research Specialist\"\n"
+            "soul_content: |\n"
+            "  # Marie Curie: Core Directives\n"
+            "  Insist on evidence before accepting a claim.\n"
+        )
+        text = f"[CREATE_PERSONA: curie | {manifest}]"
+        _, badges = ActionProcessor.execute_actions(pm, "test", text)
+
+        soul_path = tmp_path / "curie_soul.md"
+        yaml_path = tmp_path / "curie.yaml"
+        assert soul_path.exists()
+        assert "Insist on evidence" in soul_path.read_text()
+        assert "soul_content" not in yaml_path.read_text()
+        assert any("custom soul" in b for b in badges)
+
+    def test_no_soul_content_leaves_yaml_intact_and_writes_no_soul_file(self, tmp_path):
+        pm = _FakeProfileManagerWithDisk(tmp_path)
+        manifest = 'name: "Archimedes"\nhandle: "archimedes"\ntitle: "Engineer"\n'
+        text = f"[CREATE_PERSONA: archimedes | {manifest}]"
+        _, badges = ActionProcessor.execute_actions(pm, "test", text)
+
+        assert (tmp_path / "archimedes.yaml").exists()
+        assert not (tmp_path / "archimedes_soul.md").exists()
+        assert not any("custom soul" in b for b in badges)
+
+    def test_malformed_yaml_falls_back_to_raw_write(self, tmp_path):
+        """soul_content extraction is best-effort — unparseable YAML must
+        still write the manifest as-is rather than losing the persona."""
+        pm = _FakeProfileManagerWithDisk(tmp_path)
+        text = "[CREATE_PERSONA: broken | name: \"Broken\": : not valid yaml :::]"
+        _, badges = ActionProcessor.execute_actions(pm, "test", text)
+        assert (tmp_path / "broken.yaml").exists()

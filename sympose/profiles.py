@@ -80,10 +80,27 @@ class ProfileManager:
         soul_path = os.path.join(self.profiles_dir, soul_name)
         mem_path = os.path.join(self.profiles_dir, mem_name)
 
+        # Fallback only — CREATE_PERSONA writes a real soul directly from its
+        # manifest's `soul_content` field when the model provides one; this
+        # generic scaffold is what a persona gets if it doesn't (e.g. a
+        # hand-dropped 4-line YAML manifest, per creating-agents.md's "Quick
+        # Genesis" path). Still generic — it can't know what a "Grace Hopper"
+        # or "Dieter Rams" reference means — but it at least carries the same
+        # anti-hallucination and action-awareness floor every other agent gets,
+        # instead of one bare sentence.
+        fallback_soul = (
+            f"# {name}: Core Directives\n\n"
+            f"You are **{name}**, the {title} in Sympose.\n\n"
+            "### Core Directives:\n"
+            "- Think from first principles; keep responses concise, structured, and actionable.\n"
+            "- Proactively checkpoint durable facts and decisions with `[REMEMBER: <fact>]` or `[WRITE_NOTE: <path> | <content>]` — your context window is bounded and may reset.\n"
+            "- **Strict Anti-Hallucination**: if asked about a person, fact, or note not present in your memory, profile, or vault context, say so plainly rather than inventing an answer.\n"
+        )
+
         for path, default_content in [
             (os.path.join(self.profiles_dir, "user_profile.md"), "# Universal User Profile\n\n- **Primary User**: user\n- **Environment**: macOS / Linux\n"),
             (os.path.join(self.profiles_dir, "_shared_memory.md"), "# Shared Team Working Memory\n\n- **Active Project**: Sympose Agent Hub\n"),
-            (soul_path, f"# {name}: Core Directives\n\nYou are **{name}**, the {title} in Sympose.\n"),
+            (soul_path, fallback_soul),
             (mem_path, f"# {name}: Working Memory\n\n- **Role**: {title}\n")
         ]:
             if not os.path.exists(path):

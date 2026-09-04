@@ -32,6 +32,7 @@ All performance, latency, and context parameters are now centrally managed in [`
 | **`temperature`** | [`profiles/*.yaml`](../../../profiles/grace.yaml#L5) | N/A (per-persona) | `0.1` (Code) / `0.7` (Creative) | Lower temperature reduces token branch sampling latency and ensures deterministic code. |
 | **`model`** | [`profiles/*.yaml`](../../../profiles/samantha.yaml#L4) | `/model <provider/name>` | `gemini/gemini-3.5-flash-lite` | Flash-Lite yields **0.7s TTFT**, Sonnet yields **1.4s**, local Gemma2 yields **0.5s**. |
 | **`api_base`** | [`profiles/*.yaml`](../../../profiles/aurelius.yaml#L5) | N/A (per-persona) | `http://localhost:11434` | Direct localhost loopback for Ollama (0ms DNS lookup time). |
+| **`vault.search_mode`** | [`config.yaml`](../../../config.yaml#L64) | `/config set vault.search_mode sqlite_fts` | `direct` | `direct`: pure-Python walk, zero setup, fine for small/medium vaults. `sqlite_fts`: BM25-ranked full-text search via a stdlib SQLite FTS5 index — switch to this once `direct`'s linear scan starts costing real TTFT on a large vault. |
 
 ---
 
@@ -63,7 +64,17 @@ All performance, latency, and context parameters are now centrally managed in [`
 
 ---
 
-### 4. Local Ollama GPU Acceleration (Marcus Aurelius)
+### 4. Vault Search at Scale (`sqlite_fts`)
+* **The Problem:** `direct` mode's `search_structured`/`get_folder_digest` scan an mtime-cached in-memory snapshot of every note under scope — cheap for a personal vault, but a linear cost that grows with vault size, and it's a plain substring match with no ranking.
+* **The Resolution in Sympose:**
+  * Set `vault.search_mode: sqlite_fts` and Sympose builds a stdlib `sqlite3` FTS5 index under the workspace (`.vault_index/`, never inside your actual Obsidian vault) — see [ADR-070.5](../../journal/2026-09/2026-09-04_adr-070-hot-path-retrieval-budget-trigger-discipline.md).
+  * BM25 ranking, title-weighted above body, prefix-matched per query token — better recall and ordering than a raw substring scan.
+  * A note Sympose writes itself is indexed immediately (no rebuild wait); external edits (Obsidian, sync, git pull) are picked up on the next query once the tracked directory-mtime watermark drifts.
+  * No new dependency — falls back to `direct` with no visible error if this Python's `sqlite3` wasn't built with the FTS5 extension.
+
+---
+
+### 5. Local Ollama GPU Acceleration (Marcus Aurelius)
 * **Hardware:** Apple Silicon (Unified Memory Architecture).
 * **Optimization:**
   * Run quantized GGUF models (`ollama run gemma2:9b` or `qwen2.5-coder:7b`).

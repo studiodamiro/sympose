@@ -11,10 +11,10 @@ tags:
 
 # ADR-070 — Hot-Path Vault Retrieval Budget, Trigger Discipline & Indexed Search Tier
 
-- **Status:** Accepted (partial) — 070.1 and 070.3 implemented 2026-09-04;
-  070.2 and 070.4 rejected in favor of round-trip frugality rather than
-  deferred as originally scoped; 070.5 remains unimplemented. See
-  **Implementation Note** below. Extends
+- **Status:** Accepted — 070.1, 070.3, and 070.5 implemented (070.5 on
+  2026-09-05); 070.2 and 070.4 rejected in favor of round-trip frugality
+  rather than deferred as originally scoped. See **Implementation Note**
+  below. Extends
   [ADR-003](../2026-08/2026-08-24_adr-003-pluggable-multi-tier-vault-search.md)
   (pluggable search tiers) and
   [ADR-025](../2026-08/2026-08-25_adr-025-persistent-multi-turn-vault-context.md)
@@ -124,9 +124,20 @@ That reframes 070.2 and 070.4:
   a round-trip on every turn that touches the vault. That's a direct cost
   against the round-trip-frugal north star and is no longer the recommended
   direction; 070.1 + 070.3 get most of the latency win without it.
-- **070.5 (sqlite_fts indexed tier)** — not implemented. Still the right
-  medium-term answer if a large vault makes even the cached walk slow; revisit
-  trigger unchanged.
+- **070.5 (sqlite_fts indexed tier)** — implemented 2026-09-05 in
+  `sympose/vault_index.py`, exactly as scoped: a stdlib `sqlite3` FTS5 index,
+  no new dependency, BM25 ranking. One index file per master vault, stored
+  under the *workspace* (`.vault_index/`, gitignored) — deliberately never
+  inside the user's actual Obsidian vault folder, which the original wording
+  didn't specify but the sovereignty axiom implies. Freshness is two-layered:
+  `write_note`/`append_note` call an exact single-row upsert immediately (a
+  note Sympose just wrote is searchable on the very next query, no mtime
+  dependency), and a full rebuild runs whenever the tracked directory-mtime
+  watermark drifts (catches edits made outside Sympose). `direct` stays the
+  default; `sqlite_fts` is opt-in via `vault.search_mode` and degrades to
+  "index unusable, fall back to `direct`" with no visible error if this
+  Python's `sqlite3` wasn't built with FTS5. See the
+  [Tier 5 implementation journal](./2026-09-05_backend-hardening-tier5-sqlite-fts.md).
 
 Implemented in commit `2af7705` on `chore/backend-architecture-review-and-fixes`.
 Verified via a smoke test (title match, content match + snippet, folder digest

@@ -3,6 +3,8 @@ Terminal UI Presentation, Design System & Modals for Sympose.
 """
 
 import os
+import random
+import threading
 from typing import Optional, List, Dict, Any, Tuple, Union
 
 try:
@@ -45,6 +47,50 @@ SYMPOSE_THEME = Theme({
     "markdown.bullet": "cyan",
     "markdown.link": "underline magenta",
 }) if Theme else None
+
+
+class AnimatedStatus:
+    """Wraps a rich `Status` and cycles its text through a phrase pool while
+    it runs, instead of holding one static line for the whole wait.
+
+    Purely cosmetic terminal presentation — it does not touch the model
+    stream, add a round-trip, or cost a token; it only changes what the
+    spinner says while we're already waiting on the first chunk. Drop-in
+    replacement for `console.status(...)`: exposes the same `.start()` /
+    `.stop()` interface so existing call sites don't need to change.
+    """
+
+    def __init__(self, console, name: str, phrases: List[str], interval: float = 1.7):
+        self._phrases = list(phrases) if phrases else ["Thinking..."]
+        self._name = name
+        self._interval = interval
+        self._status = console.status(self._render(random.choice(self._phrases)), spinner="dots")
+        self._stop_event = threading.Event()
+        self._thread = threading.Thread(target=self._cycle, daemon=True)
+
+    def _render(self, phrase: str) -> str:
+        return f"[dim italic cyan]{self._name} is {phrase.lower()}[/dim italic cyan]"
+
+    def start(self):
+        self._status.start()
+        if len(self._phrases) > 1:
+            self._thread.start()
+        return self
+
+    def _cycle(self):
+        last = None
+        while not self._stop_event.wait(self._interval):
+            choices = [p for p in self._phrases if p != last] or self._phrases
+            phrase = random.choice(choices)
+            last = phrase
+            try:
+                self._status.update(self._render(phrase))
+            except Exception:
+                return
+
+    def stop(self):
+        self._stop_event.set()
+        self._status.stop()
 
 
 class MultiSectionPanel:

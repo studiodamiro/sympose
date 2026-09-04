@@ -29,20 +29,13 @@ During multi-agent interactions in Slack, two distinct failure modes emerged:
 
 ---
 
-## 2. Architectural Decisions (ADR-036)
+## 2. Architectural Decisions
 
-### ADR-036.1: Real Inter-Agent Messaging & Zero Roleplay Simulation
-* Agents are strictly forbidden from writing dialogue lines for their peers.
-* Each agent speaks solely for itself, state its perspective, and explicitly `@mentions` the other agent with focused questions in Slack.
-
-### ADR-036.2: Samantha as Discussion Moderator (`discussion_moderation` Skill)
-* Samantha is established as the Master Strategic Moderator:
-  * **Scope Anchor**: Anchors discussions to the exact user request and cuts off scope bloat (e.g. preventing database coding when only a canvas was requested).
-  * **Cognitive Convergence**: Evaluates information sufficiency and timeboxes debates to 1–3 high-signal exchanges before synthesizing a clean 4-part deliverable for the user.
-
-### ADR-036.3: Multi-Agent Safety Circuit Breaker (`performance.max_consecutive_bot_turns`)
-* In [`sympose/slack.py`](../../sympose/slack.py), the daemon maintains a live set of all workspace bot IDs (`bot_user_ids`).
-* If consecutive bot-to-bot replies in a thread reach the safety threshold (default: `6`), Samantha steps in to synthesize the final plan, stops tagging other bots, and yields the floor back to the human. Specialist bots halt silently.
+- **[ADR-036 — Multi-Agent Collaboration Protocol, Discussion Moderation & Safety Circuit Breaker](./2026-08-26_adr-036-multi-agent-collaboration-circuit-breaker.md):**
+  real inter-agent messaging, zero roleplay (036.1); Samantha as
+  `discussion_moderation` scope anchor + convergence (036.2); the
+  `performance.max_consecutive_bot_turns` circuit breaker, default 6 (036.3).
+  Rejected single-turn "theater script" simulation and unbounded tagging.
 
 ---
 

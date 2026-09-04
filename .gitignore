@@ -54,3 +54,8 @@ profiles/aurelius_memory.md
 sessions/
 *.jsonl
 !*.example
+
+# AI tooling — never committed
+.agents/
+CLAUDE.md
+.claude/

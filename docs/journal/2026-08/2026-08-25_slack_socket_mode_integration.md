@@ -28,35 +28,15 @@ This journal establishes **ADR-028**, covering the architecture of the `SlackDae
 
 ---
 
-## ADR-028: Slack Socket Mode Integration & Thread Context Isolation
+## Architectural Decision Record
 
-### Context
-In team and personal messaging environments like Slack:
-1. **Public Webhook Vulnerability & Port Forwarding Bloat**: Traditional HTTP webhook integrations require exposing open inbound firewall ports, configuring reverse proxies, or running third-party tunneling daemons (like `ngrok`), violating the zero-infrastructure mandate.
-2. **Context Bleed Across Concurrent Threads**: Multiple users or distinct threads interacting with agents simultaneously will cause catastrophic conversation context bleeding if session histories are global per persona.
-3. **Latency & Response Feedback**: Real-time token streaming character-by-character is restricted by Slack API rate limits (~1 update/second per message). The user needs immediate acknowledgment (<0.8s) and clean message delivery with action badges.
-
-### Decision
-
-1. **Zero Inbound Ports via Socket Mode:**
-   - Implemented `SlackDaemon` (`sympose/slack.py`) utilizing `slack-bolt` and `SocketModeHandler`.
-   - Communication operates over an outbound secure WebSocket using `SLACK_APP_TOKEN` (`xapp-1-...`) and `SLACK_BOT_TOKEN` (`xoxb-...`).
-
-2. **Thread-Bound Session Context Isolation:**
-   - Every incoming event derives a unique thread identifier: `thread_id = f"{channel_id}:{thread_ts}"`.
-   - Conversation histories are isolated per thread and persona (`thread_histories[f"{thread_id}:{handle}"]`), preventing context collision between separate Slack threads.
-
-3. **Intelligent Persona Mention Routing:**
-   - Mentions within messages (e.g. `@grace check this code`, `@aurelius reflect on today`, `/switch @grace`) dynamically route the thread to the target persona.
-   - Subsequent replies within the same thread automatically inherit the active thread persona.
-   - Defaults to `runtime.default_persona` (`samantha`) when no specific persona is referenced.
-
-4. **Instant Reaction SLA & Action Badging:**
-   - Immediately adds an `eyes` reaction on receiving an event for instant visual feedback (<0.8s SLA).
-   - Collects engine stream chunks, executes all autonomic tags (`[WRITE_NOTE]`, `[REMEMBER]`, `[SPAWN_WORKER]`), converts Markdown to Slack-compatible mrkdwn (`convert_md_to_slack_mrkdwn()`), posts the threaded reply, and replaces the reaction with `white_check_mark`.
-
-5. **Strict Modularity (<200 LOC Standard):**
-   - `sympose/slack.py` is implemented in 162 LOC, maintaining complete separation of concerns and testability.
+- **[ADR-028 — Slack Socket Mode Integration & Thread Context Isolation](./2026-08-25_adr-028-slack-socket-mode-thread-context-isolation.md):**
+  zero inbound ports via `slack-bolt` + `SocketModeHandler` over an outbound
+  WebSocket; thread-bound session isolation
+  (`thread_id = "{channel}:{thread_ts}"`); `@handle` mention routing with
+  `samantha` default; an instant `eyes → white_check_mark` reaction SLA with
+  Markdown→mrkdwn conversion. Rejected HTTP webhooks / `ngrok` (inbound
+  exposure) and global per-persona history (context bleed).
 
 ### Verification
 - **Import & Contract Validation:** Verified clean initialization and module exports via `sympose.__all__`.

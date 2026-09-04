@@ -31,27 +31,13 @@ To ensure frictionless out-of-the-box operation, we engineered a native, zero-ke
 
 ---
 
-## 2. Architectural Decisions (ADR-033)
+## 2. Architectural Decisions
 
-### ADR-033.1: Native Zero-Key Search Tool (`web_search`)
-* Implemented `web_search(query, max_results)` directly in [`sympose/native_tools.py`](../../../sympose/native_tools.py).
-* Powered by `ddgs` with standard TLS header masking and live URL citation formatting.
-* **$0.00 cost, zero API keys, and zero account requirements.**
-
-### ADR-033.2: Direct Worker Pipeline Routing
-* Updated [`sympose/workers.py`](../../../sympose/workers.py) to route `web_search` through deterministic native execution without requiring an external MCP subprocess.
-* Sub-agent workers execute search queries in sub-second timeframes (<0.4s) and synthesize findings with live citations.
-
-### ADR-033.3: Two-Tier Web Intelligence Pipeline
-* **Tier 1 (Discovery):** `web_search` finds articles, documentation links, and breaking news.
-* **Tier 2 (Deep Extraction):** `fetch` (`uvx mcp-server-fetch`) downloads and scrapes full markdown pages from discovered URLs.
-
-### ADR-033.4: Complete Deprecation of Proprietary Search Keys
-* Purged `brave_search` configurations and environment variables across:
-  * [`mcp/servers.json`](../../../mcp/servers.json)
-  * [`mcp/servers.json.example`](../../../mcp/servers.json.example)
-  * [`requirements.txt`](../../../requirements.txt)
-  * Documentation and skill playbooks.
+- **[ADR-033 — Zero-Key Native Web Search & the `ddgs` Standard](./2026-08-26_adr-033-zero-key-native-web-search-ddgs.md):**
+  native zero-key `web_search` via `ddgs` (033.1); direct worker pipeline
+  routing, no MCP subprocess (033.2); a two-tier discovery→extraction pipeline
+  (033.3); full deprecation of `brave_search` keys and config (033.4). Rejected
+  Brave / Google Search APIs — registration, cards, tokens, quotas.
 
 ---
 

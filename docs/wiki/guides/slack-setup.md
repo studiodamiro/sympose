@@ -1,3 +1,13 @@
+---
+title: "Sympose — Slack Socket Mode Setup Guide"
+created: 2026-08-25
+type: wiki-guides
+parent: index
+tags:
+  - sympose/wiki
+  - engineering/standard
+---
+
 # ⚡ Sympose: Complete Slack Socket Mode Setup Guide
 
 > **Zero-Bloat Multi-Agent Slack Hub**: Learn how to configure your Slack workspace to run Samantha, Grace, and Aurelius over secure **Socket Mode** with zero public inbound ports, webhooks, or ngrok tunnels.

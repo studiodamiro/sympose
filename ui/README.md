@@ -3,7 +3,7 @@
 The third Sympose surface — a local-first dashboard served by the FastAPI process in
 [`sympose/server.py`](../sympose/server.py) on `http://localhost:8000`.
 
-Design source of truth: [`docs/UI_DESIGN_REFERENCE.md`](../docs/UI_DESIGN_REFERENCE.md)
+Design source of truth: [`docs/wiki/reference/ui-design-reference.md`](../docs/wiki/reference/ui-design-reference.md)
 ("Flat Sovereign Craft" — flat matte surfaces, crisp 1px borders, `0rem` radius by
 default, instant light/dark, no neon).
 

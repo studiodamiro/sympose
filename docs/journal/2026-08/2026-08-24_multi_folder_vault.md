@@ -31,30 +31,13 @@ To seamlessly integrate with existing Obsidian vaults without requiring users to
 
 ---
 
-## 2. Architectural Decision Record (ADR-011)
+## 2. Architectural Decision Record
 
-### ADR-011: Multi-Folder Vault Whitelisting & Full-Vault Access Architecture
-
-#### Context & Problem Statement
-* Real-world Obsidian knowledge bases are organized into multiple categorical directories.
-* Restricting an agent to a single directory forced either artificial file duplication or amnesia regarding notes stored in related reference/architecture folders.
-
-#### Decision
-* **Multi-Folder Resolution in `VaultManager.get_allowed_dirs()`**:
-  - Resolves `vault_folders: [...]` into a list of canonical paths under `MASTER_VAULT_PATH`.
-  - Supports wildcard (`"*"`, `""`, `"all"`) for full root vault access.
-  - Maintains backward compatibility with legacy single `vault_folder: "Folder"` manifests.
-* **Path-Aware Note Operations**:
-  - `VaultManager.read_note(profile, note_name)` searches across all whitelisted directories.
-  - `VaultManager.search(profile, query)` iterates across all whitelisted folder trees.
-  - `VaultManager.write_note(profile, note_name, content)` permits writing to any whitelisted path (defaulting to the primary folder if no path prefix is supplied).
-* **Security Boundaries**:
-  - Any attempt to access a folder omitted from the agent's whitelist is blocked with a security denial.
-
-#### Consequences
-* **Positive**: Zero friction when integrating Sympose with existing, established Obsidian vaults.
-* **Positive**: Agents can cross-reference multiple knowledge domains simultaneously.
-* **Positive**: Strict privacy isolation remains intact for sensitive unlisted folders.
+- **[ADR-011 — Multi-Folder Vault Whitelisting & Full-Vault Access Architecture](./2026-08-24_adr-011-multi-folder-vault-whitelisting.md):**
+  `vault_folders: [...]` resolves to canonical paths under `MASTER_VAULT_PATH`,
+  wildcards grant full-root access, legacy single `vault_folder` still works, and
+  non-whitelisted folders stay denied. Amends
+  [ADR-002](./2026-08-24_adr-002-master-vault-domain-sandboxing.md).
 
 ---
 
@@ -90,7 +73,7 @@ graph TD
 
 ## 4. Verification & Benchmarks
 
-* **Automated Test Suite ([`scratch/test_multi_folder_vault.py`](./scratch/test_multi_folder_vault.py))**:
+* **Automated Test Suite ([`scratch/test_multi_folder_vault.py`](../../../scratch/test_multi_folder_vault.py))**:
   * Multi-folder whitelist resolution (`Projects`, `Architecture`, `Reference`): **PASSED**
   * Cross-folder reading: **PASSED**
   * Security rejection on unlisted folders (`Personal/`, `Finances/`): **PASSED**

@@ -32,7 +32,7 @@ model: "gemini/gemini-3.5-flash-lite"
 ## 2. Autonomous Bootstrapping on First Boot
 
 When Sympose launches or reloads:
-1. [`ProfileManager`](./sympose/profiles.py#L20) detects that `profiles/feynman_soul.md` and `feynman_memory.md` do not exist.
+1. [`ProfileManager`](../../../sympose/profiles.py#L20) detects that `profiles/feynman_soul.md` and `feynman_memory.md` do not exist.
 2. **Auto-Soul Genesis**: Synthesizes a structured `profiles/feynman_soul.md` file defining domain authority, tone, and heuristics.
 3. **Auto-Memory Genesis**: Seeds `profiles/feynman_memory.md` with role context.
 4. **Thinking Phrases**: Injects themed status spinner phrases into the runtime profile.

@@ -54,7 +54,7 @@ graph TD
 
 ## 2. Configuration & Manifest Controls
 
-Memory sharing is configured per agent via the `share_memory` boolean in [`profiles/*.yaml`](./profiles/):
+Memory sharing is configured per agent via the `share_memory` boolean in [`profiles/*.yaml`](../../../profiles/):
 
 | Agent | Model Backend | `share_memory` | Injected Memories |
 | :--- | :--- | :--- | :--- |
@@ -66,10 +66,10 @@ Memory sharing is configured per agent via the `share_memory` boolean in [`profi
 
 ## 3. Dynamic Prompt Composition
 
-When [`ProfileManager.build_system_prompt()`](./sympose/profiles.py) compiles the prompt for a turn:
+When [`ProfileManager.build_system_prompt()`](../../../sympose/profiles.py) compiles the prompt for a turn:
 
-1. **Step 1 (Universal Identity)**: Injects [`profiles/user_profile.md`](./profiles/user_profile.md).
-2. **Step 2 (Shared Team Pool)**: Injects [`profiles/_shared_memory.md`](./profiles/_shared_memory.md) **only** if `share_memory: true`.
+1. **Step 1 (Universal Identity)**: Injects [`profiles/user_profile.md`](../../../profiles/user_profile.md).
+2. **Step 2 (Shared Team Pool)**: Injects [`profiles/_shared_memory.md`](../../../profiles/_shared_memory.md) **only** if `share_memory: true`.
 3. **Step 3 (Persona Memory)**: Injects `profiles/{handle}_memory.md`.
 4. **Step 4 (Anti-Hallucination Grounding)**: Enforces strict grounding rules, commanding the agent to admit ignorance if a queried fact is missing from the injected sections.
 

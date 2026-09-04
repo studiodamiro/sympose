@@ -31,21 +31,12 @@ This created **prompt clutter, code coupling, and poor transparency**: modifying
 
 ---
 
-## 2. Architectural Decisions (ADR-037)
+## 2. Architectural Decisions
 
-### ADR-037.1: 100% Hands-Off Python Principle
-* Python files are strictly **transport runners, file assemblers, and LiteLLM/Slack conduits**.
-* **Zero hardcoded prompt text in Python**: All instructions, spatial coordinates, rules, and system prompts live purely in editable Markdown documents.
-
-### ADR-037.2: Universal Workspace Rules (`workspace_rules.md`)
-* All global spatial rules, strict anti-hallucination protocols, and autonomic action execution tags (`[REMEMBER]`, `[WRITE_NOTE]`, `[DAILY_NOTE]`, `[SPAWN_WORKER]`, `[CONFIG_SET]`, `[CREATE_PERSONA]`, `[DELETE_PERSONA]`) live in the root [`workspace_rules.md`](../../workspace_rules.md).
-* `ProfileManager` dynamically substitutes runtime variables (`{{workspace_root}}`, `{{master_vault_path}}`, `{{sandboxed_vault}}`, `{{user}}`, `{{handle}}`, `{{name}}`).
-
-### ADR-037.3: Modular Template Directory (`prompts/`)
-* Standardized prompt templates are organized into `prompts/`:
-  - [`prompts/memory_extraction.md`](../../prompts/memory_extraction.md): Background shadow fact extractor.
-  - [`prompts/session_summary.md`](../../prompts/session_summary.md): Two-section session summarization format.
-  - [`prompts/worker_system.md`](../../prompts/worker_system.md): Ephemeral sub-agent worker directives.
+- **[ADR-037 — Pure Declarative Markdown-Driven Prompting & Zero-Code Injections](./2026-08-26_adr-037-pure-declarative-markdown-prompting.md):**
+  100% hands-off Python — zero hardcoded prompt text (037.1); universal
+  `workspace_rules.md` with `{{variable}}` substitution (037.2); a modular
+  `prompts/` template directory (037.3).
 
 ---
 

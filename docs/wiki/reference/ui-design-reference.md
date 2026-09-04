@@ -1,15 +1,11 @@
 ---
 title: "Sympose Web Dashboard — UI Design Reference"
 created: 2026-08-30
-type: design-brief
-project: sympose
-status: reference
+type: wiki-reference
+parent: index
 tags:
-  - sympose/design
-  - dashboard
-  - ui-ux
-  - design-system
-  - claude-design-brief
+  - sympose/wiki
+  - engineering/standard
 ---
 
 # Sympose Web Dashboard — UI Design Reference
@@ -36,13 +32,13 @@ Everything below is derived from these. Cross-reference them for detail; cite th
 
 | Ref | Document | What it fixes |
 | :-- | :-- | :-- |
-| Journal index | [`docs/PROJECT_JOURNAL.md`](./PROJECT_JOURNAL.md) | Master ADR index; entry points for all decisions |
-| **ADR-051 / 052 / 053** | [`docs/journal/2026-08/2026-08-29_web_dashboard_ui_ux_and_3d_knowledge_nebula.md`](./journal/2026-08/2026-08-29_web_dashboard_ui_ux_and_3d_knowledge_nebula.md) | Flat design philosophy, 2D/3D nebula, shadcn theme customizer, desktop launchers |
-| **Dashboard spec (wiki)** | [`docs/wiki/architecture/dashboard-and-vault-explorer.md`](./wiki/architecture/dashboard-and-vault-explorer.md) | Full functional module spec, layout diagram, API contracts, performance budget |
-| ADR-047 | [`docs/journal/2026-08/2026-08-29_sovereign_packaging_and_cli_design_system.md`](./journal/2026-08/2026-08-29_sovereign_packaging_and_cli_design_system.md) | CLI design system — semantic color tokens the web palette should echo for brand continuity |
+| Journal index | [`docs/PROJECT_JOURNAL.md`](../../PROJECT_JOURNAL.md) | Master ADR index; entry points for all decisions |
+| **ADR-051 / 052 / 053** | [`docs/journal/2026-08/2026-08-29_web_dashboard_ui_ux_and_3d_knowledge_nebula.md`](../../journal/2026-08/2026-08-29_web_dashboard_ui_ux_and_3d_knowledge_nebula.md) | Flat design philosophy, 2D/3D nebula, shadcn theme customizer, desktop launchers |
+| **Dashboard spec (wiki)** | [`docs/wiki/architecture/dashboard-and-vault-explorer.md`](../architecture/dashboard-and-vault-explorer.md) | Full functional module spec, layout diagram, API contracts, performance budget |
+| ADR-047 | [`docs/journal/2026-08/2026-08-29_sovereign_packaging_and_cli_design_system.md`](../../journal/2026-08/2026-08-29_sovereign_packaging_and_cli_design_system.md) | CLI design system — semantic color tokens the web palette should echo for brand continuity |
 | ADR-051 (again) | same as above | shadcn styles (`nova / maia / sera / new-york`), icon packs, curated presets |
-| ADR-064 (Proposed) | [`docs/journal/2026-08/2026-08-30_dashboard_api_security_design_gap_and_auth_plan.md`](./journal/2026-08/2026-08-30_dashboard_api_security_design_gap_and_auth_plan.md) | Password gate + self-signed TLS — **not yet implemented**; design a login screen only as a stub (§6.6) |
-| Triad / personas | [`README.md`](../README.md) | Persona roster, action-tag catalog, product framing |
+| ADR-064 (Proposed) | [`docs/journal/2026-08/2026-08-30_dashboard_api_security_design_gap_and_auth_plan.md`](../../journal/2026-08/2026-08-30_dashboard_api_security_design_gap_and_auth_plan.md) | Password gate + self-signed TLS — **not yet implemented**; design a login screen only as a stub (§6.6) |
+| Triad / personas | [`README.md`](../../../README.md) | Persona roster, action-tag catalog, product framing |
 
 ---
 

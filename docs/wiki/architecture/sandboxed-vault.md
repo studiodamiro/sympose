@@ -93,7 +93,7 @@ sequenceDiagram
 
 ## 4. Pre-Turn Grounded Vault Retrieval
 
-When a user asks an agent to inspect a past note (e.g. *"Grace, check what we wrote in `specs/cache.md`"* or *"Search vault for OAuth"*), [`PersonaEngine._resolve_vault_context()`](./sympose/engine.py) performs a `<3ms` local read/search across the agent's sandboxed domain and injects the excerpt into the turn's prompt before streaming.
+When a user asks an agent to inspect a past note (e.g. *"Grace, check what we wrote in `specs/cache.md`"* or *"Search vault for OAuth"*), [`PersonaEngine._resolve_vault_context()`](../../../sympose/engine.py) performs a `<3ms` local read/search across the agent's sandboxed domain and injects the excerpt into the turn's prompt before streaming.
 
 This delivers instant, grounded contextual awareness without additional network roundtrips.
 
@@ -101,7 +101,7 @@ This delivers instant, grounded contextual awareness without additional network 
 
 ## 5. Pluggable Search Tiers (ADR-003)
 
-[`VaultManager.search()`](./sympose/vault.py) supports modular search backends configured in `config.yaml`:
+[`VaultManager.search()`](../../../sympose/vault.py) supports modular search backends configured in `config.yaml`:
 
 - **Tier 1: `direct` (Default / Pure Python)**: Zero dependencies, ultra-fast regex/substring scan over domain notes.
 - **Tier 2: `sqlite_fts`**: Ranked BM25 full-text search indexed in SQLite.

@@ -46,106 +46,21 @@ This engineering cycle resolved four compounding issues across Sympose's streami
 
 ---
 
-## 2. Architectural Decision Records (ADR-060 – ADR-063)
+## 2. Architectural Decision Records
 
-### ADR-060: Three-Way Terminal Render Mode Knob (`performance.render_mode`)
-
-#### Context
-Users have different priorities for terminal output: developers want streaming transparency to see raw token flow in real-time; power users want pixel-perfect Rich Markdown; casual users want a live-streaming hybrid that still renders structured badges correctly.
-
-#### Decision
-Three modes, controlled by `config.yaml → performance.render_mode`:
-
-| Mode | Behavior | Use Case |
-|---|---|---|
-| `hybrid` | Live streaming with Rich badge rendering intercepted mid-stream | Default for daily use |
-| `buffered` | Spins during generation, renders full response with Rich Markdown | When visual polish matters |
-| `raw` | Pure stdout token streaming, no Rich panels or boxes | Debugging, pipe output, terminal transparency |
-
-#### Implementation
-- **`config.yaml`**: Added `render_mode: hybrid` (or `buffered` / `raw`) under `performance:`.
-- **`sympose/cli.py`** (lines 173–235): Reads `render_mode` on each turn; branches into `buffered`, `hybrid`, or `raw` execution paths. Fixed `UnboundLocalError: cannot access local variable 'first_chunk'` present before this change.
-- **`sympose/ui.py`** (lines 357–415): `TerminalUI.select_render_mode(console, current_mode)` renders the standard cyan `box.ROUNDED` panel with `[1] hybrid`, `[2] buffered`, `[3] raw` options, `[Active]` chip on the current mode, and `Prompt.ask` with `show_choices=False`.
-- **`sympose/commands.py`** (lines 217–253): `/render` command wired to `select_render_mode()`. Persists the selected mode back to `config.yaml` via `config_manager.set() + config_manager.save()`. Supports direct arguments: `/render raw`, `/render buffered`, `/render hybrid`.
-- **`sympose/completer.py`**: `/render` in `ROOT_COMMANDS`; sub-commands `hybrid`, `buffered`, `raw` in completer dispatch.
-
-#### Consequences
-- Single knob in `config.yaml` controls all terminal output behavior.
-- `/render` can be called at any time mid-session without restart.
-- `/help` now lists `/render` under `### ⚙️  RUNTIME SETTINGS`.
-
----
-
-### ADR-061: Sub-Agent `[READ_NOTE]` Explicit-Intent Gating
-
-#### Context
-`[READ_NOTE]` is an autonomic action tag that triggers the full `MultiSectionPanel` terminal note viewer — a Rich panel with frontmatter parsing, multi-section display, and syntax highlighting. This is appropriate when a user explicitly asks to *see* a note, but is disruptive and wasteful when a worker is merely answering a question or making a random selection from vault files.
-
-#### Decision
-`prompts/worker_system.md` Directive 2 was rewritten from:
-
-> *"When retrieving, finding, or presenting notes from the vault, emit `[READ_NOTE: <relative_path>]`"*
-
-to:
-
-> **Emit `[READ_NOTE]` ONLY** when the task explicitly asks to *read, view, pull up, or open* a full note.  
-> **For search, query, random-pick, or fact extraction** — return a concise factual answer directly in text. Do NOT emit `[READ_NOTE]`.
-
-#### Implementation
-- **`prompts/worker_system.md`**: Directive 2 split into explicit sub-rules with concrete examples (`"pick a random movie"` → no `[READ_NOTE]`; `"pull up Her"` → yes `[READ_NOTE]`).
-
-#### Consequences
-- Random picks, searches, and Q&A queries return clean prose answers without flooding the terminal with full documents.
-- `[READ_NOTE]` remains fully functional and correctly triggered on explicit user pull-up requests.
-
----
-
-### ADR-062: `render_mode: raw` Panel Suppression in Action Executor
-
-#### Context
-`render_mode: raw` is intended to give the user pure terminal transparency — no Rich formatting, no boxes. However, `[READ_NOTE]` actions in `actions.py` were unconditionally calling `TerminalUI.render_vault_note_panel()` regardless of render mode.
-
-#### Decision
-Before rendering any Rich panel for a `[READ_NOTE]` action, `actions.py` reads `config_manager.get("performance.render_mode")`. If `raw`, `console=None` is passed, suppressing the panel. In `hybrid` or `buffered` mode, the full `MultiSectionPanel` renders as intended.
-
-#### Implementation
-- **`sympose/actions.py`** (lines 132–138): Added `render_mode` check inside `READ_NOTE` / `VIEW_NOTE` branch.
-
----
-
-### ADR-063: System-Wide LLM Timeout Hardening
-
-#### Context
-Three background LLM calls bypassed `config.yaml` and used stale hardcoded timeout values:
-- `compactor.py` → `10.0s` (memory compaction, most expensive LLM call in the system)
-- `memory.py:65` (heuristic extractor) → `5.0s` (dangerously aggressive)
-- `memory.py:106` (session archivist) → `10.0s` fallback
-
-Under normal network conditions with a cold Gemini connection, the 10.0s ceiling was regularly breached, causing:
-- `⚠️ Memory compaction failed: litellm.Timeout: Connection timed out after None seconds`
-- Silent memory extraction drops (exception swallowed)
-
-#### Decision
-All LLM call sites must read from `config_manager.get("performance.request_timeout", 30.0)`. No site may hardcode a timeout value.
-
-Global default raised from `10.0s` → `30.0s`:
-
-| File | Location | Old Value | New Value |
-|---|---|---|---|
-| `config.yaml` | `performance.request_timeout` | `10.0` | `30.0` |
-| `sympose/config.py` | `litellm.request_timeout` (global) | `10.0` | `30.0` |
-| `sympose/config.py` | `DEFAULT_CONFIG["performance"]["request_timeout"]` | `10.0` | `30.0` |
-| `sympose/engine.py` | `_build_kwargs` fallback | `10.0` | `30.0` |
-| `sympose/compactor.py:85` | Memory compaction call | `10.0` (hardcoded) | `config_manager.get(...)` |
-| `sympose/memory.py:65` | Heuristic extractor | `5.0` (hardcoded) | `config.get(...)` |
-| `sympose/memory.py:106` | Session archivist | `10.0` fallback | `30.0` fallback |
-
-`local_request_timeout` (Ollama) default raised from `60.0s` → `120.0s` in `engine.py`.
-
-#### Consequences
-- All LLM calls respect the single `performance.request_timeout` knob in `config.yaml`.
-- Memory compaction, extraction, and session summarization are now resilient to normal network jitter.
-- Timeout can be tuned at runtime with `/config set performance.request_timeout 45.0` without restart.
+- **[ADR-060 - Three-Way Terminal Render Mode Knob (`performance.render_mode`)](./2026-08-29_adr-060-terminal-render-mode-knob.md):**
+  `hybrid` / `buffered` / `raw` modes wired through `cli.py`, `ui.py`,
+  `commands.py` (`/render`), `completer.py`; also fixes a `first_chunk`
+  `UnboundLocalError`.
+- **[ADR-061 - Sub-Agent `[READ_NOTE]` Explicit-Intent Gating](./2026-08-29_adr-061-subagent-read-note-explicit-intent-gating.md):**
+  `worker_system.md` Directive 2 rewritten - `[READ_NOTE]` only for explicit
+  read/view/open/pull-up; concise text for search / pick / Q&A.
+- **[ADR-062 - `render_mode: raw` Panel Suppression in the Action Executor](./2026-08-29_adr-062-render-mode-raw-panel-suppression.md):**
+  `actions.py` passes `console=None` for `[READ_NOTE]` when
+  `render_mode == raw`, suppressing the Rich panel.
+- **[ADR-063 - System-Wide LLM Timeout Hardening](./2026-08-29_adr-063-system-wide-llm-timeout-hardening.md):**
+  every LLM call site reads `performance.request_timeout` (raised `10 -> 30 s`;
+  Ollama `60 -> 120 s`); no hardcoded timeouts.
 
 ---
 

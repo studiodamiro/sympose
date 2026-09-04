@@ -19,7 +19,7 @@ Sympose integrates seamlessly with **Slack** using **Socket Mode**, allowing you
 ## 📖 Complete Setup Documentation
 
 For the full step-by-step setup guide with a 1-click App Manifest template, see:
-👉 **[Slack Socket Mode Setup Guide](../../SLACK_SETUP_GUIDE.md)**
+👉 **[Slack Socket Mode Setup Guide](./slack-setup.md)**
 
 ---
 

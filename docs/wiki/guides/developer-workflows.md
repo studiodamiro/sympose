@@ -61,7 +61,7 @@ graph LR
 ## 💻 1. Developing with Grace Locally
 
 ### Option A: Antigravity IDE Agent Mode
-In Antigravity, Grace’s persona is loaded automatically through [`.agents/rules/identity.md`](../../../../.agents/rules/identity.md).
+In Antigravity, Grace’s persona is loaded automatically through [`.agents/rules/identity.md`](../../../.agents/rules/identity.md).
 * **Best for**: Direct autonomous code edits, complex multi-file refactors, and live IDE test runs.
 * **Usage**: Chat directly in the Antigravity side panel. Grace adheres to the `<200 LOC per file` standard and zero-bloat principles.
 
@@ -87,7 +87,7 @@ Sympose includes a multi-agent Slack daemon utilizing **Socket Mode**. Because c
 ```
 
 ### Setup & Credentials
-Ensure your [`.env`](../../../../.env) contains the Slack tokens:
+Ensure your [`.env`](../../../.env) contains the Slack tokens:
 ```bash
 SLACK_GRACE_BOT_TOKEN=xoxb-...
 SLACK_GRACE_APP_TOKEN=xapp-1-...

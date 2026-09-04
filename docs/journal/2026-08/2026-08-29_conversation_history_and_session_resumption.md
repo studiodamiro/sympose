@@ -37,69 +37,20 @@ To provide full conversational continuity across terminal restarts without compr
 
 ---
 
-## 2. Architectural Decision Records (ADR-054 – ADR-056)
+## 2. Architectural Decision Records
 
-### ADR-054: Zero-Bloat Conversation Persistence (`.jsonl`), Decoupled UI History & Sliding Context Window Hydration
-
-#### Context
-LLM APIs are stateless. Re-submitting long historical conversation transcripts (50–100 turns) upon session resumption creates $O(N)$ token burn and degrades TTFT to 2.5s–4.0s. Furthermore, introducing a database server (PostgreSQL, Redis, Mongo) violates Sympose's Zero-Maintenance Mandate.
-
-#### Decision
-1. **Local Flat JSON Lines Storage (`SessionManager`)**:
-   - Sessions are persisted to `~/.sympose/sessions/<handle>_<timestamp>_<uuid>.jsonl` with line 1 containing metadata JSON and subsequent lines containing `{user, assistant, timestamp}` turn records.
-   - Requires 0 external database daemons, 0 migrations, and executes disk appends in $<0.2\text{ms}$.
-2. **Context Window Decoupling & Hydration Standard**:
-   - When a session is resumed via `/history`, the UI replays recent turns to the terminal.
-   - `PersonaEngine.resume_session()` hydrates `engine.histories` with only the **last $K$ turns (default: 6 turns / 3 dialogue pairs)**, governed by `performance.resume_context_turns: 6`.
-   - Long-term facts are supplied via the agent's Soul (`_soul.md`) and Working Memory (`_memory.md`).
-
-#### Token & Latency Impact
-| Metric | Traditional Resumption | Sympose Triad Resumption |
-| :--- | :--- | :--- |
-| **Storage Engine** | PostgreSQL / Redis / Vector DB | Local Flat JSONL (`<0.2ms` I/O) |
-| **Input Tokens on Resume** | 15,000 – 35,000 tokens | **600 – 1,100 tokens** |
-| **Time-to-First-Token (TTFT)** | 2.5s – 4.5s | **< 0.6s** |
-| **Cost per Turn (Gemini Flash)** | ~$0.005 – $0.015 | **~$0.00015** |
-
----
-
-### ADR-055: Milestone-Based Asynchronous Titling & Generic Prompt Filtering
-
-#### Context
-Freezing a conversation's title at Turn 1 often locks in generic greetings (`"hi"`, `"hey @samantha"`). Conversely, calling an LLM on every turn to re-title burns ~10,000 tokens per session and causes UI title thrashing.
-
-#### Decision
-Implement a 3-Tier Milestone Titling pipeline in `SessionManager`:
-1. **Tier 1 (Turn 1 Heuristic Gate)**: Regex matches generic greetings (`r"^(?:hi|hello|hey|yo|greetings|good\s+morning)\b"`, length < 12). If generic, keep title as `"New Conversation"` and upgrade only when the first substantive prompt arrives.
-2. **Tier 2 (Turn 3 One-Shot Background Pass)**: When `turns_count == 3`, a detached background daemon thread invokes a 20-token LLM synthesis pass to extract a crisp 4–6 word headline topic. Cost: ~400 input tokens, ~8 output tokens (<$0.000005 total).
-3. **Tier 3 (Session Exit / Save Sync)**: When `/save` or session exit runs, the session title is synchronized back to the `.jsonl` header at $0 extra cost.
-
-#### Consequences
-* ✅ Zero title thrashing: Titles remain stable and predictable in `/history`.
-* ✅ High semantic accuracy: No session remains titled `"hi"` or `"quick question"`.
-* ✅ Negligible token footprint: Exactly one background pass per conversation.
-
----
-
-### ADR-056: Retirement of Automated Vault Session Dumping in Favor of Native History Sovereignty
-
-#### Context
-Previously, Sympose dumped session summary markdown notes into `Sessions/` or `General/Sessions/` inside the user's Obsidian vault upon exit. With native `.jsonl` session persistence and `/history` now active, auto-dumping session logs into the vault created duplicate storage and polluted the user's curated second brain with machine-generated noise.
-
-#### Decision
-1. **Retire Automated Vault Session Dumps**:
-   - Exit behavior (`session.exit_behavior.default_target`) is simplified to `memory` (extract durable facts to `_memory.md`) or `none` (instant 0ms exit).
-   - Stop creating automated markdown files in the Obsidian vault on session exit.
-2. **Intentional Knowledge Contract**:
-   - The Obsidian vault is reserved strictly for intentional human notes and deliberate agent note generation (`[WRITE_NOTE]`, `[DAILY_NOTE]`, or explicit `/save obsidian`).
-3. **Binary Exit Dialog**:
-   - Simplified `TerminalUI.prompt_exit_choice()` to a clean 2-choice prompt:
-     `[1] Extract durable facts to _memory.md [Default]`
-     `[2] Skip (Preserve in /history only)`
-
-#### Consequences
-* ✅ Pristine Obsidian vault: 0% session spam in search, graph view, and backlinks.
-* ✅ Clear architectural separation: `.jsonl` for dialogue replay, `_memory.md` for cognitive prompt facts, and `Vault/` for sovereign knowledge.
+- **[ADR-054 - Zero-Bloat Conversation Persistence (`.jsonl`), Decoupled UI History & Sliding Context Window Hydration](./2026-08-29_adr-054-jsonl-conversation-persistence-context-hydration.md):**
+  local flat JSONL sessions (`< 0.2 ms` appends, no DB) with resume hydration
+  capped to the last 6 turns (`performance.resume_context_turns`) - ~600-1,100
+  tokens and `< 0.6 s` TTFT versus 15k-35k tokens for full-transcript resume.
+- **[ADR-055 - Milestone-Based Asynchronous Titling & Generic Prompt Filtering](./2026-08-29_adr-055-milestone-based-async-titling.md):**
+  a 3-tier pipeline - turn-1 greeting gate, turn-3 one-shot background synthesis
+  (`< $0.000005`), exit/save sync - rejecting both a frozen turn-1 title and
+  per-turn LLM re-titling.
+- **[ADR-056 - Retirement of Automated Vault Session Dumping in Favor of Native History Sovereignty](./2026-08-29_adr-056-retire-automated-vault-session-dumping.md):**
+  stop dumping `Sessions/` Markdown into the vault; exit collapses to
+  `memory` / `none`; a binary exit dialog. **Supersedes** the session-log dump
+  from [ADR-005](./2026-08-24_adr-005-config-yaml-session-summarization-memory.md).
 
 ---
 

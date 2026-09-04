@@ -27,6 +27,11 @@ class ActionProcessor:
         "CREATE_PERSONA", "DELETE_PERSONA", "WRITE_CANVAS", "REACT"
     ]
 
+    # SPAWN_WORKER re-invokes execute_actions on worker output; caps that chain
+    # so a worker synthesis containing another [SPAWN_WORKER: ...] can't recurse
+    # unboundedly.
+    MAX_ACTION_DEPTH = 1
+
     @classmethod
     def parse_action_tags(cls, text: str) -> List[Tuple[str, str, str]]:
         """Extracts all autonomic action tags supporting nested brackets while ignoring documentation template placeholders."""
@@ -74,7 +79,7 @@ class ActionProcessor:
         return re.sub(r"\n{3,}", "\n\n", clean).strip()
 
     @classmethod
-    def execute_actions(cls, profile_manager: Any, handle: str, text: str, user_prompt: str = "") -> Tuple[str, List[str]]:
+    def execute_actions(cls, profile_manager: Any, handle: str, text: str, user_prompt: str = "", depth: int = 0) -> Tuple[str, List[str]]:
         """Executes all detected action tags in model output and returns (clean_text, confirmation_badges)."""
         is_worker = (handle.lower() == "worker")
         profile = profile_manager.get_profile(handle) if not is_worker else {}
@@ -88,8 +93,6 @@ class ActionProcessor:
 
         tags = cls.parse_action_tags(text)
         clean_text = text
-
-        has_daily_note_tag = False
 
         for tag, inner, raw_tag in tags:
             clean_text = clean_text.replace(raw_tag, "")
@@ -116,7 +119,6 @@ class ActionProcessor:
 
             # 3. DAILY_NOTE
             elif tag == "DAILY_NOTE" and inner:
-                has_daily_note_tag = True
                 VaultManager.write_daily_note(profile, inner)
                 badges.append(f"> 📅 **{name} logged entry to Daily Notes**")
 
@@ -163,7 +165,10 @@ class ActionProcessor:
                         parent_agent=handle,
                     )
                     final_synthesis, tool_calls_executed = WorkerEngine.execute_worker_task(task)
-                    clean_worker_res, worker_sub_badges = cls.execute_actions(profile_manager, "worker", final_synthesis, user_prompt=task_prompt)
+                    if depth < cls.MAX_ACTION_DEPTH:
+                        clean_worker_res, worker_sub_badges = cls.execute_actions(profile_manager, "worker", final_synthesis, user_prompt=task_prompt, depth=depth + 1)
+                    else:
+                        clean_worker_res, worker_sub_badges = cls.strip_action_tags(final_synthesis), []
                     for wb in worker_sub_badges:
                         if wb not in badges:
                             badges.append(wb)
@@ -287,25 +292,6 @@ class ActionProcessor:
                         VaultManager.write_note(profile, fname, content)
                         rel_path = f"{vault_folder}/{fname}" if vault_folder else fname
                         badges.append(f"> 🎨 **{name} created Visual Canvas in Vault:** `{rel_path}`")
-
-        # Fallback: If user explicitly asked to log/save to daily journal in the CURRENT turn and model forgot [DAILY_NOTE:] wrapper
-        active_prompt = user_prompt.split("User Request:")[-1].strip() if "User Request:" in user_prompt else user_prompt.strip()
-        if active_prompt and not has_daily_note_tag:
-            if re.search(r"\b(?:log|save|write|record|create)\b[\s\S]*?\b(?:daily\s+(?:entry|note)|journal|diary)\b", active_prompt, re.I):
-                reflection_candidate = ""
-                if m_ref := re.search(r"(?:###?\s*(?:Reflection|Journal Entry|Daily Log)|---\s*\n(?:Journal Entry|Reflection))[\s\S]+", text, re.I):
-                    reflection_candidate = m_ref.group(0).strip()
-                elif re.search(r"\b(?:Entry:|Reflection:|Key Themes:|Discussion Summary:)", text, re.I):
-                    cleaned_body = re.sub(r"^(?:Certainly|Sure|Of course|Here is|Here's)[^\n]*\n+", "", text.strip(), flags=re.I).strip()
-                    if cleaned_body:
-                        reflection_candidate = cleaned_body
-
-                if reflection_candidate:
-                    # Strip conversational sign-offs and pleasantries from the note payload
-                    clean_payload = re.sub(r"(?:\n+\s*---\s*)?\n+(?:(?:Feel free|Let me know|I hope|Hope this|This journal entry|Please let me|If you need)[^\n]*)+[\s\S]*$", "", reflection_candidate, flags=re.I).strip()
-                    if clean_payload:
-                        VaultManager.write_daily_note(profile, clean_payload)
-                        badges.append(f"> 📅 **{name} logged entry to Daily Notes**")
 
         clean_text = re.sub(r"```[a-zA-Z0-9_-]*\s*```\n?", "", clean_text)
         clean_text = re.sub(r"\n{3,}", "\n\n", clean_text).strip()

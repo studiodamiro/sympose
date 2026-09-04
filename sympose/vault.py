@@ -2,11 +2,14 @@
 Sandboxed Vault & Markdown Note Manager for Sympose.
 """
 
-import os, re, datetime
+import os, re, datetime, logging
 import yaml
 from typing import Dict, Any, Optional, List, Tuple
 from collections import defaultdict
 from sympose.config import is_safe_path, config_manager
+from sympose import vault_index
+
+log = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Backlink index cache — avoids a full vault walk on every message
@@ -266,6 +269,49 @@ class VaultManager:
         _VAULT_SNAPSHOT_CACHE[cache_key] = (current_mtime, snapshot)
         return snapshot
 
+    @staticmethod
+    def _workspace_dir() -> str:
+        return os.path.dirname(os.path.abspath(config_manager.config_path)) or "."
+
+    @classmethod
+    def _reindex_note_if_enabled(cls, mv: str, target_file: str) -> None:
+        """Best-effort incremental FTS reindex right after a Sympose-driven
+        write, so the note is searchable on the very next query without
+        waiting on the mtime-drift rebuild path (ADR-070.5). No-op — and
+        costs nothing — unless `vault.search_mode: sqlite_fts` is active."""
+        if config_manager.get("vault.search_mode", "direct") != "sqlite_fts":
+            return
+        try:
+            with open(target_file, "r", encoding="utf-8", errors="ignore") as f:
+                full_content = f.read()
+            meta, body = cls.parse_frontmatter(full_content)
+            vault_index.upsert_note(
+                cls._workspace_dir(), mv, os.path.relpath(target_file, mv),
+                os.path.basename(target_file), meta, body,
+            )
+        except Exception:
+            log.debug("[vault] incremental FTS reindex failed for %s", target_file, exc_info=True)
+
+    @classmethod
+    def _search_fts(cls, mv: str, search_dirs: List[str], query_clean: str, max_results: int) -> Optional[List[Dict[str, Any]]]:
+        """`sqlite_fts` search path (ADR-070.5). Returns None if the index isn't
+        usable this run — the caller falls back to the `direct` walk below."""
+        workspace_dir = cls._workspace_dir()
+        fresh = vault_index.ensure_fresh(workspace_dir, mv, lambda: cls._get_vault_snapshot(mv, [mv]))
+        if not fresh:
+            return None
+        rows = vault_index.query(workspace_dir, mv, query_clean, search_dirs, max_results)
+        if rows is None:
+            return None
+        results = []
+        for idx, r in enumerate(rows, start=1):
+            results.append({
+                "file_name": r["file_name"], "rel_path": r["rel_path"], "abs_path": os.path.join(mv, r["rel_path"]),
+                "match_type": "content", "line_no": 1, "snippet": r["snippet"], "title": r["title"],
+                "tags": [], "meta": {}, "index": idx,
+            })
+        return results
+
     @classmethod
     def search_structured(cls, profile: Dict[str, Any], query: str, target_folder: Optional[str] = None, max_results: int = 15) -> List[Dict[str, Any]]:
         """Performs fast sandboxed vault search returning structured match metadata with snippets."""
@@ -279,6 +325,15 @@ class VaultManager:
         query_clean = query.lower().strip().strip("\"'")
         if not query_clean:
             return []
+
+        if config_manager.get("vault.search_mode", "direct") == "sqlite_fts":
+            fts_results = cls._search_fts(mv, search_dirs, query_clean, max_results)
+            if fts_results is not None:
+                handle_key = profile.get("handle", "default").lower()
+                cls._last_searches[handle_key] = fts_results
+                return fts_results
+            # Index unusable this run (no FTS5, or a rebuild failure) — fall
+            # through to `direct` below rather than return an empty result.
 
         title_matches: List[Dict[str, Any]] = []
         content_matches: List[Dict[str, Any]] = []
@@ -656,6 +711,7 @@ class VaultManager:
 
             with open(target_file, "w", encoding="utf-8") as f:
                 f.write(final_content)
+            cls._reindex_note_if_enabled(mv, target_file)
             return f"Saved to note: `{rel_display}`"
         except Exception as e:
             return f"Error: Failed to write note: {e}"
@@ -678,6 +734,7 @@ class VaultManager:
 
             with open(target_file, "a", encoding="utf-8") as f:
                 f.write(f"\n{content.strip()}\n")
+            cls._reindex_note_if_enabled(mv, target_file)
             return f"Appended to note: `{rel_display}`"
         except Exception as e:
             return f"Error: Failed to append note: {e}"

@@ -7,6 +7,9 @@
 # Self-signed dashboard TLS cert/key, generated per-workspace (ADR-064.2)
 .certs/
 
+# sqlite_fts vault search index, generated per-workspace (ADR-070.5)
+.vault_index/
+
 # Python
 __pycache__/
 *.py[cod]

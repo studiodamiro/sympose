@@ -61,6 +61,9 @@ worker:
 vault:
   daily_notes_folder: Daily
   daily_notes_format: Daily/%Y/%m-%B/%Y-%m-%d.md
+  # direct: pure-Python walk (zero setup). sqlite_fts: BM25-ranked full-text
+  # search via a stdlib SQLite FTS5 index (ADR-070.5) — set this for a large
+  # vault where `direct`'s linear scan starts costing real TTFT.
   search_mode: direct
   ignore_folders:
   - .obsidian

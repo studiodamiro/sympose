@@ -222,7 +222,7 @@ class TerminalInterface:
                         status = None
                     if self.console:
                         self.console.print(f"\n[bold cyan]{name}:[/bold cyan]")
-                        TerminalUI.render_markdown(self.console, "".join(buffered_chunks).strip())
+                        TerminalUI.render_markdown_typewriter(self.console, "".join(buffered_chunks).strip())
                     else:
                         print(f"\n{name}:")
                         print("".join(buffered_chunks).strip())

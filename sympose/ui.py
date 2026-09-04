@@ -5,6 +5,7 @@ Terminal UI Presentation, Design System & Modals for Sympose.
 import os
 import random
 import threading
+import time
 from typing import Optional, List, Dict, Any, Tuple, Union
 
 try:
@@ -18,6 +19,7 @@ try:
     from rich.box import ROUNDED
     from rich.theme import Theme
     from rich.markdown import Markdown, Heading
+    from rich.live import Live
     if Heading and hasattr(Heading, "LEVEL_ALIGN"):
         Heading.LEVEL_ALIGN["h1"] = "left"
 except ImportError:
@@ -28,6 +30,7 @@ except ImportError:
     ROUNDED = None
     Markdown = None
     Heading = None
+    Live = None
 
 SYMPOSE_THEME = Theme({
     "sympose.brand": "bold cyan",
@@ -218,6 +221,48 @@ class TerminalUI:
             return
         console.print()
         console.print(Markdown(md_text))
+
+    @staticmethod
+    def render_markdown_typewriter(console: Optional[Any], md_text: str, duration: float = 1.4, min_len_for_effect: int = 24) -> None:
+        """Reveal a completed Markdown reply progressively instead of dumping
+        it all at once — `buffered` render mode already holds the whole reply
+        in memory before drawing anything, so the "wait, then everything at
+        once" moment is what reads as slow, not the actual generation time.
+
+        Bounded to `duration` seconds total no matter how long the reply is
+        (a long answer doesn't typewriter any slower than a short one), and
+        reveals in a handful of chunks rather than truly one character at a
+        time, so a long reply isn't re-parsed as Markdown thousands of times.
+        Falls back to an instant render for short replies, non-terminal
+        output (piping, redirected stdout), or if Live/Markdown aren't
+        available — the animation is cosmetic, never a dependency.
+        """
+        is_tty = bool(console and getattr(console, "is_terminal", False))
+        if not console or Markdown is None or Live is None or not is_tty or len(md_text) < min_len_for_effect:
+            TerminalUI.render_markdown(console, md_text)
+            return
+
+        steps = max(1, min(120, len(md_text) // 3))
+        chunk_size = max(1, -(-len(md_text) // steps))  # ceil division
+
+        console.print()
+        try:
+            start = time.time()
+            with Live(Markdown(""), console=console, refresh_per_second=30, transient=False) as live:
+                for step, i in enumerate(range(0, len(md_text), chunk_size), start=1):
+                    live.update(Markdown(md_text[: i + chunk_size]))
+                    # Sleep only enough to stay on the `duration` schedule —
+                    # each step's own Markdown-parse/diff overhead eats into
+                    # the budget too, so a fixed per-step sleep would drift
+                    # past `duration` on longer replies with more steps.
+                    remaining = (start + (step / steps) * duration) - time.time()
+                    if remaining > 0:
+                        time.sleep(remaining)
+                live.update(Markdown(md_text))
+        except KeyboardInterrupt:
+            raise
+        except Exception:
+            console.print(Markdown(md_text))
 
     @staticmethod
     def select_persona(console: Optional[Any], profiles: List[Dict[str, Any]], default_handle: str = "samantha") -> str:

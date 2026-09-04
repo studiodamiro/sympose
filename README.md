@@ -1,5 +1,8 @@
 # Sympose: Multi-Model AI Agent Hub
 
+[![Tests](https://github.com/studiodamiro/sympose/actions/workflows/tests.yml/badge.svg)](https://github.com/studiodamiro/sympose/actions/workflows/tests.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
 > **Sympose** (_from Symposium: a forum of gathering experts_) is a zero-bloat, sub-second latency (`<0.8s TTFT`), and local-first multi-agent ecosystem engineered for **macOS Terminal** and **Slack (Socket Mode)**.
 
 ---

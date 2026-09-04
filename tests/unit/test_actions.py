@@ -165,3 +165,41 @@ class TestParseActionTagsEdgeCases:
         tags = ActionProcessor.parse_action_tags(text)
         assert len(tags) == 1
         assert "Bullet 2" in tags[0][1]
+
+
+# ---------------------------------------------------------------------------
+# execute_actions — malformed-tag badges (ADR-071)
+#
+# A recognized tag whose shape doesn't match any handler (e.g. WRITE_NOTE
+# missing its `|content` half) must surface a warning badge rather than
+# silently doing nothing — the model otherwise has no signal its action
+# didn't run (ground-truth sovereignty, ADR-024).
+# ---------------------------------------------------------------------------
+
+class _FakeProfileManager:
+    """Minimal stand-in for ProfileManager, just enough for execute_actions."""
+
+    def get_profile(self, handle):
+        return {"name": "Test Persona", "vault_folder": "Test", "share_memory": False}
+
+
+class TestExecuteActionsMalformedTags:
+    def test_write_note_missing_pipe_produces_warning_badge(self):
+        pm = _FakeProfileManager()
+        _, badges = ActionProcessor.execute_actions(pm, "test", "[WRITE_NOTE: just-a-filename-no-content]")
+        assert any("Malformed" in b and "WRITE_NOTE" in b for b in badges)
+
+    def test_read_note_missing_target_produces_warning_badge(self):
+        pm = _FakeProfileManager()
+        _, badges = ActionProcessor.execute_actions(pm, "test", "[READ_NOTE:]")
+        assert any("Malformed" in b and "READ_NOTE" in b for b in badges)
+
+    def test_well_formed_write_note_produces_no_malformed_badge(self, monkeypatch):
+        pm = _FakeProfileManager()
+        monkeypatch.setattr(
+            "sympose.actions.VaultManager.write_note",
+            lambda profile, filename, content: None,
+        )
+        _, badges = ActionProcessor.execute_actions(pm, "test", "[WRITE_NOTE: todo.md | Buy milk]")
+        assert not any("Malformed" in b for b in badges)
+        assert any("saved note" in b for b in badges)

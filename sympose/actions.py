@@ -255,6 +255,8 @@ class ActionProcessor:
                         badges.append(f"> 🧬 **{name} created new agent persona:** `@{h_name}` ({p_disp})")
                     except Exception as e:
                         badges.append(f"> ⚠️ **Error creating persona `@{h_name}`:** {e}")
+                else:
+                    badges.append("> ⚠️ **Malformed `[CREATE_PERSONA]` action tag — ignored:** could not determine a handle from the provided YAML.")
 
             # 8. DELETE_PERSONA
             elif tag == "DELETE_PERSONA" and inner:
@@ -292,6 +294,14 @@ class ActionProcessor:
                         VaultManager.write_note(profile, fname, content)
                         rel_path = f"{vault_folder}/{fname}" if vault_folder else fname
                         badges.append(f"> 🎨 **{name} created Visual Canvas in Vault:** `{rel_path}`")
+
+            # ADR-071: a recognized tag whose shape didn't match any branch above
+            # (e.g. `[WRITE_NOTE: filename]` with no `|content`) previously did
+            # nothing silently — the model had no signal its action didn't run,
+            # violating ground-truth sovereignty (ADR-024: don't let the model
+            # believe unverified state). Surface it instead of swallowing it.
+            elif tag in cls.TAG_NAMES:
+                badges.append(f"> ⚠️ **Malformed `[{tag}]` action tag — ignored (missing or invalid arguments).**")
 
         clean_text = re.sub(r"```[a-zA-Z0-9_-]*\s*```\n?", "", clean_text)
         clean_text = re.sub(r"\n{3,}", "\n\n", clean_text).strip()

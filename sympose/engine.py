@@ -2,7 +2,7 @@
 Multi-Model Persona Execution Engine for Sympose.
 """
 
-import os, re
+import os, re, threading
 from typing import Dict, List, Any, Optional
 import litellm
 
@@ -25,25 +25,32 @@ class PersonaEngine:
         self.active_sessions: Dict[str, str] = {}
         self.model_overrides: Dict[str, str] = {}
         self.active_vault_ctx: Dict[str, str] = {}
+        # Guards mutation of the four dicts above. One PersonaEngine is shared
+        # across every Slack daemon thread (one per concurrent in-flight
+        # message), so check-then-act sequences on this state need to be atomic.
+        self._lock = threading.RLock()
 
     def _get_history_key(self, handle: str, session_id: Optional[str] = None) -> str:
         return f"{handle.lower()}::{session_id}" if session_id else handle.lower()
 
     def get_history(self, handle: str, session_id: Optional[str] = None) -> List[Dict[str, str]]:
-        return self.histories.setdefault(self._get_history_key(handle, session_id), [])
+        with self._lock:
+            return self.histories.setdefault(self._get_history_key(handle, session_id), [])
 
     def get_active_session_id(self, handle: str) -> str:
         h_low = handle.lower()
-        if h_low not in self.active_sessions:
-            meta = SessionManager.create_session(h_low)
-            self.active_sessions[h_low] = meta["session_id"]
-        return self.active_sessions[h_low]
+        with self._lock:
+            if h_low not in self.active_sessions:
+                meta = SessionManager.create_session(h_low)
+                self.active_sessions[h_low] = meta["session_id"]
+            return self.active_sessions[h_low]
 
     def new_session(self, handle: str) -> str:
         h_low = handle.lower()
         self.reset_history(h_low)
         meta = SessionManager.create_session(h_low)
-        self.active_sessions[h_low] = meta["session_id"]
+        with self._lock:
+            self.active_sessions[h_low] = meta["session_id"]
         return meta["session_id"]
 
     def resume_session(self, handle: str, session_id: str) -> Optional[Dict[str, Any]]:
@@ -51,7 +58,6 @@ class PersonaEngine:
         session = SessionManager.load_session(session_id)
         if not session:
             return None
-        self.active_sessions[h_low] = session_id
         k_turns = int(self.config.get("performance.resume_context_turns", 6))
         turns = session.get("turns", [])
         recent_turns = turns[-k_turns:] if k_turns > 0 else turns
@@ -62,26 +68,41 @@ class PersonaEngine:
             if t.get("assistant"):
                 hydrated.append({"role": "assistant", "content": t["assistant"]})
         h_key = self._get_history_key(h_low)
-        self.histories[h_key] = hydrated
+        with self._lock:
+            self.active_sessions[h_low] = session_id
+            self.histories[h_key] = hydrated
         return session
 
     def reset_history(self, handle: str, session_id: Optional[str] = None) -> None:
-        if session_id:
-            k = self._get_history_key(handle, session_id)
-            self.histories[k] = []
-            self.active_vault_ctx.pop(k, None)
-        else:
-            h_low = handle.lower()
-            prefix = f"{h_low}::"
-            self.histories[h_low] = []
-            self.active_vault_ctx.pop(h_low, None)
-            self.active_sessions.pop(h_low, None)
-            for k in list(self.histories.keys()):
-                if k.startswith(prefix):
-                    self.histories.pop(k, None)
-            for k in list(self.active_vault_ctx.keys()):
-                if k.startswith(prefix):
-                    self.active_vault_ctx.pop(k, None)
+        with self._lock:
+            if session_id:
+                k = self._get_history_key(handle, session_id)
+                self.histories[k] = []
+                self.active_vault_ctx.pop(k, None)
+            else:
+                h_low = handle.lower()
+                prefix = f"{h_low}::"
+                self.histories[h_low] = []
+                self.active_vault_ctx.pop(h_low, None)
+                self.active_sessions.pop(h_low, None)
+                for k in list(self.histories.keys()):
+                    if k.startswith(prefix):
+                        self.histories.pop(k, None)
+                for k in list(self.active_vault_ctx.keys()):
+                    if k.startswith(prefix):
+                        self.active_vault_ctx.pop(k, None)
+
+    def get_model_override(self, handle: str) -> Optional[str]:
+        with self._lock:
+            return self.model_overrides.get(handle.lower())
+
+    def set_model_override(self, handle: str, model: str) -> None:
+        with self._lock:
+            self.model_overrides[handle.lower()] = model
+
+    def clear_model_override(self, handle: str) -> Optional[str]:
+        with self._lock:
+            return self.model_overrides.pop(handle.lower(), None)
 
     def summarize_session(self, handle: str, target: str = "both", session_id: Optional[str] = None) -> Dict[str, Any]:
         curr_session_id = session_id or self.active_sessions.get(handle.lower())
@@ -112,7 +133,7 @@ class PersonaEngine:
             return
 
         system_prompt = self.pm.build_system_prompt(target_profile)
-        target_model = self.model_overrides.get(target_handle.lower(), target_profile.get("model") or DEFAULT_CHAT_MODEL)
+        target_model = self.get_model_override(target_handle) or target_profile.get("model") or DEFAULT_CHAT_MODEL
         active_messages = [{"role": "system", "content": system_prompt}, {"role": "user", "content": sub_prompt}]
         if litellm is None:
             yield "⚠️ LiteLLM is not installed."
@@ -155,11 +176,15 @@ class PersonaEngine:
         # Build dynamic composite prompt & inject active turn vault context via VaultManager
         curr_session_id = session_id or self.get_active_session_id(handle)
         h_key = self._get_history_key(handle, session_id)
+        # Retrieval itself stays outside the lock — it's the hot-path I/O this
+        # session's caching work was aimed at, and must not serialize concurrent
+        # chats across personas/threads behind one engine-wide lock.
         vault_ctx = VaultManager.resolve_turn_context(profile, clean_input)
-        if vault_ctx:
-            self.active_vault_ctx[h_key] = vault_ctx
-        elif h_key in self.active_vault_ctx and self.active_vault_ctx[h_key]:
-            vault_ctx = self.active_vault_ctx[h_key]
+        with self._lock:
+            if vault_ctx:
+                self.active_vault_ctx[h_key] = vault_ctx
+            elif h_key in self.active_vault_ctx and self.active_vault_ctx[h_key]:
+                vault_ctx = self.active_vault_ctx[h_key]
 
         system_prompt = self.pm.build_system_prompt(profile)
         if vault_ctx:
@@ -170,7 +195,7 @@ class PersonaEngine:
         active_messages.extend(history[-(self.max_turns * 2):])
         active_messages.append({"role": "user", "content": user_message})
 
-        target_model = self.model_overrides.get(handle.lower(), profile.get("model") or DEFAULT_CHAT_MODEL)
+        target_model = self.get_model_override(handle) or profile.get("model") or DEFAULT_CHAT_MODEL
         if litellm is None:
             yield "⚠️ LiteLLM is not installed. Run `pip install -r requirements.txt`."
             return
@@ -207,7 +232,8 @@ class PersonaEngine:
 
             history.extend([{"role": "user", "content": user_message}, {"role": "assistant", "content": assistant_record}])
             h_key = self._get_history_key(handle, session_id)
-            self.histories[h_key] = history[-(self.max_turns * 2):]
+            with self._lock:
+                self.histories[h_key] = history[-(self.max_turns * 2):]
             meta = SessionManager.append_turn(curr_session_id, handle, user_message, assistant_record)
             if meta and meta.get("turns_count") == 3:
                 SessionManager.generate_smart_title_async(curr_session_id, handle, history[-6:], self.config)

@@ -56,6 +56,11 @@ icon_emoji: ":art:"
 share_memory: true      # true = shares with team pool (_shared_memory.md); false = air-gapped private
 
 # 📚 Multi-Folder Vault Whitelist (ADR-011)
+# Any folder listed here that doesn't already exist in your vault gets
+# created automatically on first use — so list folders you actually want,
+# not a guess. Use `vault_folders: ["*"]` for unrestricted full-vault access
+# instead (what @samantha ships with) if you don't want to sandbox this agent
+# to specific folders at all.
 vault_folders:
   - "Design"
   - "Design System"

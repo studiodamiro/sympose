@@ -99,6 +99,7 @@ list and is kept in sync per the
 
 | ADR | Title | Status | Date |
 | --- | ----- | ------ | ---- |
+| [ADR-074](../journal/2026-09/2026-09-05_adr-074-default-persona-vault-scope-and-onboarding-genesis-nudge.md) | Default Persona Vault Scope & Onboarding Persona-Genesis Nudge | Accepted | 2026-09-05 |
 | [ADR-073](../journal/2026-09/2026-09-04_adr-073-worker-native-shell-allowlisting.md) | Worker Native-Shell Command Allowlisting & Symlink-Safe Path Checks | Accepted | 2026-09-04 |
 | [ADR-072](../journal/2026-09/2026-09-04_adr-072-engine-concurrency-bounded-background-hygiene.md) | Engine Concurrency Model & Bounded Background Hygiene Pool | Accepted | 2026-09-04 |
 | [ADR-071](../journal/2026-09/2026-09-04_adr-071-primary-agent-action-dispatch-mechanism.md) | Primary-Agent Action Dispatch — Bracket-Tag DSL vs Native Function Calling | Accepted | 2026-09-04 |

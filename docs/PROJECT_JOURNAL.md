@@ -25,6 +25,7 @@ one in [`docs/wiki/index.md`](./wiki/index.md) are kept in sync per the
 
 | ADR | Title | Status | Date | Source |
 | --- | ----- | ------ | ---- | ------ |
+| ADR-074 | Default Persona Vault Scope & Onboarding Persona-Genesis Nudge | Accepted | 2026-09-05 | [2026-09-05_adr-074-default-persona-vault-scope-and-onboarding-genesis-nudge.md](./journal/2026-09/2026-09-05_adr-074-default-persona-vault-scope-and-onboarding-genesis-nudge.md) |
 | ADR-073 | Worker Native-Shell Command Allowlisting & Symlink-Safe Path Checks | Accepted | 2026-09-04 | [2026-09-04_adr-073-worker-native-shell-allowlisting.md](./journal/2026-09/2026-09-04_adr-073-worker-native-shell-allowlisting.md) |
 | ADR-072 | Engine Concurrency Model & Bounded Background Hygiene Pool | Accepted | 2026-09-04 | [2026-09-04_adr-072-engine-concurrency-bounded-background-hygiene.md](./journal/2026-09/2026-09-04_adr-072-engine-concurrency-bounded-background-hygiene.md) |
 | ADR-071 | Primary-Agent Action Dispatch — Bracket-Tag DSL vs Native Function Calling | Accepted | 2026-09-04 | [2026-09-04_adr-071-primary-agent-action-dispatch-mechanism.md](./journal/2026-09/2026-09-04_adr-071-primary-agent-action-dispatch-mechanism.md) |
@@ -110,6 +111,7 @@ one in [`docs/wiki/index.md`](./wiki/index.md) are kept in sync per the
 
 | Date | Entry |
 | ---- | ----- |
+| 2026-09-05 | [ADR-074 — Default Persona Vault Scope & Onboarding Persona-Genesis Nudge](./journal/2026-09/2026-09-05_adr-074-default-persona-vault-scope-and-onboarding-genesis-nudge.md) |
 | 2026-09-05 | [Repository Shareability Pass, Part 2 (SECURITY.md, repo topics, private vulnerability reporting)](./journal/2026-09/2026-09-05_repo-shareability-pass-part2.md) |
 | 2026-09-05 | [Repository Shareability Pass (LICENSE, CI, pyproject urls)](./journal/2026-09/2026-09-05_repo-shareability-pass.md) |
 | 2026-09-05 | [`sqlite_fts` Indexed Vault Search, Tier 5 (ADR-070.5 / F3 — closes the review)](./journal/2026-09/2026-09-05_backend-hardening-tier5-sqlite-fts.md) |

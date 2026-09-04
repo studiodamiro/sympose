@@ -4,6 +4,9 @@
 .env.*
 !.env.example
 
+# Self-signed dashboard TLS cert/key, generated per-workspace (ADR-064.2)
+.certs/
+
 # Python
 __pycache__/
 *.py[cod]

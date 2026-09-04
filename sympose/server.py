@@ -5,24 +5,29 @@ FastAPI Server & Dashboard API Gateway for Sympose.
 import os
 import logging
 from typing import Dict, Any, Optional
-from fastapi import FastAPI, Query, HTTPException
+from fastapi import FastAPI, Query, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from sympose.vault import VaultManager
 from sympose.config import config_manager
+from sympose.auth import require_dashboard_auth
 
 log = logging.getLogger(__name__)
 
 
 def create_app(engine: Any) -> FastAPI:
-    """Factory creating the FastAPI application bound to a PersonaEngine instance."""
+    """Factory creating the FastAPI application bound to a PersonaEngine instance.
+    Every route (including `/`, `/docs`, and the vault/config API) sits behind the
+    ADR-064.1 password guard — call `ensure_dashboard_password()` before this so
+    `DASHBOARD_PASSWORD` is set in the environment first."""
     app = FastAPI(
         title="Sympose Multi-Model Agent Hub API",
         version="0.2.24",
         description="FastAPI REST API & Standalone Vault Gateway for Sympose",
         docs_url="/docs",
         redoc_url="/redoc",
+        dependencies=[Depends(require_dashboard_auth)],
     )
 
     # Restrict allowed origins via env var; defaults to localhost-only for safety
@@ -153,10 +158,26 @@ def create_app(engine: Any) -> FastAPI:
     return app
 
 
-def run_server(engine: Any, host: str = "127.0.0.1", port: int = 8000) -> None:
-    """Launches the Uvicorn ASGI server hosting the Sympose Dashboard API."""
+def run_server(engine: Any, workspace_dir: str, host: str = "127.0.0.1", port: int = 8000, tls: bool = True) -> None:
+    """Launches the Uvicorn ASGI server hosting the Sympose Dashboard API.
+    Generates/loads the ADR-064.1 dashboard password and, unless `tls=False` or
+    `cryptography` isn't installed, the ADR-064.2 self-signed certificate,
+    before the app (and its global auth dependency) is constructed."""
     import uvicorn
+    from sympose.auth import ensure_dashboard_password, DASHBOARD_USER
+
+    password = ensure_dashboard_password(workspace_dir)
     app = create_app(engine)
-    log.info("Sympose Dashboard & Vault Gateway starting on http://%s:%s", host, port)
-    log.info("Swagger API Documentation available at: http://localhost:%s/docs", port)
-    uvicorn.run(app, host=host, port=port, log_level="info")
+
+    ssl_kwargs: Dict[str, Any] = {}
+    if tls:
+        from sympose.tls import ensure_self_signed_cert
+        cert_pair = ensure_self_signed_cert(workspace_dir)
+        if cert_pair:
+            ssl_kwargs = {"ssl_certfile": cert_pair[0], "ssl_keyfile": cert_pair[1]}
+
+    scheme = "https" if ssl_kwargs else "http"
+    log.info("Sympose Dashboard & Vault Gateway starting on %s://%s:%s", scheme, host, port)
+    log.info("Swagger API Documentation available at: %s://localhost:%s/docs", scheme, port)
+    log.info("Dashboard login — user: %s  password: %s  (see workspace .env)", DASHBOARD_USER, password)
+    uvicorn.run(app, host=host, port=port, log_level="info", **ssl_kwargs)

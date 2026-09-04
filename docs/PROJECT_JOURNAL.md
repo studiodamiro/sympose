@@ -123,6 +123,10 @@ one in [`docs/wiki/index.md`](./wiki/index.md) are kept in sync per the
 | 2026-09-04 | [Backend Hardening Implementation, Tier 4 (ADR-071, ADR-073, ADR-064 all accepted)](./journal/2026-09/2026-09-04_backend-hardening-tier4-implementation.md) |
 | 2026-09-04 | [Backend Hardening Implementation — Tiers 1–3 (ADR-070, ADR-072 accepted; ADR-071, ADR-064 amended)](./journal/2026-09/2026-09-04_backend-hardening-implementation.md) |
 | 2026-09-04 | [Backend Architecture & Objective-Effectiveness Review (ADR-070 – ADR-073)](./journal/2026-09/2026-09-04_backend-architecture-effectiveness-review.md) |
+| 2026-09-01 | [Knowledge Nebula — Audit, Dual 2D/3D Renderer Split & Node Colour Knobs (mockups)](./journal/2026-09/2026-09-01_nebula_dual_renderer_and_colour_knobs.md) |
+| 2026-08-31 | [App-Shell Phone Shell — TopBar, Sliding Menu Rail & Per-View Surfaces (mockups)](./journal/2026-08/2026-08-31_web_dashboard_phone_shell.md) |
+| 2026-08-31 | [App-Shell Tablet Responsiveness — Breakpoint Model, Panel-Cap State Machine & Live Width Adoption (mockups)](./journal/2026-08/2026-08-31_web_dashboard_tablet_responsiveness_and_panel_layout.md) |
+| 2026-08-31 | [App-Shell Stage Build-Out — Chat Reading Column & Markdown Editor/Reader Panels (mockups)](./journal/2026-08/2026-08-31_web_dashboard_chat_and_markdown_panels.md) |
 | 2026-08-30 | [Ui Scaffold Documentation And Clean Slate](./journal/2026-08/2026-08-30_ui_scaffold_documentation_and_clean_slate.md) |
 | 2026-08-30 | [MCP Client Threading & Logging Standard](./journal/2026-08/2026-08-30_mcp_client_threading_and_logging_standard.md) |
 | 2026-08-30 | [Dashboard/API Gateway Security Design Gap & Zero-Dependency Auth Plan](./journal/2026-08/2026-08-30_dashboard_api_security_design_gap_and_auth_plan.md) |

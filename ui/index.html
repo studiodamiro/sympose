@@ -1,103 +1,13 @@
-<!DOCTYPE html>
-<html lang="en" data-theme="obsidian-matte">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Sympose // Dashboard</title>
-  <link rel="stylesheet" href="/assets/styles.css" />
-</head>
-<body>
-  <!--
-    SCAFFOLD — vanilla placeholder shell for the Sympose web dashboard.
-    Design source of truth: docs/UI_DESIGN_REFERENCE.md ("Flat Sovereign Craft").
-    This file is hand-authored and served directly by sympose/server.py until the
-    Vite + React + TS app in ui/ is built and produces ui/dist/index.html, which
-    then takes precedence automatically.
-  -->
-  <div class="shell">
-    <!-- LEFT ▸ VAULT EXPLORER -->
-    <aside class="panel panel--left">
-      <header class="panel__head">
-        <span class="panel__title">Vault</span>
-        <span class="tag" data-status="stub">tree endpoint TODO</span>
-      </header>
-      <nav class="tree" aria-label="Vault tree (mock)">
-        <div class="tree__group">Projects/</div>
-        <div class="tree__group tree__group--nested">Sympose/</div>
-        <a class="tree__leaf" href="#">Architecture.md</a>
-        <a class="tree__leaf" href="#">Roadmap.md</a>
-        <a class="tree__leaf" href="#">Dashboard-UI.md</a>
-        <div class="tree__group">Daily/</div>
-        <a class="tree__leaf" href="#">2026-08-30.md</a>
-        <div class="tree__group">Thoughts/</div>
-        <a class="tree__leaf" href="#">creativity.md</a>
-      </nav>
-      <p class="hint">Needs <code>GET /api/vault/tree</code> — not yet in server.py.</p>
-    </aside>
-
-    <!-- CENTER ▸ MULTI-AGENT CHAT -->
-    <main class="panel panel--center">
-      <header class="panel__head">
-        <span class="panel__title">Multi-Agent Chat</span>
-        <span class="tag" id="health-tag" data-status="loading">connecting…</span>
-      </header>
-
-      <div class="timeline" id="timeline">
-        <p class="timeline__empty">
-          No conversation yet. Streaming chat needs
-          <code>POST /api/chat/message</code> + <code>GET /api/chat/stream</code>,
-          which are still to be implemented in
-          <code>sympose/server.py</code>.
-        </p>
-      </div>
-
-      <form class="composer" id="composer" autocomplete="off">
-        <input
-          class="composer__input"
-          id="composer-input"
-          placeholder="Ask @samantha, @grace, @anais…  (chat endpoint not wired)"
-          disabled
-        />
-        <button class="composer__send" type="submit" disabled>▷</button>
-      </form>
-    </main>
-
-    <!-- RIGHT ▸ NEBULA CONTROLS -->
-    <aside class="panel panel--right">
-      <header class="panel__head">
-        <span class="panel__title">Nebula</span>
-        <span class="tag" data-status="stub">graph endpoint TODO</span>
-      </header>
-      <div class="control-stack">
-        <div class="control-row"><span>Filters</span><span class="chev">▾</span></div>
-        <div class="control-row"><span>Groups</span><span class="chev">▾</span></div>
-        <div class="control-row"><span>Display</span><span class="chev">▾</span></div>
-        <div class="control-row"><span>Forces</span><span class="chev">▾</span></div>
-      </div>
-      <p class="hint">
-        Needs <code>GET /api/vault/graph</code>. 2D/3D WebGL render lands with the
-        React app (<code>@react-three/fiber</code>).
-      </p>
-      <footer class="panel__foot">
-        <button class="quiet-toggle" disabled>⚙ Settings</button>
-        <button class="quiet-toggle" disabled>☀ / 🌙</button>
-        <button class="quiet-toggle" disabled>2D | 3D</button>
-      </footer>
-    </aside>
-  </div>
-
-  <!-- Live runtime readout: this part IS wired to real endpoints -->
-  <section class="statusbar" id="statusbar">
-    <span class="statusbar__item"><strong>version</strong> <span data-field="version">—</span></span>
-    <span class="statusbar__item"><strong>default persona</strong> <span data-field="default_persona">—</span></span>
-    <span class="statusbar__item"><strong>personas</strong> <span data-field="personas">—</span></span>
-    <span class="statusbar__item statusbar__links">
-      <a href="/docs">/docs</a>
-      <a href="/health">/health</a>
-      <a href="/api/config">/api/config</a>
-    </span>
-  </section>
-
-  <script src="/assets/app.js"></script>
-</body>
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/sympose.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Sympose</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
 </html>

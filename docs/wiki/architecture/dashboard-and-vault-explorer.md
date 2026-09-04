@@ -1,7 +1,7 @@
 ---
 title: "Sympose Web Dashboard, Standalone Vault Explorer & 2D/3D Knowledge Nebula Specification"
 created: 2026-08-27
-updated: 2026-08-29
+updated: 2026-09-01
 type: wiki-architecture
 parent: architecture/overview
 tags:
@@ -65,29 +65,35 @@ tags:
 ### 🌌 Module A: 2D/3D Ambient Knowledge Nebula
 
 A persistent spatial visualizer representing the organic idea web across the user's vault:
-* **Dual Rendering Engine**:
-  * **2D Mode**: Fast, top-down planar vector canvas (HTML5 Canvas/SVG) for clear mapping.
-  * **3D Mode**: Interactive 3D WebGL space (Three.js / `3d-force-graph`) with smooth orbit controls and particle pulse animations along links.
-* **1:1 Parity with Obsidian Graph Controls**:
-  * **Filters Panel**:
-    * File search input (`Search files...`).
-    * `Tags` toggle (render tag nodes as vertices).
-    * `Attachments` toggle.
-    * `Existing files only` toggle (filter out ghost/unresolved wikilinks).
-    * `Orphans` toggle (hide notes with zero links).
-  * **Groups Panel**:
-    * Color-coding rules by folder (`path:Projects`), tag (`tag:#architecture`), or persona.
+* **Dual Rendering Engine** — one `NebulaGraph` feed, one imperative handle, a
+  `mode` prop swaps the renderer (remembered in the `nebula-view-mode` cookie):
+  * **2D Mode**: flat Obsidian-default canvas (`react-force-graph-2d`) — folder-
+    coloured discs, hairline links, pan + scroll-zoom, labels that fade in on
+    zoom (`globalScale` gate).
+  * **3D Mode**: WebGL orbit space (Three.js / `react-force-graph-3d`) — orbit /
+    auto-rotate, `three-spritetext` node labels culled by camera distance (the
+    same "appears when you get close" behaviour as 2D).
+* **Obsidian Graph Control Parity** (as built on the `/nebula` showcase route):
+  * **Filters Panel**: `Search files…` · `Tags` toggle · `Attachments` toggle ·
+    `Existing files only` toggle (drops ghost wikilinks) · `Orphans` toggle
+    (dims zero-link notes; a search match still surfaces them).
   * **Display Panel**:
-    * `Arrows` toggle (directional link indicators).
-    * `Text fade threshold` slider (adjusts label visibility based on zoom/distance).
-    * `Node size` multiplier slider.
-    * `Link thickness` slider.
-    * `Animate` / Pulse trigger.
-  * **Forces (Physics) Panel**:
-    * `Center force` slider (gravity pulling nodes toward origin).
-    * `Repel force` slider (charge repulsion separating nodes).
-    * `Link force` slider (spring tension between connected notes).
-    * `Link distance` slider (resting edge length).
+    * `Arrows` toggle · `Auto Rotate Camera` toggle *(3D only)* · `Node labels`
+      toggle (both modes).
+    * `Background separation` slider — signed `−75 … +75%` lightness shift of
+      node colour vs the background (toward black in light mode, white in dark;
+      negative blends *into* the background).
+    * `Color vividness` slider — signed `−100 … +100%` HSL-saturation scale
+      (greyscale → palette → fully saturated).
+    * `Node size` multiplier · `Link thickness` · `Note Spawn Delay` (birth
+      animation) · `Zoom In Closeness` (node-click framing distance).
+    * `Center & Fit` and `Animate` (staggered node birth) triggers.
+  * **Forces (Physics) Panel**: `Center force` · `Repel force` · `Link force` ·
+    `Link distance` — identical d3-force math in both renderers.
+* **Not yet built**: per-query colour **Groups** and a raw label
+  zoom-threshold slider were scaffolded then removed as non-functional; label
+  visibility is currently automatic (zoom / camera-distance gated) with a single
+  on/off toggle.
 
 ---
 
@@ -179,7 +185,7 @@ The dashboard communicates with Sympose's native FastAPI gateway on `http://loca
 
 ## 5. Technology Stack & Distribution Pipeline
 
-* **Frontend**: `Vite` + `React 18` + `TypeScript` + `TailwindCSS` + `shadcn/ui` + `Three.js` / `3d-force-graph` in `/ui`.
+* **Frontend**: `Vite` + `React 19` + `TypeScript` + `TailwindCSS` + `shadcn/ui` in `/ui`. Nebula: `react-force-graph-2d` (canvas) and `react-force-graph-3d` (Three.js) behind a shared wrapper, with `d3-force` / `d3-force-3d` and `three-spritetext`.
 * **Build Target**: Static assets compiled to `/ui/dist/`.
 * **Runtime**: Zero Node.js runtime required for end users. Served natively by FastAPI via `sympose --web` or `sympose --dashboard`.
 

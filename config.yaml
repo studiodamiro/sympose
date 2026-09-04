@@ -25,6 +25,39 @@ memory:
 runtime:
   default_persona: samantha
   profiles_dir: profiles
+worker:
+  # ADR-073: argv[0] allowlist for the `run_command` native tool. A worker
+  # task's shell commands are model-directed and unreviewed; only read/inspect
+  # commands ship enabled. Widen deliberately, one command at a time.
+  shell_allowlist:
+  - ls
+  - cat
+  - grep
+  - egrep
+  - fgrep
+  - find
+  - git
+  - echo
+  - pwd
+  - head
+  - tail
+  - wc
+  - sort
+  - uniq
+  - cut
+  - tree
+  - date
+  - which
+  - env
+  - printf
+  - diff
+  - file
+  - stat
+  - du
+  - df
+  - basename
+  - dirname
+  - realpath
 vault:
   daily_notes_folder: Daily
   daily_notes_format: Daily/%Y/%m-%B/%Y-%m-%d.md

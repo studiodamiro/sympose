@@ -99,6 +99,7 @@ list and is kept in sync per the
 
 | ADR | Title | Status | Date |
 | --- | ----- | ------ | ---- |
+| [ADR-075](../journal/2026-09/2026-09-05_adr-075-persona-soul-content-in-create-persona.md) | Persona Soul Content in CREATE_PERSONA | Accepted | 2026-09-05 |
 | [ADR-074](../journal/2026-09/2026-09-05_adr-074-default-persona-vault-scope-and-onboarding-genesis-nudge.md) | Default Persona Vault Scope & Onboarding Persona-Genesis Nudge | Accepted | 2026-09-05 |
 | [ADR-073](../journal/2026-09/2026-09-04_adr-073-worker-native-shell-allowlisting.md) | Worker Native-Shell Command Allowlisting & Symlink-Safe Path Checks | Accepted | 2026-09-04 |
 | [ADR-072](../journal/2026-09/2026-09-04_adr-072-engine-concurrency-bounded-background-hygiene.md) | Engine Concurrency Model & Bounded Background Hygiene Pool | Accepted | 2026-09-04 |

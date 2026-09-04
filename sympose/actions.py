@@ -247,12 +247,35 @@ class ActionProcessor:
                     os.makedirs(p_dir, exist_ok=True)
                     yaml_file = os.path.join(p_dir, f"{h_name}.yaml")
                     try:
+                        # `soul_content`, if present in the manifest, is the
+                        # agent's actual Core Directives — pulled out and
+                        # written to <handle>_soul.md directly, not left in
+                        # the YAML. Without it, ProfileManager's own
+                        # auto-bootstrap fallback (a single generic sentence)
+                        # is all the new persona gets, discarding whatever
+                        # reference-figure grounding the model described.
+                        soul_content, manifest_yaml = None, raw_yaml
+                        try:
+                            import yaml
+                            y_data = yaml.safe_load(raw_yaml)
+                            if isinstance(y_data, dict) and "soul_content" in y_data:
+                                soul_content = str(y_data.pop("soul_content") or "").strip()
+                                manifest_yaml = yaml.dump(y_data, default_flow_style=False, sort_keys=False)
+                        except Exception:
+                            pass
+
                         with open(yaml_file, "w", encoding="utf-8") as f:
-                            f.write(raw_yaml)
+                            f.write(manifest_yaml)
+                        if soul_content:
+                            soul_file = os.path.join(p_dir, f"{h_name}_soul.md")
+                            with open(soul_file, "w", encoding="utf-8") as f:
+                                f.write(soul_content + "\n")
+
                         profile_manager.reload_profiles()
                         new_p = profile_manager.get_profile(h_name)
                         p_disp = new_p.get("name", h_name) if new_p else h_name
-                        badges.append(f"> 🧬 **{name} created new agent persona:** `@{h_name}` ({p_disp})")
+                        soul_note = " with a custom soul" if soul_content else ""
+                        badges.append(f"> 🧬 **{name} created new agent persona:** `@{h_name}` ({p_disp}){soul_note}")
                     except Exception as e:
                         badges.append(f"> ⚠️ **Error creating persona `@{h_name}`:** {e}")
                 else:

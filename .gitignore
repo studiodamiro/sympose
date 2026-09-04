@@ -55,7 +55,16 @@ sessions/
 *.jsonl
 !*.example
 
+# Persona manifests & souls — only Samantha ships as the starter seed (ADR-046).
+# Every other persona (Grace, Anaïs, anything you create) is your own local
+# customization, not product content — never re-track these.
+profiles/*.yaml
+profiles/*_soul.md
+!profiles/samantha.yaml
+!profiles/samantha_soul.md
+
 # AI tooling — never committed
 .agents/
 CLAUDE.md
 .claude/
+.cursor/

@@ -23,6 +23,10 @@ class ProfileManager:
             self.profiles_dir = os.path.abspath(os.path.join(resolve_workspace_dir(), "profiles"))
         self.profiles: Dict[str, Dict[str, Any]] = {}
         self._profiles_mtime: float = 0.0
+        # mtime-keyed cache for _read_file_safe — build_system_prompt re-reads the
+        # soul, user card, shared/persona memory, and workspace rules every turn;
+        # this skips the disk read when the resolved file hasn't changed.
+        self._file_cache: Dict[str, Tuple[float, str]] = {}
         self.reload_profiles()
 
     def update_persona_skills(self, handle: str, skill_name: str, action: str = "add") -> Tuple[bool, str]:
@@ -174,8 +178,14 @@ class ProfileManager:
         for c in candidates:
             if os.path.exists(c) and os.path.isfile(c):
                 try:
+                    current_mtime = os.path.getmtime(c)
+                    cached = self._file_cache.get(c)
+                    if cached and cached[0] == current_mtime:
+                        return cached[1]
                     with open(c, "r", encoding="utf-8") as f:
-                        return f.read().strip()
+                        content = f.read().strip()
+                    self._file_cache[c] = (current_mtime, content)
+                    return content
                 except Exception:
                     pass
         return ""

@@ -1,13 +1,16 @@
 """
-Automated Memory Compactor & Distillation Engine for Sympose.
-Consolidates working memory files, resolves superseded facts, and eliminates duplicate bloat.
+Automated Memory Compactor, Distillation Engine & Shared Background-Hygiene
+Infrastructure for Sympose. Consolidates working memory files, resolves
+superseded facts, eliminates duplicate bloat, and hosts the bounded,
+single-flight background-thread primitives shared by memory extraction,
+session titling, and compaction itself.
 """
 
 import os
 import re
 import logging
 import threading
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, Callable, Set
 import litellm
 
 log = logging.getLogger(__name__)
@@ -26,6 +29,34 @@ def get_file_lock(filepath: str) -> threading.Lock:
         if abs_p not in _FILE_LOCKS:
             _FILE_LOCKS[abs_p] = threading.Lock()
         return _FILE_LOCKS[abs_p]
+
+
+# ---------------------------------------------------------------------------
+# Bounded background-hygiene task runner — shared by memory extraction,
+# session titling, and memory compaction. A semaphore-gated daemon thread per
+# task, NOT concurrent.futures.ThreadPoolExecutor: that pool's worker threads
+# are non-daemon by design (its atexit hook joins them), which would make CLI
+# `quit` block on any in-flight background LLM call. This keeps process exit
+# instant while still capping concurrent background calls under load.
+# ---------------------------------------------------------------------------
+_HYGIENE_SEMAPHORE = threading.Semaphore(max(1, int(config_manager.get("performance.hygiene_workers", 2))))
+
+# In-flight compaction targets, guarded by _GLOBAL_LOCK — single-flight per file
+# so a burst of turns crossing the compaction threshold before the first pass
+# completes queues at most one compaction run per file, not one per turn.
+_INFLIGHT_COMPACTIONS: Set[str] = set()
+
+
+def run_hygiene_task(target: Callable[..., Any], *args: Any, **kwargs: Any) -> None:
+    """Runs a best-effort background hygiene callable on the bounded hygiene pool."""
+    def _run() -> None:
+        with _HYGIENE_SEMAPHORE:
+            try:
+                target(*args, **kwargs)
+            except Exception:
+                log.debug("[hygiene] background task failed", exc_info=True)
+
+    threading.Thread(target=_run, daemon=True).start()
 
 
 class MemoryCompactor:
@@ -124,18 +155,28 @@ class MemoryCompactor:
 
     @classmethod
     def check_and_compact_async(cls, filepath: str, is_shared: bool = False, threshold: Optional[int] = None) -> None:
-        """Checks if line count exceeds threshold and runs compaction in a background daemon thread."""
+        """Checks if line count exceeds threshold and runs compaction on the shared
+        hygiene pool — single-flight per file, so repeated turns crossing the
+        threshold before the first pass completes don't each queue their own run."""
         auto_enabled = bool(config_manager.get("memory.auto_compact", True))
         if not auto_enabled:
             return
 
         limit = threshold or int(config_manager.get("memory.compaction_threshold", 25))
-        current_count = cls.count_bullet_lines(filepath)
+        if cls.count_bullet_lines(filepath) < limit:
+            return
 
-        if current_count >= limit:
-            thread = threading.Thread(
-                target=cls.compact_file,
-                args=(filepath, is_shared),
-                daemon=True
-            )
-            thread.start()
+        abs_path = os.path.abspath(filepath)
+        with _GLOBAL_LOCK:
+            if abs_path in _INFLIGHT_COMPACTIONS:
+                return
+            _INFLIGHT_COMPACTIONS.add(abs_path)
+
+        def _run() -> None:
+            try:
+                cls.compact_file(filepath, is_shared)
+            finally:
+                with _GLOBAL_LOCK:
+                    _INFLIGHT_COMPACTIONS.discard(abs_path)
+
+        run_hygiene_task(_run)

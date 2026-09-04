@@ -51,7 +51,19 @@ def main():
 
     if args.dashboard:
         from sympose.server import run_server
-        run_server(engine, host="0.0.0.0", port=8000)
+        # Defaults to localhost-only; set SYMPOSE_DASHBOARD_HOST=0.0.0.0 to opt into
+        # LAN exposure explicitly. Every route requires the ADR-064.1 dashboard
+        # password (auto-generated into .env on first boot if unset) and, unless
+        # SYMPOSE_DASHBOARD_TLS=0 or `cryptography` is missing, serves over the
+        # ADR-064.2 self-signed certificate.
+        tls_enabled = os.getenv("SYMPOSE_DASHBOARD_TLS", "1").strip().lower() not in ("0", "false", "no")
+        run_server(
+            engine,
+            workspace_dir=workspace_dir,
+            host=os.getenv("SYMPOSE_DASHBOARD_HOST", "127.0.0.1"),
+            port=8000,
+            tls=tls_enabled,
+        )
     elif args.slack:
         MultiAgentSlackRunner.run_all(engine, persona_override=args.persona)
     else:

@@ -5,7 +5,6 @@ Session Archival, Distillation & Heuristic Gated Memory Management for Sympose.
 import os
 import re
 import logging
-import threading
 from typing import Dict, List, Any, Optional
 
 log = logging.getLogger(__name__)
@@ -15,6 +14,7 @@ import litellm
 
 from sympose.profiles import ProfileManager
 from sympose.vault import VaultManager
+from sympose.compactor import run_hygiene_task
 
 
 def _load_prompt_tmpl(name: str, fallback: str) -> str:
@@ -59,7 +59,7 @@ class HeuristicGatedExtractor:
 
     @classmethod
     def extract_async(cls, handle: str, user_message: str, assistant_reply: str, pm: ProfileManager, config: Any) -> None:
-        """Runs the extraction pass in a detached background daemon thread."""
+        """Runs the extraction pass on the shared bounded background-hygiene pool."""
         def _worker():
             try:
                 model = config.get("session.exit_behavior.summarization_model") or DEFAULT_CHAT_MODEL
@@ -82,7 +82,7 @@ class HeuristicGatedExtractor:
             except Exception as exc:
                 log.debug("[memory.extract_async] suppressed error for @%s: %s", handle, exc)
 
-        threading.Thread(target=_worker, daemon=True).start()
+        run_hygiene_task(_worker)
 
 
 class SessionArchivist:

@@ -22,11 +22,11 @@ class ModelCatalog:
     """Manages cached model discovery from OpenRouter and local presets."""
 
     DEFAULT_RECOMMENDATIONS = [
-        {"id": "anthropic/claude-sonnet-4.5", "name": "Claude Sonnet 4.5", "context": "1M", "desc": "Surgical coding & architecture"},
-        {"id": "~anthropic/claude-sonnet-latest", "name": "Claude Sonnet (Latest)", "context": "1M", "desc": "Auto-tracking latest Sonnet"},
-        {"id": "deepseek/deepseek-v4-pro", "name": "DeepSeek V4 Pro", "context": "1M", "desc": "Deep reasoning & fullstack"},
-        {"id": "google/gemini-3.7-flash", "name": "Gemini 3.7 Flash", "context": "1M", "desc": "Fast multimodal agentic worker"},
-        {"id": "qwen/qwen3.8-27b", "name": "Qwen 3.8 27B", "context": "1M", "desc": "High-density coding & tool calling"},
+        {"id": "anthropic/claude-sonnet-4.5", "name": "Claude Sonnet 4.5", "context_length": 1_000_000, "desc": "Surgical coding & architecture"},
+        {"id": "~anthropic/claude-sonnet-latest", "name": "Claude Sonnet (Latest)", "context_length": 1_000_000, "desc": "Auto-tracking latest Sonnet"},
+        {"id": "deepseek/deepseek-v4-pro", "name": "DeepSeek V4 Pro", "context_length": 1_000_000, "desc": "Deep reasoning & fullstack"},
+        {"id": "google/gemini-3.7-flash", "name": "Gemini 3.7 Flash", "context_length": 1_000_000, "desc": "Fast multimodal agentic worker"},
+        {"id": "qwen/qwen3.8-27b", "name": "Qwen 3.8 27B", "context_length": 1_000_000, "desc": "High-density coding & tool calling"},
     ]
 
     @classmethod
@@ -56,8 +56,9 @@ class ModelCatalog:
                 pass
             return fetched
 
-        # Graceful fallback: return existing cached models (even if expired) or static catalog
-        return existing_cached_models or list(cls.STATIC_CATALOG)
+        # Graceful fallback: return existing cached models (even if expired) or the
+        # local recommendations list (no live catalog was ever fetchable).
+        return existing_cached_models or list(cls.DEFAULT_RECOMMENDATIONS)
 
     @classmethod
     def fetch_openrouter_catalog(cls) -> List[Dict[str, Any]]:

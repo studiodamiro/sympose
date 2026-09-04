@@ -6,12 +6,11 @@ import os
 import re
 import json
 import uuid
-import threading
 import datetime
 import logging
 from typing import Dict, List, Any, Optional
 from sympose.bootstrap import resolve_workspace_dir
-from sympose.compactor import get_file_lock
+from sympose.compactor import get_file_lock, run_hygiene_task
 from sympose.config import DEFAULT_CHAT_MODEL
 
 log = logging.getLogger(__name__)
@@ -116,7 +115,7 @@ class SessionManager:
                     cls.update_session_title(session_id, out)
             except Exception as e: log.debug("[milestone_title] suppressed error for session %s: %s", session_id, e)
 
-        threading.Thread(target=_worker, daemon=True).start()
+        run_hygiene_task(_worker)
 
     @classmethod
     def append_turn(cls, session_id: str, handle: str, user_message: str, assistant_reply: str, title: Optional[str] = None) -> Optional[Dict[str, Any]]:

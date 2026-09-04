@@ -303,7 +303,7 @@ class CommandInterceptor:
                 parts = clean_input.split(maxsplit=1)
                 sub = parts[1].strip() if len(parts) > 1 else ""
                 sub_lower = sub.lower()
-                active_override = engine.model_overrides.get(handle.lower())
+                active_override = engine.get_model_override(handle)
                 default_model = profile.get("model") or DEFAULT_CHAT_MODEL
                 current_model = active_override or default_model
 
@@ -363,12 +363,11 @@ class CommandInterceptor:
                     fresh = ModelCatalog.get_cached_models(force_refresh=True)
                     yield f"🔄 **Refreshed OpenRouter Catalog:** {len(fresh)} models indexed in local cache."
                 elif sub_lower == "reset":
-                    if handle.lower() in engine.model_overrides:
-                        del engine.model_overrides[handle.lower()]
+                    engine.clear_model_override(handle)
                     yield f"Reset model for {profile.get('name', handle)} back to profile default: `{default_model}`."
                 else:
                     new_model = sub
-                    engine.model_overrides[handle.lower()] = new_model
+                    engine.set_model_override(handle, new_model)
                     yield f"Model for {profile.get('name', handle)} temporarily set to `{new_model}`.\n*(Run `/model reset` to restore default)*"
             return _model()
 

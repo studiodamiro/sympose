@@ -83,6 +83,7 @@ graph TD
 
 ### 📖 [Reference](./reference/cli-commands.md)
 * **[CLI Commands & Shortcuts](./reference/cli-commands.md):** Complete guide to `/save`, `/config`, `/switch`, `/note`, `/daily`, and `/ask`.
+* **[Action Tags Reference](./reference/action-tags.md):** Every `[TAG: args]` an agent can emit — `WRITE_NOTE`, `SPAWN_WORKER`, `CREATE_PERSONA`, and the rest — plus the malformed-tag warning contract.
 * **[Python API Reference](./reference/python-api.md):** Package internals, class hierarchies, and integration hooks.
 * **[Web Dashboard UI Design Reference](./reference/ui-design-reference.md):** The flat "Sovereign Craft" design brief — theme presets, semantic tokens, layout shell, per-screen artboards.
 
@@ -98,8 +99,12 @@ list and is kept in sync per the
 
 | ADR | Title | Status | Date |
 | --- | ----- | ------ | ---- |
+| [ADR-073](../journal/2026-09/2026-09-04_adr-073-worker-native-shell-allowlisting.md) | Worker Native-Shell Command Allowlisting & Symlink-Safe Path Checks | Accepted | 2026-09-04 |
+| [ADR-072](../journal/2026-09/2026-09-04_adr-072-engine-concurrency-bounded-background-hygiene.md) | Engine Concurrency Model & Bounded Background Hygiene Pool | Accepted | 2026-09-04 |
+| [ADR-071](../journal/2026-09/2026-09-04_adr-071-primary-agent-action-dispatch-mechanism.md) | Primary-Agent Action Dispatch — Bracket-Tag DSL vs Native Function Calling | Accepted | 2026-09-04 |
+| [ADR-070](../journal/2026-09/2026-09-04_adr-070-hot-path-retrieval-budget-trigger-discipline.md) | Hot-Path Vault Retrieval Budget, Trigger Discipline & Indexed Search Tier | Accepted (partial) | 2026-09-04 |
 | [ADR-065](../journal/2026-08/2026-08-30_adr-065-mcp-client-threading-logging-standard.md) | MCP Client Threading & Logging Standard | Accepted | 2026-08-30 |
-| [ADR-064](../journal/2026-08/2026-08-30_adr-064-dashboard-api-auth-plan.md) | Dashboard/API Gateway Security Design Gap & Zero-Dependency Auth Plan | Proposed | 2026-08-30 |
+| [ADR-064](../journal/2026-08/2026-08-30_adr-064-dashboard-api-auth-plan.md) | Dashboard/API Gateway Security Design Gap & Zero-Dependency Auth Plan | Accepted | 2026-08-30 |
 | [ADR-069](../journal/2026-08/2026-08-29_adr-069-live-stream-markdown-parsing.md) | Live Stream Markdown Parsing for Real-Time Badges & Sub-Agent Reports | Accepted | 2026-08-29 |
 | [ADR-068](../journal/2026-08/2026-08-29_adr-068-subagent-worker-report-panel-styling.md) | Sub-Agent Worker Report Panel Styling & Redundant Synthesis Gating | Accepted | 2026-08-29 |
 | [ADR-067](../journal/2026-08/2026-08-29_adr-067-ghost-session-pruning.md) | Intelligent Ghost Session Pruning & Substantive Conversation Gating | Accepted | 2026-08-29 |

@@ -10,7 +10,9 @@ tags:
 
 # ADR-064 — Dashboard/API Gateway Security Design Gap & Zero-Dependency Auth Plan
 
-- **Status:** Proposed — pending implementation. Extends
+- **Status:** Proposed — pending implementation (ADR-064.1/.2 unimplemented).
+  An interim mitigation shipped 2026-09-04 ahead of the full auth pass — see
+  **Implementation Note** below. Extends
   [ADR-051 – ADR-053](./2026-08-29_adr-051-flat-web-dashboard-knowledge-nebula-theme-engine.md)
   with a security design the original dashboard spec omitted; stays consistent
   with [ADR-020](./2026-08-25_adr-020-zero-maintenance-mandate.md) and
@@ -65,6 +67,19 @@ Proposed, not yet implemented:
   is ever exposed beyond a trusted LAN.
 - **Not implemented** — this ADR records the design and reasoning only; the code
   pass on `sympose/server.py` / `app.py` is queued.
+
+## Implementation Note (2026-09-04)
+
+Neither ADR-064.1 (password guard) nor ADR-064.2 (self-signed TLS) is
+implemented. As an interim mitigation pending that decision,
+`run_server()`'s default changed from `host="0.0.0.0"` to `host="127.0.0.1"`,
+and `app.py` reads `SYMPOSE_DASHBOARD_HOST` so LAN exposure requires an
+explicit opt-in rather than being the out-of-the-box default. This closes the
+"reachable from any device on the LAN with zero auth" part of the finding for
+anyone running the default config; it does nothing for a user who does set
+`SYMPOSE_DASHBOARD_HOST=0.0.0.0` — the auth gap the rest of this ADR describes
+is unchanged for that case. Commit `86aca37` on
+`chore/backend-architecture-review-and-fixes`.
 
 ## Alternatives rejected
 

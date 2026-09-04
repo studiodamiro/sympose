@@ -99,9 +99,9 @@ list and is kept in sync per the
 | ADR | Title | Status | Date |
 | --- | ----- | ------ | ---- |
 | [ADR-073](../journal/2026-09/2026-09-04_adr-073-worker-native-shell-allowlisting.md) | Worker Native-Shell Command Allowlisting & Symlink-Safe Path Checks | Proposed | 2026-09-04 |
-| [ADR-072](../journal/2026-09/2026-09-04_adr-072-engine-concurrency-bounded-background-hygiene.md) | Engine Concurrency Model & Bounded Background Hygiene Pool | Proposed | 2026-09-04 |
-| [ADR-071](../journal/2026-09/2026-09-04_adr-071-primary-agent-action-dispatch-mechanism.md) | Primary-Agent Action Dispatch — Bracket-Tag DSL vs Native Function Calling | Proposed | 2026-09-04 |
-| [ADR-070](../journal/2026-09/2026-09-04_adr-070-hot-path-retrieval-budget-trigger-discipline.md) | Hot-Path Vault Retrieval Budget, Trigger Discipline & Indexed Search Tier | Proposed | 2026-09-04 |
+| [ADR-072](../journal/2026-09/2026-09-04_adr-072-engine-concurrency-bounded-background-hygiene.md) | Engine Concurrency Model & Bounded Background Hygiene Pool | Accepted | 2026-09-04 |
+| [ADR-071](../journal/2026-09/2026-09-04_adr-071-primary-agent-action-dispatch-mechanism.md) | Primary-Agent Action Dispatch — Bracket-Tag DSL vs Native Function Calling | Partial | 2026-09-04 |
+| [ADR-070](../journal/2026-09/2026-09-04_adr-070-hot-path-retrieval-budget-trigger-discipline.md) | Hot-Path Vault Retrieval Budget, Trigger Discipline & Indexed Search Tier | Accepted (partial) | 2026-09-04 |
 | [ADR-065](../journal/2026-08/2026-08-30_adr-065-mcp-client-threading-logging-standard.md) | MCP Client Threading & Logging Standard | Accepted | 2026-08-30 |
 | [ADR-064](../journal/2026-08/2026-08-30_adr-064-dashboard-api-auth-plan.md) | Dashboard/API Gateway Security Design Gap & Zero-Dependency Auth Plan | Proposed | 2026-08-30 |
 | [ADR-069](../journal/2026-08/2026-08-29_adr-069-live-stream-markdown-parsing.md) | Live Stream Markdown Parsing for Real-Time Badges & Sub-Agent Reports | Accepted | 2026-08-29 |

@@ -11,7 +11,10 @@ tags:
 
 # ADR-070 — Hot-Path Vault Retrieval Budget, Trigger Discipline & Indexed Search Tier
 
-- **Status:** Proposed — pending implementation. Extends
+- **Status:** Accepted (partial) — 070.1 and 070.3 implemented 2026-09-04;
+  070.2 and 070.4 rejected in favor of round-trip frugality rather than
+  deferred as originally scoped; 070.5 remains unimplemented. See
+  **Implementation Note** below. Extends
   [ADR-003](../2026-08/2026-08-24_adr-003-pluggable-multi-tier-vault-search.md)
   (pluggable search tiers) and
   [ADR-025](../2026-08/2026-08-25_adr-025-persistent-multi-turn-vault-context.md)
@@ -96,6 +99,39 @@ Proposed, not yet implemented:
   mtime-rebuild guard is the mitigation.
 - Trigger tightening (ADR-070.1) risks *under*-retrieving; ADR-070.4 is the
   safety net (model can still ask).
+
+## Implementation Note (2026-09-04)
+
+A same-day follow-up conversation surfaced Sympose's actual founding
+constraint more sharply than this ADR did when it was written: damiro built
+Sympose to be a *cheap, low-round-trip* companion, not a maximally-robust one.
+That reframes 070.2 and 070.4:
+
+- **070.1 (explicit-intent trigger gate)** — implemented. `vault.search_triggers`
+  narrowed from 27 bare stop-words to ~19 actual retrieval-intent phrases, in
+  both `config.yaml` and the code-level default in
+  `VaultManager.resolve_turn_context` (which governs any workspace lacking that
+  config key — most fresh installs).
+- **070.2 (bounded concurrent pre-fetch budget)** — **rejected**, not deferred.
+  It was scoped as a mitigation for a heavier fetch; with 070.1 + 070.3 the
+  fetch is fast enough on the common path that the added concurrency
+  complexity isn't earning its cost.
+- **070.3 (mtime cache on vault walks)** — implemented. `_get_vault_snapshot()`
+  in `vault.py`, mirroring `_BACKLINK_CACHE`'s invalidation strategy; both
+  `search_structured()` and `get_folder_digest()` read it instead of re-walking
+  the vault on every call.
+- **070.4 (retrieval as a callable tool)** — **rejected**, not deferred. It adds
+  a round-trip on every turn that touches the vault. That's a direct cost
+  against the round-trip-frugal north star and is no longer the recommended
+  direction; 070.1 + 070.3 get most of the latency win without it.
+- **070.5 (sqlite_fts indexed tier)** — not implemented. Still the right
+  medium-term answer if a large vault makes even the cached walk slow; revisit
+  trigger unchanged.
+
+Implemented in commit `2af7705` on `chore/backend-architecture-review-and-fixes`.
+Verified via a smoke test (title match, content match + snippet, folder digest
+with frontmatter, cache identity-stable across repeat calls, cache invalidates
+on a new file) — see the [implementation journal entry](./2026-09-04_backend-hardening-implementation.md).
 
 ## Alternatives rejected
 

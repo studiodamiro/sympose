@@ -11,7 +11,11 @@ tags:
 
 # ADR-071 — Primary-Agent Action Dispatch: Bracket-Tag DSL vs Native Function Calling
 
-- **Status:** Proposed — pending decision. Revisits
+- **Status:** Partially implemented, core decision still Proposed — F6 and F7
+  fixed 2026-09-04 (correct regardless of A/B); the dispatch-mechanism choice
+  itself was superseded mid-review by a third framing not captured in the
+  original A/B and remains undecided. See **Implementation Note** below.
+  Revisits
   [ADR-037](../2026-08/2026-08-26_adr-037-pure-declarative-markdown-prompting.md)
   (pure declarative markdown prompting) and
   [ADR-049](../2026-08/2026-08-29_adr-049-code-fence-action-tag-parsing.md)
@@ -98,6 +102,28 @@ regardless of A or B.**
   worker path already depending on tool calling.
 - B still relies on the model emitting exact syntax; it only narrows the failure
   surface.
+
+## Implementation Note (2026-09-04)
+
+- **F6 and F7 — fixed, independent of the A/B choice.** The intent-guess
+  `DAILY_NOTE` fallback (scraping the model's prose and writing to the vault on
+  a regex guess) is deleted outright. `execute_actions` now takes a `depth`
+  parameter (`MAX_ACTION_DEPTH = 1`) capping `SPAWN_WORKER`'s recursive
+  re-parse of worker output. Commit `c8b0e7f`.
+- **The A vs B decision did not happen as scoped.** A same-day conversation
+  about round-trip cost surfaced a distinction this ADR's two options both
+  missed: split actions into **fire-and-forget** (`WRITE_NOTE`, `REMEMBER`,
+  `DAILY_NOTE`, `CONFIG_SET`, `REACT` — the model doesn't need to see the
+  result to finish answering) versus **answer-gating** (vault retrieval the
+  model needs before it can respond, `SPAWN_WORKER` synthesis). Several
+  providers support emitting prose text and a tool call in the *same*
+  completion, so fire-and-forget actions could get schema validation via a
+  structured tool-call with **zero added round-trips** — neither pure
+  option A (full function-calling, a round-trip on every action) nor pure
+  option B (harden the free-text grammar) captures that. This third shape is
+  the live candidate but was never formally decided; `parse_action_tags` and
+  the bracket-tag grammar are unchanged. Revisit before touching the dispatch
+  mechanism itself.
 
 ## Alternatives rejected
 

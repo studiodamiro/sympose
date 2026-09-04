@@ -11,7 +11,9 @@ tags:
 
 # ADR-072 — Engine Concurrency Model & Bounded Background Hygiene Pool
 
-- **Status:** Proposed — pending implementation. Complements
+- **Status:** Accepted — implemented 2026-09-04 (072.1–072.4), with one
+  deliberate deviation from 072.3's literal wording. See **Implementation
+  Note** below. Complements
   [ADR-065](../2026-08/2026-08-30_adr-065-mcp-client-threading-logging-standard.md)
   (MCP client threading) and
   [ADR-028](../2026-08/2026-08-25_adr-028-slack-socket-mode-thread-context-isolation.md)
@@ -92,6 +94,41 @@ Proposed, not yet implemented:
   load; acceptable — this work is already best-effort and off the response path.
 - One RLock introduces a (tiny) serialisation point on dict mutation; the
   critical sections are dict writes, sub-microsecond.
+
+## Implementation Note (2026-09-04)
+
+- **072.1 (session-keyed state)** — implemented for the demonstrated bug:
+  `VaultManager._last_searches` no longer has a shared `"default"` fallback key,
+  so two *different* personas searching concurrently can no longer read each
+  other's `/read <n>` results. **Not fully implemented**: two Slack *threads on
+  the same persona* still share that persona's last-search cursor — full
+  session-scoping would mean threading a session id through `VaultManager`'s
+  static call sites in `commands.py`/`actions.py`, a materially bigger change
+  than this pass. Flagged, not silently closed.
+- **072.2 (engine lock)** — implemented. `PersonaEngine._lock`
+  (`threading.RLock`) guards `histories`, `active_vault_ctx`, `active_sessions`,
+  `model_overrides`; added `get/set/clear_model_override()` so `commands.py` no
+  longer mutates the dict directly. Deliberately kept vault retrieval and the
+  `litellm.completion` streaming call **outside** the lock — serializing those
+  would defeat this session's own caching work and freeze every other
+  persona/thread behind one slow chat.
+- **072.3 (bounded pool)** — implemented, **not** as a literal
+  `ThreadPoolExecutor`. Its worker threads are non-daemon by design (the
+  module's `atexit` hook joins them), which would make CLI `quit` block on any
+  in-flight background LLM call — a real regression against the "zero
+  time-delay" persona rules. Used a semaphore-gated pool of daemon threads
+  instead (`compactor.run_hygiene_task`), matching the pattern `slack.py`
+  already uses for its per-channel semaphore. Same bounded-concurrency
+  guarantee, no exit-blocking behavior change.
+- **072.4 (single-flight compaction)** — implemented via an in-flight-path set
+  guarded by the existing `_GLOBAL_LOCK`.
+
+Verified with three throwaway smoke tests (12 threads hammering engine state
+for 2s — no deadlock; MCP-side out-of-order routing, see ADR-065 amendment
+below; 20 concurrent compaction triggers on one file → exactly 1 run), deleted
+after passing. `.venv/bin/pytest` 101/101 throughout. Implemented in commit
+`9dc12a3` on `chore/backend-architecture-review-and-fixes`; see the
+[implementation journal entry](./2026-09-04_backend-hardening-implementation.md).
 
 ## Alternatives rejected
 

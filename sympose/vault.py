@@ -14,6 +14,29 @@ from sympose.config import is_safe_path, config_manager
 # ---------------------------------------------------------------------------
 _BACKLINK_CACHE: Dict[Tuple[str, ...], Tuple[float, Dict[str, List[Dict[str, Any]]]]] = {}
 
+# ---------------------------------------------------------------------------
+# Vault content snapshot cache — avoids re-walking + re-reading every note on
+# every search_structured() / get_folder_digest() call. Same mtime-keyed
+# invalidation strategy as _BACKLINK_CACHE.
+# Key: tuple of scanned dir paths → (combined_mtime, flat list of parsed notes)
+# ---------------------------------------------------------------------------
+_VAULT_SNAPSHOT_CACHE: Dict[Tuple[str, ...], Tuple[float, List[Dict[str, Any]]]] = {}
+
+
+def _dirs_mtime(dirs: List[str]) -> float:
+    """Shallow top-level mtime watermark shared by the backlink index and the
+    vault snapshot cache — matches the invalidation granularity already
+    accepted by _BACKLINK_CACHE (touches to a direct child dir invalidate;
+    a write several levels deep only bubbles up as far as its immediate
+    parent's mtime, same as before)."""
+    mtime = 0.0
+    for d in dirs:
+        try:
+            mtime = max(mtime, os.path.getmtime(d))
+        except OSError:
+            pass
+    return mtime
+
 
 
 class VaultManager:
@@ -107,32 +130,22 @@ class VaultManager:
         if not target_dir or not os.path.exists(target_dir):
             return f"Folder `{folder_name}` not found in allowed vault directories."
 
-        entries, raw_ignore = [], config_manager.get("vault.ignore_folders") or [".obsidian", ".git", "Attachments", ".trash"]
-        ignore_dirs = {str(d).lower().strip() for d in raw_ignore}
-        for root, dirs, files in os.walk(target_dir):
-            dirs[:] = [d for d in dirs if d.lower() not in ignore_dirs and not d.startswith(".")]
-            for fn in sorted(files):
-                if fn.endswith((".md", ".markdown", ".txt")):
-                    fp = os.path.join(root, fn)
-                    try:
-                        with open(fp, "r", encoding="utf-8", errors="ignore") as f:
-                            head = f.read(1000)
-                        parts = []
-                        for k in ("name", "title", "aka", "tags", "birthday", "created", "up", "author"):
-                            m = re.search(rf"^{k}:\s*([^\n\r]+)", head, re.M | re.I)
-                            if m and m.group(1).strip() and not m.group(1).strip().startswith(("-", "[")):
-                                parts.append(f"{k.capitalize()}: {m.group(1).strip()}")
-                            else:
-                                sub = re.findall(rf"^{k}:(?:\s*\n)((?:\s+-\s+[^\n]+\n)+)", head, re.M | re.I)
-                                if sub:
-                                    items = [x.strip("- \t\n\"'") for x in sub[0].strip().split("\n")]
-                                    parts.append(f"{k.capitalize()}: {', '.join(items)}")
-                        fl = next((line.strip("# \t\r") for line in head.split("\n") if line.strip() and not line.startswith("---") and ":" not in line), "")
-                        summary = " | ".join(parts) if parts else fl[:80]
-                        entries.append(f"- `{fn}`: {summary}" if summary else f"- `{fn}`")
-                    except Exception:
-                        entries.append(f"- `{fn}`")
-                if len(entries) >= max_files: break
+        entries: List[str] = []
+        for entry in cls._get_vault_snapshot(mv, [target_dir])[:max_files]:
+            fn, head = entry["file_name"], entry["full_content"][:1000]
+            parts = []
+            for k in ("name", "title", "aka", "tags", "birthday", "created", "up", "author"):
+                m = re.search(rf"^{k}:\s*([^\n\r]+)", head, re.M | re.I)
+                if m and m.group(1).strip() and not m.group(1).strip().startswith(("-", "[")):
+                    parts.append(f"{k.capitalize()}: {m.group(1).strip()}")
+                else:
+                    sub = re.findall(rf"^{k}:(?:\s*\n)((?:\s+-\s+[^\n]+\n)+)", head, re.M | re.I)
+                    if sub:
+                        items = [x.strip("- \t\n\"'") for x in sub[0].strip().split("\n")]
+                        parts.append(f"{k.capitalize()}: {', '.join(items)}")
+            fl = next((line.strip("# \t\r") for line in head.split("\n") if line.strip() and not line.startswith("---") and ":" not in line), "")
+            summary = " | ".join(parts) if parts else fl[:80]
+            entries.append(f"- `{fn}`: {summary}" if summary else f"- `{fn}`")
 
         return f"### High-Density Folder Digest (`{folder_name}/` - {len(entries)} notes):\n" + "\n".join(entries) if entries else f"No notes found in `{folder_name}/`."
 
@@ -209,6 +222,51 @@ class VaultManager:
         return meta, body
 
     @classmethod
+    def _get_vault_snapshot(cls, mv: str, dirs: List[str]) -> List[Dict[str, Any]]:
+        """Returns a cached, flat list of every note under `dirs` (path, parsed
+        frontmatter, body, raw content), rebuilt only when a dir's mtime changes.
+        Shared by search_structured() and get_folder_digest() so neither has to
+        re-walk + re-read the vault from disk on every call."""
+        cache_key = tuple(sorted(dirs))
+        current_mtime = _dirs_mtime(dirs)
+        cached_mtime, cached_snapshot = _VAULT_SNAPSHOT_CACHE.get(cache_key, (0.0, []))
+        if current_mtime == cached_mtime and cached_snapshot:
+            return cached_snapshot
+
+        raw_ignore = config_manager.get("vault.ignore_folders") or [".obsidian", ".git", "Attachments", ".trash"]
+        ignore_dirs = {str(d).lower().strip() for d in raw_ignore}
+        snapshot: List[Dict[str, Any]] = []
+
+        for allowed in dirs:
+            if not os.path.exists(allowed):
+                continue
+            for root, subdirs, files in os.walk(allowed):
+                subdirs[:] = [d for d in subdirs if d.lower() not in ignore_dirs and not d.startswith(".")]
+                for file in sorted(files):
+                    if not file.endswith((".md", ".markdown", ".txt")):
+                        continue
+                    file_path = os.path.join(root, file)
+                    if not is_safe_path(file_path, allowed):
+                        continue
+                    try:
+                        with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+                            full_content = f.read()
+                    except Exception:
+                        continue
+                    meta, body = cls.parse_frontmatter(full_content)
+                    snapshot.append({
+                        "file_name": file,
+                        "rel_path": os.path.relpath(file_path, mv),
+                        "abs_path": file_path,
+                        "full_content": full_content,
+                        "meta": meta,
+                        "body": body,
+                    })
+
+        _VAULT_SNAPSHOT_CACHE[cache_key] = (current_mtime, snapshot)
+        return snapshot
+
+    @classmethod
     def search_structured(cls, profile: Dict[str, Any], query: str, target_folder: Optional[str] = None, max_results: int = 15) -> List[Dict[str, Any]]:
         """Performs fast sandboxed vault search returning structured match metadata with snippets."""
         mv, allowed_dirs = cls._get_master_vault(), cls.get_allowed_dirs(profile)
@@ -224,84 +282,64 @@ class VaultManager:
 
         title_matches: List[Dict[str, Any]] = []
         content_matches: List[Dict[str, Any]] = []
-        raw_ignore = config_manager.get("vault.ignore_folders") or [".obsidian", ".git", "Attachments", ".trash"]
-        ignore_dirs = {str(d).lower().strip() for d in raw_ignore}
 
         try:
-            for allowed in search_dirs:
-                if not os.path.exists(allowed):
-                    continue
-                for root, dirs, files in os.walk(allowed):
-                    dirs[:] = [d for d in dirs if d.lower() not in ignore_dirs and not d.startswith(".")]
-                    for file in sorted(files):
-                        if not file.endswith((".md", ".markdown", ".txt")):
-                            continue
-                        file_path = os.path.join(root, file)
-                        if not is_safe_path(file_path, allowed):
-                            continue
-                        rel_path = os.path.relpath(file_path, mv)
+            for entry in cls._get_vault_snapshot(mv, search_dirs):
+                file, rel_path, full_content, meta, body = (
+                    entry["file_name"], entry["rel_path"], entry["full_content"], entry["meta"], entry["body"]
+                )
+                tags = meta.get("tags", [])
+                if isinstance(tags, str):
+                    tags = [t.strip() for t in tags.replace(",", " ").split() if t.strip()]
+                elif not isinstance(tags, list):
+                    tags = []
 
-                        try:
-                            with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
-                                full_content = f.read()
-                        except Exception:
-                            continue
+                is_title_match = (query_clean in file.lower() or query_clean in rel_path.lower())
 
-                        meta, body = cls.parse_frontmatter(full_content)
-                        tags = meta.get("tags", [])
-                        if isinstance(tags, str):
-                            tags = [t.strip() for t in tags.replace(",", " ").split() if t.strip()]
-                        elif not isinstance(tags, list):
-                            tags = []
-
-                        is_title_match = (query_clean in file.lower() or query_clean in rel_path.lower())
-
-                        if is_title_match:
-                            fl = next((line.strip("# \t\r") for line in body.splitlines() if line.strip() and not line.startswith("---") and ":" not in line), "")
-                            clean_fl = " ".join(fl.split())
-                            if len(clean_fl) > 70:
-                                clean_fl = clean_fl[:67].rstrip() + "..."
-                            title_matches.append({
-                                "file_name": file,
-                                "rel_path": rel_path,
-                                "abs_path": file_path,
-                                "match_type": "title",
-                                "line_no": 1,
-                                "snippet": clean_fl or "Exact title match",
-                                "title": meta.get("title") or meta.get("name") or os.path.splitext(file)[0],
-                                "tags": tags,
-                                "meta": meta,
-                            })
-                        elif query_clean in full_content.lower():
-                            matched_line_no = 1
-                            matched_snippet = ""
-                            for line_idx, line in enumerate(full_content.splitlines(), start=1):
-                                if query_clean in line.lower():
-                                    matched_line_no = line_idx
-                                    clean_l = " ".join(line.strip().strip("#*-> ").split())
-                                    q_idx = clean_l.lower().find(query_clean)
-                                    if q_idx > 25:
-                                        clean_l = "..." + clean_l[max(q_idx - 15, 0):]
-                                    if len(clean_l) > 70:
-                                        clean_l = clean_l[:67].rstrip() + "..."
-                                    matched_snippet = clean_l
-                                    break
-                            content_matches.append({
-                                "file_name": file,
-                                "rel_path": rel_path,
-                                "abs_path": file_path,
-                                "match_type": "content",
-                                "line_no": matched_line_no,
-                                "snippet": matched_snippet or f"Match found on line {matched_line_no}",
-                                "title": meta.get("title") or meta.get("name") or os.path.splitext(file)[0],
-                                "tags": tags,
-                                "meta": meta,
-                            })
-
-                        if len(title_matches) + len(content_matches) >= max_results * 2:
+                if is_title_match:
+                    fl = next((line.strip("# \t\r") for line in body.splitlines() if line.strip() and not line.startswith("---") and ":" not in line), "")
+                    clean_fl = " ".join(fl.split())
+                    if len(clean_fl) > 70:
+                        clean_fl = clean_fl[:67].rstrip() + "..."
+                    title_matches.append({
+                        "file_name": file,
+                        "rel_path": rel_path,
+                        "abs_path": entry["abs_path"],
+                        "match_type": "title",
+                        "line_no": 1,
+                        "snippet": clean_fl or "Exact title match",
+                        "title": meta.get("title") or meta.get("name") or os.path.splitext(file)[0],
+                        "tags": tags,
+                        "meta": meta,
+                    })
+                elif query_clean in full_content.lower():
+                    matched_line_no = 1
+                    matched_snippet = ""
+                    for line_idx, line in enumerate(full_content.splitlines(), start=1):
+                        if query_clean in line.lower():
+                            matched_line_no = line_idx
+                            clean_l = " ".join(line.strip().strip("#*-> ").split())
+                            q_idx = clean_l.lower().find(query_clean)
+                            if q_idx > 25:
+                                clean_l = "..." + clean_l[max(q_idx - 15, 0):]
+                            if len(clean_l) > 70:
+                                clean_l = clean_l[:67].rstrip() + "..."
+                            matched_snippet = clean_l
                             break
-                    if len(title_matches) + len(content_matches) >= max_results * 2:
-                        break
+                    content_matches.append({
+                        "file_name": file,
+                        "rel_path": rel_path,
+                        "abs_path": entry["abs_path"],
+                        "match_type": "content",
+                        "line_no": matched_line_no,
+                        "snippet": matched_snippet or f"Match found on line {matched_line_no}",
+                        "title": meta.get("title") or meta.get("name") or os.path.splitext(file)[0],
+                        "tags": tags,
+                        "meta": meta,
+                    })
+
+                if len(title_matches) + len(content_matches) >= max_results * 2:
+                    break
         except Exception:
             pass
 
@@ -309,16 +347,19 @@ class VaultManager:
         for idx, res in enumerate(all_results, start=1):
             res["index"] = idx
 
+        # Keyed strictly per-persona — no shared fallback key. A shared key meant
+        # persona A's search results could leak into persona B's `/read <n>` if B
+        # hadn't searched yet in the same process (two Slack threads on different
+        # personas, or two CLI runs sharing a workspace).
         handle_key = profile.get("handle", "default").lower()
         cls._last_searches[handle_key] = all_results
-        cls._last_searches["default"] = all_results
         return all_results
 
     @classmethod
     def get_last_search(cls, profile: Dict[str, Any]) -> List[Dict[str, Any]]:
         """Returns the most recent search results for the given profile."""
         handle_key = profile.get("handle", "default").lower()
-        return cls._last_searches.get(handle_key) or cls._last_searches.get("default", [])
+        return cls._last_searches.get(handle_key, [])
 
     @classmethod
     def format_search_digest(cls, query: str, results: List[Dict[str, Any]]) -> str:
@@ -360,7 +401,7 @@ class VaultManager:
 
         clean_target = target.strip().strip("\"'")
         handle_key = profile.get("handle", "default").lower()
-        cached = cls._last_searches.get(handle_key) or cls._last_searches.get("default", [])
+        cached = cls._last_searches.get(handle_key, [])
 
         # 1. Number shortcut [1-N]
         if clean_target.isdigit():
@@ -456,17 +497,6 @@ class VaultManager:
             return {}
 
         cache_key = tuple(sorted(allowed_dirs))
-
-        # Compute the latest mtime across all allowed dirs (shallow, fast)
-        def _dirs_mtime(dirs: List[str]) -> float:
-            mtime = 0.0
-            for d in dirs:
-                try:
-                    mtime = max(mtime, os.path.getmtime(d))
-                except OSError:
-                    pass
-            return mtime
-
         current_mtime = _dirs_mtime(allowed_dirs)
         cached_mtime, cached_index = _BACKLINK_CACHE.get(cache_key, (0.0, {}))
         if current_mtime == cached_mtime and cached_index:
@@ -860,7 +890,11 @@ class VaultManager:
 
         # 7. Dynamic Real-Directory Discovery & Sampling (Zero Hardcoding)
         discovered_dirs = cls.get_discovered_folders(profile)
-        triggers = config_manager.get("vault.search_triggers") or ["vault", "note", "notes", "folder", "search", "find", "who", "what", "access", "pull", "show", "read", "entry", "entries", "sample", "pick"]
+        triggers = config_manager.get("vault.search_triggers") or [
+            "vault", "note", "notes", "folder", "journal", "backlink", "backlinks",
+            "search", "find", "lookup", "look up", "recall", "remind me", "pull up",
+            "what did i write", "what did i say", "do i have", "do we have",
+        ]
         has_intent = any(k in msg.lower() for k in triggers)
 
         if has_intent and discovered_dirs:

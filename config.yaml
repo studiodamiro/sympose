@@ -40,26 +40,19 @@ vault:
   - note
   - notes
   - folder
-  - review
-  - pick
-  - show
-  - tell
-  - access
-  - know
-  - have
-  - who
-  - what
-  - which
-  - pull
-  - give
-  - get
-  - name
-  - list
-  - read
-  - someone
-  - somebody
-  - anyone
-  - past
+  - journal
+  - backlink
+  - backlinks
   - search
   - find
-  - check
+  - lookup
+  - look up
+  - recall
+  - remind me
+  - pull up
+  - what did i write
+  - what did i say
+  - do i have
+  - do we have
+  - did i write
+  - did i journal

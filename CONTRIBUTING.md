@@ -152,11 +152,35 @@ as if a reviewer will read it.
 ## Repository conventions
 
 - **Commit messages**: imperative subject, prefixed by area
-  (`docs:`, `feat:`, `fix:`, `chore:`). Explain the _why_ in the body. Commits
-  are authored solely by the repository owner; no co-author or tooling trailers.
+  (`docs:`, `feat:`, `fix:`, `chore:`). Explain the _why_ in the body.
 - **Branches**: work on a topic branch off `main`; open a PR.
-- Editor, IDE, and assistant configuration (`.vscode/`, `.agents/`, `.claude/`,
-  `CLAUDE.md`, …) is local-only and git-ignored — never committed.
+
+## Repository hygiene
+
+These are strict, not aspirational.
+
+- **Single author identity.** Every commit is authored and committed by the
+  repository owner (`damiro <hello.damiro@gmail.com>`). No secondary identities,
+  no aliases.
+- **No trailers.** Commits carry no `Co-authored-by`, `Signed-off-by`, or
+  tooling/attribution trailers of any kind.
+- **Assistant and editor tooling is never committed.** `.agents/`, `.claude/`,
+  `.cursor/`, `CLAUDE.md`, `.vscode/`, and the like are local-only. They are
+  covered machine-wide by `core.excludesFile` (`~/.gitignore_global`, templated
+  in the `dot-files` repo) and, belt-and-braces, by this repo's `.gitignore`.
+  A new repository copies the same `.gitignore` block:
+
+  ```gitignore
+  # AI assistant & editor tooling — never committed
+  .agents/
+  .claude/
+  .cursor/
+  CLAUDE.md
+  ```
+
+- Referring to models (Gemini, Claude, Ollama) in code, docs, or configuration
+  is fine — Sympose is a multi-model hub. The rule is about authorship and
+  tooling artifacts, not the product's subject matter.
 
 ## Commands
 

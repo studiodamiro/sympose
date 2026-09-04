@@ -11,10 +11,11 @@ tags:
 
 # ADR-071 — Primary-Agent Action Dispatch: Bracket-Tag DSL vs Native Function Calling
 
-- **Status:** Partially implemented, core decision still Proposed — F6 and F7
-  fixed 2026-09-04 (correct regardless of A/B); the dispatch-mechanism choice
-  itself was superseded mid-review by a third framing not captured in the
-  original A/B and remains undecided. See **Implementation Note** below.
+- **Status:** Accepted (light B) — the dispatch mechanism stays the bracket-tag
+  DSL, not a migration to function calling. F6/F7 fixed 2026-09-04; malformed
+  tags now surface a badge instead of failing silently, 2026-09-04. The
+  fenced-delimiter half of option B (`⟦ACTION name⟧…⟦/ACTION⟧`) was not built —
+  no observed collision has forced it yet. See **Implementation Note** below.
   Revisits
   [ADR-037](../2026-08/2026-08-26_adr-037-pure-declarative-markdown-prompting.md)
   (pure declarative markdown prompting) and
@@ -124,6 +125,43 @@ regardless of A or B.**
   the live candidate but was never formally decided; `parse_action_tags` and
   the bracket-tag grammar are unchanged. Revisit before touching the dispatch
   mechanism itself.
+
+## Implementation Note (2026-09-04 — Tier 4)
+
+The A/B choice is now resolved as **light B, decided**: the dispatch mechanism
+stays the bracket-tag DSL. Reasoning, closing the loop from the note above —
+
+- Re-examining the actual code path: **no action currently gates the visible
+  answer**. The primary agent's prose streams to the user as it's generated;
+  every action tag (`WRITE_NOTE`, `REMEMBER`, `CONFIG_SET`, `SPAWN_WORKER`,
+  …) — including `SPAWN_WORKER` — executes **after** that stream finishes,
+  with its result appended as a trailing badge, never re-injected into the
+  answer itself. So the "answer-gating" category this ADR's Implementation
+  Note above described as the live candidate has **zero members** in the
+  current product: everything already is fire-and-forget, at zero added
+  round-trips, today. Migrating to function calling (option A) would only
+  spend a round-trip Sympose doesn't currently need to spend — rejected
+  against the round-trip-frugal north star, not merely deferred.
+- What was still a real gap: a recognized tag with the wrong shape (missing
+  its `|` separator, an empty `[READ_NOTE:]`, malformed `CREATE_PERSONA`
+  YAML) silently did nothing — no badge, no error — so the model had no
+  signal to tell it apart from success. `execute_actions` now falls through
+  to an explicit "Malformed `[TAG]` — ignored" badge for every unhandled
+  shape, closing that half of option B's "delete the guesswork" without
+  touching the delimiter. Commit `7d28a60`.
+- The other half of option B — swapping `[TAG: …]` for an unambiguous fenced
+  delimiter — was **not** built. The existing placeholder-skip regex already
+  handles the one observed collision (the model quoting its own tag syntax in
+  prose); changing the delimiter is a bigger, more disruptive change
+  (rewrites every persona's soul-file examples) with no second collision yet
+  observed to justify it. **Revisit trigger:** a real DSL/prose collision
+  found in production, not a hypothetical one.
+
+Should a genuinely answer-gating action ever get proposed (e.g. a synthesis
+result the model must see *before* finishing its sentence), that is the
+narrow case worth spending a real round-trip on — evaluate it then, against
+this same frugality bar, rather than generalizing the whole dispatch
+mechanism to cover a case that doesn't exist yet.
 
 ## Alternatives rejected
 

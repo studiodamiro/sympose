@@ -110,6 +110,7 @@ one in [`docs/wiki/index.md`](./wiki/index.md) are kept in sync per the
 
 | Date | Entry |
 | ---- | ----- |
+| 2026-09-05 | [Repository Shareability Pass, Part 2 (SECURITY.md, repo topics, private vulnerability reporting)](./journal/2026-09/2026-09-05_repo-shareability-pass-part2.md) |
 | 2026-09-05 | [Repository Shareability Pass (LICENSE, CI, pyproject urls)](./journal/2026-09/2026-09-05_repo-shareability-pass.md) |
 | 2026-09-05 | [`sqlite_fts` Indexed Vault Search, Tier 5 (ADR-070.5 / F3 — closes the review)](./journal/2026-09/2026-09-05_backend-hardening-tier5-sqlite-fts.md) |
 | 2026-09-04 | [Backend Hardening Implementation, Tier 4 (ADR-071, ADR-073, ADR-064 all accepted)](./journal/2026-09/2026-09-04_backend-hardening-tier4-implementation.md) |

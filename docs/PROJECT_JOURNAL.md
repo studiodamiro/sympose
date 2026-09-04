@@ -25,6 +25,10 @@ one in [`docs/wiki/index.md`](./wiki/index.md) are kept in sync per the
 
 | ADR | Title | Status | Date | Source |
 | --- | ----- | ------ | ---- | ------ |
+| ADR-073 | Worker Native-Shell Command Allowlisting & Symlink-Safe Path Checks | Proposed | 2026-09-04 | [2026-09-04_adr-073-worker-native-shell-allowlisting.md](./journal/2026-09/2026-09-04_adr-073-worker-native-shell-allowlisting.md) |
+| ADR-072 | Engine Concurrency Model & Bounded Background Hygiene Pool | Proposed | 2026-09-04 | [2026-09-04_adr-072-engine-concurrency-bounded-background-hygiene.md](./journal/2026-09/2026-09-04_adr-072-engine-concurrency-bounded-background-hygiene.md) |
+| ADR-071 | Primary-Agent Action Dispatch — Bracket-Tag DSL vs Native Function Calling | Proposed | 2026-09-04 | [2026-09-04_adr-071-primary-agent-action-dispatch-mechanism.md](./journal/2026-09/2026-09-04_adr-071-primary-agent-action-dispatch-mechanism.md) |
+| ADR-070 | Hot-Path Vault Retrieval Budget, Trigger Discipline & Indexed Search Tier | Proposed | 2026-09-04 | [2026-09-04_adr-070-hot-path-retrieval-budget-trigger-discipline.md](./journal/2026-09/2026-09-04_adr-070-hot-path-retrieval-budget-trigger-discipline.md) |
 | ADR-065 | MCP Client Threading & Logging Standard | Accepted | 2026-08-30 | [2026-08-30_adr-065-mcp-client-threading-logging-standard.md](./journal/2026-08/2026-08-30_adr-065-mcp-client-threading-logging-standard.md) |
 | ADR-064 | Dashboard/API Gateway Security Design Gap & Zero-Dependency Auth Plan | Proposed | 2026-08-30 | [2026-08-30_adr-064-dashboard-api-auth-plan.md](./journal/2026-08/2026-08-30_adr-064-dashboard-api-auth-plan.md) |
 | ADR-069 | Live Stream Markdown Parsing for Real-Time Badges & Sub-Agent Reports | Accepted | 2026-08-29 | [2026-08-29_adr-069-live-stream-markdown-parsing.md](./journal/2026-08/2026-08-29_adr-069-live-stream-markdown-parsing.md) |
@@ -106,6 +110,7 @@ one in [`docs/wiki/index.md`](./wiki/index.md) are kept in sync per the
 
 | Date | Entry |
 | ---- | ----- |
+| 2026-09-04 | [Backend Architecture & Objective-Effectiveness Review (ADR-070 – ADR-073)](./journal/2026-09/2026-09-04_backend-architecture-effectiveness-review.md) |
 | 2026-08-30 | [Ui Scaffold Documentation And Clean Slate](./journal/2026-08/2026-08-30_ui_scaffold_documentation_and_clean_slate.md) |
 | 2026-08-30 | [MCP Client Threading & Logging Standard](./journal/2026-08/2026-08-30_mcp_client_threading_and_logging_standard.md) |
 | 2026-08-30 | [Dashboard/API Gateway Security Design Gap & Zero-Dependency Auth Plan](./journal/2026-08/2026-08-30_dashboard_api_security_design_gap_and_auth_plan.md) |

@@ -214,3 +214,69 @@ class TestBacklinkCache:
         result2 = VaultManager.build_backlink_index(profile)
         # We just verify it runs without error and returns a dict
         assert isinstance(result2, dict)
+
+
+# ---------------------------------------------------------------------------
+# VaultManager._extract_recall_subject — conversational-phrasing -> search term
+# ---------------------------------------------------------------------------
+
+class TestExtractRecallSubject:
+    """Regression: 'pull up my notes on Rilke' used to be stripped to 'up my notes
+    on Rilke' (the regex knew 'pull' but not 'pull up'), then searched as a literal
+    phrase that substring-matched nothing, so no vault context was ever injected
+    and personas fell back to web search."""
+
+    def _subj(self, msg):
+        from sympose.vault import VaultManager
+        return VaultManager._extract_recall_subject(msg)
+
+    def test_pull_up_leadin(self):
+        assert self._subj("pull up my notes on Rilke") == ("rilke", True)
+
+    def test_what_did_i_write_about_plus_trailing_journal_clause(self):
+        assert self._subj("what did I write about grief in my journal") == ("grief", True)
+
+    def test_do_i_have_notes_about(self):
+        assert self._subj("do I have any notes about If I Stay") == ("if i stay", True)
+
+    def test_about_object_extraction(self):
+        assert self._subj("recall our past conversations about longing") == ("longing", True)
+
+    def test_greeting_is_stripped(self):
+        assert self._subj("hey anais, remind me about the Meridian project") == ("meridian project", True)
+
+    def test_no_leadin_flag_when_plain(self):
+        subj, had_leadin = self._subj("what's the weather in Tokyo")
+        assert had_leadin is False
+
+    def test_trailing_stopwords_trimmed(self):
+        subj, _ = self._subj("pull up my notes on the database schema")
+        assert subj == "database schema"
+
+
+class TestResolveTurnContextConversational:
+    def _profile(self):
+        return {"handle": "anais", "skills": ["vault_recall"], "vault_folders": ["*"]}
+
+    def test_conversational_query_surfaces_matching_note(self, tmp_vault_dir, monkeypatch):
+        from sympose.vault import VaultManager
+        monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
+        write_note(str(tmp_vault_dir / "People" / "Rilke.md"), "# Rilke\n\nNotes on Rilke and the Duino Elegies.\n")
+
+        ctx = VaultManager.resolve_turn_context(self._profile(), "pull up my notes on Rilke")
+        assert ctx is not None
+        assert "Rilke" in ctx
+
+    def test_conversational_query_with_no_match_returns_none(self, tmp_vault_dir, monkeypatch):
+        from sympose.vault import VaultManager
+        monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
+        write_note(str(tmp_vault_dir / "People" / "Rilke.md"), "# Rilke\n")
+
+        assert VaultManager.resolve_turn_context(self._profile(), "pull up my notes on Nonexistent Topic Xyz") is None
+
+    def test_gate_blocks_persona_without_vault_recall_skill(self, tmp_vault_dir, monkeypatch):
+        from sympose.vault import VaultManager
+        monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
+        write_note(str(tmp_vault_dir / "People" / "Rilke.md"), "# Rilke\n")
+        no_skill = {"handle": "x", "skills": ["web_search"], "vault_folders": ["*"]}
+        assert VaultManager.resolve_turn_context(no_skill, "pull up my notes on Rilke") is None

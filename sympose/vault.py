@@ -45,6 +45,68 @@ def _dirs_mtime(dirs: List[str]) -> float:
 class VaultManager:
     """Manages sandboxed reading, writing, high-density manifests, and searching in Obsidian vaults."""
 
+    # Lead-in phrases that precede the real subject of a conversational recall
+    # request. Longest-first so multi-word forms strip before their prefixes.
+    _RECALL_LEADINS: Tuple[str, ...] = (
+        "what have i written about", "what did i write about", "what did i say about",
+        "what do i have on", "what do i have about", "what did i write", "what did i say",
+        "do i have any notes about", "do i have any notes on", "do i have notes about",
+        "do i have notes on", "do i have a note about", "do i have anything about",
+        "do we have any notes about", "do we have notes on", "do we have anything about",
+        "remind me about", "remind me of", "tell me about", "recall our", "recall my",
+        "search for", "look for", "look up", "look at", "check for", "dig up", "dig out",
+        "pull up", "pull out", "bring up", "show me", "find me", "get me",
+        "how about", "what about", "anything about", "anything on",
+        "my notes about", "my notes on", "notes about", "notes on", "note about", "note on",
+        "my journal about", "journal entry about", "journal about", "journal on",
+        "remind me", "recall", "remember when", "remember",
+    )
+    # Tokens with no value as a substring search term; trimmed from both ends of
+    # an extracted subject.
+    _SUBJECT_STOPWORDS: frozenset = frozenset({
+        "the", "a", "an", "my", "our", "your", "some", "any", "that", "this", "these",
+        "up", "on", "in", "of", "for", "about", "regarding", "re", "from", "with",
+        "please", "just", "also", "again", "vault", "obsidian", "note", "notes",
+        "journal", "journals", "diary", "entry", "entries", "reflection", "reflections",
+        "log", "logs", "did", "do", "i", "we", "you", "have", "had", "has",
+        "write", "wrote", "written", "say", "said", "anything", "something", "stuff",
+        "thing", "things", "please", "and", "or",
+    })
+
+    @staticmethod
+    def _extract_recall_subject(message: str) -> Tuple[str, bool]:
+        """Best-effort extraction of the *subject* of a conversational recall
+        request: 'pull up my notes on Rilke' -> 'rilke', 'what did I write about
+        grief in my journal' -> 'grief'. Substring search needs a tight phrase;
+        the whole lead-in-plus-subject string matches nothing. Returns
+        (subject, had_leadin) — had_leadin is True when a recall phrasing
+        ('tell me about', 'pull up', …) was consumed, which is itself a signal
+        of vault intent even absent a trigger keyword."""
+        q = message.strip().strip("?.!").lower()
+        q = re.sub(r"^(?:hey|hi|hello|yo|good\s+\w+)[\s,]+(?:\w+[\s,]+)?", "", q).strip()
+        had_leadin = False
+        changed = True
+        while changed:
+            changed = False
+            for phrase in VaultManager._RECALL_LEADINS:
+                if q.startswith(phrase + " "):
+                    q, changed, had_leadin = q[len(phrase):].strip(), True, True
+                    break
+        m = re.search(r"\b(?:about|on|regarding|mentioning|discussing|concerning)\s+(.+)$", q)
+        if m:
+            q = m.group(1).strip()
+        q = re.sub(
+            r"\s+(?:in|from|within|inside)\s+(?:my|our|the\s+)?\s*"
+            r"(?:journal|diary|vault|notes?|daily|entries|reflections?|logs?)\b.*$",
+            "", q,
+        ).strip()
+        toks = [t for t in re.split(r"\s+", q) if t]
+        while toks and toks[0] in VaultManager._SUBJECT_STOPWORDS:
+            toks.pop(0)
+        while toks and toks[-1] in VaultManager._SUBJECT_STOPWORDS:
+            toks.pop()
+        return " ".join(toks).strip(), had_leadin
+
     @staticmethod
     def _get_master_vault() -> Optional[str]:
         mv = os.getenv("MASTER_VAULT_PATH")
@@ -968,14 +1030,23 @@ class VaultManager:
                     if res and not res.startswith("No notes found") and "not configured" not in res:
                         return f"### Ground-Truth Vault Search Results for '{folder_name}':\n{res}"
 
-        # 8. Conversational search fallback
-        q = re.sub(r"^(?:hey|hi|hello|yo|good\s+\w+)\s*(?:\w+)?[\.\,\:\;–—\s\-]*", "", msg, flags=re.I).strip()
-        q = re.sub(r"^(?:(?:can|could|would)\s+you\s+)?(?:please\s+)?(?:how\s+about|what\s+about|do\s+we\s+have|is\s+there|tell\s+me\s+about|show\s+me|find|search|retrieve|check|look\s+(?:for|at)?|pick|get|pull)\s*", "", q, flags=re.I).strip()
-        q = re.sub(r"^(?:(?:an?|the|some|any|random|randam|my|our)\s+)?(?:obsidian\s+)?(?:vault\s+)?(?:daily\s+|historical\s+)?(?:notes?|journals?|entries|entry|reflections?|posts?|logs?)\s*(?:wayback|from|in|about|for|regarding|on|discussing|mentioning|talking\s+about)?\s*", "", q, flags=re.I).strip()
-        target_q = re.split(r"[,.!?]", q)[0].strip()
-        if target_q and len(target_q) >= 3 and has_intent:
-            res = cls.search(profile, target_q)
-            if res and not res.startswith("No notes found") and "not configured" not in res:
-                return f"### Ground-Truth Vault Search Results for '{target_q}':\n{res}"
+        # 8. Conversational recall fallback — pull the subject out of the phrasing
+        #    and search it, retrying progressively narrower so a multi-word phrase
+        #    that substring-matches nothing still surfaces its salient notes.
+        subject, had_leadin = cls._extract_recall_subject(msg)
+        if (has_intent or had_leadin) and subject and len(subject) >= 3:
+            sig = [t for t in subject.split() if len(t) >= 3 and t not in cls._SUBJECT_STOPWORDS]
+            # full phrase first, then single tokens by specificity (longest, then
+            # earliest) so "meridian project" tries "meridian" before "project".
+            candidates = [subject] + sorted(set(sig), key=lambda t: (-len(t), subject.find(t)))
+            tried: set = set()
+            for cand in candidates:
+                cand = cand.strip()
+                if len(cand) < 3 or cand in tried:
+                    continue
+                tried.add(cand)
+                res = cls.search(profile, cand)
+                if res and not res.startswith("No notes found") and "not configured" not in res:
+                    return f"### Ground-Truth Vault Search Results for '{cand}':\n{res}"
 
         return None

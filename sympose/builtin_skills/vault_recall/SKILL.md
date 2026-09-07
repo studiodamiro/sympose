@@ -18,6 +18,10 @@ tags:
 The files on disk are the source of truth (anti-fabrication and verbatim quoting
 are in the base rules). No matching note → "I have no record of that in your vault."
 
+When the answer isn't already in your pre-turn context, retrieve it: emit
+`[SPAWN_WORKER: vault_recall | <what to find>]`. Never fall back to web `[SEARCH]`
+for the user's own notes, journal, or history.
+
 ## Discovery — don't assume structure
 
 Vaults vary (Flat, PARA, Johnny Decimal, Zettelkasten, date-nested). Find notes

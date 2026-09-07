@@ -59,9 +59,9 @@ ghost nodes. Use `#reflection`.
 - `[DAILY_NOTE]` → end the payload with `Tags: #jour` + domain tags (`#cinema`, `#trading`, …).
 
 ```
-[DAILY_NOTE: Reflection with [[Anaïs Nin]] on [[Parting Time]] and memories of [[Lea]] — grief and [[Personal Growth]].
+[DAILY_NOTE: Reflection with [[Anaïs Nin]] on [[Rilke]]'s Duino Elegies and a long evening of [[Chopin]] — on longing, and returning to the desk.
 
-Tags: #jour #reflection #growth #music]
+Tags: #jour #reflection #music]
 ```
 
 The payload contains only the note — no chat commentary or greetings. One tag,

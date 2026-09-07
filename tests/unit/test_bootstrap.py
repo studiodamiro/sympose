@@ -66,3 +66,15 @@ class TestEnsureWorkspace:
         assert is_fresh_second_call is False
         with open(sam_file, encoding="utf-8") as f:
             assert "user customization marker" in f.read()
+
+
+def test_default_rules_md_matches_workspace_rules_file():
+    """DEFAULT_RULES_MD is the wheel-install fallback for prompts/workspace_rules.md
+    (prompts/ isn't shipped in the wheel). They drifted once, leaving fresh installs
+    on an older, shorter ruleset. Keep them byte-for-byte identical."""
+    import os
+    from sympose.bootstrap import DEFAULT_RULES_MD
+
+    repo_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+    with open(os.path.join(repo_root, "prompts", "workspace_rules.md"), encoding="utf-8") as f:
+        assert DEFAULT_RULES_MD == f.read()

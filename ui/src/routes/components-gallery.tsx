@@ -4,7 +4,17 @@ import {
   FilterIcon,
   SlidersHorizontalIcon,
   Search01Icon,
+  Layers01Icon,
+  UserCircle02Icon,
+  BubbleChatIcon,
+  Folder01Icon,
+  SidebarLeft01Icon,
+  StarsIcon,
+  Settings02Icon,
+  ActivityCircleIcon,
+  BlocksIcon,
 } from "@hugeicons/core-free-icons"
+import type { IconSvgElement } from "@hugeicons/react"
 
 import { cn } from "@/lib/utils"
 import { PERSONA_LIST } from "@/lib/personas"
@@ -94,18 +104,19 @@ import { THEME_PRESETS, MOCK_VAULT } from "@/routes/gallery-data"
 interface Section {
   id: string
   title: string
+  icon: IconSvgElement
 }
 
 const SECTIONS: Section[] = [
-  { id: "foundations", title: "Foundations" },
-  { id: "persona", title: "Persona identity" },
-  { id: "chat", title: "Multi-agent chat" },
-  { id: "vault", title: "Vault explorer" },
-  { id: "menu", title: "Main menu" },
-  { id: "nebula", title: "Nebula controls" },
-  { id: "settings", title: "Settings" },
-  { id: "status", title: "Status & runtime" },
-  { id: "primitives", title: "shadcn primitives" },
+  { id: "foundations", title: "Foundations", icon: Layers01Icon },
+  { id: "persona", title: "Persona identity", icon: UserCircle02Icon },
+  { id: "chat", title: "Multi-agent chat", icon: BubbleChatIcon },
+  { id: "vault", title: "Vault explorer", icon: Folder01Icon },
+  { id: "menu", title: "Main menu", icon: SidebarLeft01Icon },
+  { id: "nebula", title: "Nebula controls", icon: StarsIcon },
+  { id: "settings", title: "Settings", icon: Settings02Icon },
+  { id: "status", title: "Status & runtime", icon: ActivityCircleIcon },
+  { id: "primitives", title: "shadcn primitives", icon: BlocksIcon },
 ]
 
 function GallerySection({
@@ -207,6 +218,12 @@ const ACTION_KINDS: { kind: ActionKind; detail?: string }[] = [
   { kind: "DELETE_PERSONA", detail: "@kepler" },
 ]
 
+const SECTION_ITEMS: MainMenuItem[] = SECTIONS.map((s) => ({
+  id: s.id,
+  label: s.title,
+  icon: s.icon,
+}))
+
 export function ComponentsGallery() {
   const [nebulaMode, setNebulaMode] = React.useState<"2d" | "3d">("3d")
   const [interaction, setInteraction] = React.useState<"explore" | "focus">(
@@ -215,21 +232,46 @@ export function ComponentsGallery() {
   const [preset, setPreset] = React.useState(THEME_PRESETS[0].name)
   const [selectedNote, setSelectedNote] = React.useState<string>()
 
+  // Scroll-spy: highlight whichever section is nearest the top of the
+  // viewport, so the menu's active row tracks manual scrolling too, not just
+  // clicks on it.
+  const [activeSection, setActiveSection] = React.useState(SECTIONS[0].id)
+  React.useEffect(() => {
+    const sections = SECTIONS.map((s) => document.getElementById(s.id)).filter(
+      (el): el is HTMLElement => el !== null
+    )
+    if (sections.length === 0) return
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const visible = entries.filter((e) => e.isIntersecting)
+        if (visible.length === 0) return
+        const topMost = visible.reduce((a, b) =>
+          a.boundingClientRect.top <= b.boundingClientRect.top ? a : b
+        )
+        setActiveSection(topMost.target.id)
+      },
+      { rootMargin: "-88px 0px -70% 0px", threshold: 0 }
+    )
+    sections.forEach((el) => observer.observe(el))
+    return () => observer.disconnect()
+  }, [])
+
   return (
     <div className="mx-auto flex max-w-6xl gap-10 px-6 py-8">
-      {/* TOC */}
-      <aside className="sticky top-20 hidden h-fit w-44 shrink-0 flex-col gap-1 text-sm lg:flex">
-        <span className="mb-1 font-mono text-xs text-fg-muted">ON THIS PAGE</span>
-        {SECTIONS.map((s) => (
-          <a
-            key={s.id}
-            href={`#${s.id}`}
-            className="py-1 text-muted-foreground transition-colors hover:text-brand"
-          >
-            {s.title}
-          </a>
-        ))}
-      </aside>
+      <div className="sticky top-20 hidden h-[calc(100svh-6rem)] shrink-0 lg:block">
+        <MainMenu
+          items={SECTION_ITEMS}
+          activeId={activeSection}
+          onSelectItem={(item) =>
+            document
+              .getElementById(item.id)
+              ?.scrollIntoView({ behavior: "smooth", block: "start" })
+          }
+          hideChrome
+          defaultCollapsed={false}
+          storageKey="sympose:gallery.menu"
+        />
+      </div>
 
       <div className="min-w-0 flex-1">
         <header className="pb-4">

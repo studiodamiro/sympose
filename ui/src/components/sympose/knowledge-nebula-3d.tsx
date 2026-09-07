@@ -28,6 +28,14 @@ import {
  */
 const LABEL_FADE_NEAR = 110
 const LABEL_FADE_FAR = 260
+/**
+ * Minimum gap between `d3ReheatSimulation()` calls during `animateBirth` —
+ * see the identical constant in `knowledge-nebula-2d.tsx` for why: reheating
+ * resets `alpha` to 1 every time, so calling it on every single note reveal
+ * never lets alpha decay and the whole graph shakes for the entire sequence
+ * instead of settling.
+ */
+const BIRTH_REHEAT_INTERVAL_MS = 300
 
 /**
  * Knowledge Nebula — 3D variant (wiki spec §2, ADR-051/052). A force-directed
@@ -85,6 +93,7 @@ const KnowledgeNebula3D = React.forwardRef<
     }, [graph])
 
     const timerRef = React.useRef<any>(null)
+    const lastReheatRef = React.useRef(0)
 
     // --- In-scene node labels ----------------------------------------------
     // One SpriteText per node, kept in a map so a rAF loop can fade them by
@@ -194,6 +203,27 @@ const KnowledgeNebula3D = React.forwardRef<
       }
     }, [])
 
+    // Unit vector from the current orbit target toward the current camera —
+    // i.e. the direction the camera is presently looking from. Placing a new
+    // camera position along this same direction (just at a different
+    // distance) dollies the view toward/away from the new target while
+    // preserving whatever angle you've orbited to; hardcoding +Z here instead
+    // would snap the camera back to a fixed compass heading on every click,
+    // producing a jarring swoop any time you're not already looking from +Z.
+    // Falls back to +Z before the first render, when there's no camera pose yet.
+    const getViewDirection = () => {
+      const fg = fgRef.current
+      const cam = fg?.camera() as any
+      const controls = fg?.controls() as any
+      if (!cam || !controls?.target) return { x: 0, y: 0, z: 1 }
+      const dx = cam.position.x - controls.target.x
+      const dy = cam.position.y - controls.target.y
+      const dz = cam.position.z - controls.target.z
+      const len = Math.hypot(dx, dy, dz)
+      if (len < 1e-6) return { x: 0, y: 0, z: 1 }
+      return { x: dx / len, y: dy / len, z: dz / len }
+    }
+
     const getClusterFraming = (liveNode: any, zoomDist = clickZoomDistance) => {
       const nodeId = liveNode.id
       const clusterNodes: any[] = [liveNode]
@@ -243,10 +273,15 @@ const KnowledgeNebula3D = React.forwardRef<
       // Scale camera distance to frame the entire cluster
       const knobFactor = zoomDist / 60
       const targetDistance = Math.max(35, (maxRadius * 2.2 + 25) * knobFactor)
+      const dir = getViewDirection()
 
       return {
         lookAt: { x: cx, y: cy, z: cz },
-        cameraPos: { x: cx, y: cy, z: cz + targetDistance },
+        cameraPos: {
+          x: cx + dir.x * targetDistance,
+          y: cy + dir.y * targetDistance,
+          z: cz + dir.z * targetDistance,
+        },
       }
     }
 
@@ -321,9 +356,14 @@ const KnowledgeNebula3D = React.forwardRef<
 
         // Compute camera distance so matching nodes occupy ~75% of stage
         const targetDistance = Math.max(50, maxRadius * 2.2 + padding)
+        const dir = getViewDirection()
 
         fg.cameraPosition(
-          { x: cx, y: cy, z: cz + targetDistance },
+          {
+            x: cx + dir.x * targetDistance,
+            y: cy + dir.y * targetDistance,
+            z: cz + dir.z * targetDistance,
+          },
           { x: cx, y: cy, z: cz },
           duration
         )
@@ -368,6 +408,7 @@ const KnowledgeNebula3D = React.forwardRef<
         })
 
         fg.d3ReheatSimulation()
+        lastReheatRef.current = Date.now()
 
         let currentIdx = 0
 
@@ -378,7 +419,11 @@ const KnowledgeNebula3D = React.forwardRef<
             node.__birthed = true
             currentIdx++
             fg.refresh?.()
-            fg.d3ReheatSimulation()
+            const now = Date.now()
+            if (now - lastReheatRef.current >= BIRTH_REHEAT_INTERVAL_MS) {
+              fg.d3ReheatSimulation()
+              lastReheatRef.current = now
+            }
           } else {
             if (timerRef.current) {
               clearInterval(timerRef.current)
@@ -413,6 +458,14 @@ const KnowledgeNebula3D = React.forwardRef<
     React.useEffect(() => {
       const fg = fgRef.current
       if (!fg) return
+      // three-forcegraph wires an unconditional forceCenter(0,0,0) (strength 1)
+      // into every simulation by default — it isn't a spring, it hard-recenters
+      // the graph's centroid to the origin every tick regardless of any other
+      // force. Left in place, "Center force" at 0 still can't let the graph
+      // drift/sprawl the way Obsidian's does, because this default is still
+      // fully clamping it underneath. The `radial` force below is the only
+      // centering force the slider should control, so null this one out.
+      fg.d3Force("center", null)
       if (centerForce !== undefined) {
         fg.d3Force("radial", forceRadial(0, 0, 0, 0).strength(centerForce * 0.8))
       }

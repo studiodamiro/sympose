@@ -29,6 +29,17 @@ const MAX_ZOOM = 12
 /** `globalScale` (zoom) at which node labels start / finish fading in. */
 const LABEL_FADE_START = 1.6
 const LABEL_FADE_END = 3.4
+/**
+ * Minimum gap between `d3ReheatSimulation()` calls during `animateBirth`.
+ * Reheating resets `alpha` to 1 (full force, zero decay) — calling it on
+ * every single note reveal (as often as every few ms on a large vault) never
+ * lets alpha decay between resets, so the whole graph shakes continuously
+ * for the entire reveal instead of settling. Throttling to this cadence
+ * still keeps the tick countdown (`cooldownTicks`) from expiring mid-reveal
+ * on a long birth sequence, while leaving room for visible deceleration
+ * between reheats.
+ */
+const BIRTH_REHEAT_INTERVAL_MS = 300
 
 const KnowledgeNebula2D = React.forwardRef<
   KnowledgeNebulaHandle,
@@ -63,6 +74,7 @@ const KnowledgeNebula2D = React.forwardRef<
     const containerRef = React.useRef<HTMLDivElement>(null)
     const fgRef = React.useRef<ForceGraphMethods | undefined>(undefined)
     const timerRef = React.useRef<any>(null)
+    const lastReheatRef = React.useRef(0)
     const didInitialFitRef = React.useRef(false)
     const { w, h } = useElementSize(containerRef)
     const live = interactive ?? !dimmed
@@ -153,13 +165,18 @@ const KnowledgeNebula2D = React.forwardRef<
           n.__birthed = false
         })
         fg.d3ReheatSimulation()
+        lastReheatRef.current = Date.now()
 
         let currentIdx = 0
         timerRef.current = setInterval(() => {
           if (currentIdx < totalNodes) {
             ;(data.nodes[currentIdx] as any).__birthed = true
             currentIdx++
-            fg.d3ReheatSimulation()
+            const now = Date.now()
+            if (now - lastReheatRef.current >= BIRTH_REHEAT_INTERVAL_MS) {
+              fg.d3ReheatSimulation()
+              lastReheatRef.current = now
+            }
           } else {
             clearInterval(timerRef.current)
             timerRef.current = null
@@ -187,6 +204,14 @@ const KnowledgeNebula2D = React.forwardRef<
     React.useEffect(() => {
       const fg = fgRef.current
       if (!fg) return
+      // force-graph wires an unconditional forceCenter(0,0) (strength 1) into
+      // every simulation by default — it isn't a spring, it hard-recenters the
+      // graph's centroid to the origin every tick regardless of any other
+      // force. Left in place, "Center force" at 0 still can't let the graph
+      // drift/sprawl the way Obsidian's does, because this default is still
+      // fully clamping it underneath. The `radial` force below is the only
+      // centering force the slider should control, so null this one out.
+      fg.d3Force("center", null)
       if (centerForce !== undefined) {
         fg.d3Force("radial", forceRadial(0, 0, 0).strength(centerForce * 0.8))
       }

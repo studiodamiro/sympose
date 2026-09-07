@@ -106,6 +106,37 @@ weaker ruleset.
   optional follow-up — it trades a reliability risk for turn-one latency and was
   not taken here.
 
+## Implementation Note (2026-09-07, cont'd — second compression pass)
+
+Keyword-gated injection was surveyed (five variants: keyword + sticky, keyword +
+non-sticky, model-driven progressive disclosure, prior-action stickiness,
+per-persona opt-in) and **dropped entirely**. Progressive disclosure — the
+industry-standard pattern (Anthropic Skills, the MCP tool-search direction) —
+costs a round-trip on the turn a skill is first needed, which is trivial on a
+cloud model but ~40 s on a local 14B, i.e. exactly the round-trip-frugality
+constraint Sympose is built around. The other variants each add trigger curation
+plus per-thread state for a shrinking marginal win (Pass 1 already halved the
+baseline; the prompt-cache fix already made turns 2+ instant). Prior-action
+stickiness remains the fallback to revisit if local first-turn latency stays a
+real irritant.
+
+Instead, ADR-076.2's "nuance only" treatment was extended:
+
+- `prompts/workspace_rules.md` itself (always-on, every persona, every turn):
+  the overlapping "emit the literal tag / runtime executes atomically / never
+  fake it" rules merged into one Autonomic Action Tags preamble + one Conduct
+  rule; every directive tightened to a line. ~1,400 → ~1,080 tokens, every
+  distinct rule preserved, `DEFAULT_RULES_MD` mirror + guard test updated.
+- The mid-size playbooks untouched in the first pass: `code_review` 488 → 284,
+  `discussion_moderation` 560 → 305, `system_architecture` 402 → 249,
+  `git_workflow` 466 → 236.
+- `vault_write` 827 → 686 and `vault_recall` 564 → 459 (payload-hygiene folded
+  into the new Conduct rule).
+
+Baseline five-skill payload is now ~2,028 tokens (from ~2,275 after the first
+pass, ~4,613 before). All action tags retained; the 157-test suite passes;
+`[DAILY_NOTE]` verified live.
+
 ## Alternatives rejected
 
 - **Keep both `skills/` and `builtin_skills/`, add a drift-guard test.** Lower

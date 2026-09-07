@@ -18,6 +18,7 @@ except ImportError:
     ROUNDED = None
 
 from sympose.config import DEFAULT_CHAT_MODEL
+from sympose.workspace import resolve_workspace_dir  # noqa: F401  (re-exported for existing callers)
 
 
 DEFAULT_CONFIG_YAML = """# Sympose Master Configuration
@@ -126,22 +127,6 @@ The runtime executes these on stream completion and confirms them to the user. *
 7. **No payload dumping.** When saving a note or returning research, reply with a 2–3 sentence summary; the full note goes inside the tag payload, live findings are delivered by the runtime. Never paste a wall of markdown or raw tool output into chat.
 """
 
-
-
-def resolve_workspace_dir() -> str:
-    """
-    Resolves the active Sympose workspace directory.
-    If 'profiles/' or 'config.yaml' exists in a specific sub-project directory (and CWD is not ~ or /),
-    use CWD (Local Project Mode).
-    Otherwise, defaults to '~/.sympose' (Global Sovereign User Mode).
-    """
-    cwd = os.path.abspath(os.getcwd())
-    home = os.path.abspath(os.path.expanduser("~"))
-    if cwd not in (home, "/", os.path.abspath(os.sep)):
-        if os.path.exists(os.path.join(cwd, "profiles")) or os.path.exists(os.path.join(cwd, "config.yaml")):
-            return cwd
-    global_dir = os.path.join(home, ".sympose")
-    return global_dir
 
 
 def ensure_workspace(workspace_dir: str) -> bool:

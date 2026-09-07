@@ -30,6 +30,8 @@ def main():
 
     workspace_dir = resolve_workspace_dir()
     is_fresh = ensure_workspace(workspace_dir)
+    # sympose.config already loaded this same file at import time (before
+    # DEFAULT_MODEL was resolved); this is a redundant, explicit no-op.
     load_dotenv(os.path.join(workspace_dir, ".env"))
 
     # Run onboarding wizard if requested (--setup) or if fresh workspace

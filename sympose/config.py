@@ -9,12 +9,19 @@ from typing import Any, Dict, Optional
 import yaml
 from dotenv import load_dotenv
 
+from sympose.workspace import resolve_workspace_dir
+
 # Suppress verbose LiteLLM and external logs
 logging.getLogger("LiteLLM").setLevel(logging.ERROR)
 logging.getLogger("litellm").setLevel(logging.ERROR)
 
-# Load environment variables
-load_dotenv()
+# Load the *workspace* .env only. A bare load_dotenv() walks up from this file's
+# location and, in a repo / editable install, loads the repo's own .env first —
+# and python-dotenv never overrides an already-set var, so the repo .env would
+# then shadow the active workspace .env for every overlapping key. Scoping the
+# load to resolve_workspace_dir() (a stdlib-only leaf module) makes this the one
+# and only .env that is read, at import time, before DEFAULT_MODEL is resolved.
+load_dotenv(os.path.join(resolve_workspace_dir(), ".env"))
 
 # Prevent background Google Cloud GCE metadata server (169.254.169.254) and Vertex ADC timeouts on macOS
 os.environ["NO_GCE_CHECK"] = "True"

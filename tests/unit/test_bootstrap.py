@@ -78,3 +78,39 @@ def test_default_rules_md_matches_workspace_rules_file():
     repo_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
     with open(os.path.join(repo_root, "prompts", "workspace_rules.md"), encoding="utf-8") as f:
         assert DEFAULT_RULES_MD == f.read()
+
+
+def test_resolve_workspace_dir_single_impl():
+    """bootstrap re-exports the workspace resolver; there must not be a second copy."""
+    import sympose.bootstrap as b
+    import sympose.workspace as w
+
+    assert b.resolve_workspace_dir is w.resolve_workspace_dir
+
+
+def test_config_loads_workspace_env_not_parent_walked(tmp_path):
+    """sympose.config must load the *workspace* .env at import — not a bare
+    load_dotenv() that walks up and finds a repo/parent .env first (which then
+    shadows the workspace .env, since python-dotenv never overrides)."""
+    import subprocess
+    import sys
+
+    ws = tmp_path / "ws"
+    ws.mkdir()
+    (ws / "config.yaml").write_text("performance:\n  request_timeout: 10.0\n")
+    (ws / ".env").write_text("DEFAULT_MODEL=sentinel/workspace-model\n")
+    # a conflicting .env in the parent — a bare load_dotenv() walking up would hit this
+    (tmp_path / ".env").write_text("DEFAULT_MODEL=wrong/parent-model\n")
+
+    repo_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+    child_env = {k: v for k, v in os.environ.items() if k != "DEFAULT_MODEL"}
+    child_env["PYTHONPATH"] = repo_root
+    out = subprocess.run(
+        [sys.executable, "-c", "import sympose.config as c; print(c.DEFAULT_CHAT_MODEL)"],
+        cwd=str(ws),
+        env=child_env,
+        capture_output=True,
+        text=True,
+    )
+    assert out.returncode == 0, out.stderr
+    assert out.stdout.strip() == "sentinel/workspace-model", out.stdout

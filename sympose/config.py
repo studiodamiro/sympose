@@ -55,6 +55,7 @@ class ConfigManager:
         "performance": {
             "request_timeout": 30.0,
             "local_request_timeout": 60.0,
+            "local_keep_alive": None,  # -1 / 0 / "30m"; None = defer to OLLAMA_KEEP_ALIVE env
             "max_context_turns": 15,
             "max_worker_tool_turns": 8,
             "drop_unsupported_params": True,

@@ -124,6 +124,16 @@ class PersonaEngine:
                 kwargs["api_key"] = os.getenv(key)
         if "temperature" in profile: kwargs["temperature"] = profile["temperature"]
         if profile.get("api_base"): kwargs["api_base"] = profile["api_base"]
+        if is_loc:
+            # Per-persona residency override for local backends: persona YAML
+            # `keep_alive` wins, else `performance.local_keep_alive`, else leave
+            # it to the server-wide OLLAMA_KEEP_ALIVE env var. Accepts -1
+            # (forever), 0 (unload now), or a duration string like "30m".
+            ka = profile.get("keep_alive")
+            if ka is None:
+                ka = self.config.get("performance.local_keep_alive")
+            if ka is not None:
+                kwargs["keep_alive"] = ka
         return kwargs
 
     def spawn_sub_agent(self, target_handle: str, sub_prompt: str):

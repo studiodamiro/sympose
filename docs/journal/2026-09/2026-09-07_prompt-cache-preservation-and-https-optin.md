@@ -91,3 +91,22 @@ A one-line `strftime` format change with no architectural trade-off and no
 reversal cost. It refines the prompt-assembly already covered by ADR-070's
 hot-path budget discipline. §2 is an implementation refinement of ADR-064.2, not
 a new decision. Journaled per the documentation standard.
+
+## 5. Follow-up (2026-09-07, cont'd) — local model residency knob
+
+"Keep the model resident" (`OLLAMA_KEEP_ALIVE`) was until now only a server-wide
+env var, set on this machine via `launchctl setenv` — which does not survive a
+reboot, so Anaïs's cold-start regression silently returned after every restart.
+
+- **Per-call passthrough.** `PersonaEngine._build_kwargs` now forwards a
+  `keep_alive` value to local (`ollama/…`) calls only: persona YAML `keep_alive`
+  wins, else `performance.local_keep_alive` from `config.yaml`, else nothing
+  (defer to the env var). Accepts `-1` (forever), `0` (unload now) or a duration
+  string. Six `test_engine.py` cases; remote models never receive the param.
+- **Reboot persistence.** Documented in the latency-tuning guide: a `RunAtLoad`
+  LaunchAgent at `~/Library/LaunchAgents/com.sympose.ollama-keepalive.plist`
+  running `launchctl setenv OLLAMA_KEEP_ALIVE -1`, loaded once, restores the
+  setting at every login before Ollama starts.
+
+No ADR: a single optional kwarg on an existing call path, no new dependency or
+service, within ADR-070's hot-path budget.

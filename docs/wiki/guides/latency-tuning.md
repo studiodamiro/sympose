@@ -23,15 +23,17 @@ All performance, latency, and context parameters are now centrally managed in [`
 
 | Parameter | Primary Location | CLI Dynamic Override | Default / Recommended | Purpose & Latency Impact |
 | :--- | :--- | :--- | :--- | :--- |
-| **`performance.request_timeout`** | [`config.yaml`](../../../config.yaml#L6) | `/config set performance.request_timeout 10.0` | `10.0` (seconds) | Hard ceiling on HTTP connection & socket timeout. |
-| **`performance.max_context_turns`** | [`config.yaml`](../../../config.yaml#L7) | `/config set performance.max_context_turns 15` | `15` (30 messages) | Sliding context window. Limits prompt history payload under ~2,000 tokens, eliminating pre-fill latency. |
+| **`performance.request_timeout`** | [`config.yaml`](../../../config.yaml#L2) | `/config set performance.request_timeout 10.0` | `30.0` (seconds) | Hard ceiling on HTTP connection & socket timeout (remote models). |
+| **`performance.local_request_timeout`** | [`config.yaml`](../../../config.yaml#L3) | `/config set performance.local_request_timeout 240.0` | `60.0` (seconds) | Separate, higher ceiling for local (`ollama/…`) calls — must exceed the cold first-turn prefill or the turn fails silently. |
+| **`performance.local_keep_alive`** | [`config.yaml`](../../../config.yaml#L4) | `/config set performance.local_keep_alive -1` | `None` | Residency hint passed to local calls (`-1` forever, `0` unload now, `"30m"`). `None` defers to the `OLLAMA_KEEP_ALIVE` server env var. Persona YAML `keep_alive` overrides this. |
+| **`performance.max_context_turns`** | [`config.yaml`](../../../config.yaml#L8) | `/config set performance.max_context_turns 15` | `15` (30 messages) | Sliding context window. Limits prompt history payload under ~2,000 tokens, eliminating pre-fill latency. |
 | **`performance.max_worker_tool_turns`** | [`config.yaml`](../../../config.yaml#L8) | `/config set performance.max_worker_tool_turns 8` | `8` (turns) | Hard ceiling on sub-agent tool calling iterations, preventing runaway loops while allowing multi-file research. |
 | **`performance.drop_unsupported_params`** | [`config.yaml`](../../../config.yaml#L9) | `/config set performance.drop_unsupported_params true` | `true` | Silently discards unsupported vendor flags, preventing retry loops. |
 | **`performance.stream`** | [`config.yaml`](../../../config.yaml#L9) | `/config set performance.stream true` | `true` | Streams tokens via HTTP chunking at 60 FPS, achieving **0.8s TTFT**. |
 | **`session.exit_behavior.summarization_model`** | [`config.yaml`](../../../config.yaml#L17) | `/config set session.exit_behavior.summarization_model <model>` | `gemini/gemini-3.5-flash-lite` | Dedicated ultra-fast model for near-instant session summarization. |
-| **`temperature`** | [`profiles/*.yaml`](../../../profiles/grace.yaml#L5) | N/A (per-persona) | `0.1` (Code) / `0.7` (Creative) | Lower temperature reduces token branch sampling latency and ensures deterministic code. |
+| **`temperature`** | [`profiles/*.yaml`](../../../profiles/samantha.yaml) | N/A (per-persona) | `0.1` (Code) / `0.7` (Creative) | Lower temperature reduces token branch sampling latency and ensures deterministic code. |
 | **`model`** | [`profiles/*.yaml`](../../../profiles/samantha.yaml#L4) | `/model <provider/name>` | `gemini/gemini-3.5-flash-lite` | Flash-Lite yields **0.7s TTFT**, Sonnet yields **1.4s**, local Gemma2 yields **0.5s**. |
-| **`api_base`** | [`profiles/*.yaml`](../../../profiles/aurelius.yaml#L5) | N/A (per-persona) | `http://localhost:11434` | Direct localhost loopback for Ollama (0ms DNS lookup time). |
+| **`api_base`** / **`keep_alive`** | [`profiles/*.yaml`](../../../profiles/samantha.yaml) | N/A (per-persona) | `http://localhost:11434` | `api_base`: direct localhost loopback for Ollama (0ms DNS). `keep_alive`: per-persona residency override for local backends. |
 | **`vault.search_mode`** | [`config.yaml`](../../../config.yaml#L64) | `/config set vault.search_mode sqlite_fts` | `direct` | `direct`: pure-Python walk, zero setup, fine for small/medium vaults. `sqlite_fts`: BM25-ranked full-text search via a stdlib SQLite FTS5 index — switch to this once `direct`'s linear scan starts costing real TTFT on a large vault. |
 
 ---
@@ -97,7 +99,14 @@ turn instead of just the first.
   stamps (daily notes, session logs) use their own `datetime.now()`.
 * **Keep the model resident.** `OLLAMA_KEEP_ALIVE=-1` (server env) stops the
   ~6–10 s reload between turns; the first turn after a gap otherwise pays it on
-  top of the prefill.
+  top of the prefill. Per-persona override: set `keep_alive` in the persona
+  YAML (`-1`, `0`, or a duration like `"30m"`), or `performance.local_keep_alive`
+  in `config.yaml` — Sympose passes it through to local (`ollama/…`) calls only.
+  On macOS `OLLAMA_KEEP_ALIVE` set via `launchctl setenv` is lost on reboot; to
+  persist it, drop a `RunAtLoad` LaunchAgent at
+  `~/Library/LaunchAgents/com.sympose.ollama-keepalive.plist` that runs
+  `launchctl setenv OLLAMA_KEEP_ALIVE -1`, then `launchctl load` it and restart
+  Ollama.
 * **Keep the prompt small.** Prefill time is linear in prompt length — the
   ADR-076 skill compression took a persona prompt 5,471 → 2,745 tokens, first
   token ~60 s → ~39 s. `local_request_timeout` (default 120 s) must exceed the
@@ -118,4 +127,4 @@ turn instead of just the first.
 ```
 
 ### Edit Persona Defaults:
-Directly edit [`profiles/samantha.yaml`](../../../profiles/samantha.yaml), [`profiles/grace.yaml`](../../../profiles/grace.yaml), or [`profiles/aurelius.yaml`](../../../profiles/aurelius.yaml). Changes take effect instantly on next prompt!
+Directly edit [`profiles/samantha.yaml`](../../../profiles/samantha.yaml) (or any persona YAML you have created). Changes take effect instantly on next prompt!

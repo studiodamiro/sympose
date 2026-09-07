@@ -1,6 +1,10 @@
 performance:
   request_timeout: 30.0
   local_request_timeout: 120.0
+  # Residency hint passed to local (ollama/…) calls only: -1 forever, 0 unload
+  # now, "30m" a duration. Unset = defer to the OLLAMA_KEEP_ALIVE server env
+  # var. A persona YAML `keep_alive` overrides this.
+  # local_keep_alive: -1
   max_context_turns: 15
   max_worker_tool_turns: 8
   drop_unsupported_params: true

@@ -17,16 +17,11 @@ from sympose.vault import VaultManager
 from sympose.compactor import run_hygiene_task
 
 
+from sympose.prompt_assets import load_prompt
+
+
 def _load_prompt_tmpl(name: str, fallback: str) -> str:
-    repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    for p in (os.path.join(repo_root, "prompts", name), os.path.join("prompts", name)):
-        if os.path.exists(p):
-            try:
-                with open(p, "r", encoding="utf-8") as f:
-                    return f.read().strip()
-            except Exception:
-                pass
-    return fallback
+    return load_prompt(name, fallback)
 
 
 class HeuristicGatedExtractor:

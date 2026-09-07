@@ -10,6 +10,7 @@ log = logging.getLogger(__name__)
 
 from sympose.skills import skill_manager
 from sympose.config import DEFAULT_CHAT_MODEL
+from sympose.prompt_assets import load_prompt
 
 
 class ProfileManager:
@@ -235,8 +236,12 @@ class ProfileManager:
             prompt_parts.append(f"### Persona Working Memory:\n{persona_mem}")
 
         workspace_parent = os.path.dirname(os.path.abspath(self.profiles_dir))
+        # Prefer the workspace copy (user-editable, seeded by ensure_workspace);
+        # fall back to the packaged sympose/prompts/workspace_rules.md so a wheel
+        # install with no seeded copy still gets the full ruleset.
         rules_txt = (
             self._read_file_safe(os.path.join(workspace_parent, "prompts", "workspace_rules.md"))
+            or load_prompt("workspace_rules.md")
             or "### Directives:\n- Think systematically and provide crisp analysis.\n- Save durable insights to memory."
         )
         rules_formatted = (

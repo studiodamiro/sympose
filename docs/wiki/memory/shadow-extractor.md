@@ -69,6 +69,6 @@ When a fact is extracted, [`ProfileManager.append_memory()`](../../../sympose/pr
 
 ## 4. Declarative Templates & Preamble-Resilient Parsing (ADR-037 & ADR-038)
 
-Extraction instructions are decoupled from Python code and maintained in [`prompts/memory_extraction.md`](../../../prompts/memory_extraction.md):
-- **Anchored Asset Resolution**: Prompts are discovered relative to package root (`sympose/../prompts/`).
+Extraction instructions are decoupled from Python code and maintained in [`sympose/prompts/memory_extraction.md`](../../../sympose/prompts/memory_extraction.md):
+- **Anchored Asset Resolution**: Templates ship inside the package at `sympose/prompts/` (`package-data`) and are read via `sympose.prompt_assets.load_prompt` — resolved from the package directory, so a wheel / pipx install gets the real file instead of an inline fallback.
 - **Resilient Line Parsing**: Rather than checking index 0 prefix (`startswith("-")`), the parser extracts bullet lines line-by-line, ensuring facts accompanied by conversational remarks are captured cleanly.

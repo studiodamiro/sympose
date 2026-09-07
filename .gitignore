@@ -76,6 +76,7 @@ CLAUDE.md
 .claude/
 .cursor/
 
-# Runtime-seeded workspace skills dir (only appears when the CLI is run from the repo);
-# the shipped skill playbooks live in sympose/builtin_skills/
+# Runtime-seeded workspace dirs (only appear when the CLI is run from the repo);
+# the shipped originals live in sympose/builtin_skills/ and sympose/prompts/
 /skills/
+/prompts/

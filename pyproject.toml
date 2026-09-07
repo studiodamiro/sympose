@@ -39,7 +39,7 @@ packages = ["sympose", "sympose.builtin_skills"]
 py-modules = ["app"]
 
 [tool.setuptools.package-data]
-sympose = ["*.yaml", "*.md", "*.json", "builtin_skills/*/*.md", "builtin_skills/*.md"]
+sympose = ["*.yaml", "*.md", "*.json", "builtin_skills/*/*.md", "builtin_skills/*.md", "prompts/*.md"]
 
 [project.optional-dependencies]
 dev = [

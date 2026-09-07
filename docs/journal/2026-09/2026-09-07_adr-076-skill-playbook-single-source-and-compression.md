@@ -137,6 +137,36 @@ Baseline five-skill payload is now ~2,028 tokens (from ~2,275 after the first
 pass, ~4,613 before). All action tags retained; the 157-test suite passes;
 `[DAILY_NOTE]` verified live.
 
+## Implementation Note (2026-09-07, cont'd — `prompts/` shipped in-package)
+
+The "mirror + guard test" resolution above (`DEFAULT_RULES_MD` kept
+byte-for-byte in sync with `prompts/workspace_rules.md` by a test) was replaced
+outright, applying ADR-076's own single-source principle to the declarative
+prompt templates.
+
+The top-level `prompts/` directory was never in `[tool.setuptools.package-data]`
+and `MANIFEST.in` only reached the sdist — so every wheel / `pipx` install ran
+on the terse inline fallback strings in `bootstrap`, `memory` and `workers`, not
+the real templates. `workspace_rules.md` merely had a louder symptom (the guard
+test) than `worker_system.md` / `memory_extraction.md` / `session_summary.md`,
+which silently degraded.
+
+- All four templates moved to `sympose/prompts/*.md` and added to
+  `package-data` (`prompts/*.md`), mirroring `builtin_skills/`. Verified present
+  in a built wheel.
+- New leaf module `sympose/prompt_assets.py` — `load_prompt(name, fallback)`
+  reads from the package directory. `bootstrap`, `profiles`, `memory` and
+  `workers` all route through it.
+- `DEFAULT_RULES_MD` is now `load_prompt("workspace_rules.md", …)` — the full
+  packaged file at import, with a deliberately minimal `_RULES_MD_FALLBACK` for
+  a corrupt install only (not a second copy of the ruleset). The
+  byte-for-byte drift guard is replaced by two checks: the templates ship inside
+  the package, and `DEFAULT_RULES_MD` resolves to the packaged file rather than
+  the fallback.
+- The workspace-seeded copies (`<workspace>/prompts/`, `<workspace>/skills/`)
+  that `ensure_workspace` writes when the CLI runs from the repo are now both
+  `.gitignore`d.
+
 ## Alternatives rejected
 
 - **Keep both `skills/` and `builtin_skills/`, add a drift-guard test.** Lower
@@ -155,4 +185,12 @@ pass, ~4,613 before). All action tags retained; the 157-test suite passes;
   on the turn it is finally needed. Deferred as an explicit, separately-decided
   optimisation rather than bundled here.
 - **Leave `DEFAULT_RULES_MD` as an independent short fallback.** That is exactly
-  what caused fresh installs to run stale rules. Rejected for the mirror + guard.
+  what caused fresh installs to run stale rules. First resolved with a
+  mirror + guard test; superseded on 2026-09-07 by shipping
+  `sympose/prompts/workspace_rules.md` in `package-data` and loading it at
+  import (see the cont'd implementation note), which removes the second copy
+  entirely rather than policing it.
+- **Ship `prompts/` only in the sdist via `MANIFEST.in`** (the state before this
+  change). `MANIFEST.in` does not affect the wheel, so `pip install` /
+  `pipx install` — the actual install paths — never received the files.
+  Rejected; `package-data` is what wheels honour.

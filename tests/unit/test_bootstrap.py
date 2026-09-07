@@ -68,16 +68,27 @@ class TestEnsureWorkspace:
             assert "user customization marker" in f.read()
 
 
-def test_default_rules_md_matches_workspace_rules_file():
-    """DEFAULT_RULES_MD is the wheel-install fallback for prompts/workspace_rules.md
-    (prompts/ isn't shipped in the wheel). They drifted once, leaving fresh installs
-    on an older, shorter ruleset. Keep them byte-for-byte identical."""
-    import os
-    from sympose.bootstrap import DEFAULT_RULES_MD
+def test_prompt_templates_ship_inside_the_package():
+    """The declarative templates must live at sympose/prompts/*.md so package-data
+    ships them in every wheel/pipx install. A bare top-level prompts/ dir is not
+    shipped, which used to drop non-editable installs onto terse inline fallbacks."""
+    import sympose
 
-    repo_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-    with open(os.path.join(repo_root, "prompts", "workspace_rules.md"), encoding="utf-8") as f:
-        assert DEFAULT_RULES_MD == f.read()
+    pkg_prompts = os.path.join(os.path.dirname(sympose.__file__), "prompts")
+    for name in ("workspace_rules.md", "worker_system.md", "memory_extraction.md", "session_summary.md"):
+        assert os.path.isfile(os.path.join(pkg_prompts, name)), f"{name} missing from sympose/prompts/"
+
+
+def test_default_rules_md_is_the_packaged_file_not_the_fallback():
+    """DEFAULT_RULES_MD must resolve to the full packaged workspace_rules.md, not
+    the minimal corrupt-install fallback string in bootstrap."""
+    from sympose.bootstrap import DEFAULT_RULES_MD, _RULES_MD_FALLBACK
+    from sympose.prompt_assets import load_prompt
+
+    assert DEFAULT_RULES_MD == load_prompt("workspace_rules.md")
+    assert DEFAULT_RULES_MD != _RULES_MD_FALLBACK
+    assert len(DEFAULT_RULES_MD) > 2000
+    assert "### Autonomic Action Tags" in DEFAULT_RULES_MD
 
 
 def test_resolve_workspace_dir_single_impl():

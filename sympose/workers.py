@@ -10,6 +10,7 @@ from typing import Dict, List, Any, Optional, Generator, Tuple
 import litellm
 
 from sympose.config import config_manager, DEFAULT_WORKER_MODEL
+from sympose.prompt_assets import load_prompt
 from sympose.skills import skill_manager
 from sympose.mcp import mcp_registry, MCPClient
 from sympose.native_tools import NativeTools
@@ -95,26 +96,15 @@ class WorkerEngine:
         # Load system prompt template
         mv = os.getenv("MASTER_VAULT_PATH")
         env_lines = [f"- Workspace Directory: `{os.getcwd()}`"] + ([f"- Obsidian Vault Directory: `{mv}`"] if mv else [])
-        repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        tmpl = ""
-        for tp in (os.path.join(repo_root, "prompts", "worker_system.md"), os.path.join("prompts", "worker_system.md")):
-            if os.path.exists(tp):
-                try:
-                    with open(tp, "r", encoding="utf-8") as f:
-                        tmpl = f.read().strip()
-                        break
-                except Exception as exc:
-                    log.debug("WorkerEngine: failed to read template %s: %s", tp, exc)
-
-        if not tmpl:
-            tmpl = (
-                "You are an ephemeral Sub-Agent Worker in Sympose on macOS dispatched by parent agent @{{parent_agent}}.\n\n"
-                "### RUNTIME ENVIRONMENT:\n{{environment}}\n\n"
-                "### UNIVERSAL OPERATIONAL DIRECTIVES:\n"
-                "1. GROUND-TRUTH EXECUTION: Use tools directly.\n"
-                "2. ZERO HAND-WAVING: Output factual deliverables.\n"
-                "3. RAPID COMPLETION."
-            )
+        tmpl = load_prompt(
+            "worker_system.md",
+            "You are an ephemeral Sub-Agent Worker in Sympose on macOS dispatched by parent agent @{{parent_agent}}.\n\n"
+            "### RUNTIME ENVIRONMENT:\n{{environment}}\n\n"
+            "### UNIVERSAL OPERATIONAL DIRECTIVES:\n"
+            "1. GROUND-TRUTH EXECUTION: Use tools directly.\n"
+            "2. ZERO HAND-WAVING: Output factual deliverables.\n"
+            "3. RAPID COMPLETION.",
+        )
 
         system_prompt = tmpl.replace("{{parent_agent}}", task.parent_agent).replace("{{environment}}", "\n".join(env_lines))
         if skills_text:

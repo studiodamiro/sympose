@@ -139,7 +139,7 @@ Full standard: **[Memory Architecture](docs/wiki/memory/architecture-standard.md
 
 Agents act on the world by emitting declarative tags in their response stream — `[WRITE_NOTE: path | content]`, `[REMEMBER: fact]`, `[SPAWN_WORKER: spec | task]`, `[CONFIG_SET: key | value]`, and more — parsed and executed after the model finishes streaming, at zero added round-trips.
 
-Ten built-in skill playbooks ship in `skills/`: `vault_write`, `vault_recall`, `web_search`, `slack_interaction`, `sympose_mastery`, `code_review`, `git_workflow`, `strategic_analysis`, `system_architecture`, `discussion_moderation`.
+Ten built-in skill playbooks ship inside the package at `sympose/builtin_skills/`: `vault_write`, `vault_recall`, `web_search`, `slack_interaction`, `sympose_mastery`, `code_review`, `git_workflow`, `strategic_analysis`, `system_architecture`, `discussion_moderation`.
 
 Full tag reference and skill specs: **[Action Tags Reference](docs/wiki/reference/action-tags.md)** · **[Modular Skills System](docs/wiki/agents/skills-system.md)**.
 
@@ -150,10 +150,10 @@ Full tag reference and skill specs: **[Action Tags Reference](docs/wiki/referenc
 ```text
 sympose/
 ├── profiles/     # Agent souls, YAML manifests, and working memory
-├── prompts/      # Declarative system prompt templates
-├── skills/       # Modular procedural skill playbooks
 ├── mcp/          # MCP server hub & configs
 ├── sympose/      # Python package, <200 LOC per file
+│   ├── prompts/         # Declarative system prompt templates (shipped in the wheel)
+│   └── builtin_skills/  # Modular procedural skill playbooks (shipped in the wheel)
 ├── docs/         # ADRs, wiki, and engineering journal
 ├── config.yaml   # Central runtime, performance & memory config
 └── app.py        # Entry point

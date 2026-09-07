@@ -34,8 +34,7 @@ ui/
 │   │   ├── ui/                    # shadcn primitives (base-maia) — 34 added
 │   │   └── sympose/              # Sympose-specific molecules (see below)
 │   ├── routes/
-│   │   ├── root-layout.tsx        # top-nav chrome for /, /components, /menu
-│   │   ├── dashboard-placeholder.tsx
+│   │   ├── root-layout.tsx        # top-nav chrome for /components, /menu
 │   │   ├── components-gallery.tsx # the /components page
 │   │   ├── menu-showcase.tsx      # the /menu page (MainMenu deep-dive)
 │   │   ├── app-shell.tsx          # the /shell page — MainMenu as a real shell

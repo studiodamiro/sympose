@@ -75,3 +75,7 @@ profiles/*_soul.md
 CLAUDE.md
 .claude/
 .cursor/
+
+# Runtime-seeded workspace skills dir (only appears when the CLI is run from the repo);
+# the shipped skill playbooks live in sympose/builtin_skills/
+/skills/

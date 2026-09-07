@@ -69,13 +69,13 @@ skills:
 ```
 
 ### 📋 Mounted Capabilities:
-* **[`skills/code_review`](../../../skills/code_review/SKILL.md)**:
+* **[`sympose/builtin_skills/code_review`](../../../sympose/builtin_skills/code_review/SKILL.md)**:
   - Three-tier static analysis categorizing issues into **Blockers** (bugs, security risks), **Warnings** (performance bottlenecks, tech debt), and **Suggestions** (readability).
   - Concrete `diff` blocks showing precise refactoring solutions.
-* **[`skills/git_workflow`](../../../skills/git_workflow/SKILL.md)**:
+* **[`sympose/builtin_skills/git_workflow`](../../../sympose/builtin_skills/git_workflow/SKILL.md)**:
   - Enforces Conventional Commits (`feat`, `fix`, `refactor`, `docs`, `test`, `style`, `chore`).
   - Strict atomic commit hygiene and branch protection standards.
-* **[`skills/system_architecture`](../../../skills/system_architecture/SKILL.md)**:
+* **[`sympose/builtin_skills/system_architecture`](../../../sympose/builtin_skills/system_architecture/SKILL.md)**:
   - Sub-second TTFT design, loose coupling, interface segregation, and single-responsibility modules.
   - Reversibility evaluations (one-way vs two-way doors) and failure blast-radius containment.
 

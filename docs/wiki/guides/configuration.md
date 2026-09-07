@@ -108,7 +108,7 @@ flowchart TD
    - Can be temporarily swapped live in the terminal using `/model <model_name>`.
 2. **Ephemeral Sub-Agent Workers (`/worker` or `[SPAWN_WORKER]`)**:
    - **Step 1:** Explicit `model` parameter if dispatched programmatically in code.
-   - **Step 2:** `recommended_models` list declared in [`skills/<skill>/SKILL.md`](../../../skills/code_review/SKILL.md) frontmatter.
+   - **Step 2:** `recommended_models` list declared in [`sympose/builtin_skills/<skill>/SKILL.md`](../../../sympose/builtin_skills/code_review/SKILL.md) frontmatter.
    - **Step 3:** `DEFAULT_MODEL` declared in `.env`.
    - **Step 4:** System fallback (`gemini/gemini-3.5-flash-lite`).
 3. **Session Archivist & Distillation**:

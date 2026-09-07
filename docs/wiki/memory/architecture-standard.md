@@ -204,7 +204,7 @@ Sympose strictly enforces **Vault Agnosticism**: it adapts to any user-chosen di
 To avoid burning frontier cloud tokens and leaking personal reflections, historical recall operates on a **3-Tier Funnel**:
 
 1. **Tier 0 (Deterministic Filter)**: Mechanical file/path matching and regex (`<0.005s`, 0 tokens).
-2. **Tier 1 (Local LLM Triage / $0.00)**: Sub-agent worker running `ollama/qwen2.5:14b` or `ollama/gemma2:9b` (or `gemini/gemini-3.5-flash-lite`) executes `skills/vault_recall/SKILL.md` to parse YAML frontmatter and extract `## Key Decisions` and `## Action Items`.
+2. **Tier 1 (Local LLM Triage / $0.00)**: Sub-agent worker running `ollama/qwen2.5:14b` or `ollama/gemma2:9b` (or `gemini/gemini-3.5-flash-lite`) executes `sympose/builtin_skills/vault_recall/SKILL.md` to parse YAML frontmatter and extract `## Key Decisions` and `## Action Items`.
 3. **Tier 2 (Frontier Deep Synthesis - Optional)**: Paid models (Claude Sonnet 4.5 / Gemini 3.7) receive only the isolated high-signal excerpts when complex code synthesis or architecture refactoring is required.
 
 ---

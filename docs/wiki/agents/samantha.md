@@ -69,11 +69,11 @@ skills:
 ```
 
 ### 📋 Mounted Capabilities:
-* **[`skills/sympose_mastery`](../../../skills/sympose_mastery/SKILL.md)**:
+* **[`sympose/builtin_skills/sympose_mastery`](../../../sympose/builtin_skills/sympose_mastery/SKILL.md)**:
   - Expert concierge heuristics for conversational performance tuning, 7-point agent creation, and defensive retirement.
-* **[`skills/strategic_analysis`](../../../skills/strategic_analysis/SKILL.md)**:
+* **[`sympose/builtin_skills/strategic_analysis`](../../../sympose/builtin_skills/strategic_analysis/SKILL.md)**:
   - Reversibility tests (one-way vs two-way doors), tradeoff comparison matrices, and kill criteria definitions.
-* **[`skills/system_architecture`](../../../skills/system_architecture/SKILL.md)**:
+* **[`sympose/builtin_skills/system_architecture`](../../../sympose/builtin_skills/system_architecture/SKILL.md)**:
   - High-level system decomposition, modularity boundaries, and zero-bloat architectural patterns.
 
 ---

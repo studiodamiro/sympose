@@ -1,33 +1,31 @@
 ---
 name: "code_review"
 title: "Zero-Bloat Code Review & Static Heuristics"
-description: "Rigorous code review protocol focusing on simplicity, error boundaries, race conditions, and cognitive load."
+description: "Code review focused on simplicity, error boundaries, concurrency, and cognitive load."
 tags:
   - engineering
   - quality
   - review
 ---
 
-# 🔍 Zero-Bloat Code Review Protocol
+# Zero-Bloat Code Review
 
-When performing code reviews, apply surgical scrutiny across these four core pillars:
+Apply scrutiny across four pillars:
 
-## 1. Simplicity & Bloat Elimination
-- **Occam's Razor**: Can this be solved with standard library primitives instead of adding a new dependency?
-- **Avoid Speculative Generality (YAGNI)**: Eliminate unnecessary abstractions, factory wrappers, or generic adapter layers that only have a single concrete implementation.
-- **Cognitive Load**: Keep function cyclomatic complexity low. Flat is better than nested; early returns are preferred over nested `if/else` ladders.
+**1. Simplicity / bloat** — Solvable with stdlib instead of a new dependency?
+Cut speculative generality (YAGNI): no factory wrappers or adapter layers with a
+single implementation. Keep complexity low — flat over nested, early returns over
+`if/else` ladders.
 
-## 2. Robustness & Error Boundaries
-- **Explicit Failure Modes**: Do not catch generic exceptions (`except Exception: pass`) unless specifically intended and logged. Handle specific edge cases.
-- **Resource Leaks**: Ensure all file handles, database cursors, and network connections use context managers (`with` blocks) or deterministic cleanup.
-- **Input Sanitization**: Validate types and boundaries at system entry points.
+**2. Robustness** — No bare `except Exception: pass` (catch specific cases, log
+them). File handles, cursors, and connections use context managers. Validate
+types and bounds at entry points.
 
-## 3. Concurrency & State Integrity
-- **Thread Safety**: Look for shared mutable state, unprotected global dictionaries, or un-synchronized counter increments.
-- **Idempotency**: Ensure retryable operations (e.g. webhook listeners, payment calls) are safe to execute multiple times without duplicate side effects.
+**3. Concurrency / state** — Look for shared mutable state, unprotected globals,
+un-synchronised increments. Retryable operations (webhooks, payments) must be
+idempotent.
 
-## 4. Review Output Format
-Provide review findings in structured, actionable tiers:
-1. 🚨 **Blockers (Critical)**: Bugs, security risks, race conditions, data loss.
-2. ⚠️ **Warnings (Important)**: Performance bottlenecks, unhandled edge cases, missing test coverage.
-3. 💡 **Suggestions (Nitpicks)**: Naming clarity, minor refactoring, style consistency.
+**4. Output** — Report in tiers:
+1. **Blockers** — bugs, security, races, data loss.
+2. **Warnings** — perf bottlenecks, unhandled edges, missing tests.
+3. **Suggestions** — naming, minor refactors, style.

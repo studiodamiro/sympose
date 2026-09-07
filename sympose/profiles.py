@@ -244,7 +244,11 @@ class ProfileManager:
             .replace("{{master_vault_path}}", mv)
             .replace("{{sandboxed_vault}}", vf_desc)
             .replace("{{memory_mode}}", f"{sharing_desc} (File: `{profile.get('memory_file')}`)")
-            .replace("{{current_datetime}}", datetime.datetime.now().strftime("%Y-%m-%d %A %H:%M"))
+            # Date only (no %H:%M): a per-minute token this early in the system
+            # prompt invalidates the local-model prompt-cache prefix every turn,
+            # forcing a full re-prefill. Write-time timestamps (daily notes,
+            # session logs) use their own datetime.now() and are unaffected.
+            .replace("{{current_datetime}}", datetime.datetime.now().strftime("%Y-%m-%d %A"))
             .replace("{{sources}}", sources)
             .replace("{{user}}", primary_user)
             .replace("{{handle}}", handle)

@@ -121,6 +121,19 @@ Both halves shipped:
 - This closes the ADR's Critical Finding #5 in full: every dashboard route
   now requires the password, over HTTPS by default.
 
+## Implementation Note (2026-09-07 — HTTPS is now an interactive choice)
+
+ADR-064.2's "HTTPS by default, `SYMPOSE_DASHBOARD_TLS=0` to opt out" was
+refined: on the loopback-only bind the self-signed cert adds no real
+confidentiality, only a per-device browser warning to click through.
+`sympose/tls.py` gains `ensure_dashboard_tls_choice(workspace_dir)`, which on
+the first interactive `--dashboard` boot asks (rich `Confirm`, default yes) and
+persists the answer to the workspace `.env` — the same generate-once-and-persist
+pattern as the dashboard password. A pre-set `SYMPOSE_DASHBOARD_TLS` or a
+non-interactive launch skips the prompt. `app.py` calls it instead of reading
+the env var inline. Covered by `tests/unit/test_tls.py`; narrative in the
+[2026-09-07 engineering log](../2026-09/2026-09-07_prompt-cache-preservation-and-https-optin.md).
+
 ## Alternatives rejected
 
 - **`mkcert`-issued locally-trusted certificate.** Removes the browser warning,

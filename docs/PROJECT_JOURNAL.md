@@ -25,6 +25,7 @@ one in [`docs/wiki/index.md`](./wiki/index.md) are kept in sync per the
 
 | ADR | Title | Status | Date | Source |
 | --- | ----- | ------ | ---- | ------ |
+| ADR-076 | Skill Playbook Single-Source & Compression | Accepted | 2026-09-07 | [2026-09-07_adr-076-skill-playbook-single-source-and-compression.md](./journal/2026-09/2026-09-07_adr-076-skill-playbook-single-source-and-compression.md) |
 | ADR-075 | Persona Soul Content in CREATE_PERSONA | Accepted | 2026-09-05 | [2026-09-05_adr-075-persona-soul-content-in-create-persona.md](./journal/2026-09/2026-09-05_adr-075-persona-soul-content-in-create-persona.md) |
 | ADR-074 | Default Persona Vault Scope & Onboarding Persona-Genesis Nudge | Accepted | 2026-09-05 | [2026-09-05_adr-074-default-persona-vault-scope-and-onboarding-genesis-nudge.md](./journal/2026-09/2026-09-05_adr-074-default-persona-vault-scope-and-onboarding-genesis-nudge.md) |
 | ADR-073 | Worker Native-Shell Command Allowlisting & Symlink-Safe Path Checks | Accepted | 2026-09-04 | [2026-09-04_adr-073-worker-native-shell-allowlisting.md](./journal/2026-09/2026-09-04_adr-073-worker-native-shell-allowlisting.md) |
@@ -112,6 +113,8 @@ one in [`docs/wiki/index.md`](./wiki/index.md) are kept in sync per the
 
 | Date | Entry |
 | ---- | ----- |
+| 2026-09-07 | [ADR-076 — Skill Playbook Single-Source & Compression](./journal/2026-09/2026-09-07_adr-076-skill-playbook-single-source-and-compression.md) |
+| 2026-09-07 | [Prompt-Cache Preservation & HTTPS Opt-In](./journal/2026-09/2026-09-07_prompt-cache-preservation-and-https-optin.md) |
 | 2026-09-05 | [Typewriter Reveal for `buffered` Render Mode](./journal/2026-09/2026-09-05_typewriter-reveal-buffered-mode.md) |
 | 2026-09-05 | [Animated Thinking Status](./journal/2026-09/2026-09-05_animated-thinking-status.md) |
 | 2026-09-05 | [Persona Soul Content Implementation (ADR-075)](./journal/2026-09/2026-09-05_persona-soul-content-implementation.md) |

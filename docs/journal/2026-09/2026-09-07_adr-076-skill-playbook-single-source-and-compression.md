@@ -1,0 +1,127 @@
+---
+title: "ADR-076 — Skill Playbook Single-Source & Compression"
+created: 2026-09-07
+type: adr
+parent: index
+tags:
+  - sympose/architecture
+  - engineering/adr
+  - skills
+  - prompt-budget
+---
+
+# ADR-076 — Skill Playbook Single-Source & Compression
+
+- **Status:** Accepted — implemented 2026-09-07.
+- **Date:** 2026-09-07
+- **Deciders:** damiro (Lead Architect); Claude (Sonnet 5) (Engineering Partner)
+- Extends the skills system introduced in
+  [ADR-018](../2026-08/2026-08-25_adr-018-multi-model-concierge-integration.md)
+  and the round-trip-frugal, hot-path prompt-budget discipline of
+  [ADR-070](./2026-09-04_adr-070-hot-path-retrieval-budget-trigger-discipline.md).
+
+## Context
+
+Two problems surfaced while debugging why a local-model persona (Anaïs, on a
+14B Ollama model) took ~60 s to first token on every Slack turn.
+
+**1. The skill directory had drifted into two out-of-sync copies.**
+`SkillManager` ([skills.py:67-70](../../../sympose/skills.py#L67-L70)) scans
+`<workspace>/skills/` and `<package>/sympose/builtin_skills/`. The repo also
+carried a top-level `skills/` — tracked, referenced throughout the wiki, and the
+place edits actually landed — but **not** one of the two directories the loader
+reads (unless the CLI is run from the repo checkout). `sympose/builtin_skills/`
+(what ships in the wheel, and what seeds `~/.sympose/skills/`) had fallen behind:
+
+- `subagent_spawn` was **absent entirely** — so every persona that declared it
+  (Samantha ships with it) silently received no `[SPAWN_WORKER]` playbook, with
+  no error or log line.
+- `sympose_mastery` predated [ADR-075](./2026-09-05_adr-075-persona-soul-content-in-create-persona.md)
+  (no `soul_content` guidance); `vault_recall` predated its Context-Adaptive
+  output modes.
+
+**2. The playbooks re-stated the base rules, per skill, per turn.**
+`format_skills_for_prompt` ([skills.py:168-185](../../../sympose/skills.py#L168-L185))
+pastes each listed skill's **entire** Markdown body into the system prompt
+verbatim, every turn, with no gating. The Universal Workspace Rules
+(`prompts/workspace_rules.md`) already carry action-tag syntax, the
+anti-hallucination and anti-helplessness axioms, mandatory-tag-emission, and
+the no-roleplay rule — yet each `SKILL.md` repeated its own copy, plus
+decorative banners and three-to-four fully worked examples. The five-skill
+"baseline kit" came to ~4,600 tokens of system prompt on a message as trivial
+as "hey, you here?". A separate finding — a per-minute `{{current_datetime}}`
+token 6 % into the prompt busting the local model's prompt-cache prefix — is
+recorded in the 2026-09-07 engineering log; this ADR is about the payload size
+itself.
+
+`prompts/workspace_rules.md` had a third instance of the same class of bug:
+`build_system_prompt` reads it at runtime, but `prompts/` is not shipped in the
+wheel, so a `pip`/`pipx` install falls back to `bootstrap.DEFAULT_RULES_MD` — a
+string that had drifted several rules behind the file. Fresh installs ran a
+weaker ruleset.
+
+## Decision
+
+- **ADR-076.1 — `sympose/builtin_skills/` is the single source of truth for
+  shipped skill playbooks.** The top-level `skills/` directory is deleted;
+  `/skills/` is git-ignored (it is only re-seeded there at runtime when the CLI
+  runs from the repo). The dead `recursive-include skills *.md` line is removed
+  from `MANIFEST.in`; six wiki pages are repointed at `sympose/builtin_skills/`.
+  `subagent_spawn` is added; `sympose_mastery` and `vault_recall` are brought
+  current.
+
+- **ADR-076.2 — Playbooks carry skill-specific nuance only; the base rules carry
+  everything shared.** Two rules are added to `prompts/workspace_rules.md`
+  (no self-narration; no payload-dumping in chat), covering the last cross-skill
+  duplications. `vault_write`, `vault_recall`, `slack_interaction`, `web_search`,
+  `strategic_analysis`, `subagent_spawn`, and `sympose_mastery` are rewritten to
+  drop the re-stated axioms, decorative structure, and redundant examples
+  (one per action tag). `vault_write`'s routing table is de-personalised to
+  folder *types*. Every action tag remains referenced; the 157-test suite passes.
+
+  | | before | after |
+  | --- | --- | --- |
+  | baseline five-skill payload | ~4,613 tok | ~2,275 tok |
+  | `sympose_mastery` (Samantha) | ~2,568 tok | ~1,123 tok |
+  | Anaïs full system prompt | ~5,471 tok | ~2,745 tok |
+  | Anaïs first-token latency (14B local, warm) | ~60 s | ~39 s |
+
+- **ADR-076.3 — `bootstrap.DEFAULT_RULES_MD` is kept byte-for-byte identical to
+  `prompts/workspace_rules.md`,** guarded by
+  `tests/unit/test_bootstrap.py::test_default_rules_md_matches_workspace_rules_file`.
+  It is explicitly the wheel-install fallback for the un-shipped `prompts/` file,
+  not an independent ruleset.
+
+## Consequences
+
+- One place to edit a skill; the loader, the wheel, and the workspace seed all
+  read the same bytes.
+- Every persona turn — local **and** cloud — is ~2,300 tokens lighter, lowering
+  both first-token latency and per-call cost.
+- `prompts/` is still not shipped in the wheel; the `DEFAULT_RULES_MD` mirror +
+  its guard test make that safe, but consolidating `prompts/` into the package
+  the way `skills/` was consolidated remains open (deferred, low urgency).
+- Skill bodies are still injected unconditionally. Keyword-gated injection (only
+  loading a skill's full body when the turn plausibly needs it) is a separate,
+  optional follow-up — it trades a reliability risk for turn-one latency and was
+  not taken here.
+
+## Alternatives rejected
+
+- **Keep both `skills/` and `builtin_skills/`, add a drift-guard test.** Lower
+  churn, but preserves two copies of every playbook and the "loader ignores the
+  directory people edit" footgun. Rejected for a genuine single source.
+- **Make top-level `skills/` canonical; generate `builtin_skills/` at build
+  time** (hatch `force-include` / a build hook). Requires build machinery, and
+  breaks the `~/.sympose/skills/` seed for editable installs where the generated
+  copy doesn't exist. Against the zero-bloat mandate.
+- **Symlink `sympose/builtin_skills` → `../skills`.** Fragile across git
+  checkouts, sdist/wheel packaging, and Windows. Rejected.
+- **Tiered/lazy skill loading now** (stub always, full body on demand). The
+  on-demand fetch is an extra round-trip, against
+  [ADR-071](./2026-09-04_adr-071-primary-agent-action-dispatch-mechanism.md)'s
+  frugality; keyword-gating avoids the round-trip but risks a skill being absent
+  on the turn it is finally needed. Deferred as an explicit, separately-decided
+  optimisation rather than bundled here.
+- **Leave `DEFAULT_RULES_MD` as an independent short fallback.** That is exactly
+  what caused fresh installs to run stale rules. Rejected for the mirror + guard.

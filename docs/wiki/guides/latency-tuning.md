@@ -82,6 +82,29 @@ All performance, latency, and context parameters are now centrally managed in [`
 
 ---
 
+### 6. Prompt-Cache Preservation (Local Models)
+
+Local inference engines (llama.cpp / Ollama) cache the KV state of a **stable
+prompt prefix** and only prefill the new suffix each turn. Anything that changes
+between turns invalidates the cache from that point onward, forcing a full
+re-prefill — on a 14B model at ~80 tok/s a ~5k-token prompt is ~60 s, *every*
+turn instead of just the first.
+
+* **No volatile tokens high in the system prompt.** The `{{current_datetime}}`
+  substitution is **date-only** (`%Y-%m-%d %A`, no `%H:%M`) for exactly this
+  reason — a per-minute timestamp 6 % into the prompt was re-prefilling
+  everything after it on every turn (ADR-076 / 2026-09-07 log). Write-time
+  stamps (daily notes, session logs) use their own `datetime.now()`.
+* **Keep the model resident.** `OLLAMA_KEEP_ALIVE=-1` (server env) stops the
+  ~6–10 s reload between turns; the first turn after a gap otherwise pays it on
+  top of the prefill.
+* **Keep the prompt small.** Prefill time is linear in prompt length — the
+  ADR-076 skill compression took a persona prompt 5,471 → 2,745 tokens, first
+  token ~60 s → ~39 s. `local_request_timeout` (default 120 s) must exceed the
+  cold first-turn prefill or the turn fails silently.
+
+---
+
 ## 🛠️ How to Tweak Variables on the Fly
 
 ### Change Backend Model in Real-Time:

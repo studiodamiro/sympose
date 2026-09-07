@@ -223,8 +223,13 @@ class SlackDaemon:
         while True:
             try:
                 if self.setup() and self.handler:
-                    log.info("[Sympose] Slack Bot active for @%s", self.default_persona)
-                    self.handler.start()
+                    label = (self.pm.get_profile(self.default_persona) or {}).get("name") or self.default_persona
+                    # handler.connect() + block, not handler.start(): the latter's
+                    # slack_bolt banner ("⚡️ Bolt app is running!") is a bare print()
+                    # with no persona context and cannot be silenced.
+                    self.handler.connect()
+                    print(f"⚡ @{self.default_persona} ({label}) live on Socket Mode", flush=True)
+                    threading.Event().wait()
             except Exception as e:
                 self._is_setup = False
                 log.warning("[Slack Reconnect] @%s: %s. Retrying in 3s...", self.default_persona, e)

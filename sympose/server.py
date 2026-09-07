@@ -191,7 +191,6 @@ def run_server(engine: Any, workspace_dir: str, host: str = "127.0.0.1", port: i
             ssl_kwargs = {"ssl_certfile": cert_pair[0], "ssl_keyfile": cert_pair[1]}
 
     scheme = "https" if ssl_kwargs else "http"
-    log.info("Sympose Dashboard & Vault Gateway starting on %s://%s:%s", scheme, host, port)
-    log.info("Swagger API Documentation available at: %s://localhost:%s/docs", scheme, port)
-    log.info("Dashboard login — user: %s  password: %s  (see workspace .env)", DASHBOARD_USER, password)
+    print(f"\nSympose Dashboard running at: {scheme}://{host}:{port}", flush=True)
+    print(f"Login — user: {DASHBOARD_USER}  password: {password}  (see workspace .env)\n", flush=True)
     uvicorn.run(app, host=host, port=port, log_level="info", **ssl_kwargs)

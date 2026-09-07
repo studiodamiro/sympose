@@ -11,11 +11,54 @@ dashboard falls back to plain HTTP rather than failing to boot.
 """
 
 import os
+import sys
 import datetime
 import logging
 from typing import Optional, Tuple
 
 log = logging.getLogger(__name__)
+
+
+def ensure_dashboard_tls_choice(workspace_dir: str) -> bool:
+    """Returns whether the dashboard should serve over HTTPS, asking once on
+    first `--dashboard` boot and persisting the answer to the workspace .env —
+    the same generate-once-and-persist pattern as `ensure_dashboard_password`.
+
+    If `SYMPOSE_DASHBOARD_TLS` is already set (env or a prior boot's .env),
+    that value wins and no prompt happens. A non-interactive launch (no TTY —
+    a background service, a script) also skips the prompt and keeps today's
+    default (HTTPS), since there's no one there to answer it.
+    """
+    raw = os.getenv("SYMPOSE_DASHBOARD_TLS")
+    if raw is not None:
+        return raw.strip().lower() not in ("0", "false", "no")
+
+    if not sys.stdin.isatty():
+        return True
+
+    try:
+        from rich.prompt import Confirm
+    except ImportError:
+        return True
+
+    use_tls = Confirm.ask(
+        "\n[bold cyan]Serve the dashboard over HTTPS?[/bold cyan] "
+        "[dim]Self-signed — your browser will warn once per device. The "
+        "dashboard binds to 127.0.0.1 only, so plain HTTP is equally private "
+        "here; HTTPS just avoids that warning at the cost of it.[/dim]",
+        default=True,
+    )
+    os.environ["SYMPOSE_DASHBOARD_TLS"] = "1" if use_tls else "0"
+    env_file = os.path.join(workspace_dir, ".env")
+    try:
+        with open(env_file, "a", encoding="utf-8") as f:
+            f.write(f"\nSYMPOSE_DASHBOARD_TLS={'1' if use_tls else '0'}\n")
+    except Exception:
+        log.warning(
+            "[tls] Could not persist the HTTPS choice to %s (will ask again next boot).",
+            env_file,
+        )
+    return use_tls
 
 
 def ensure_self_signed_cert(workspace_dir: str) -> Optional[Tuple[str, str]]:

@@ -51,12 +51,13 @@ def main():
 
     if args.dashboard:
         from sympose.server import run_server
+        from sympose.tls import ensure_dashboard_tls_choice
         # Defaults to localhost-only; set SYMPOSE_DASHBOARD_HOST=0.0.0.0 to opt into
         # LAN exposure explicitly. Every route requires the ADR-064.1 dashboard
-        # password (auto-generated into .env on first boot if unset) and, unless
-        # SYMPOSE_DASHBOARD_TLS=0 or `cryptography` is missing, serves over the
-        # ADR-064.2 self-signed certificate.
-        tls_enabled = os.getenv("SYMPOSE_DASHBOARD_TLS", "1").strip().lower() not in ("0", "false", "no")
+        # password (auto-generated into .env on first boot if unset). HTTPS vs
+        # plain HTTP (ADR-064.2) is asked once on first interactive boot and
+        # persisted to .env from then on — see `ensure_dashboard_tls_choice`.
+        tls_enabled = ensure_dashboard_tls_choice(workspace_dir)
         run_server(
             engine,
             workspace_dir=workspace_dir,

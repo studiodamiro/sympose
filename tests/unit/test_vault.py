@@ -137,6 +137,27 @@ class TestParseFrontmatter:
         assert fm.get("author") == "damiro"
         assert "Body text here" in body
 
+    def test_frontmatter_only_note_without_trailing_newline(self):
+        """People/Templates notes are often 100% frontmatter with the closing
+        `---` as the last line and no trailing newline — must still parse."""
+        from sympose.vault import VaultManager
+        content = "---\naka:\n  - Dylan\nname: Dylan Cosmo\ntags:\n  - \"#person\"\n  - son\n---"
+        fm, body = VaultManager.parse_frontmatter(content)
+        assert fm.get("name") == "Dylan Cosmo"
+        assert fm.get("aka") == ["Dylan"]
+        assert "#person" in fm.get("tags", [])
+        assert body == ""
+
+    def test_frontmatter_only_note_with_trailing_newline(self):
+        from sympose.vault import VaultManager
+        fm, body = VaultManager.parse_frontmatter("---\nname: X\n---\n")
+        assert fm.get("name") == "X" and body == ""
+
+    def test_closing_delimiter_with_trailing_spaces(self):
+        from sympose.vault import VaultManager
+        fm, body = VaultManager.parse_frontmatter("---\nname: X\n---  \nBody")
+        assert fm.get("name") == "X" and "Body" in body
+
 
 # ---------------------------------------------------------------------------
 # VaultManager.write_note (sandbox enforcement)

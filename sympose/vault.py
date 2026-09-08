@@ -316,11 +316,13 @@ class VaultManager:
         if not content.startswith("---"):
             return {}, content
 
-        match = re.match(r"^---\r?\n(.*?)\r?\n---\r?\n(.*)$", content, re.DOTALL)
+        # Closing `---` may be the last line of the file (frontmatter-only note),
+        # carry trailing spaces, or be followed by a body. All three are valid.
+        match = re.match(r"^---\r?\n(.*?)\r?\n---[ \t]*(?:\r?\n(.*))?\Z", content, re.DOTALL)
         if not match:
             return {}, content
 
-        raw_yaml, body = match.group(1), match.group(2)
+        raw_yaml, body = match.group(1), match.group(2) or ""
         meta: Dict[str, Any] = {}
         try:
             parsed = yaml.safe_load(raw_yaml)

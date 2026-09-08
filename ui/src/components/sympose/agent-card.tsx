@@ -59,8 +59,9 @@ function AgentCard({ personas, active, onSwitch, className }: AgentCardProps) {
 
       {/* identity — the 64px avatar straddles the band's bottom edge (centre on
           the edge, half in / half below). `border-4` (border-box) keeps its
-          visual bounds equal to its box. The name sits in the band, top-aligned
-          with the avatar; the title drops just below the band. */}
+          visual bounds equal to its box. The name/title column is nudged down
+          (`pt-2`) so the name settles inside the band and the title clears the
+          band edge by the same gap that sits between name and title. */}
       <div className="-mt-12 flex items-start gap-3">
         <Avatar className="size-16 shrink-0 border-4 border-panel">
           <AvatarFallback
@@ -70,11 +71,11 @@ function AgentCard({ personas, active, onSwitch, className }: AgentCardProps) {
             <HugeiconsIcon icon={visuals.icon} className="size-7" />
           </AvatarFallback>
         </Avatar>
-        <div className="min-w-0">
+        <div className="min-w-0 pt-2">
           <h2 className="truncate font-heading text-lg leading-tight font-semibold text-background">
             {current.name}
           </h2>
-          <p className="mt-3 text-sm leading-snug text-pretty text-fg-muted">
+          <p className="mt-3 text-sm leading-snug text-balance text-fg-muted">
             {current.title}
           </p>
         </div>

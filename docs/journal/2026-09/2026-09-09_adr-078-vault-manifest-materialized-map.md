@@ -358,3 +358,21 @@ a re-parse of the handful of changed notes, not a full vault re-read.
 `vault_manifest.py` grew to ~295 lines — over the 200-LOC guideline, accepted
 because the delta path is the module's scalability core; a split is available if
 it earns its keep.
+
+## Implementation Note (2026-09-09 — module split for the 200-LOC guideline)
+
+The split anticipated above was taken. No behaviour change, no schema change,
+no API change — the function bodies moved verbatim.
+
+- **`sympose/vault_manifest_build.py`** (~151 lines) — the pure projection and
+  the ADR-078.4 delta core: `SCHEMA_VERSION`, the wikilink regex, `_stem` /
+  `_tags_of` / `_targets_in` / `_mtime_of` / `_node`, `build`, `_stat_tree`,
+  `_delta_rebuild`. Nothing here opens a manifest file.
+- **`sympose/vault_manifest.py`** (~162 lines) — the on-disk lifecycle:
+  `manifest_path`, the per-path lock and in-memory caches, `_top_level_watermark`,
+  `_load_file` / `_write_atomic`, `load`, `ensure_fresh`, `patch_note`. It
+  re-exports `build` (and the shared helpers it still needs) from the build
+  module, so `vault_manifest.build` / `.ensure_fresh` / `.patch_note` remain the
+  import surface for `vault.py` and the tests — no caller changed.
+
+Suite unchanged at 303 green.

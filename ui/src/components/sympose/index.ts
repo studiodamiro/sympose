@@ -1,4 +1,5 @@
 export { ActionBadge, ACTION_META, type ActionKind } from "./action-badge"
+export { AgentCard } from "./agent-card"
 export { CapacityMeter } from "./capacity-meter"
 export { ChatMessage, StreamingCaret } from "./chat-message"
 export { ChatActionGroup, ChatPanel } from "./chat-panel"

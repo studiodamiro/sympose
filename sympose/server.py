@@ -54,8 +54,23 @@ def create_app(engine: Any) -> FastAPI:
 
     @app.get("/api/personas")
     def list_personas() -> Dict[str, Any]:
+        """Roster for the dashboard agent picker — a trimmed projection of each
+        profile (never the raw manifest: no `soul_file` / `memory_file` paths,
+        no `thinking_phrases`)."""
+        default = engine.config.get("runtime.default_persona")
         return {
-            "personas": [p for p in engine.pm.profiles.values()]
+            "default": default,
+            "personas": [
+                {
+                    "handle": p.get("handle", h),
+                    "name": p.get("name", h),
+                    "title": p.get("title", ""),
+                    "model": p.get("model", ""),
+                    "skills": p.get("skills") or [],
+                    "is_default": p.get("handle", h) == default,
+                }
+                for h, p in engine.pm.profiles.items()
+            ],
         }
 
     @app.get("/api/config")

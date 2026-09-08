@@ -14,9 +14,12 @@ import { useBreakpoint } from "@/lib/use-breakpoint"
 import { useFillWidth } from "@/lib/use-fill-width"
 import { useTransientFlag } from "@/lib/use-transient-flag"
 import { usePanels } from "@/lib/use-panels"
+import { useActivePersona } from "@/lib/use-active-persona"
+import { fetchPersonas, type LivePersona } from "@/lib/personas"
 import { VAULT_FOLDERS } from "@/lib/vault-folders"
 import {
   ActionBadge,
+  AgentCard,
   ChatActionGroup,
   ChatMessage,
   ChatPanel,
@@ -215,6 +218,22 @@ export function AppShell() {
   const editorFill =
     breakpoint !== "desktop" && editorOpen && !chatOpen && !unfillFirst
 
+  // Agent picker — the active persona is client state (a cookie), and the
+  // roster is fetched once. Both feed the `MENU_ACCOUNT_ID` panel; the handle
+  // is lifted here so the vault panels can scope their `?persona=` calls to it
+  // once those land.
+  const [activePersona, setActivePersona] = useActivePersona()
+  const [personas, setPersonas] = React.useState<LivePersona[]>([])
+  React.useEffect(() => {
+    let alive = true
+    fetchPersonas().then((list) => {
+      if (alive) setPersonas(list)
+    })
+    return () => {
+      alive = false
+    }
+  }, [])
+
   const activeLabel = SECTION_LABELS[active] ?? active
   // Phone: the rail only shows alongside the content panel — the two are one
   // view. Desktop / tablet: always shown.
@@ -224,34 +243,41 @@ export function AppShell() {
   const plainPage =
     isPhone && (active === MENU_SETTINGS_ID || active === MENU_ACCOUNT_ID)
 
-  const contentBody = (
-    <>
-      <div className="flex items-center justify-between gap-4">
-        <h1 className="font-heading text-2xl font-semibold text-fg-strong">
-          {activeLabel}
-        </h1>
-        <Link
-          to="/"
-          className="shrink-0 text-xs text-muted-foreground transition-colors hover:text-foreground"
-        >
-          ← back to demos
-        </Link>
-      </div>
-      <p className="max-w-2xl text-sm leading-relaxed text-muted-foreground">
-        {activeLabel} section. Every menu row toggles this panel; click the
-        active row again to slide it away. The editor and chat toggle the same
-        way. On a tablet only two of the three may be open at once — opening a
-        third closes whichever you touched longest ago, and the rightmost one
-        grows to fill the space.
-      </p>
-    </>
-  )
+  const contentBody =
+    active === MENU_ACCOUNT_ID ? (
+      <AgentCard
+        personas={personas}
+        active={activePersona}
+        onSwitch={setActivePersona}
+      />
+    ) : (
+      <>
+        <div className="flex items-center justify-between gap-4">
+          <h1 className="font-heading text-2xl font-semibold text-fg-strong">
+            {activeLabel}
+          </h1>
+          <Link
+            to="/"
+            className="shrink-0 text-xs text-muted-foreground transition-colors hover:text-foreground"
+          >
+            ← back to demos
+          </Link>
+        </div>
+        <p className="max-w-2xl text-sm leading-relaxed text-muted-foreground">
+          {activeLabel} section. Every menu row toggles this panel; click the
+          active row again to slide it away. The editor and chat toggle the same
+          way. On a tablet only two of the three may be open at once — opening a
+          third closes whichever you touched longest ago, and the rightmost one
+          grows to fill the space.
+        </p>
+      </>
+    )
 
   const chatMessages = (
     <>
       <ChatMessage role="user" reaction={<HugeiconsIcon icon={ThumbsUpIcon} />}>
-        However some fonts, called variable fonts, can support a range of weights
-        with a more or less fine granularity
+        However some fonts, called variable fonts, can support a range of
+        weights with a more or less fine granularity
       </ChatMessage>
       <ChatMessage
         role="persona"
@@ -270,14 +296,14 @@ export function AppShell() {
         pleasure and praising pain was born and I will give you a complete
         account of the system, and expound the actual teachings of the great
         explorer of the truth, the master-builder of human happiness. No one
-        rejects, dislikes, or avoids pleasure itself, because it is pleasure, but
-        because
+        rejects, dislikes, or avoids pleasure itself, because it is pleasure,
+        but because
       </ChatMessage>
       <ChatMessage role="persona" handle="samantha">
         I will give you a complete account of the system, and expound the actual
-        teachings of the great explorer of the truth, the master-builder of human
-        happiness. No one rejects, dislikes, or avoids pleasure itself, because it
-        is pleasure, but because
+        teachings of the great explorer of the truth, the master-builder of
+        human happiness. No one rejects, dislikes, or avoids pleasure itself,
+        because it is pleasure, but because
       </ChatMessage>
     </>
   )

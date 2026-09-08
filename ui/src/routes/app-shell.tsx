@@ -330,9 +330,9 @@ export function AppShell() {
       </>
     ) : (
       <div className="flex flex-col gap-2">
-        <span className="px-2 text-xs font-semibold tracking-wide text-fg-muted uppercase">
-          {activeLabel || "Vault"} · @{activePersona}
-        </span>
+        <h2 className="px-2 font-heading text-2xl font-semibold text-fg-strong">
+          {activeLabel || "Vault"}
+        </h2>
         {vaultTree.length === 0 ? (
           <p className="px-2 text-sm text-fg-muted">
             No notes in scope — check that the dashboard API is reachable and

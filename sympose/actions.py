@@ -140,6 +140,15 @@ class ActionProcessor:
                         from sympose.ui import TerminalUI
                         console = TerminalUI.get_console() if render_mode != "raw" else None
                         TerminalUI.render_vault_note_panel(console, rel_path, note_content)
+                        if is_worker:
+                            # The panel only reaches a terminal. Fold the verbatim
+                            # text into the worker's returned synthesis so the
+                            # primary agent (and Slack) can quote it — otherwise a
+                            # weak model answers from a plausible fake.
+                            clean_text += (
+                                f"\n\n### Ground-Truth Sandboxed Vault Note (`{rel_path}` — Exact Content):\n"
+                                f"{str(note_content).strip()[:4000]}"
+                            )
                         badges.append(f"> 📄 **{name} rendered note to Terminal:** `{rel_path}`")
                     else:
                         badges.append(f"> ⚠️ **Could not read note:** `{rel_path or target_note}`")

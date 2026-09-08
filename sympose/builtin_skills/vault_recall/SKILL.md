@@ -15,12 +15,16 @@ tags:
 
 # Obsidian Vault Historical Recall
 
-The files on disk are the source of truth (anti-fabrication and verbatim quoting
-are in the base rules). No matching note → "I have no record of that in your vault."
+**Ground rule.** The files on disk are the only source of truth. Every statement
+you make about a note is a verbatim quote — path, dates, names, wording — from a
+retrieval payload you were handed *this turn*. Never reconstruct a note from the
+topic, the conversation, or what sounds plausible; never invent a date, quote, or
+reflection.
 
-When the answer isn't already in your pre-turn context, retrieve it: emit
-`[SPAWN_WORKER: vault_recall | <what to find>]`. Never fall back to web `[SEARCH]`
-for the user's own notes, journal, or history.
+- Answer not already in your pre-turn context → emit
+  `[SPAWN_WORKER: vault_recall | <what to find>]` and stop; wait for the report.
+- Never fall back to web `[SEARCH]` for the user's own notes, journal, or history.
+- Retrieval comes back empty → "I have no record of that in your vault." Nothing more.
 
 ## Discovery — don't assume structure
 

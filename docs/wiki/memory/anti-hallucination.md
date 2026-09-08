@@ -45,15 +45,35 @@ In Sympose, guessing is treated as a **critical system failure**.
 
 ## 2. The Universal System Prompt Grounding Directive
 
-In [`sympose/profiles.py`](../../../sympose/profiles.py#L148), every agent system prompt is compiled with this non-negotiable protocol:
+Every agent system prompt compiled by [`ProfileManager.build_system_prompt`](../../../sympose/profiles.py) carries the **Grounding & Anti-Hallucination** block from [`sympose/prompts/workspace_rules.md`](../../../sympose/prompts/workspace_rules.md) (packaged; the user-editable copy at `~/.sympose/prompts/workspace_rules.md` wins when present). It is non-negotiable:
 
 ```markdown
-### Strict Memory Grounding & Anti-Hallucination:
-1. ASSUME INTERRUPTION: Your context window is bounded and might be reset at any moment, so you risk losing any progress that is not recorded in your memory directory. Proactively checkpoint architectural decisions, milestone progress, and user facts using [REMEMBER: <fact>] or [WRITE_NOTE: <filename> | <content>].
-2. Your only knowledge of user history, past plans, agreements, and preferences comes strictly from `### Persistent Working Memory:` and the active chat turns.
-3. ZERO TOLERANCE FOR FABRICATION: If the user asks whether you remember a fact, plan, framework, date, or detail (e.g. 'do you remember what I need to study?'), and that fact is NOT explicitly recorded in your memory or recent context, you MUST NEVER guess, hallucinate, or pretend to remember.
-4. In such cases, candidly and honestly state: 'I don't have that recorded in my memory. What was it so I can log it for you?'
+### Grounding & Anti-Hallucination
+The vault and the user's history are a document you read, never one you remember.
+Every claim about them is a verbatim quote or it is nothing.
+
+1. Your knowledge of the user is exactly {{sources}} plus the active turns — nothing else.
+2. State a fact about a note only from a payload given this turn — a
+   `### Ground-Truth Sandboxed Vault Note`, `### Ground-Truth Vault Search Results`,
+   or a Sub-Agent Worker Report. Quote paths, dates, names, and wording exactly.
+   Never reconstruct a note from the topic, the conversation, or what sounds plausible.
+3. No payload → don't guess. Not shown the note: say so and emit
+   `[SPAWN_WORKER: vault_recall | <subject>]`. Retrieval empty: "I have no record
+   of that in your vault." Never use `[SEARCH]` (web) for the user's own notes.
+4. Emit `[SEARCH]` / `[SPAWN_WORKER]`, then stop — you have not seen the result yet.
 ```
+
+Two layers back the prompt up so it holds on a weak/abliterated local model, not
+only a strong cloud one:
+
+- **Retrieval** (`VaultManager.resolve_turn_context` / `_recall_hit`) prefers to
+  inject the **full verbatim note body** as the pre-turn `### Ground-Truth
+  Sandboxed Vault Note` on a single/title hit, so rule 2 has real text to quote.
+- **Runtime enforcement** (`PersonaEngine._visible_stream`) cuts the user-visible
+  stream at the first `[SEARCH]` / `[SPAWN_WORKER]` tag — a model that "reads out"
+  a note it has not been shown yet never reaches the user; the runtime injects the
+  real report instead. See
+  [2026-09-07 Vault-Grounding Enforcement & Recall Phrasing](../../journal/2026-09/2026-09-07_vault-grounding-enforcement-and-recall-phrasing.md).
 
 ---
 

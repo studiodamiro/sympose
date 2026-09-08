@@ -113,6 +113,7 @@ one in [`docs/wiki/index.md`](./wiki/index.md) are kept in sync per the
 
 | Date | Entry |
 | ---- | ----- |
+| 2026-09-07 | [Vault-Grounding Enforcement & Recall Phrasing (round 2)](./journal/2026-09/2026-09-07_vault-grounding-enforcement-and-recall-phrasing.md) |
 | 2026-09-07 | [Vault Recall vs. Conversational Phrasing](./journal/2026-09/2026-09-07_vault-recall-conversational-phrasing.md) |
 | 2026-09-07 | [ADR-076 — Skill Playbook Single-Source & Compression](./journal/2026-09/2026-09-07_adr-076-skill-playbook-single-source-and-compression.md) |
 | 2026-09-07 | [Prompt-Cache Preservation & HTTPS Opt-In](./journal/2026-09/2026-09-07_prompt-cache-preservation-and-https-optin.md) |

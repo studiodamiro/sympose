@@ -15,10 +15,12 @@ import {
 } from "@/lib/nebula-graph"
 import rawGraph from "@/lib/mock-nebula.json"
 
-// Master graph with all notes and tag hubs pre-indexed for zero-reset stable rendering
-const masterGraph: NebulaGraph = (() => {
-  const rawNodes = rawGraph.nodes as any[]
-  const rawLinks = rawGraph.links as any[]
+// Master graph with all notes and tag hubs pre-indexed for zero-reset stable
+// rendering. Runs on the live `GET /api/vault/graph` feed, or the bundled
+// `mock-nebula.json` when the backend isn't reachable (offline dev).
+function buildMasterGraph(raw: { nodes: any[]; links: any[] }): NebulaGraph {
+  const rawNodes = raw.nodes as any[]
+  const rawLinks = raw.links as any[]
 
   const tagMap = new Map<string, number>()
   rawNodes.forEach((n) => {
@@ -63,7 +65,7 @@ const masterGraph: NebulaGraph = (() => {
     nodes: [...rawNodes, ...tagNodes],
     links: [...rawLinks, ...tagLinks],
   }
-})()
+}
 
 // Helper toggle component matching Obsidian pink pill switches. Declared at
 // module scope so it keeps a stable identity across renders (a nested component
@@ -98,6 +100,26 @@ function ToggleSwitch({
 
 export function NebulaShowcase() {
   const nebulaRef = React.useRef<KnowledgeNebulaHandle>(null)
+
+  // Live vault graph from GET /api/vault/graph; the bundled mock is the
+  // first paint and the offline fallback.
+  const [masterGraph, setMasterGraph] = React.useState<NebulaGraph>(() =>
+    buildMasterGraph(rawGraph as { nodes: any[]; links: any[] })
+  )
+  React.useEffect(() => {
+    let cancelled = false
+    fetch("/api/vault/graph")
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
+      .then((data: NebulaGraph) => {
+        if (!cancelled && data?.nodes?.length) setMasterGraph(buildMasterGraph(data))
+      })
+      .catch(() => {
+        /* backend unreachable — keep the bundled mock */
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   // Theme & Dock state
   const [theme, setTheme] = React.useState<"dark" | "light">("dark")
@@ -247,7 +269,7 @@ export function NebulaShowcase() {
       hiddenNodeIds: hidden,
       activeCount: highlighted.size,
     }
-  }, [searchQuery, showTags, showAttachments, showOrphans, existingOnly, selectedNodeId])
+  }, [searchQuery, showTags, showAttachments, showOrphans, existingOnly, selectedNodeId, masterGraph])
 
   // Dynamically update camera zoom distance in real-time as the slider moves
   const isFirstMount = React.useRef(true)

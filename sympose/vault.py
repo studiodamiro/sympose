@@ -784,6 +784,43 @@ class VaultManager:
 
         return "\n".join(lines)
 
+    @staticmethod
+    def format_manifest_digest(manifest: Dict[str, Any], max_folders: int = 30,
+                               max_tags: int = 12, max_hubs: int = 8) -> str:
+        """Compact, disk-true structural map from an ADR-078 manifest — folder
+        counts, top tags, most-linked notes, unresolved links. Structure only:
+        no note text, so it says *where* to look, never *what a note says*."""
+        nodes = manifest.get("nodes", [])
+        real = [n for n in nodes if n.get("exists")]
+        real_ids = {n["id"] for n in real}
+        top = sorted(((k, v) for k, v in manifest.get("folders", {}).items() if "/" not in k),
+                     key=lambda kv: -kv[1])
+        folder_lines = [f"- `{k}/` — {v} note{'s' if v != 1 else ''}" for k, v in top[:max_folders]] or ["- *(flat vault — no folders)*"]
+
+        tag_counts: Dict[str, int] = {}
+        inbound: Dict[str, int] = {}
+        for n in real:
+            for t in n.get("tags", []):
+                tag_counts[t] = tag_counts.get(t, 0) + 1
+        for l in manifest.get("links", []):
+            if l["target"] in real_ids:
+                inbound[l["target"]] = inbound.get(l["target"], 0) + 1
+        tag_line = ", ".join(f"#{t} ({c})" for t, c in sorted(tag_counts.items(), key=lambda kv: -kv[1])[:max_tags]) or "—"
+        hub_line = ", ".join(f"[[{h}]] ({c})" for h, c in sorted(inbound.items(), key=lambda kv: -kv[1])[:max_hubs]) or "—"
+
+        out = [
+            f"### Ground-Truth Vault Structure Map ({len(real)} notes, {len(top)} top-level folders)",
+            "", "**Folders:**", *folder_lines, "",
+            f"**Top tags:** {tag_line}",
+            f"**Most-linked notes:** {hub_line}",
+        ]
+        ghosts = [n["id"] for n in nodes if not n.get("exists")]
+        if ghosts:
+            sample = ", ".join(f"[[{g}]]" for g in ghosts[:6])
+            out.append(f"**Unresolved links:** {len(ghosts)} ({sample}{', …' if len(ghosts) > 6 else ''})")
+        out.append("\n*Structure only — read the actual note for its contents.*")
+        return "\n".join(out)
+
     @classmethod
     def get_template_for_path(cls, mv: str, note_name: str) -> Optional[str]:
         """Resolves the user's authentic Obsidian template from Templates/ folder if present."""
@@ -1062,6 +1099,17 @@ class VaultManager:
         mv, allowed_dirs = cls._get_master_vault(), cls.get_allowed_dirs(profile)
         if not mv or not allowed_dirs:
             return None
+
+        # 1b. Vault structure map (ADR-078) — "how is my vault organised / what
+        #     folders / how many notes / how is it connected". Disk-true counts,
+        #     no walk. Inert unless `vault.manifest.enabled`; structure only.
+        if re.search(r"\b(structure|structured|organi[sz]e|organi[sz]ed|organi[sz]ation|"
+                     r"hierarch\w*|layout|topolog\w*|folders?|how many notes?|vault map|"
+                     r"map of (?:my |the )?vault|overview of (?:my |the )?vault)\b", msg, re.I) \
+           and re.search(r"\b(vault|notes?|folders?|journal|obsidian)\b", msg, re.I):
+            manifest = cls.get_manifest()
+            if manifest and manifest.get("nodes"):
+                return cls.format_manifest_digest(manifest)
 
         # 2. Wikilink & Backlink Queries ("what notes link to [[OAuth]]?", "backlinks for Architecture")
         bl_match = re.search(

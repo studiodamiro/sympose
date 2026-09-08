@@ -247,6 +247,66 @@ class TestPatchNote:
 # VaultManager integration
 # ---------------------------------------------------------------------------
 
+class TestFormatDigest:
+    def _manifest(self, tmp_path):
+        return vm.build(str(tmp_path), [
+            _entry("Daily/2026/a.md", "[[Arch]]", tags=["jour"]),
+            _entry("Daily/2026/b.md", "[[Arch]] [[Ghost]]", tags=["jour"]),
+            _entry("Projects/Arch.md", "", tags=["proj"]),
+        ])
+
+    def test_digest_lists_top_level_folders_with_counts(self, tmp_path):
+        from sympose.vault import VaultManager
+        d = VaultManager.format_manifest_digest(self._manifest(tmp_path))
+        assert "`Daily/` — 2 notes" in d and "`Projects/` — 1 note" in d
+
+    def test_digest_reports_tags_hubs_and_ghosts(self, tmp_path):
+        from sympose.vault import VaultManager
+        d = VaultManager.format_manifest_digest(self._manifest(tmp_path))
+        assert "#jour (2)" in d
+        assert "[[Arch]] (2)" in d
+        assert "Unresolved links:** 1" in d and "[[Ghost]]" in d
+
+    def test_digest_carries_no_note_bodies_and_flags_structure_only(self, tmp_path):
+        from sympose.vault import VaultManager
+        m = vm.build(str(tmp_path), [_entry("a.md", "TOP SECRET BODY", tags=["x"])])
+        d = VaultManager.format_manifest_digest(m)
+        assert "TOP SECRET BODY" not in d
+        assert "Structure only" in d
+
+    def test_flat_vault_has_no_folder_rows(self, tmp_path):
+        from sympose.vault import VaultManager
+        d = VaultManager.format_manifest_digest(vm.build(str(tmp_path), [_entry("a.md"), _entry("b.md")]))
+        assert "flat vault" in d
+
+
+class TestResolveTurnContextStructureTier:
+    def _enable(self, monkeypatch, tmp_vault_dir):
+        from sympose.vault import config_manager
+        real_get = config_manager.get
+        ov = {"vault.manifest.enabled": True, "vault.manifest.check_debounce_seconds": 0.0,
+              "vault.manifest.max_nodes": 0}
+        monkeypatch.setattr(config_manager, "get", lambda k, d=None: ov.get(k, real_get(k, d)))
+        monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
+        (tmp_vault_dir / "Daily").mkdir()
+        (tmp_vault_dir / "Daily" / "2026-09-09.md").write_text("# Day\n#jour\n")
+
+    def test_structure_query_returns_the_map_when_enabled(self, tmp_vault_dir, monkeypatch):
+        from sympose.vault import VaultManager
+        self._enable(monkeypatch, tmp_vault_dir)
+        prof = {"vault_folders": ["*"], "skills": ["vault_recall"], "handle": "t"}
+        out = VaultManager.resolve_turn_context(prof, "how is my vault organised?")
+        assert out is not None and out.startswith("### Ground-Truth Vault Structure Map")
+
+    def test_structure_query_inert_when_manifest_disabled(self, tmp_vault_dir, monkeypatch):
+        from sympose.vault import VaultManager
+        monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
+        (tmp_vault_dir / "Daily").mkdir()
+        prof = {"vault_folders": ["*"], "skills": ["vault_recall"], "handle": "t"}
+        out = VaultManager.resolve_turn_context(prof, "how is my vault organised?")
+        assert out is None or not out.startswith("### Ground-Truth Vault Structure Map")
+
+
 class TestVaultManagerAccessor:
     def test_get_manifest_none_when_disabled(self):
         from sympose.vault import VaultManager

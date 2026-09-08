@@ -26,10 +26,16 @@ reflection.
 - Never fall back to web `[SEARCH]` for the user's own notes, journal, or history.
 - Retrieval comes back empty → "I have no record of that in your vault." Nothing more.
 
-## Discovery — don't assume structure
+## Discovery — read the map first, don't assume structure
 
-Vaults vary (Flat, PARA, Johnny Decimal, Zettelkasten, date-nested). Find notes
-with non-destructive inspection (`find`, `ls`, pattern matching) across anchors:
+When a **Vault Structure Map** is in your context (folder counts, top tags,
+most-linked notes), it is the disk-true shape of the vault this turn — use it to
+choose where to look before touching the filesystem. It holds no note text, so
+it tells you *where*, never *what a note says*.
+
+Vaults vary (Flat, PARA, Johnny Decimal, Zettelkasten, date-nested). With or
+without the map, locate notes by non-destructive inspection (`find`, `ls`,
+pattern matching) across anchors:
 
 - **Keywords** in filenames.
 - **Dates** in any schema (`YYYY-MM-DD`, `YYYY/MM/DD`, `YYYYMMDD`).

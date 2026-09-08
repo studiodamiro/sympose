@@ -127,10 +127,11 @@ work.
 - **`sympose/server.py`** — `GET /api/vault/tree`, persona query param
   defaulting to `samantha`, same pattern as `/api/vault/backlinks`.
 - **`ui/`** — `fetchVaultTree(persona)` in `src/lib/vault-tree-api.ts`; the
-  shell re-fetches on every persona switch and renders the existing
-  `<VaultTree>` in the folder panels (every folder row opens the same whole
-  scoped tree — the mockup's shape). Selecting a note only records the path
-  for now; note-open is a later slice.
+  shell re-fetches the whole scoped tree on every persona switch. Each menu
+  row's panel then shows just that entry's contents — a folder's own subtree,
+  or a single root note — sliced client-side from the one fetched tree (no
+  per-folder round-trip). Selecting a note only records the path for now;
+  note-open is a later slice.
 - **`ui/` main menu is now live** — the left rail is built from the tree's
   surface (top-level folders + root notes like `README.md`) in the tree's own
   order, not the static 13-entry `VAULT_FOLDERS` list. `VAULT_FOLDERS` is kept

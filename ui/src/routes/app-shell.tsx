@@ -281,6 +281,16 @@ export function AppShell() {
       ? active
       : (menuItems[0]?.id ?? active)
 
+  // The content panel shows the *contents* of the selected surface entry — a
+  // folder's own subtree, or a single root note — not the whole vault tree.
+  const activeNode = vaultTree.find((n) => n.path === resolvedActive)
+  const panelNodes: VaultNode[] =
+    activeNode?.type === "folder"
+      ? (activeNode.children ?? [])
+      : activeNode
+        ? [activeNode]
+        : []
+
   const activeLabel = SECTION_LABELS[resolvedActive] ?? resolvedActive
   // Phone: the rail only shows alongside the content panel — the two are one
   // view. Desktop / tablet: always shown.
@@ -321,19 +331,21 @@ export function AppShell() {
     ) : (
       <div className="flex flex-col gap-2">
         <span className="px-2 text-xs font-semibold tracking-wide text-fg-muted uppercase">
-          Vault · @{activePersona}
+          {activeLabel || "Vault"} · @{activePersona}
         </span>
-        {vaultTree.length > 0 ? (
-          <VaultTree
-            nodes={vaultTree}
-            selectedPath={selectedNote}
-            onSelect={(node) => setSelectedNote(node.path)}
-          />
-        ) : (
+        {vaultTree.length === 0 ? (
           <p className="px-2 text-sm text-fg-muted">
             No notes in scope — check that the dashboard API is reachable and
             the persona has vault folders.
           </p>
+        ) : panelNodes.length === 0 ? (
+          <p className="px-2 text-sm text-fg-muted">This folder is empty.</p>
+        ) : (
+          <VaultTree
+            nodes={panelNodes}
+            selectedPath={selectedNote}
+            onSelect={(node) => setSelectedNote(node.path)}
+          />
         )}
       </div>
     )

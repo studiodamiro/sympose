@@ -183,6 +183,122 @@ class TestEnsureFresh:
 
 
 # ---------------------------------------------------------------------------
+# ensure_fresh — ADR-078.4 delta-read
+# ---------------------------------------------------------------------------
+
+def _fs_providers(mv):
+    """(full_snapshot, read_notes) backed by real files under `mv`."""
+    def _entry_for(rel):
+        p = os.path.join(mv, rel)
+        body = open(p, encoding="utf-8").read()
+        return {"rel_path": rel.replace(os.sep, "/"), "abs_path": p,
+                "full_content": body, "meta": {}, "body": body}
+
+    def snapshot():
+        out = []
+        for root, dirs, files in os.walk(mv):
+            dirs[:] = [d for d in dirs if not d.startswith(".")]
+            for f in files:
+                if f.endswith(".md"):
+                    out.append(_entry_for(os.path.relpath(os.path.join(root, f), mv)))
+        return out
+
+    def read_notes(rels):
+        return [_entry_for(r) for r in rels if os.path.exists(os.path.join(mv, r))]
+
+    return snapshot, read_notes
+
+
+def _norm(m):
+    return (
+        sorted((n["id"], n["rel_path"], n["folder"], n["bytes"], n["exists"]) for n in m["nodes"]),
+        sorted((l["source"], l["target"]) for l in m["links"]),
+        dict(sorted(m["folders"].items())),
+        m["meta"]["note_count"],
+    )
+
+
+class TestDeltaRead:
+    def _vault(self, tmp_path):
+        v = tmp_path / "vault"
+        (v / "Daily").mkdir(parents=True)
+        (v / "a.md").write_text("# A\n[[b]] [[ghost]]\n")
+        (v / "b.md").write_text("# B\n")
+        (v / "Daily" / "2026-09-09.md").write_text("# Day\n[[a]]\n")
+        return str(v), str(tmp_path / "ws")
+
+    def test_delta_reparses_only_changed_notes(self, tmp_path):
+        mv, ws = self._vault(tmp_path)
+        snap, read = _fs_providers(mv)
+        vm.ensure_fresh(ws, mv, snap, read_notes=read, debounce=0)  # cold: full build
+
+        seen = {"rels": None}
+        spy = lambda rels: (seen.__setitem__("rels", list(rels)), read(rels))[1]
+        (tmp_path / "vault" / "b.md").write_text("# B\nnow links [[a]]\n")
+        _bump_mtime(os.path.join(mv, "b.md"))
+        _bump_mtime(mv)
+        m = vm.ensure_fresh(ws, mv, snap, read_notes=spy, debounce=0)
+
+        assert seen["rels"] == ["b.md"]                       # only the changed note
+        assert ("b", "a") in {(l["source"], l["target"]) for l in m["links"]}
+
+    def test_delta_handles_add_and_delete(self, tmp_path):
+        mv, ws = self._vault(tmp_path)
+        snap, read = _fs_providers(mv)
+        vm.ensure_fresh(ws, mv, snap, read_notes=read, debounce=0)
+
+        os.remove(os.path.join(mv, "b.md"))
+        (tmp_path / "vault" / "c.md").write_text("# C\n[[a]]\n")
+        _bump_mtime(mv)
+        m = vm.ensure_fresh(ws, mv, snap, read_notes=read, debounce=0)
+
+        ids = {n["id"] for n in m["nodes"] if n["exists"]}
+        assert "c" in ids and "b" not in ids
+        assert all(l["source"] != "b" for l in m["links"])
+        assert m["nodes"] and any(n["id"] == "b" and not n["exists"] for n in m["nodes"])  # b is now a ghost (a still links it)
+
+    def test_delta_result_equals_a_full_build_for_the_same_disk_state(self, tmp_path):
+        mv, ws = self._vault(tmp_path)
+        snap, read = _fs_providers(mv)
+        vm.ensure_fresh(ws, mv, snap, read_notes=read, debounce=0)
+
+        # mutate disk: change one, add one, delete one, rename one
+        (tmp_path / "vault" / "a.md").write_text("# A v2\n[[b]]\n")
+        (tmp_path / "vault" / "new.md").write_text("# New\n[[a]] [[missing]]\n")
+        os.remove(os.path.join(mv, "b.md"))
+        os.rename(os.path.join(mv, "Daily", "2026-09-09.md"), os.path.join(mv, "Daily", "2026-09-10.md"))
+        for p in (mv, os.path.join(mv, "Daily")):
+            _bump_mtime(p)
+
+        delta = vm.ensure_fresh(ws, mv, snap, read_notes=read, debounce=0)
+        vm._mem_cache.clear()
+        os.remove(vm.manifest_path(ws, mv))
+        full = vm.ensure_fresh(ws, mv, snap, read_notes=read, debounce=0)  # cold => full build
+
+        assert _norm(delta) == _norm(full)
+
+    def test_no_reader_falls_back_to_full_rebuild(self, tmp_path):
+        mv, ws = self._vault(tmp_path)
+        snap, _ = _fs_providers(mv)
+        vm.ensure_fresh(ws, mv, snap, debounce=0)
+        (tmp_path / "vault" / "b.md").write_text("# B changed\n")
+        _bump_mtime(mv)
+        m = vm.ensure_fresh(ws, mv, snap, debounce=0)  # no read_notes -> full
+        assert m is not None and {n["id"] for n in m["nodes"] if n["exists"]} == {"a", "b", "2026-09-09"}
+
+    def test_dirs_touched_but_no_note_change_reuses_prev(self, tmp_path):
+        mv, ws = self._vault(tmp_path)
+        snap, read = _fs_providers(mv)
+        vm.ensure_fresh(ws, mv, snap, read_notes=read, debounce=0)
+        called = {"n": 0}
+        spy = lambda rels: (called.__setitem__("n", called["n"] + 1), read(rels))[1]
+        (tmp_path / "vault" / "Daily" / "sub").mkdir()  # touches Daily mtime, no .md change
+        _bump_mtime(mv)
+        vm.ensure_fresh(ws, mv, snap, read_notes=spy, debounce=0)
+        assert called["n"] == 0
+
+
+# ---------------------------------------------------------------------------
 # patch_note — write-through
 # ---------------------------------------------------------------------------
 

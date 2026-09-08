@@ -439,10 +439,32 @@ class VaultManager:
             return None
         return vault_manifest.ensure_fresh(
             cls._workspace_dir(), mv, lambda: cls._get_vault_snapshot(mv, [mv]),
+            read_notes=lambda rels: cls._read_note_entries(mv, rels),
             ignore_folders=config_manager.get("vault.ignore_folders") or [],
             debounce=config_manager.get("vault.manifest.check_debounce_seconds"),
             max_nodes=config_manager.get("vault.manifest.max_nodes") or 0,
         )
+
+    @classmethod
+    def _read_note_entries(cls, mv: str, rel_paths: List[str]) -> List[Dict[str, Any]]:
+        """Read + parse just these notes into `_get_vault_snapshot`-shaped
+        entries — the reader the ADR-078.4 manifest delta hands to
+        `vault_manifest.ensure_fresh` so an external edit re-parses only what
+        changed, not the whole vault."""
+        out: List[Dict[str, Any]] = []
+        for rel in rel_paths:
+            fp = os.path.join(mv, rel)
+            try:
+                with open(fp, "r", encoding="utf-8", errors="ignore") as f:
+                    full_content = f.read()
+            except OSError:
+                continue
+            meta, body = cls.parse_frontmatter(full_content)
+            out.append({
+                "file_name": os.path.basename(rel), "rel_path": rel.replace(os.sep, "/"),
+                "abs_path": fp, "full_content": full_content, "meta": meta, "body": body,
+            })
+        return out
 
     @classmethod
     def get_vault_graph(cls) -> Dict[str, Any]:

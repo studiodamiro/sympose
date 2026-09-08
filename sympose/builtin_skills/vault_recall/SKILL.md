@@ -30,8 +30,10 @@ reflection.
 
 When a **Vault Structure Map** is in your context (folder counts, top tags,
 most-linked notes), it is the disk-true shape of the vault this turn — use it to
-choose where to look before touching the filesystem. It holds no note text, so
-it tells you *where*, never *what a note says*.
+choose where to look before touching the filesystem. If it already answers the
+question — a note count, which folders exist, what links where — answer from it
+directly, no tool call. It holds no note text, so it tells you *where*, never
+*what a note says*.
 
 Vaults vary (Flat, PARA, Johnny Decimal, Zettelkasten, date-nested). With or
 without the map, locate notes by non-destructive inspection (`find`, `ls`,

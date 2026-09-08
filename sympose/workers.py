@@ -110,6 +110,17 @@ class WorkerEngine:
         if skills_text:
             system_prompt += f"\n\n{skills_text}"
 
+        # ADR-078.7: hand a vault-skilled worker the structural map so it
+        # navigates from it instead of shelling out to find/ls/wc. No-op when
+        # `vault.manifest.enabled` is off or no manifest exists yet.
+        if any(s in ("vault_recall", "vault_write") for s in task.skills):
+            try:
+                manifest = VaultManager.get_manifest()
+                if manifest and manifest.get("nodes"):
+                    system_prompt += "\n\n" + VaultManager.format_manifest_digest(manifest)
+            except Exception:
+                log.debug("WorkerEngine: manifest digest injection failed", exc_info=True)
+
         # Resolve model: task override → skill recommendation → env default
         target_model = task.model
         if not target_model:

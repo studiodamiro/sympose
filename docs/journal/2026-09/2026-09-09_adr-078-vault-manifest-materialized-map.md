@@ -157,10 +157,12 @@ vault, off the hot path, feeding both the agent and the graph endpoint.**
 - **ADR-078.8 — Knobs, declared in the schema (ADR-077).** All in
   `sympose/config_schema.py`; the delta-vs-full rebuild mechanism itself is not
   a knob.
-  - `vault.manifest.enabled` (`bool`, default `false`). Default off keeps the
-    zero-state install a pure on-demand walk. When off, `GET /api/vault/graph`
-    still works by building the projection in memory per request and writing no
-    file.
+  - `vault.manifest.enabled` (`bool`, default `true` — amended 2026-09-09, see
+    the Implementation Note). Built lazily: nothing is walked or written until
+    the first caller (`get_manifest()`, a `vault_recall` worker, or the graph
+    endpoint) asks for it. When set `false`, `get_manifest()` returns `None`,
+    the write-through hook is a no-op, and `GET /api/vault/graph` builds the
+    projection in memory per request and writes no file.
   - `vault.manifest.check_debounce_seconds` (`float`, default `2.0`). Refresh is
     access-triggered, not timed; this caps how often the stat-only `scandir`
     delta pass may run, so a hammered graph endpoint during active editing
@@ -243,6 +245,35 @@ end-to-end:
 Still pending: `GET /api/vault/graph`, the worker-side `run_command` discovery
 rewrite, and routing `get_discovered_folders` / `find_chronological_notes`
 through the manifest.
+
+## Implementation Note (2026-09-09 — worker injection + default-on)
+
+- **`WorkerEngine._build_worker_context`** — a `vault_recall` / `vault_write`
+  worker now gets `format_manifest_digest()` appended to its system prompt, so
+  `[SPAWN_WORKER: vault_recall]` tasks read structure from the map instead of
+  spending tool turns on `find` / `ls` / `wc -l`. `vault_recall/SKILL.md` adds:
+  "If it already answers the question — a note count, which folders exist, what
+  links where — answer from it directly, no tool call."
+- **`vault.manifest.enabled` default flipped `false` → `true`.** Rationale:
+  the manifest is what makes Sympose the cheap, low-round-trip vault companion
+  it is meant to be — the first live test replaced a sub-agent spawn (that
+  timed out) with a 3.4 s grounded structural answer. The feature is *lazy*:
+  no walk, no file until something asks for the manifest, and the write-through
+  hook stays a no-op until the file exists. The only real cost is a one-time
+  full walk on the first structural query or first `vault_recall` worker after
+  a process start; every call after that is the cheap mtime gate.
+
+## Alternatives rejected (amendment)
+
+- **Keep `vault.manifest.enabled` default `false` for zero-state parity with
+  `vault.search_mode: direct`.** The precedent for heavy vault features
+  defaulting off is `search_mode` — but that tier carries a real setup cost
+  (a stdlib SQLite FTS5 index, a schema, a rebuild on drift) and a genuine
+  failure mode (no FTS5 in the Python build). The manifest has neither: it is
+  stdlib JSON, built lazily, cheap to refresh, and degrades to "no digest" with
+  no error. Defaulting it off would mean every fresh install keeps spawning
+  sub-agents for questions the map answers in milliseconds — the opposite of
+  the product's stated purpose. Kept opt-out rather than opt-in.
 
 ## Alternatives rejected
 

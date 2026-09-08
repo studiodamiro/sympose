@@ -71,11 +71,12 @@ vault:
   search_mode: direct
   # ADR-078: a materialized structural map of the vault (nodes, [[wikilink]]
   # edges, folder counts) written under the workspace, feeding the agent's
-  # navigation and the dashboard graph. Off by default (pure on-demand walk).
-  # Refresh is access-triggered, gated by a cheap top-level mtime check;
-  # check_debounce_seconds caps how often the rescan may run.
+  # navigation and the dashboard graph. On by default; built lazily on first
+  # use, then refreshed access-triggered behind a cheap top-level mtime check.
+  # check_debounce_seconds caps how often the rescan may run; set enabled false
+  # to disable entirely.
   manifest:
-    enabled: false
+    enabled: true
     check_debounce_seconds: 2.0
     max_nodes: 0
   ignore_folders:

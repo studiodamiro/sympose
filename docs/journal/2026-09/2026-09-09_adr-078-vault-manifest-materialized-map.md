@@ -17,9 +17,10 @@ tags:
   `resolve_turn_context`, worker injection, `vault_recall` Discovery rewrite);
   and the dashboard slice (`GET /api/vault/graph` in `sympose/server.py`,
   `VaultManager.get_vault_graph()`, the nebula showcase now fetching it with
-  `mock-nebula.json` as offline fallback). Still pending: routing
-  `get_discovered_folders` / `find_chronological_notes` through the manifest,
-  and the ADR-078.4 delta-read.
+  `mock-nebula.json` as offline fallback); the ADR-078.4 delta-read
+  (`vault_manifest._delta_rebuild`); and `get_discovered_folders` /
+  `find_chronological_notes` sourced from the manifest. The ADR is fully
+  implemented.
 - **Date:** 2026-09-09
 - **Deciders:** damiro (Lead Architect); Grace / Claude (Sonnet 5) (Engineering Partner)
 - Builds on the retrieval caches in `sympose/vault.py`
@@ -329,3 +330,31 @@ end-to-end:
   what's in / stats / breakdown / summary" question that names the vault, and
   is suppressed when the message carries a subject (`about X`, a quoted title) —
   that is a search, not a shape question.
+
+## Implementation Note (2026-09-09 — ADR-078.4 delta-read)
+
+`vault_manifest.ensure_fresh` gained an optional `read_notes` callback.
+
+- **`_stat_tree(mv, ignore)`** — a stat-only `os.walk` returning
+  `{rel_path: mtime}` for every note; opens nothing.
+- **`_delta_rebuild(mv, prev, ignore, read_notes)`** — diffs `_stat_tree`
+  against the prior manifest's per-node `mtime` (float compare, 1e-6 epsilon),
+  calls `read_notes(changed)` for the changed/new set only, drops deleted
+  notes, carries links for surviving notes straight from `prev`, and recomputes
+  `folders` + ghost nodes. A test mutates a vault (edit + add + delete +
+  rename) and asserts `_delta_rebuild`'s output is byte-equivalent to a cold
+  `build()` of the same on-disk state.
+- **`ensure_fresh`** takes the delta path when a prior manifest exists, its
+  `schema_version` matches, and a `read_notes` reader was supplied; it falls
+  back to a full `build()` on cold start, a schema bump, a missing reader, or
+  any delta exception. Sympose's own writes still bypass all of this via
+  `patch_note`.
+- **`VaultManager._read_note_entries(mv, rels)`** is the reader `get_manifest()`
+  passes — reads + `parse_frontmatter`s just those files into
+  `_get_vault_snapshot`-shaped entries.
+
+Steady-state cost of an external (Obsidian) edit is now a `_stat_tree` walk plus
+a re-parse of the handful of changed notes, not a full vault re-read.
+`vault_manifest.py` grew to ~295 lines — over the 200-LOC guideline, accepted
+because the delta path is the module's scalability core; a split is available if
+it earns its keep.

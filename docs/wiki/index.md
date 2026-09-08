@@ -100,6 +100,7 @@ list and is kept in sync per the
 
 | ADR | Title | Status | Date |
 | --- | ----- | ------ | ---- |
+| [ADR-078](../journal/2026-09/2026-09-09_adr-078-vault-manifest-materialized-map.md) | Materialized Vault Manifest (Structural Map) for the Agent & Dashboard Graph | Accepted | 2026-09-09 |
 | [ADR-077](../journal/2026-09/2026-09-08_adr-077-declarative-configuration-schema.md) | Declarative Configuration Schema as Single Source of Truth | Accepted | 2026-09-08 |
 | [ADR-076](../journal/2026-09/2026-09-07_adr-076-skill-playbook-single-source-and-compression.md) | Skill Playbook Single-Source & Compression | Accepted | 2026-09-07 |
 | [ADR-075](../journal/2026-09/2026-09-05_adr-075-persona-soul-content-in-create-persona.md) | Persona Soul Content in CREATE_PERSONA | Accepted | 2026-09-05 |

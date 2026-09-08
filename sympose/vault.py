@@ -7,7 +7,7 @@ import yaml
 from typing import Dict, Any, Optional, List, Tuple
 from collections import defaultdict
 from sympose.config import is_safe_path, config_manager
-from sympose import vault_index
+from sympose import vault_index, vault_manifest
 
 log = logging.getLogger(__name__)
 
@@ -406,6 +406,41 @@ class VaultManager:
             )
         except Exception:
             log.debug("[vault] incremental FTS reindex failed for %s", target_file, exc_info=True)
+
+    @classmethod
+    def _update_manifest_if_enabled(cls, mv: str, target_file: str) -> None:
+        """Best-effort single-node manifest patch right after a Sympose-driven
+        write (ADR-078.5). No-op unless `vault.manifest.enabled` is set."""
+        if not config_manager.get("vault.manifest.enabled"):
+            return
+        try:
+            with open(target_file, "r", encoding="utf-8", errors="ignore") as f:
+                full_content = f.read()
+            meta, _ = cls.parse_frontmatter(full_content)
+            vault_manifest.patch_note(
+                cls._workspace_dir(), mv, os.path.relpath(target_file, mv), meta, full_content,
+                ignore_folders=config_manager.get("vault.ignore_folders") or [],
+            )
+        except Exception:
+            log.debug("[vault] manifest patch failed for %s", target_file, exc_info=True)
+
+    @classmethod
+    def get_manifest(cls) -> Optional[Dict[str, Any]]:
+        """The ADR-078 structural map (nodes, links, folders) for the whole
+        vault, built/refreshed on demand. None when `vault.manifest.enabled` is
+        off or no vault is set. Navigation only — never a grounding source;
+        quoted content is still read from the note itself."""
+        if not config_manager.get("vault.manifest.enabled"):
+            return None
+        mv = cls._get_master_vault()
+        if not mv:
+            return None
+        return vault_manifest.ensure_fresh(
+            cls._workspace_dir(), mv, lambda: cls._get_vault_snapshot(mv, [mv]),
+            ignore_folders=config_manager.get("vault.ignore_folders") or [],
+            debounce=config_manager.get("vault.manifest.check_debounce_seconds"),
+            max_nodes=config_manager.get("vault.manifest.max_nodes") or 0,
+        )
 
     @classmethod
     def _search_fts(cls, mv: str, search_dirs: List[str], query_clean: str, max_results: int) -> Optional[List[Dict[str, Any]]]:
@@ -827,6 +862,7 @@ class VaultManager:
             with open(target_file, "w", encoding="utf-8") as f:
                 f.write(final_content)
             cls._reindex_note_if_enabled(mv, target_file)
+            cls._update_manifest_if_enabled(mv, target_file)
             return f"Saved to note: `{rel_display}`"
         except Exception as e:
             return f"Error: Failed to write note: {e}"
@@ -850,6 +886,7 @@ class VaultManager:
             with open(target_file, "a", encoding="utf-8") as f:
                 f.write(f"\n{content.strip()}\n")
             cls._reindex_note_if_enabled(mv, target_file)
+            cls._update_manifest_if_enabled(mv, target_file)
             return f"Appended to note: `{rel_display}`"
         except Exception as e:
             return f"Error: Failed to append note: {e}"

@@ -1056,12 +1056,42 @@ class VaultManager:
         skills = profile.get("skills") or []
         return "vault_recall" in skills
 
+    @staticmethod
+    def _allowed_rel_prefixes(mv: str, allowed_dirs: List[str]) -> List[str]:
+        """`allowed_dirs` as vault-relative "Foo/"-style prefixes; "" means the
+        whole vault. For filtering the whole-vault manifest down to a persona's
+        sandbox without touching disk."""
+        out: List[str] = []
+        mv_real = os.path.realpath(mv)
+        for a in allowed_dirs:
+            if os.path.realpath(a) == mv_real:
+                return [""]
+            out.append(os.path.relpath(a, mv).replace(os.sep, "/").rstrip("/") + "/")
+        return out
+
     @classmethod
     def find_chronological_notes(cls, profile: Dict[str, Any]) -> List[str]:
         """Dynamically discovers all chronological, daily, and journal notes across allowed vault folders."""
         mv, allowed_dirs = cls._get_master_vault(), cls.get_allowed_dirs(profile)
         if not mv or not allowed_dirs:
             return []
+
+        # Manifest fast-path (ADR-078) — no filesystem walk when the map is live.
+        manifest = cls.get_manifest()
+        if manifest is not None:
+            date_re = re.compile(r"^\d{4}-\d{2}-\d{2}\.(?:md|markdown|txt)$", re.I)
+            prefixes = cls._allowed_rel_prefixes(mv, allowed_dirs)
+            hits: List[str] = []
+            for n in manifest.get("nodes", []):
+                rel = str(n.get("rel_path", "")).replace(os.sep, "/")
+                if not n.get("exists") or not rel.endswith((".md", ".markdown", ".txt")) or rel.endswith(".excalidraw.md"):
+                    continue
+                if not any(p == "" or rel.startswith(p) for p in prefixes):
+                    continue
+                folder_low = os.path.dirname(rel).lower()
+                if date_re.match(os.path.basename(rel)) or "daily" in folder_low or "journal" in folder_low or "diary" in folder_low:
+                    hits.append(os.path.join(mv, n["rel_path"]))
+            return hits
 
         raw_ignore = config_manager.get("vault.ignore_folders") or [".obsidian", ".git", "Attachments", ".trash", "Drawings"]
         ignore_dirs = {str(d).lower().strip() for d in raw_ignore}
@@ -1087,6 +1117,27 @@ class VaultManager:
         mv, allowed_dirs = cls._get_master_vault(), cls.get_allowed_dirs(profile)
         if not mv or not allowed_dirs:
             return {}
+
+        # Manifest fast-path (ADR-078) — immediate child folders of each allowed
+        # dir straight from the map's folder index, no scandir.
+        manifest = cls.get_manifest()
+        if manifest is not None:
+            folder_keys = list(manifest.get("folders", {}).keys())
+            discovered = {}
+            mv_real = os.path.realpath(mv)
+            for allowed in allowed_dirs:
+                scoped = os.path.realpath(allowed) != mv_real
+                prefix = (os.path.relpath(allowed, mv).replace(os.sep, "/").rstrip("/") + "/") if scoped else ""
+                if scoped:
+                    discovered[os.path.basename(allowed).lower()] = allowed
+                for key in folder_keys:
+                    k = key.replace(os.sep, "/")
+                    if prefix and not k.startswith(prefix):
+                        continue
+                    rest = k[len(prefix):]
+                    if rest and "/" not in rest:            # immediate child only
+                        discovered[rest.lower()] = os.path.join(mv, key)
+            return discovered
 
         raw_ignore = config_manager.get("vault.ignore_folders") or [".obsidian", ".git", "Attachments", ".trash", "Drawings"]
         ignore_dirs = {str(d).lower().strip() for d in raw_ignore}

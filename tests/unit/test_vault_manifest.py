@@ -374,6 +374,54 @@ class TestVaultGraph:
         assert "hub" in {n["id"] for n in g["nodes"]} and g["links"]
 
 
+class TestManifestBackedDiscovery:
+    def _vault(self, tmp_vault_dir):
+        for p in ("Daily/2026/09", "Projects", "People", "Journal"):
+            (tmp_vault_dir / p).mkdir(parents=True)
+        (tmp_vault_dir / "Daily" / "2026" / "09" / "2026-09-09.md").write_text("# Day\n")
+        (tmp_vault_dir / "Journal" / "grief.md").write_text("# Grief\n")
+        (tmp_vault_dir / "Projects" / "sympose.md").write_text("# Sympose\n")
+        (tmp_vault_dir / "People" / "Dylan.md").write_text("---\nname: Dylan\n---")
+
+    def _off(self, monkeypatch):
+        from sympose.vault import config_manager
+        real = config_manager.get
+        monkeypatch.setattr(config_manager, "get",
+                            lambda k, d=None: False if k == "vault.manifest.enabled" else real(k, d))
+
+    def test_discovered_folders_match_the_walk(self, tmp_vault_dir, monkeypatch):
+        from sympose.vault import VaultManager
+        monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
+        self._vault(tmp_vault_dir)
+        prof = {"vault_folders": ["*"]}
+        via_manifest = set(VaultManager.get_discovered_folders(prof))
+        self._off(monkeypatch)
+        via_walk = set(VaultManager.get_discovered_folders(prof))
+        assert via_manifest == via_walk
+        assert {"daily", "projects", "people", "journal"} <= via_manifest
+
+    def test_chronological_notes_match_the_walk(self, tmp_vault_dir, monkeypatch):
+        from sympose.vault import VaultManager
+        monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
+        self._vault(tmp_vault_dir)
+        prof = {"vault_folders": ["*"]}
+        via_manifest = {os.path.relpath(p, str(tmp_vault_dir)) for p in VaultManager.find_chronological_notes(prof)}
+        self._off(monkeypatch)
+        via_walk = {os.path.relpath(p, str(tmp_vault_dir)) for p in VaultManager.find_chronological_notes(prof)}
+        assert via_manifest == via_walk
+        assert any("2026-09-09.md" in p for p in via_manifest)   # date-named
+        assert any(p.startswith("Journal/") for p in via_manifest)  # journal folder
+
+    def test_scoped_persona_only_sees_its_subtree(self, tmp_vault_dir, monkeypatch):
+        from sympose.vault import VaultManager
+        monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
+        self._vault(tmp_vault_dir)
+        (tmp_vault_dir / "Daily" / "2025").mkdir()
+        (tmp_vault_dir / "Daily" / "2025" / "2025-01-01.md").write_text("# NY\n")
+        folders = VaultManager.get_discovered_folders({"vault_folders": ["Daily"]})
+        assert "2026" in folders and "2025" in folders and "projects" not in folders
+
+
 class TestWorkerManifestInjection:
     def _enable(self, monkeypatch, tmp_vault_dir):
         from sympose.vault import config_manager

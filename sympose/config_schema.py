@@ -98,9 +98,10 @@ SETTINGS: Tuple[Setting, ...] = (
             "Folders excluded from vault search and indexing.", _VAULT),
     Setting("vault.search_triggers", "list", [],
             "Extra keywords that flag a message as a vault query (added to the built-ins).", _VAULT),
-    Setting("vault.manifest.enabled", "bool", False,
+    Setting("vault.manifest.enabled", "bool", True,
             "Maintain a materialized structural map of the vault (nodes, links, folders) "
-            "under the workspace for the agent and the dashboard graph (ADR-078).", _VAULT),
+            "under the workspace for the agent and the dashboard graph (ADR-078). Built "
+            "lazily on first use; set false to disable entirely.", _VAULT),
     Setting("vault.manifest.check_debounce_seconds", "float", 2.0,
             "Minimum seconds between vault-manifest freshness scans; 0 disables the debounce.",
             _VAULT, minimum=0),

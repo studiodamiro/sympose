@@ -300,16 +300,58 @@ class TestResolveTurnContextStructureTier:
 
     def test_structure_query_inert_when_manifest_disabled(self, tmp_vault_dir, monkeypatch):
         from sympose.vault import VaultManager
+        from sympose.vault import config_manager
+        real_get = config_manager.get
+        monkeypatch.setattr(config_manager, "get",
+                            lambda k, d=None: False if k == "vault.manifest.enabled" else real_get(k, d))
         monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
         (tmp_vault_dir / "Daily").mkdir()
+        (tmp_vault_dir / "Daily" / "2026-09-09.md").write_text("# Day\n#jour\n")
         prof = {"vault_folders": ["*"], "skills": ["vault_recall"], "handle": "t"}
         out = VaultManager.resolve_turn_context(prof, "how is my vault organised?")
         assert out is None or not out.startswith("### Ground-Truth Vault Structure Map")
 
 
+class TestWorkerManifestInjection:
+    def _enable(self, monkeypatch, tmp_vault_dir):
+        from sympose.vault import config_manager
+        real_get = config_manager.get
+        ov = {"vault.manifest.enabled": True, "vault.manifest.check_debounce_seconds": 0.0,
+              "vault.manifest.max_nodes": 0}
+        monkeypatch.setattr(config_manager, "get", lambda k, d=None: ov.get(k, real_get(k, d)))
+        monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
+
+    def test_vault_recall_worker_gets_the_structure_map(self, tmp_vault_dir, monkeypatch):
+        from sympose.workers import WorkerEngine, WorkerTask
+        self._enable(monkeypatch, tmp_vault_dir)
+        (tmp_vault_dir / "Projects").mkdir()
+        (tmp_vault_dir / "Projects" / "x.md").write_text("# X\n[[y]]\n")
+        task = WorkerTask("count notes", skills=["vault_recall"], parent_agent="samantha")
+        sysprompt = WorkerEngine._build_worker_context(task)[0]
+        assert "Ground-Truth Vault Structure Map" in sysprompt
+
+    def test_non_vault_worker_gets_no_map(self, tmp_vault_dir, monkeypatch):
+        from sympose.workers import WorkerEngine, WorkerTask
+        self._enable(monkeypatch, tmp_vault_dir)
+        (tmp_vault_dir / "a.md").write_text("hi")
+        task = WorkerTask("do a thing", skills=["web_search"], parent_agent="samantha")
+        sysprompt = WorkerEngine._build_worker_context(task)[0]
+        assert "Ground-Truth Vault Structure Map" not in sysprompt
+
+
 class TestVaultManagerAccessor:
-    def test_get_manifest_none_when_disabled(self):
+    def test_get_manifest_none_when_knob_off(self, tmp_vault_dir, monkeypatch):
         from sympose.vault import VaultManager
+        from sympose.vault import config_manager
+        real_get = config_manager.get
+        monkeypatch.setattr(config_manager, "get",
+                            lambda k, d=None: False if k == "vault.manifest.enabled" else real_get(k, d))
+        monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
+        assert VaultManager.get_manifest() is None
+
+    def test_get_manifest_none_when_no_vault_configured(self, monkeypatch):
+        from sympose.vault import VaultManager
+        monkeypatch.setenv("MASTER_VAULT_PATH", "")
         assert VaultManager.get_manifest() is None
 
     def test_get_manifest_and_write_through_when_enabled(self, tmp_vault_dir, monkeypatch):

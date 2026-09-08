@@ -65,7 +65,7 @@ Every runtime knob Sympose reads. Global keys live in `config.yaml`, settable at
 | `vault.daily_notes_format` | str | `Daily/%Y/%m-%B/%Y-%m-%d.md` | — | yes | strftime path for a daily note. |
 | `vault.ignore_folders` | list | `['.obsidian', '.git', 'Attachments', 'Drawings', 'Movies', '.trash', 'dot-files']` | — | yes | Folders excluded from vault search and indexing. |
 | `vault.search_triggers` | list | `[]` | — | yes | Extra keywords that flag a message as a vault query (added to the built-ins). |
-| `vault.manifest.enabled` | bool | `False` | — | yes | Maintain a materialized structural map of the vault (nodes, links, folders) under the workspace for the agent and the dashboard graph (ADR-078). |
+| `vault.manifest.enabled` | bool | `True` | — | yes | Maintain a materialized structural map of the vault (nodes, links, folders) under the workspace for the agent and the dashboard graph (ADR-078). Built lazily on first use; set false to disable entirely. |
 | `vault.manifest.check_debounce_seconds` | float | `2.0` | ≥ 0 | yes | Minimum seconds between vault-manifest freshness scans; 0 disables the debounce. |
 | `vault.manifest.max_nodes` | int | `0` | ≥ 0 | yes | Cap on vault-manifest nodes (0 = unlimited); guards pathological vaults. |
 

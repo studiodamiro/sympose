@@ -74,7 +74,7 @@ function AgentCard({ personas, active, onSwitch, className }: AgentCardProps) {
           <h2 className="truncate font-heading text-lg leading-tight font-semibold text-background">
             {current.name}
           </h2>
-          <p className="mt-2 text-sm leading-snug text-fg-muted">
+          <p className="mt-3 text-sm leading-snug text-pretty text-fg-muted">
             {current.title}
           </p>
         </div>

@@ -93,10 +93,11 @@ so the later slices inherit them:
   with the persona's own `--persona-accent` (the same custom property
   `<PersonaPill>` uses); a 64px avatar carrying the persona's icon on its
   accent, straddling the band's bottom edge (centre on the edge, `border-4
-  border-panel` so its visual bounds match its box and it lines up with the
-  content below); name, title, `<ModelChip>`, and a "Switch agents" row of
-  avatar buttons. Soul / Memory buttons are rendered **disabled** pending
-  their endpoints.
+  border-panel` so its visual bounds match its box). The name sits in the
+  band, top-aligned with the avatar (`text-background` reads on the accent in
+  both themes); the title drops just below the band in the name's column.
+  Then `<ModelChip>`, and a "Switch agents" row of avatar buttons. Soul /
+  Memory buttons are rendered **disabled** pending their endpoints.
 - **`src/routes/app-shell.tsx`** — roster fetched once on mount, the active
   handle lifted to the shell, `<AgentCard>` rendered in the existing
   `MENU_ACCOUNT_ID` content panel.

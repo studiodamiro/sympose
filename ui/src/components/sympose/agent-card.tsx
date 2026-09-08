@@ -57,11 +57,11 @@ function AgentCard({ personas, active, onSwitch, className }: AgentCardProps) {
         aria-hidden
       />
 
-      {/* identity — the 64px avatar straddles the band's bottom edge: its
-          centre sits on the edge (half in the band, half below). `border-4`
-          (border-box) keeps its visual bounds equal to its layout box, so its
-          left edge lines up with the title / chip / switcher below. */}
-      <div className="-mt-12 flex items-end gap-3">
+      {/* identity — the 64px avatar straddles the band's bottom edge (centre on
+          the edge, half in / half below). `border-4` (border-box) keeps its
+          visual bounds equal to its box. The name sits in the band, top-aligned
+          with the avatar; the title drops just below the band. */}
+      <div className="-mt-12 flex items-start gap-3">
         <Avatar className="size-16 shrink-0 border-4 border-panel">
           <AvatarFallback
             className="text-background"
@@ -70,14 +70,15 @@ function AgentCard({ personas, active, onSwitch, className }: AgentCardProps) {
             <HugeiconsIcon icon={visuals.icon} className="size-7" />
           </AvatarFallback>
         </Avatar>
-        <div className="min-w-0 pb-1">
-          <h2 className="truncate font-heading text-lg font-semibold text-fg-strong">
+        <div className="min-w-0">
+          <h2 className="truncate font-heading text-lg leading-tight font-semibold text-background">
             {current.name}
           </h2>
+          <p className="mt-2 text-sm leading-snug text-fg-muted">
+            {current.title}
+          </p>
         </div>
       </div>
-
-      <p className="text-sm leading-snug text-fg-muted">{current.title}</p>
 
       <div className="flex flex-wrap items-center justify-between gap-2">
         <ModelChip model={current.model} />

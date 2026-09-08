@@ -49,7 +49,7 @@ def create_app(engine: Any) -> FastAPI:
             "status": "healthy",
             "version": "0.2.24",
             "active_personas": list(engine.pm.profiles.keys()),
-            "default_persona": engine.config.get("runtime.default_persona", "samantha"),
+            "default_persona": engine.config.get("runtime.default_persona"),
         }
 
     @app.get("/api/personas")

@@ -12,65 +12,69 @@ tags:
 
 # ⚙️ Configuration & Live Tuning
 
-Sympose separates system performance and exit policies from agent manifests using a centralized [`config.yaml`](../../../config.yaml) file.
+Sympose separates system performance and exit policies from agent manifests using a centralized [`config.yaml`](../../../config.yaml) file. Every knob is declared once in the schema module `sympose/config_schema.py` ([ADR-077](../../journal/2026-09/2026-09-08_adr-077-declarative-configuration-schema.md)); `config.yaml` only carries the values you override.
 
 ---
 
-## 1. Master `config.yaml` Structure
+## 1. The knob reference
+
+The authoritative list of every setting — key, type, default, allowed values, live-vs-restart, and a one-line description — is the generated **[Configuration Reference](../reference/configuration.md)**. It is rendered from the schema (`python -m sympose.config_reference`) and a test fails if it drifts, so it never goes stale. A fresh workspace's `config.yaml` is seeded from the same schema.
+
+Settings are grouped into sections: **Performance & Streaming**, **Session & Memory**, **Runtime**, **Vault**, **Worker Sandbox**, and **Persona** (the last set live in `profiles/<handle>.yaml`, not `config.yaml`). A representative slice:
 
 ```yaml
 performance:
-  request_timeout: 10.0          # Hard timeout in seconds per completion
-  max_context_turns: 15          # Sliding window history slice (15 user + 15 assistant)
-  drop_unsupported_params: true  # Prevents provider schema mismatch crashes
-  stream: true                   # Enable real-time 60 FPS token streaming
+  request_timeout: 30.0          # cloud-model HTTP timeout, seconds
+  local_request_timeout: 120.0   # local (ollama/…) model timeout, seconds
+  max_context_turns: 15          # conversation turns kept in the context window
+  stream: true                   # stream model output token-by-token
+  render_mode: hybrid            # raw | hybrid | buffered
 
 session:
   exit_behavior:
-    auto_save: false             # If true, auto-saves without modal prompt on /exit
-    default_target: "both"       # Options: "memory", "obsidian", "both"
-    clear_terminal: true         # Clears screen on exit for clean terminal reset
-    obsidian_subfolder: "Sessions" # Subfolder in persona domain folder
-    summarization_model: "gemini/gemini-3.5-flash-lite" # Fast distillation model
-
-memory:
-  user_profile_file: "profiles/user_profile.md"    # Universal user identity
-  shared_memory_file: "profiles/_shared_memory.md"  # Collaborative team pool
-  compaction_threshold: 25                         # Trigger background compaction at 25 lines
-  auto_compact: true                               # Enable background deduplication pass
-
-runtime:
-  default_persona: "samantha"
-  profiles_dir: "profiles"
+    auto_save: false
+    default_target: memory       # memory | vault | both
+    summarization_model: ""      # empty = use the active chat model
 
 vault:
-  daily_notes_folder: "Daily Notes"
-  search_mode: "direct"          # Options: "direct" (Pure Python), "sqlite_fts", "semantic"
+  search_mode: direct            # direct | sqlite_fts | semantic
+  grounding_default: auto        # auto | strict | trust
 ```
+
+Unknown keys in `config.yaml` are ignored, so hand-adding one does nothing until code reads it.
 
 ---
 
-## 2. In-Session Live CLI Tuning
+## 2. Live tuning — `/config`
 
-You can inspect and update configuration parameters dynamically without restarting the application:
+Inspect and change **global** settings in-session, no restart (unless the reference marks the key *restart*):
 
 ```bash
-# View active configuration
-/config
-
-# Change sliding context window size
-/config set performance.max_context_turns 20
-
-# Change default request timeout
-/config set performance.request_timeout 8.0
-
-# Enable auto-save on exit
+/config                                        # list every setting, grouped, with live values
+/config get performance.render_mode            # one key: value, default, type, allowed values
+/config set performance.max_context_turns 20   # coerced + validated, then persisted to config.yaml
 /config set session.exit_behavior.auto_save true
 ```
 
+`/config set` rejects a bad enum, an out-of-range number, an unknown key, or a persona-scoped key (pointing you at `/persona set`) *before* it writes anything. The model can do the same via the `[CONFIG_SET: <key> | <value>]` action tag.
+
 ---
 
-## 3. Multi-Model Routing & Provider Configuration
+## 3. Per-persona knobs — `/persona`
+
+A handful of settings are **persona-scoped** — `vault_grounding`, `keep_alive`, `share_memory`, `temperature`, `model`, `api_base` — and live in each persona's manifest rather than `config.yaml`:
+
+```bash
+/persona show @samantha                       # list this persona's knobs and current values
+/persona set @samantha temperature 0.6        # coerced + validated, written to profiles/samantha.yaml
+/persona set @samantha vault_grounding strict
+```
+
+`/persona set` runs the same coercion and validation as `/config set`; a global key is refused with a pointer back to `/config`. The write updates only the one key in the manifest — hand-written comments in the file are not preserved.
+
+---
+
+## 4. Multi-Model Routing & Provider Configuration
 
 Sympose natively supports multi-provider model routing powered by `litellm`. You can mix and match cloud APIs, unified aggregators like **OpenRouter**, and local backends like **Ollama**.
 

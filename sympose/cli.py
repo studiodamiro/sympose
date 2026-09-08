@@ -43,9 +43,9 @@ class TerminalInterface:
         profile = self.pm.get_profile(handle)
         name = profile.get("name", handle) if profile else handle
 
-        auto_save = bool(self.config.get("session.exit_behavior.auto_save", False))
-        default_target = str(self.config.get("session.exit_behavior.default_target", "memory")).lower()
-        clear_term = bool(self.config.get("session.exit_behavior.clear_terminal", True))
+        auto_save = bool(self.config.get("session.exit_behavior.auto_save"))
+        default_target = str(self.config.get("session.exit_behavior.default_target")).lower()
+        clear_term = bool(self.config.get("session.exit_behavior.clear_terminal"))
 
         if history:
             target_to_save = default_target if auto_save else TerminalUI.prompt_exit_choice(self.console, handle, default_target)
@@ -171,7 +171,7 @@ class TerminalInterface:
                 status = AnimatedStatus(self.console, name, phrases).start()
 
             first_chunk, first_time, cleared = False, 0.0, False
-            render_mode = str(self.engine.config.get("performance.render_mode", "hybrid")).lower().strip()
+            render_mode = str(self.engine.config.get("performance.render_mode")).lower().strip()
             buffered_chunks = []
 
             try:

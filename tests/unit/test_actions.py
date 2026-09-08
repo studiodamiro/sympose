@@ -205,6 +205,42 @@ class TestExecuteActionsMalformedTags:
         assert any("saved note" in b for b in badges)
 
 
+class TestWorkerReadNoteFoldsVerbatimContent:
+    """Regression: a `vault_recall` worker that surfaced a note via `[READ_NOTE]`
+    rendered it to the terminal panel only — the report handed back to the
+    primary agent (and Slack) had no note text, so a weak model quoted a
+    plausible fabrication. The worker path must fold the verbatim content into
+    its returned synthesis."""
+
+    def test_worker_read_note_appends_ground_truth_block(self, monkeypatch):
+        pm = _FakeProfileManager()
+        body = "---\nentry: 2024-04-20\n---\nIm fixing the layout of Benns resume. I feel devastated."
+        monkeypatch.setattr("sympose.actions.VaultManager.resolve_note_target",
+                            lambda profile, t: ("Daily/2024/04-April/2024-04-20.md", "/abs/x.md"))
+        monkeypatch.setattr("sympose.actions.VaultManager.read_note", lambda profile, p: body)
+        monkeypatch.setattr("sympose.ui.TerminalUI.render_vault_note_panel", lambda *a, **k: None)
+
+        clean, badges = ActionProcessor.execute_actions(
+            pm, "worker", "Here's the entry: [READ_NOTE: Daily/2024/04-April/2024-04-20.md]"
+        )
+        assert "### Ground-Truth Sandboxed Vault Note" in clean
+        assert "fixing the layout of Benns resume" in clean
+        assert "I feel devastated" in clean
+
+    def test_primary_agent_read_note_does_not_fold_content(self, monkeypatch):
+        """Only the worker path folds text; a primary agent's [READ_NOTE] still
+        just renders the panel (that transcript is user-facing already)."""
+        pm = _FakeProfileManager()
+        monkeypatch.setattr("sympose.actions.VaultManager.resolve_note_target",
+                            lambda profile, t: ("N.md", "/abs/N.md"))
+        monkeypatch.setattr("sympose.actions.VaultManager.read_note", lambda profile, p: "secret body")
+        monkeypatch.setattr("sympose.ui.TerminalUI.render_vault_note_panel", lambda *a, **k: None)
+
+        clean, badges = ActionProcessor.execute_actions(pm, "test", "[READ_NOTE: N.md]")
+        assert "secret body" not in clean
+        assert any("rendered note to Terminal" in b for b in badges)
+
+
 # ---------------------------------------------------------------------------
 # execute_actions — CREATE_PERSONA soul_content extraction (ADR-075)
 #

@@ -179,6 +179,32 @@ class WorkerEngine:
 
         return call_id, t_name, arg_summary, ok, tool_res
 
+    # Appended on the worker's final allowed turn so it wraps up instead of
+    # spending the turn on another tool call.
+    _LAST_TURN_NUDGE = (
+        "[System: this is your final turn — no more tool calls. Synthesise the "
+        "answer now from the tool results already gathered. Quote note text "
+        "verbatim; if the results don't cover the task, say exactly what is missing.]"
+    )
+
+    @classmethod
+    def _forced_synthesis(cls, messages: List[Dict[str, Any]], target_model: str, task: "WorkerTask") -> str:
+        """Backstop when the tool loop exhausts its budget mid-search: one more
+        call with tools disabled, so the notes already read (they are in the
+        transcript) still produce a grounded answer instead of a bare failure."""
+        try:
+            kwargs: Dict[str, Any] = {
+                "model": target_model,
+                "messages": messages + [{"role": "user", "content": cls._LAST_TURN_NUDGE}],
+                "temperature": task.temperature,
+                "stream": False,
+                "tool_choice": "none",
+            }
+            cls._inject_api_key(kwargs, target_model)
+            return (litellm.completion(**kwargs).choices[0].message.content or "").strip()
+        except Exception:
+            return ""
+
     # ------------------------------------------------------------------ #
     #  Public execution methods                                            #
     # ------------------------------------------------------------------ #
@@ -198,13 +224,14 @@ class WorkerEngine:
         try:
             while turn_count < task.max_tool_turns:
                 turn_count += 1
+                last_turn = turn_count >= task.max_tool_turns
                 kwargs: Dict[str, Any] = {
                     "model": target_model,
-                    "messages": messages,
+                    "messages": messages + ([{"role": "user", "content": cls._LAST_TURN_NUDGE}] if last_turn else []),
                     "temperature": task.temperature,
                     "stream": False,
                 }
-                if all_litellm_tools:
+                if all_litellm_tools and not last_turn:
                     kwargs["tools"] = all_litellm_tools
                     kwargs["tool_choice"] = "auto"
                 cls._inject_api_key(kwargs, target_model)
@@ -214,7 +241,7 @@ class WorkerEngine:
                 message = choice.message
                 tool_calls = getattr(message, "tool_calls", None)
 
-                if tool_calls:
+                if tool_calls and not last_turn:
                     messages.append(message.to_dict() if hasattr(message, "to_dict") else dict(message))
                     for tc in tool_calls:
                         call_id, t_name, _, ok, tool_res = cls._dispatch_tool_call(tc, tool_to_client, allowed_dirs)
@@ -226,7 +253,9 @@ class WorkerEngine:
                     break
 
             if not final_synthesis and turn_count >= task.max_tool_turns:
-                final_synthesis = "⚠️ Worker reached maximum tool turns without completing final synthesis."
+                final_synthesis = cls._forced_synthesis(messages, target_model, task) or (
+                    "⚠️ Worker hit its tool budget before finishing; retry with a narrower ask."
+                )
             yield final_synthesis
 
         except Exception as e:
@@ -244,13 +273,14 @@ class WorkerEngine:
         try:
             while turn_count < task.max_tool_turns:
                 turn_count += 1
+                last_turn = turn_count >= task.max_tool_turns
                 kwargs: Dict[str, Any] = {
                     "model": target_model,
-                    "messages": messages,
+                    "messages": messages + ([{"role": "user", "content": cls._LAST_TURN_NUDGE}] if last_turn else []),
                     "temperature": task.temperature,
                     "stream": False,
                 }
-                if all_litellm_tools:
+                if all_litellm_tools and not last_turn:
                     kwargs["tools"] = all_litellm_tools
                     kwargs["tool_choice"] = "auto"
                 cls._inject_api_key(kwargs, target_model)
@@ -260,7 +290,7 @@ class WorkerEngine:
                 message = choice.message
                 tool_calls = getattr(message, "tool_calls", None)
 
-                if tool_calls:
+                if tool_calls and not last_turn:
                     messages.append(message.to_dict() if hasattr(message, "to_dict") else dict(message))
                     for tc in tool_calls:
                         call_id, t_name, arg_summary, ok, tool_res = cls._dispatch_tool_call(tc, tool_to_client, allowed_dirs)
@@ -272,7 +302,9 @@ class WorkerEngine:
                     break
 
             if not final_synthesis and turn_count >= task.max_tool_turns:
-                final_synthesis = "⚠️ Worker reached maximum tool turns without completing final synthesis."
+                final_synthesis = cls._forced_synthesis(messages, target_model, task) or (
+                    "⚠️ Worker hit its tool budget before finishing; retry with a narrower ask."
+                )
 
             return final_synthesis, tool_calls_executed
         except Exception as e:

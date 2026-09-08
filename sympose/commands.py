@@ -87,7 +87,7 @@ class CommandInterceptor:
                         yield f"⚠️ Session `{target_id}` not found."
                         return
                     turns = session.get("turns", [])
-                    k_turns = int(engine.config.get("performance.resume_context_turns", 6))
+                    k_turns = int(engine.config.get("performance.resume_context_turns"))
                     disp_turns = turns[-k_turns:] if k_turns > 0 else turns
                     TerminalUI.render_session_resumed(console, session.get("title", ""), session.get("handle", handle), disp_turns)
                     yield ""
@@ -118,7 +118,7 @@ class CommandInterceptor:
                 session = engine.resume_session(handle, chosen_id)
                 if session:
                     turns = session.get("turns", [])
-                    k_turns = int(engine.config.get("performance.resume_context_turns", 6))
+                    k_turns = int(engine.config.get("performance.resume_context_turns"))
                     disp_turns = turns[-k_turns:] if k_turns > 0 else turns
                     TerminalUI.render_session_resumed(console, session.get("title", ""), session.get("handle", handle), disp_turns)
                     yield ""
@@ -160,7 +160,7 @@ class CommandInterceptor:
         if clean_input.startswith("/save"):
             def _save():
                 parts = clean_input.split()
-                def_t = engine.config.get("session.exit_behavior.default_target", "both")
+                def_t = engine.config.get("session.exit_behavior.default_target")
                 target = parts[1].lower() if len(parts) > 1 else def_t
                 if target not in ("memory", "obsidian", "both"):
                     target = "both"
@@ -173,57 +173,131 @@ class CommandInterceptor:
                     yield f"\n\n⚠️ {res.get('message', 'Failed to save session.')}"
             return _save()
 
-        # 4. Master Configuration (/config)
+        # 4. Master Configuration (/config) — schema-driven (see config_schema.py)
         if clean_input.startswith("/config"):
             def _config():
+                from sympose.config_schema import (
+                    SECTIONS, get_setting, global_settings, coerce, validate,
+                )
+                cfg = engine.config
                 parts = clean_input.split(maxsplit=3)
-                if len(parts) == 1:
-                    cfg = engine.config
-                    yield (
-                        "# ⚙️  ACTIVE RUNTIME CONFIGURATION\n\n"
-                        "### ⚡  PERFORMANCE & STREAMING\n"
-                        f"- `performance.request_timeout`: `{cfg.get('performance.request_timeout')}s`\n"
-                        f"- `performance.local_request_timeout`: `{cfg.get('performance.local_request_timeout', 120.0)}s`\n"
-                        f"- `performance.max_context_turns`: `{cfg.get('performance.max_context_turns')} turns`\n"
-                        f"- `performance.resume_context_turns`: `{cfg.get('performance.resume_context_turns', 6)} turns`\n"
-                        f"- `performance.max_worker_tool_turns`: `{cfg.get('performance.max_worker_tool_turns')} turns`\n"
-                        f"- `performance.stream`: `{cfg.get('performance.stream')}`\n\n"
-                        "### 💾  SESSION & MEMORY ARCHIVAL\n"
-                        f"- `session.exit_behavior.auto_save`: `{cfg.get('session.exit_behavior.auto_save')}`\n"
-                        f"- `session.exit_behavior.default_target`: `{cfg.get('session.exit_behavior.default_target')}`\n"
-                        f"- `session.exit_behavior.clear_terminal`: `{cfg.get('session.exit_behavior.clear_terminal')}`\n"
-                        f"- `session.exit_behavior.summarization_model`: `{cfg.get('session.exit_behavior.summarization_model') or DEFAULT_CHAT_MODEL}`\n"
-                        f"- `memory.compaction_threshold`: `{cfg.get('memory.compaction_threshold', 25)} lines`\n"
-                        f"- `memory.auto_compact`: `{cfg.get('memory.auto_compact', True)}`\n"
-                        f"- `vault.search_mode`: `{cfg.get('vault.search_mode')}`\n\n"
-                        "### 💡  LIVE TUNING\n"
-                        "- Tune knobs live with `/config set <key> <value>` (e.g. `/config set performance.max_context_turns 20`)."
+                sub = parts[1].lower() if len(parts) > 1 else ""
+
+                if not sub:
+                    out = ["# ⚙️  ACTIVE RUNTIME CONFIGURATION\n"]
+                    for section in SECTIONS:
+                        rows = [s for s in global_settings() if s.section == section]
+                        if not rows:
+                            continue
+                        out.append(f"\n### {section}")
+                        for s in rows:
+                            cur = cfg.get(s.key)
+                            shown = "(chat model)" if s.key.endswith("summarization_model") and not cur else (
+                                "''" if cur == "" else cur)
+                            lock = "" if s.live else "  _(restart)_"
+                            out.append(f"- `{s.key}` = `{shown}` — {s.description}{lock}")
+                    out.append(
+                        "\n### 💡  Tuning\n"
+                        "- `/config set <key> <value>` — change a live knob (persisted to disk)\n"
+                        "- `/config get <key>` — one key with its default and allowed values\n"
+                        "- Per-persona knobs (`vault_grounding`, `temperature`, …): `/persona set @<handle> <key> <value>`"
                     )
-                elif parts[1].lower() == "set" and len(parts) >= 4:
+                    yield "\n".join(out)
+                    return
+
+                if sub == "get" and len(parts) >= 3:
+                    key = parts[2]
+                    s = get_setting(key)
+                    if not s:
+                        yield f"⚠️ Unknown config key `{key}`. Run `/config` to list them."
+                        return
+                    lines = [
+                        f"### `{key}`",
+                        f"- **value**: `{cfg.get(key)}`",
+                        f"- **default**: `{s.default}`",
+                        f"- **type**: `{s.type}`  •  **scope**: `{s.scope}`  •  **live**: `{s.live}`",
+                        f"- {s.description}",
+                    ]
+                    if s.choices:
+                        lines.append(f"- **allowed**: {', '.join(map(str, s.choices))}")
+                    if s.minimum is not None or s.maximum is not None:
+                        lines.append(f"- **range**: {s.minimum} … {s.maximum}")
+                    yield "\n".join(lines)
+                    return
+
+                if sub == "set" and len(parts) >= 4:
                     key, raw_val = parts[2], parts[3]
-                    val: Any = True if raw_val.lower() == "true" else (False if raw_val.lower() == "false" else raw_val)
+                    s = get_setting(key)
+                    if not s:
+                        yield f"⚠️ Unknown config key `{key}`. Run `/config` to list valid keys."
+                        return
+                    if s.scope == "persona":
+                        yield (f"⚠️ `{key}` is a **per-persona** setting — use "
+                               f"`/persona set @<handle> {key} <value>`, not `/config`.")
+                        return
                     try:
-                        val = int(raw_val)
-                    except ValueError:
-                        try:
-                            val = float(raw_val)
-                        except ValueError:
-                            pass
+                        val = coerce(s, raw_val)
+                    except ValueError as e:
+                        yield f"⚠️ `{key}`: {e}."
+                        return
+                    ok, err = validate(key, val)
+                    if not ok:
+                        yield f"⚠️ `{key}`: {err}."
+                        return
                     engine.config.set(key, val)
                     engine.config.save()
-                    if "max_context_turns" in key:
+                    if key == "performance.max_context_turns":
                         engine.max_turns = int(val)
-                    yield f"✅ Config `{key}` updated to `{val}` (persisted to disk)."
-                else:
-                    yield "Usage:\n- `/config`: Show active settings\n- `/config set <key> <value>`: Update setting live"
+                    restart = "" if s.live else "  (needs a restart to take effect)"
+                    yield f"✅ `{key}` = `{val}` — persisted to disk.{restart}"
+                    return
+
+                yield ("Usage:\n"
+                       "- `/config` — show all settings\n"
+                       "- `/config get <key>` — inspect one\n"
+                       "- `/config set <key> <value>` — change a live knob")
             return _config()
+
+        # 4a-bis. Per-persona knob editor (/persona)
+        if clean_input == "/persona" or clean_input.startswith("/persona "):
+            def _persona():
+                from sympose.config_schema import persona_settings
+                parts = clean_input.split(maxsplit=4)
+                sub = parts[1].lower() if len(parts) > 1 else "show"
+
+                if sub in ("show", "list", ""):
+                    t_handle = parts[2].replace("@", "").lower() if len(parts) > 2 else handle.lower()
+                    prof = engine.pm.get_profile(t_handle)
+                    if not prof:
+                        yield f"⚠️ Persona `@{t_handle}` not found."
+                        return
+                    out = [f"# 🎭  PER-PERSONA KNOBS — {prof.get('name', t_handle)} (`@{t_handle}`)\n"]
+                    for s in persona_settings():
+                        cur = prof.get(s.key, s.default)
+                        shown = "(inherit)" if cur in (None, "") else cur
+                        allowed = f"  _{', '.join(map(str, s.choices))}_" if s.choices else ""
+                        out.append(f"- `{s.key}` = `{shown}` — {s.description}{allowed}")
+                    out.append(f"\n💡 `/persona set @{t_handle} <key> <value>` — writes `profiles/{t_handle}.yaml`")
+                    yield "\n".join(out)
+                    return
+
+                if sub == "set" and len(parts) >= 5:
+                    t_handle, key, raw_val = parts[2].replace("@", "").lower(), parts[3], parts[4]
+                    ok, msg = engine.pm.set_persona_field(t_handle, key, raw_val)
+                    yield f"✅ {msg}" if ok else f"⚠️ {msg}"
+                    return
+
+                yield ("Usage:\n"
+                       "- `/persona show [@handle]` — list a persona's knobs\n"
+                       "- `/persona set @handle <key> <value>` — change one (e.g. `/persona set @sam temperature 0.6`)")
+            return _persona()
 
         # 4b. Render Mode Switcher (/render)
         if clean_input == "/render" or clean_input.startswith("/render "):
             def _render():
                 parts = clean_input.split()
                 sub = parts[1].lower() if len(parts) > 1 else ""
-                current_mode = str(engine.config.get("performance.render_mode", "hybrid")).lower()
+                current_mode = str(engine.config.get("performance.render_mode")).lower()
                 console = TerminalUI.get_console()
 
                 if not sub:
@@ -729,6 +803,7 @@ class CommandInterceptor:
                     "- `/render [hybrid|buffered|raw]` — Switch terminal render mode (interactive menu or direct)\n"
                     "- `/config` — View active runtime settings & performance knobs\n"
                     "- `/config set <key> <val>` — Live-tune knobs (e.g. `/config set performance.max_context_turns 20`)\n"
+                    "- `/persona [show|set] @<handle> <key> <val>` — View or set a persona's own knobs (e.g. `temperature`)\n"
                     "- `/delete @<handle>` — Safely archive & retire an agent persona\n"
                     "- `/help` — Show this command reference"
                 )

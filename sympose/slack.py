@@ -25,7 +25,7 @@ class SlackDaemon:
 
     def __init__(self, engine: PersonaEngine, default_persona: Optional[str] = None, bot_token: Optional[str] = None, app_token: Optional[str] = None):
         self.engine, self.pm, self.config = engine, engine.pm, engine.config
-        self.default_persona = default_persona or self.config.get("runtime.default_persona", "samantha").lower()
+        self.default_persona = default_persona or self.config.get("runtime.default_persona").lower()
         p = f"SLACK_{self.default_persona.upper()}_"
         self.bot_token = (bot_token or os.getenv(f"{p}BOT_TOKEN") or (os.getenv("SLACK_AURELIUS_BOT_TOKEN") if self.default_persona == "archia" else None) or os.getenv("SLACK_BOT_TOKEN", "")).strip()
         self.app_token = (app_token or os.getenv(f"{p}APP_TOKEN") or (os.getenv("SLACK_AURELIUS_APP_TOKEN") if self.default_persona == "archia" else None) or os.getenv("SLACK_APP_TOKEN", "")).strip()
@@ -33,7 +33,7 @@ class SlackDaemon:
         self._is_setup = False
         # Per-channel semaphore — caps concurrent in-flight message processing
         self._channel_semaphores: Dict[str, threading.Semaphore] = defaultdict(lambda: threading.Semaphore(
-            int(self.config.get("performance.slack_max_concurrent", 3))
+            int(self.config.get("performance.slack_max_concurrent"))
         ))
         u_card = self.pm._read_file_safe(os.path.join(getattr(self.pm, "profiles_dir", "profiles"), "user_profile.md"))
         m = re.search(r"[-*]?\s*(?:\*\*|__)?(?:Primary\s+User|User|Name)(?:\*\*|__)?\s*:\s*([^\n\r]+)", u_card, re.I)
@@ -99,7 +99,7 @@ class SlackDaemon:
         """Retrieves Slack thread replies or recent channel history with human-readable usernames."""
         if thread_ts:
             try:
-                res = client.conversations_replies(channel=channel_id, ts=thread_ts, limit=int(self.config.get("performance.slack_thread_context_limit", 12)))
+                res = client.conversations_replies(channel=channel_id, ts=thread_ts, limit=int(self.config.get("performance.slack_thread_context_limit")))
                 if tl := [f"- {self._resolve_user_name(client, m.get('user') or m.get('username') or '')}: {self._clean_mentions(client, m.get('text', '').strip())}" for m in res.get("messages", []) if m.get("ts") != current_ts and m.get("text", "").strip()]:
                     return "### Slack Thread Context (Preceding Messages in this Thread):\n" + "\n".join(tl)
             except Exception as e: logging.debug(f"Thread context: {e}")
@@ -129,7 +129,7 @@ class SlackDaemon:
             try:
                 msgs = client.conversations_replies(channel=channel_id, ts=event.get("thread_ts"), limit=8).get("messages", [])
                 streak = sum(1 for m in reversed(msgs) if (m.get("bot_id") or m.get("user") in self.bot_user_ids or m.get("subtype") == "bot_message"))
-                if streak >= int(self.config.get("performance.max_consecutive_bot_turns", 3)):
+                if streak >= int(self.config.get("performance.max_consecutive_bot_turns")):
                     prompt += "\n\n[SYSTEM: Discussion turn limit reached. Deliver concluding summary for the user without tagging other bots.]"
             except Exception as e: log.debug("[_process_message] bot-streak lookup failed for %s: %s", channel_id, e)
 

@@ -140,6 +140,15 @@ class ActionProcessor:
                         from sympose.ui import TerminalUI
                         console = TerminalUI.get_console() if render_mode != "raw" else None
                         TerminalUI.render_vault_note_panel(console, rel_path, note_content)
+                        if is_worker:
+                            # The panel only reaches a terminal. Fold the verbatim
+                            # text into the worker's returned synthesis so the
+                            # primary agent (and Slack) can quote it — otherwise a
+                            # weak model answers from a plausible fake.
+                            clean_text += (
+                                f"\n\n### Ground-Truth Sandboxed Vault Note (`{rel_path}` — Exact Content):\n"
+                                f"{str(note_content).strip()[:4000]}"
+                            )
                         badges.append(f"> 📄 **{name} rendered note to Terminal:** `{rel_path}`")
                     else:
                         badges.append(f"> ⚠️ **Could not read note:** `{rel_path or target_note}`")
@@ -213,14 +222,30 @@ class ActionProcessor:
                 parts = inner.split("|", 1)
                 key, raw_val = parts[0].strip(), parts[1].strip()
                 if key and raw_val:
-                    val: Any = True if raw_val.lower() == "true" else (False if raw_val.lower() == "false" else raw_val)
-                    try: val = int(raw_val)
-                    except ValueError:
-                        try: val = float(raw_val)
-                        except ValueError: pass
-                    config_manager.set(key, val)
-                    config_manager.save()
-                    badges.append(f"> ⚙️ **{name} updated runtime configuration:** `{key}` = `{val}`")
+                    from sympose.config_schema import get_setting, coerce, validate
+                    setting = get_setting(key)
+                    if setting and setting.scope == "persona":
+                        badges.append(f"> ⚠️ **`{key}` is a per-persona setting** — use `/persona set @<handle> {key} <value>`, not runtime config.")
+                    else:
+                        if setting:
+                            try:
+                                val: Any = coerce(setting, raw_val)
+                            except ValueError as e:
+                                badges.append(f"> ⚠️ **`[CONFIG_SET]` rejected:** `{key}` — {e}.")
+                                continue
+                            ok, err = validate(key, val)
+                            if not ok:
+                                badges.append(f"> ⚠️ **`[CONFIG_SET]` rejected:** `{key}` {err}.")
+                                continue
+                        else:
+                            val = True if raw_val.lower() == "true" else (False if raw_val.lower() == "false" else raw_val)
+                            try: val = int(raw_val)
+                            except ValueError:
+                                try: val = float(raw_val)
+                                except ValueError: pass
+                        config_manager.set(key, val)
+                        config_manager.save()
+                        badges.append(f"> ⚙️ **{name} updated runtime configuration:** `{key}` = `{val}`")
 
             # 7. CREATE_PERSONA
             elif tag == "CREATE_PERSONA":

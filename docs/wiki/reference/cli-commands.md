@@ -54,8 +54,11 @@ Sympose intercepts slash commands directly in the REPL execution loop, executing
 
 | Command | Arguments | Description |
 | :--- | :--- | :--- |
-| `/config` | *(none)* | Displays current `config.yaml` parameters and active runtime values. |
-| `/config set` | `<key> <value>` | Dynamically updates a configuration value live in-session. |
+| `/config` | *(none)* | Lists every global setting grouped by section with its live value and description, straight from the [config schema](configuration.md). |
+| `/config get` | `<key>` | Shows one key's value, default, type, scope, live-vs-restart flag and allowed values. |
+| `/config set` | `<key> <value>` | Coerces and validates against the schema (bad enum, out-of-range, unknown key, or persona-scoped key all rejected), then persists to `config.yaml`. |
+| `/persona` / `/persona show` | `[@handle]` | Lists a persona's own knobs (`vault_grounding`, `temperature`, `model`, …) and current values. |
+| `/persona set` | `@<handle> <key> <value>` | Writes one persona-scoped knob into `profiles/<handle>.yaml`, with the same coercion and validation as `/config set`. |
 | `/model` | `[name\|reset\|list\|find <q>\|refresh]` | Inspects active model, searches OpenRouter catalog, switches models, or resets to default. |
 | `/skills` / `/skill` | `[list]` | Inspects loaded skill playbooks (`skills/`), active agent mounts, and MCP servers (`config.yaml`). |
 | `/skill add` | `<name> [@handle]` | Equips skill to active persona (or target `@handle`) and persists to YAML manifest (`/skill mount`, `/skill install`). |

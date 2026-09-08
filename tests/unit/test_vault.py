@@ -253,6 +253,25 @@ class TestExtractRecallSubject:
         subj, _ = self._subj("pull up my notes on the database schema")
         assert subj == "database schema"
 
+    def test_politeness_wrapper_stripped_before_leadin(self):
+        # "can you" used to block the "pull up" lead-in from ever matching.
+        assert self._subj("can you pull up Dylan's people entry from our vault") == ("dylan people", True)
+
+    def test_apostrophe_possessive_normalised(self):
+        assert self._subj("what's in my note on Rilke's elegies")[0] == "rilke elegies"
+
+    def test_subject_from_later_sentence(self):
+        subj, lead = self._subj("i wish i could. can you pull up my note on grief")
+        assert (subj, lead) == ("grief", True)
+
+    def test_trailing_conjunction_clause_dropped(self):
+        subj, _ = self._subj("pull up Dylan's entry and tell me if it's right")
+        assert subj == "dylan"
+
+    def test_pure_sample_phrasing_has_no_subject(self):
+        assert self._subj("pull up a random daily entry")[0] == ""
+        assert self._subj("surprise me with any note")[0] == ""
+
 
 class TestResolveTurnContextConversational:
     def _profile(self):
@@ -280,3 +299,31 @@ class TestResolveTurnContextConversational:
         write_note(str(tmp_vault_dir / "People" / "Rilke.md"), "# Rilke\n")
         no_skill = {"handle": "x", "skills": ["web_search"], "vault_folders": ["*"]}
         assert VaultManager.resolve_turn_context(no_skill, "pull up my notes on Rilke") is None
+
+    def test_named_person_entry_hits_that_note_not_a_random_one(self, tmp_vault_dir, monkeypatch):
+        """Regression: "can you pull up Dylan's people entry" tripped the random
+        daily-note sampler ("entry" + "pull") and injected an unrelated journal
+        note stamped as Ground-Truth, which the model then "read out" as Dylan's."""
+        from sympose.vault import VaultManager
+        monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
+        write_note(str(tmp_vault_dir / "People" / "Dylan.md"), "# Dylan\n\nson, born 2015-09-08, links to [[Tin]].\n")
+        write_note(str(tmp_vault_dir / "Daily" / "2025-02-05.md"), "# Day\n\nBought life insurance today.\n")
+
+        ctx = VaultManager.resolve_turn_context(
+            self._profile(), "can you pull up Dylan's people entry from our vault and see if my memory's right?"
+        )
+        assert ctx is not None
+        assert "2015-09-08" in ctx and "insurance" not in ctx
+
+    def test_random_daily_sampler_still_fires_without_a_named_subject(self, tmp_vault_dir, monkeypatch):
+        from sympose.vault import VaultManager
+        monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
+        write_note(str(tmp_vault_dir / "Daily" / "2025-02-05.md"), "# Day\n\nA quiet morning.\n")
+
+        ctx = VaultManager.resolve_turn_context(self._profile(), "pull up a random daily entry")
+        assert ctx is not None and "quiet morning" in ctx
+
+    def test_fresh_recall_intent_detected(self):
+        from sympose.vault import VaultManager
+        assert VaultManager.has_recall_intent("can you pull up my note on grief") is True
+        assert VaultManager.has_recall_intent("what's the btc price right now") is False

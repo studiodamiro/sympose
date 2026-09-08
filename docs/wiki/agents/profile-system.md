@@ -47,7 +47,7 @@ For advanced customization, a full YAML manifest supports:
 name: "Grace Hopper"
 handle: "grace"
 title: "Surgical Software Engineer"
-model: "gemini/gemini-3.5-flash-lite"
+model: "gemini/gemini-3.6-flash"
 icon_emoji: "🛠️"
 vault_folder: "Engineering"
 temperature: 0.1
@@ -69,6 +69,8 @@ vault_folders:
 
 share_memory: true
 ```
+
+The tunable knobs in a manifest — `model`, `temperature`, `api_base`, `keep_alive`, `share_memory`, `vault_grounding` — are validated against the [config schema](../guides/configuration.md) and can be set in-session with `/persona set @<handle> <key> <value>` instead of hand-editing the file. `/persona show @<handle>` lists them with their current values. Structural fields (`handle`, `soul_file`, `skills`, `vault_folders`, …) are edited in the YAML directly.
 
 ---
 

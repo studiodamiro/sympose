@@ -61,6 +61,16 @@ class VaultManager:
         "my journal about", "journal entry about", "journal about", "journal on",
         "remind me", "recall", "remember when", "remember",
     )
+    # Politeness / modal wrappers that sit in front of a recall lead-in
+    # ("can you pull up …", "please remind me …"). Stripped before the lead-in
+    # scan but — unlike a lead-in — not themselves treated as recall intent.
+    _RECALL_WRAPPERS: Tuple[str, ...] = (
+        "can you please", "could you please", "would you please", "can you kindly",
+        "i want you to", "i'd like you to", "i would like you to", "i need you to",
+        "can you", "could you", "would you", "will you", "can we", "could we",
+        "can u", "cud u", "lets", "let's", "let us", "help me", "go ahead and",
+        "please", "kindly", "pls", "plz",
+    )
     # Tokens with no value as a substring search term; trimmed from both ends of
     # an extracted subject.
     _SUBJECT_STOPWORDS: frozenset = frozenset({
@@ -70,7 +80,12 @@ class VaultManager:
         "journal", "journals", "diary", "entry", "entries", "reflection", "reflections",
         "log", "logs", "did", "do", "i", "we", "you", "have", "had", "has",
         "write", "wrote", "written", "say", "said", "anything", "something", "stuff",
-        "thing", "things", "please", "and", "or",
+        "thing", "things", "please", "and", "or", "me", "us",
+        # sample / chrono filler — a "subject" made only of these is no subject
+        "random", "randomly", "randam", "surprise", "whatever", "arbitrary",
+        "daily", "recent", "latest", "old", "past",
+        # stray retrieval verbs that can leak past the lead-in scan
+        "grab", "get", "fetch", "pull", "bring", "show", "give", "pick", "choose",
     })
 
     @staticmethod
@@ -82,30 +97,68 @@ class VaultManager:
         (subject, had_leadin) — had_leadin is True when a recall phrasing
         ('tell me about', 'pull up', …) was consumed, which is itself a signal
         of vault intent even absent a trigger keyword."""
-        q = message.strip().strip("?.!").lower()
-        q = re.sub(r"^(?:hey|hi|hello|yo|good\s+\w+)[\s,]+(?:\w+[\s,]+)?", "", q).strip()
-        had_leadin = False
-        changed = True
-        while changed:
-            changed = False
-            for phrase in VaultManager._RECALL_LEADINS:
-                if q.startswith(phrase + " "):
-                    q, changed, had_leadin = q[len(phrase):].strip(), True, True
-                    break
-        m = re.search(r"\b(?:about|on|regarding|mentioning|discussing|concerning)\s+(.+)$", q)
-        if m:
-            q = m.group(1).strip()
-        q = re.sub(
-            r"\s+(?:in|from|within|inside)\s+(?:my|our|the\s+)?\s*"
-            r"(?:journal|diary|vault|notes?|daily|entries|reflections?|logs?)\b.*$",
-            "", q,
-        ).strip()
-        toks = [t for t in re.split(r"\s+", q) if t]
-        while toks and toks[0] in VaultManager._SUBJECT_STOPWORDS:
-            toks.pop(0)
-        while toks and toks[-1] in VaultManager._SUBJECT_STOPWORDS:
-            toks.pop()
-        return " ".join(toks).strip(), had_leadin
+        raw = message.strip().strip("?.!").lower()
+        raw = re.sub(r"^(?:hey|hi|hello|yo|good\s+\w+)[\s,]+(?:\w+[\s,]+)?", "", raw).strip()
+        # Possessive → bare stem so a substring search on "dylans" / "dylan's"
+        # still matches the note that only ever spells it "Dylan".
+        raw = re.sub(r"(\w)['’]s\b", r"\1", raw)
+
+        def _from_clause(q: str) -> Tuple[str, bool]:
+            had_leadin = False
+            changed = True
+            while changed:
+                changed = False
+                for phrase in VaultManager._RECALL_WRAPPERS:
+                    if q.startswith(phrase + " "):
+                        q, changed = q[len(phrase):].strip(), True
+                        break
+                for phrase in VaultManager._RECALL_LEADINS:
+                    if q.startswith(phrase + " "):
+                        q, changed, had_leadin = q[len(phrase):].strip(), True, True
+                        break
+            m = re.search(r"\b(?:about|on|regarding|mentioning|discussing|concerning)\s+(.+)$", q)
+            if m:
+                q = m.group(1).strip()
+            q = re.sub(
+                r"\s+(?:in|from|within|inside)\s+(?:my|our|the\s+)?\s*"
+                r"(?:journal|diary|vault|notes?|daily|entries|reflections?|logs?)\b.*$",
+                "", q,
+            ).strip()
+            # A recall request rarely spans a conjunction ("… and see if my
+            # memory's right"); keep only the head clause.
+            q = re.split(r"\s+(?:and|but|so|then)\s+", q, maxsplit=1)[0].strip()
+            toks = [t for t in re.split(r"\s+", q) if t]
+            while toks and toks[0] in VaultManager._SUBJECT_STOPWORDS:
+                toks.pop(0)
+            while toks and toks[-1] in VaultManager._SUBJECT_STOPWORDS:
+                toks.pop()
+            return " ".join(toks).strip(), had_leadin
+
+        # "i wish i could do that. can you pull up X" — process each sentence and
+        # prefer the one that actually carries a recall lead-in.
+        clauses = [c.strip() for c in re.split(r"[.?!]+\s+", raw) if c.strip()] or [raw]
+        best = ("", False)
+        for c in clauses:
+            subj, lead = _from_clause(c)
+            if lead and subj:
+                return subj, True
+            if subj and not best[0]:
+                best = (subj, lead)
+        return best
+
+    @classmethod
+    def has_recall_intent(cls, message: str) -> bool:
+        """True when the message is itself a fresh vault-recall request (a recall
+        lead-in was consumed, or a configured search trigger appears). The engine
+        uses this to decide *not* to reuse a previous turn's injected vault
+        context when the current turn asked its own vault question and retrieval
+        came back empty — answering a fresh 'pull up X' from a stale unrelated
+        note is exactly the fabrication this guards against."""
+        _, had_leadin = cls._extract_recall_subject(message)
+        if had_leadin:
+            return True
+        triggers = config_manager.get("vault.search_triggers") or ["vault", "note", "notes", "journal", "recall"]
+        return any(k in message.lower() for k in triggers)
 
     @staticmethod
     def _get_master_vault() -> Optional[str]:
@@ -942,6 +995,26 @@ class VaultManager:
         return discovered
 
     @classmethod
+    def _recall_hit(cls, profile: Dict[str, Any], cand: str, target_folder: Optional[str] = None) -> Optional[str]:
+        """Search one candidate term for the conversational-recall fallback.
+        A single result — or a clear title match on the first hit — returns the
+        note's *full verbatim body* (the strongest possible grounding payload);
+        anything broader returns the ranked digest so the model can pick."""
+        results = cls.search_structured(profile, cand, target_folder=target_folder)
+        if not results:
+            return None
+        top = results[0]
+        if len(results) == 1 or top.get("match_type") == "title":
+            body = cls.read_note(profile, top.get("rel_path") or top.get("file_name", ""))
+            if body and not body.startswith(("⚠️", "Error reading", "Note `")):
+                loc = f" in `{target_folder}/`" if target_folder else ""
+                return (f"### Ground-Truth Sandboxed Vault Note (`{top.get('rel_path')}` "
+                        f"— Exact Content, matched '{cand}'{loc}):\n{body[:3500]}")
+        digest = cls.format_search_digest(cand, results)
+        loc = f" in `{target_folder}/`" if target_folder else ""
+        return f"### Ground-Truth Vault Search Results for '{cand}'{loc}:\n{digest}"
+
+    @classmethod
     def resolve_turn_context(cls, profile: Dict[str, Any], message: str) -> Optional[str]:
         """Skill-gated, structure-agnostic pre-inference retrieval conforming to skills/vault_recall."""
         # 1. Skill Permission Gate: only proceed if agent is authorized for vault recall
@@ -982,11 +1055,24 @@ class VaultManager:
             if c and not c.startswith("Note `") and not c.startswith("⚠️"):
                 return f"### Ground-Truth Sandboxed Vault Note (`{note_target}` - Exact Content):\n{c}"
 
+        # Subject of a conversational recall request ("Dylan's people entry" ->
+        # "dylan people"), extracted once: it both gates the random sampler
+        # below (a named subject is never a request for a *random* note) and
+        # drives the case-8 fallback search.
+        subject, had_leadin = cls._extract_recall_subject(msg)
+
         # 5. Chronological & Daily Journal Intent (Structure-Agnostic)
         is_chrono_query = bool(re.search(r"\b(daily|journal|diary|reflection|reflections|log|logs|day's\s+note|entry|entries)\b", msg, re.I))
-        is_sample_request = bool(re.search(r"\b(pick|choose|random|randam|rnd|surprise|sample|one\s+of|pull|grab|fetch|get\s+one|show\s+one|any)\b", msg, re.I))
+        # Only an *explicit* ask for an arbitrary note — "pull"/"grab"/"get"/
+        # "pick" alone are not it ("pull up Dylan's entry" names a target).
+        is_sample_request = bool(re.search(
+            r"\b(?:random(?:ly)?|randam|rnd|surprise\s+me|a\s+random|any\s+(?:random\s+)?(?:one|note|entry|day)|"
+            r"some\s+(?:random\s+)?(?:note|entry|day)|(?:pick|choose|grab|pull\s+up|show|give)\s+(?:me\s+)?(?:a|an|one|any)\b|"
+            r"one\s+of\s+(?:my|the|our)|whatever\s+comes\s+up)\b",
+            msg, re.I,
+        ))
 
-        if is_chrono_query and is_sample_request:
+        if is_chrono_query and is_sample_request and not subject:
             chrono_notes = cls.find_chronological_notes(profile)
             if chrono_notes:
                 import random
@@ -1020,33 +1106,50 @@ class VaultManager:
             for folder_name, folder_path in discovered_dirs.items():
                 f_stem = folder_name.rstrip("s")
                 if re.search(rf"\b{re.escape(f_stem)}\w*\b", msg, re.I):
-                    if is_sample_request:
+                    if is_sample_request and not subject:
                         samples = cls.get_random_sample_notes(profile, folder_name, count=1)
                         if samples:
                             return f"### Ground-Truth Selected Note from `{folder_name}/`:\n{samples}"
                     if re.search(r"\b(scan|analyze|summarize|all|overview|connections?|access)\b", msg, re.I):
                         return cls.get_folder_digest(profile, folder_name)
+                    # A named subject alongside the folder ("Dylan's People entry")
+                    # means search *that* inside the folder, not list the folder.
+                    # A named subject alongside the folder ("Dylan's People entry")
+                    # means search *that* inside the folder, not list the folder.
+                    if subject:
+                        for st in cls._recall_candidates(subject, drop=f_stem):
+                            hit = cls._recall_hit(profile, st, target_folder=folder_name)
+                            if hit:
+                                return hit
                     res = cls.search(profile, folder_name, target_folder=folder_name)
                     if res and not res.startswith("No notes found") and "not configured" not in res:
                         return f"### Ground-Truth Vault Search Results for '{folder_name}':\n{res}"
 
-        # 8. Conversational recall fallback — pull the subject out of the phrasing
-        #    and search it, retrying progressively narrower so a multi-word phrase
-        #    that substring-matches nothing still surfaces its salient notes.
-        subject, had_leadin = cls._extract_recall_subject(msg)
+        # 8. Conversational recall fallback — search the extracted subject,
+        #    retrying progressively narrower so a multi-word phrase that
+        #    substring-matches nothing still surfaces its salient notes.
         if (has_intent or had_leadin) and subject and len(subject) >= 3:
-            sig = [t for t in subject.split() if len(t) >= 3 and t not in cls._SUBJECT_STOPWORDS]
-            # full phrase first, then single tokens by specificity (longest, then
-            # earliest) so "meridian project" tries "meridian" before "project".
-            candidates = [subject] + sorted(set(sig), key=lambda t: (-len(t), subject.find(t)))
-            tried: set = set()
-            for cand in candidates:
-                cand = cand.strip()
-                if len(cand) < 3 or cand in tried:
-                    continue
-                tried.add(cand)
-                res = cls.search(profile, cand)
-                if res and not res.startswith("No notes found") and "not configured" not in res:
-                    return f"### Ground-Truth Vault Search Results for '{cand}':\n{res}"
+            for cand in cls._recall_candidates(subject):
+                hit = cls._recall_hit(profile, cand)
+                if hit:
+                    return hit
 
         return None
+
+    @classmethod
+    def _recall_candidates(cls, subject: str, drop: str = "") -> List[str]:
+        """Ordered search terms for a recall subject: the full phrase first, then
+        its most-specific single tokens (longest, then earliest), then the
+        de-pluralised stem of each so an apostrophe-less possessive ('dylans' ->
+        'dylan') still matches. `drop` removes one token (e.g. the folder name)."""
+        toks = {t for t in subject.split() if len(t) >= 3 and t not in cls._SUBJECT_STOPWORDS and t != drop}
+        toks |= {t[:-1] for t in list(toks) if len(t) >= 5 and t.endswith("s")}
+        ordered = [subject] + sorted(toks, key=lambda t: (-len(t), subject.find(t)))
+        seen: set = set()
+        out: List[str] = []
+        for c in ordered:
+            c = c.strip()
+            if len(c) >= 3 and c not in seen:
+                seen.add(c)
+                out.append(c)
+        return out

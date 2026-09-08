@@ -72,6 +72,49 @@ class ProfileManager:
         except Exception as e:
             return False, f"Failed to update `{yaml_file}`: {e}"
 
+    def set_persona_field(self, handle: str, key: str, raw_value: str) -> Tuple[bool, str]:
+        """Writes one persona-scoped config knob into `profiles/<handle>.yaml`.
+
+        Only keys declared `scope="persona"` in `config_schema` are writable —
+        the value is coerced and validated against the same schema `/config set`
+        uses. Global keys are refused with a pointer to `/config`. Comments in
+        the manifest are not preserved (plain `yaml.dump` round-trip, matching
+        `update_persona_skills`)."""
+        from sympose.config_schema import get_setting, coerce, validate
+
+        s = get_setting(key)
+        if s is None:
+            return False, f"Unknown setting `{key}`."
+        if s.scope != "persona":
+            return False, f"`{key}` is a global knob — use `/config set {key} <value>`."
+
+        h = handle.lower().replace("@", "").strip()
+        yaml_file = os.path.join(self.profiles_dir, f"{h}.yaml")
+        if not os.path.exists(yaml_file):
+            return False, f"Profile manifest `{yaml_file}` not found."
+
+        try:
+            val = coerce(s, raw_value)
+        except ValueError as e:
+            return False, f"`{key}`: {e}."
+        ok, err = validate(key, val)
+        if not ok:
+            return False, f"`{key}`: {err}."
+
+        try:
+            with open(yaml_file, "r", encoding="utf-8") as f:
+                data = yaml.safe_load(f)
+            if not isinstance(data, dict):
+                return False, f"Invalid YAML structure in `{yaml_file}`."
+            data[key] = val
+            with open(yaml_file, "w", encoding="utf-8") as f:
+                yaml.dump(data, f, default_flow_style=False, sort_keys=False)
+            self.reload_profiles()
+            p_name = data.get("name", h)
+            return True, f"Set `{key}` = `{val}` on {p_name} (`@{h}`)."
+        except Exception as e:
+            return False, f"Failed to update `{yaml_file}`: {e}"
+
     def bootstrap_missing_artifacts(self, profile: Dict[str, Any]) -> None:
         """Generates soul, memory, universal user card, and shared team memory from .example templates if absent."""
         handle, name, title = profile.get("handle", "agent").lower(), profile.get("name", "Agent"), profile.get("title", "Specialist Advisor")

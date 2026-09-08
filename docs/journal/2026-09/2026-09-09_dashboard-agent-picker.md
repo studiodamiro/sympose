@@ -86,11 +86,12 @@ so the later slices inherit them:
 - **`src/lib/use-active-persona.ts`** — `useActivePersona()`, a cookie-backed
   `[handle, setHandle]` pair defaulting to `samantha`. Cookie, not
   localStorage, per UI_DESIGN_REFERENCE.md §5.
-- **`src/components/sympose/agent-card.tsx`** — the Agent panel card: accent
-  band tinted with the persona's own `--persona-accent` (the same custom
-  property `<PersonaPill>` uses), initials avatar, name, title, `<ModelChip>`,
-  and a "Switch agents" row of avatar buttons. Soul / Memory buttons are
-  rendered **disabled** pending their endpoints.
+- **`src/components/sympose/agent-card.tsx`** — the Agent panel body (a
+  full-width section of the content panel, not a bordered card): a rounded
+  accent band tinted with the persona's own `--persona-accent` (the same
+  custom property `<PersonaPill>` uses), initials avatar lifting into it,
+  name, title, `<ModelChip>`, and a "Switch agents" row of avatar buttons.
+  Soul / Memory buttons are rendered **disabled** pending their endpoints.
 - **`src/routes/app-shell.tsx`** — roster fetched once on mount, the active
   handle lifted to the shell, `<AgentCard>` rendered in the existing
   `MENU_ACCOUNT_ID` content panel.

@@ -343,6 +343,7 @@ export function AppShell() {
         ) : (
           <VaultTree
             nodes={panelNodes}
+            storageKey="sympose:vault.expanded"
             selectedPath={selectedNote}
             onSelect={(node) => setSelectedNote(node.path)}
           />

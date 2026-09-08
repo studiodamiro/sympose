@@ -131,7 +131,10 @@ work.
   row's panel then shows just that entry's contents — a folder's own subtree,
   or a single root note — sliced client-side from the one fetched tree (no
   per-folder round-trip). Selecting a note only records the path for now;
-  note-open is a later slice.
+  note-open is a later slice. `<VaultTree>` gained an optional `storageKey`
+  that persists the expanded-folder set to a cookie (`sympose:vault.expanded`)
+  so the open/closed shape survives a reload — the same `storageKey`
+  convention `<MainMenu>` / `<ContentPanel>` already use.
 - **`ui/` main menu is now live** — the left rail is built from the tree's
   surface (top-level folders + root notes like `README.md`) in the tree's own
   order, not the static 13-entry `VAULT_FOLDERS` list. `VAULT_FOLDERS` is kept

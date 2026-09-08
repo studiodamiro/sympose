@@ -772,7 +772,7 @@ class CommandInterceptor:
             return _delete()
 
         # 11. Help Menu
-        if clean_input == "/help":
+        if clean_input in ("/help", "/commands", "/cmds", "/?"):
             def _help():
                 yield (
                     "# 🏛️  SYMPOSE HUB COMMANDS\n\n"
@@ -786,7 +786,8 @@ class CommandInterceptor:
                     "- `quit` or `exit` — End session (triggers save prompt)\n\n"
                     "### 📚  KNOWLEDGE & OBSIDIAN VAULT\n"
                     "- `/vault <query>` — Search notes within authorized sandbox\n"
-                    "- `/vault backlinks <note>` — Inspect incoming references for a note\n"
+                    "- `/vault backlinks <note>` or `/backlinks <note>` — Inspect incoming references for a note\n"
+                    "- `/read <#>` · `/view <#>` · `/open <#>` — Open a search result in terminal / Obsidian\n"
                     "- `/note <file.md> <content>` — Create or append to a sandboxed note\n"
                     "- `/daily <reflection>` — Append reflection to today's Daily Note\n"
                     "- `/remember <fact>` — Save fact into persona's persistent memory\n"
@@ -805,8 +806,20 @@ class CommandInterceptor:
                     "- `/config set <key> <val>` — Live-tune knobs (e.g. `/config set performance.max_context_turns 20`)\n"
                     "- `/persona [show|set] @<handle> <key> <val>` — View or set a persona's own knobs (e.g. `temperature`)\n"
                     "- `/delete @<handle>` — Safely archive & retire an agent persona\n"
-                    "- `/help` — Show this command reference"
+                    "- `/help` or `/commands` — Show this command reference"
                 )
             return _help()
+
+        # 12. Unknown slash command → a helper line, not a prompt to the model.
+        if clean_input.startswith("/"):
+            token = clean_input.split(maxsplit=1)[0].lower()
+            from sympose.completer import SymposeCompleter
+            known = sorted(c for c in SymposeCompleter.ROOT_COMMANDS if c.startswith("/"))
+            if token not in known:
+                def _unknown():
+                    near = [c for c in known if len(token) >= 2 and c.startswith(token[:3])]
+                    hint = f" Did you mean: {', '.join(near)}?" if near else ""
+                    yield f"⚠️ Unknown command `{token}`.{hint}  Run `/commands` for the full list."
+                return _unknown()
 
         return None

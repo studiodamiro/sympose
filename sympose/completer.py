@@ -31,6 +31,7 @@ class SymposeCompleter:
         "/model",
         "/render",
         "/config",
+        "/commands",
         "/persona",
         "/vault",
         "/vaults",
@@ -274,6 +275,15 @@ class SymposeCompleter:
             readline.parse_and_bind("bind ^I rl_complete")
         else:
             readline.parse_and_bind("tab: complete")
+
+        # First Tab on an ambiguous prefix (or an empty line) lists every
+        # candidate instead of beeping / silently completing the common prefix.
+        for opt in ("set show-all-if-ambiguous on", "set show-all-if-unmodified on",
+                    "set completion-ignore-case on"):
+            try:
+                readline.parse_and_bind(opt)
+            except Exception:
+                pass
 
         # Load history from active workspace directory
         from sympose.bootstrap import resolve_workspace_dir

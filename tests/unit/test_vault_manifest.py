@@ -351,6 +351,17 @@ class TestVaultGraph:
         assert by_id["ghost"]["exists"] is False
         assert {(l["source"], l["target"]) for l in g["links"]} >= {("hub", "a"), ("hub", "ghost"), ("b", "a")}
 
+    def test_long_quote_style_label_is_clipped_but_id_is_whole(self, tmp_vault_dir, monkeypatch):
+        from sympose.vault import VaultManager
+        monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
+        (tmp_vault_dir / "Quotes").mkdir()
+        quote = "Art is a lie that enables us to realize the truth, at least the truth that is given to us to understand"
+        (tmp_vault_dir / "Quotes" / f"{quote}.md").write_text("---\ntags: [quote]\n---")
+        g = VaultManager.get_vault_graph()
+        node = next(n for n in g["nodes"] if n["id"] == quote)
+        assert node["id"] == quote                       # full stem kept for links/search
+        assert len(node["label"]) <= 64 and node["label"].endswith("…")
+
     def test_works_with_knob_disabled_via_ephemeral_build(self, tmp_vault_dir, monkeypatch):
         from sympose.vault import VaultManager
         from sympose.vault import config_manager

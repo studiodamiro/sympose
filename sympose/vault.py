@@ -316,11 +316,13 @@ class VaultManager:
         if not content.startswith("---"):
             return {}, content
 
-        match = re.match(r"^---\r?\n(.*?)\r?\n---\r?\n(.*)$", content, re.DOTALL)
+        # Closing `---` may be the last line of the file (frontmatter-only note),
+        # carry trailing spaces, or be followed by a body. All three are valid.
+        match = re.match(r"^---\r?\n(.*?)\r?\n---[ \t]*(?:\r?\n(.*))?\Z", content, re.DOTALL)
         if not match:
             return {}, content
 
-        raw_yaml, body = match.group(1), match.group(2)
+        raw_yaml, body = match.group(1), match.group(2) or ""
         meta: Dict[str, Any] = {}
         try:
             parsed = yaml.safe_load(raw_yaml)
@@ -447,8 +449,11 @@ class VaultManager:
         """`NebulaGraph`-shaped projection of the manifest for
         `GET /api/vault/graph`: nodes `{id, label, folder, tags, val, exists}`
         (`val` = link degree + 1, scales the node radius), links
-        `{source, target}`. Falls back to an ephemeral in-memory build when
-        `vault.manifest.enabled` is off; `{nodes: [], links: []}` with no vault."""
+        `{source, target}`. `label` is clipped to ~64 chars — a `Quotes/` note
+        is named after the whole quote, which is unreadable on a graph node;
+        `id` keeps the full stem for link resolution and search. Falls back to an
+        ephemeral in-memory build when `vault.manifest.enabled` is off;
+        `{nodes: [], links: []}` with no vault."""
         manifest = cls.get_manifest()
         if manifest is None:
             mv = cls._get_master_vault()
@@ -460,9 +465,13 @@ class VaultManager:
         for l in links:
             degree[l["source"]] = degree.get(l["source"], 0) + 1
             degree[l["target"]] = degree.get(l["target"], 0) + 1
+        def _label(n: Dict[str, Any]) -> str:
+            raw = str(n.get("title") or n["id"]).strip()
+            return raw if len(raw) <= 64 else raw[:63].rstrip() + "…"
+
         nodes = [
             {
-                "id": n["id"], "label": n.get("title") or n["id"], "folder": n["folder"],
+                "id": n["id"], "label": _label(n), "folder": n["folder"],
                 "tags": n.get("tags", []), "val": degree.get(n["id"], 0) + 1,
                 "exists": n.get("exists", True),
             }

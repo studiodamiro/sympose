@@ -59,9 +59,10 @@ function AgentCard({ personas, active, onSwitch, className }: AgentCardProps) {
         } as React.CSSProperties
       }
     >
-      {/* accent band — a section of the panel, not a bordered card */}
+      {/* accent band — bleeds to the panel edges (cancels its `p-6`); the
+          panel's own rounded top corners + overflow clip it */}
       <div
-        className="h-28 w-full rounded-2xl bg-(--persona-accent) dark:bg-(--persona-accent-dark)"
+        className="-mx-6 -mt-6 h-28 rounded-tl-lg rounded-tr-lg bg-(--persona-accent) dark:bg-(--persona-accent-dark)"
         aria-hidden
       />
 

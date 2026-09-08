@@ -461,7 +461,15 @@ export function AppShell() {
             storageKey="sympose:shell.panel"
             scrollKey="sympose:shell.panel.scroll"
             contentClassName={
-              !isPhone ? "p-8" : plainPage ? "px-4 py-6" : "p-6"
+              // the Agent panel bleeds its accent band to the panel edges, so
+              // it takes a single fixed pad its band can cancel with `-m-6`
+              active === MENU_ACCOUNT_ID
+                ? "p-6"
+                : !isPhone
+                  ? "p-8"
+                  : plainPage
+                    ? "px-4 py-6"
+                    : "p-6"
             }
             open={contentOpen}
             phone={isPhone}

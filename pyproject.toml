@@ -37,9 +37,16 @@ sympose = "app:main"
 [tool.setuptools]
 packages = ["sympose", "sympose.builtin_skills"]
 py-modules = ["app"]
+include-package-data = true
 
 [tool.setuptools.package-data]
-sympose = ["*.yaml", "*.md", "*.json", "builtin_skills/*/*.md", "builtin_skills/*.md", "prompts/*.md"]
+sympose = [
+    "*.yaml", "*.md", "*.json",
+    "builtin_skills/*/*.md", "builtin_skills/*.md", "prompts/*.md",
+    # Prebuilt web dashboard (ADR-079) — ships in the wheel so `pipx install`
+    # serves the real UI. Flat: index.html + sympose.svg + assets/*.
+    "webui/*", "webui/assets/*",
+]
 
 [project.optional-dependencies]
 dev = [

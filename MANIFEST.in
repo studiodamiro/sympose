@@ -4,6 +4,7 @@ include config.example.yaml
 include requirements.txt
 include chat.sh
 recursive-include sympose/prompts *.md
+recursive-include sympose/webui *
 recursive-include profiles *.yaml *.md
 recursive-include mcp *.json *.md
 recursive-include docs *.md

@@ -118,13 +118,15 @@ def create_app(engine: Any) -> FastAPI:
             raise HTTPException(status_code=404, detail=content)
         return {"path": path, "content": content}
 
-    # Resolve the frontend root: a built Vite bundle (ui/dist) wins over the
-    # hand-authored vanilla scaffold (ui/) when present. Both are optional.
-    # Resolved relative to the package first (works no matter which directory
-    # the dashboard was launched from — the repo root, `ui/`, or `~/.sympose`)
-    # and only then relative to the process CWD.
-    _pkg_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    # Resolve the frontend root. The committed, packaged bundle
+    # (`sympose/webui/`, ADR-079) is authoritative — it ships in the wheel, so a
+    # `pipx install git+…` serves the real dashboard. A source checkout that has
+    # run `npm run build` also writes there. The old `ui/dist` and the
+    # hand-authored `ui/` scaffold remain as fallbacks for a stale tree.
+    _pkg_dir = os.path.dirname(os.path.abspath(__file__))
+    _pkg_root = os.path.dirname(_pkg_dir)
     ui_candidates = [
+        os.path.join(_pkg_dir, "webui"),
         os.path.join(_pkg_root, "ui", "dist"),
         os.path.join(os.getcwd(), "ui", "dist"),
         os.path.join(_pkg_root, "ui"),

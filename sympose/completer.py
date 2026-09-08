@@ -33,9 +33,11 @@ class SymposeCompleter:
         "/config",
         "/persona",
         "/vault",
+        "/vaults",
         "/read",
         "/view",
         "/open",
+        "/backlinks",
         "/note",
         "/daily",
         "/remember",
@@ -48,6 +50,7 @@ class SymposeCompleter:
         "/reset",
         "/new",
         "/clear",
+        "/cls",
         "/delete",
         "/retire",
         "/help",
@@ -196,9 +199,18 @@ class SymposeCompleter:
             help_topics = [c.lstrip("/") for c in self.ROOT_COMMANDS if c.startswith("/")] + [c for c in self.ROOT_COMMANDS if c.startswith("/")]
             return [t for t in help_topics if t.startswith(text)]
 
-        # /config set -> config keys
-        if cmd == "/config" and "set" in tokens:
-            return [k for k in self.CONFIG_KEYS if k.startswith(text)]
+        # /config -> get|set subcommand, then a config key (also leniently
+        # completes a bare key prefix: "/config vau" -> vault.* keys)
+        if cmd == "/config":
+            subs = ("get", "set")
+            on_first = len(tokens) == 1 or (len(tokens) == 2 and not line_l.endswith(" "))
+            if on_first:
+                return [o for o in (list(subs) + self.CONFIG_KEYS) if o.startswith(text)]
+            sub = tokens[1].lower()
+            on_key = (len(tokens) == 2 and line_l.endswith(" ")) or (len(tokens) == 3 and not line_l.endswith(" "))
+            if sub in subs and on_key:
+                return [k for k in self.CONFIG_KEYS if k.startswith(text)]
+            return []
 
         # /persona -> show|set, then @handle, then persona keys
         if cmd == "/persona":

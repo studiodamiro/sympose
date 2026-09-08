@@ -16,6 +16,7 @@ import { useTransientFlag } from "@/lib/use-transient-flag"
 import { usePanels } from "@/lib/use-panels"
 import { useActivePersona } from "@/lib/use-active-persona"
 import { fetchPersonas, type LivePersona } from "@/lib/personas"
+import { fetchVaultTree } from "@/lib/vault-tree-api"
 import { VAULT_FOLDERS } from "@/lib/vault-folders"
 import {
   ActionBadge,
@@ -29,7 +30,9 @@ import {
   MENU_ACCOUNT_ID,
   MENU_SETTINGS_ID,
   TopBar,
+  VaultTree,
   type MainMenuItem,
+  type VaultNode,
 } from "@/components/sympose"
 
 const ITEMS: MainMenuItem[] = VAULT_FOLDERS.map((f) => ({
@@ -234,6 +237,21 @@ export function AppShell() {
     }
   }, [])
 
+  // Vault browser — the persona-scoped directory tree (GET /api/vault/tree),
+  // re-fetched whenever the active persona changes so the sandbox follows the
+  // switcher. Every folder row opens the same panel: the whole scoped tree.
+  const [vaultTree, setVaultTree] = React.useState<VaultNode[]>([])
+  const [selectedNote, setSelectedNote] = React.useState<string>()
+  React.useEffect(() => {
+    let alive = true
+    fetchVaultTree(activePersona).then((tree) => {
+      if (alive) setVaultTree(tree)
+    })
+    return () => {
+      alive = false
+    }
+  }, [activePersona])
+
   const activeLabel = SECTION_LABELS[active] ?? active
   // Phone: the rail only shows alongside the content panel — the two are one
   // view. Desktop / tablet: always shown.
@@ -250,7 +268,7 @@ export function AppShell() {
         active={activePersona}
         onSwitch={setActivePersona}
       />
-    ) : (
+    ) : active === MENU_SETTINGS_ID ? (
       <>
         <div className="flex items-center justify-between gap-4">
           <h1 className="font-heading text-2xl font-semibold text-fg-strong">
@@ -271,6 +289,24 @@ export function AppShell() {
           grows to fill the space.
         </p>
       </>
+    ) : (
+      <div className="flex flex-col gap-2">
+        <span className="px-2 text-xs font-semibold tracking-wide text-fg-muted uppercase">
+          Vault · @{activePersona}
+        </span>
+        {vaultTree.length > 0 ? (
+          <VaultTree
+            nodes={vaultTree}
+            selectedPath={selectedNote}
+            onSelect={(node) => setSelectedNote(node.path)}
+          />
+        ) : (
+          <p className="px-2 text-sm text-fg-muted">
+            No notes in scope — check that the dashboard API is reachable and
+            the persona has vault folders.
+          </p>
+        )}
+      </div>
     )
 
   const chatMessages = (

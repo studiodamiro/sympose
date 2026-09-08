@@ -98,6 +98,15 @@ def create_app(engine: Any) -> FastAPI:
         `{nodes: [{id, label, folder, tags, val, exists}], links: [{source, target}]}`."""
         return VaultManager.get_vault_graph()
 
+    @app.get("/api/vault/tree")
+    def get_vault_tree(
+        persona: Optional[str] = Query("samantha", description="Persona handle for sandbox scoping")
+    ) -> Dict[str, Any]:
+        """Nested `VaultNode` directory tree (ADR-078 manifest projection) for
+        the dashboard browser, scoped to the persona's allowed vault folders."""
+        profile = engine.pm.get_profile(persona) or engine.pm.get_profile("samantha")
+        return {"persona": persona, "tree": VaultManager.get_vault_tree(profile)}
+
     @app.get("/api/vault/note")
     def read_note(
         path: str = Query(..., description="Relative path of note"),

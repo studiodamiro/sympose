@@ -29,6 +29,11 @@ def test_graph_endpoint_registered():
     assert any(getattr(r, "path", "") == "/api/vault/graph" for r in app.routes)
 
 
+def test_vault_tree_endpoint_registered():
+    app = _app()
+    assert any(getattr(r, "path", "") == "/api/vault/tree" for r in app.routes)
+
+
 def _route(app, path):
     return next(r for r in app.routes if getattr(r, "path", "") == path)
 

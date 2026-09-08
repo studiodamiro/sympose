@@ -7,7 +7,7 @@ import yaml
 from typing import Dict, Any, Optional, List, Tuple
 from collections import defaultdict
 from sympose.config import is_safe_path, config_manager
-from sympose import vault_index, vault_manifest
+from sympose import vault_index, vault_manifest, vault_tree
 
 log = logging.getLogger(__name__)
 
@@ -500,6 +500,33 @@ class VaultManager:
             for n in manifest.get("nodes", [])
         ]
         return {"nodes": nodes, "links": links}
+
+    @classmethod
+    def get_vault_tree(cls, profile: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Nested `VaultNode` directory tree for `GET /api/vault/tree`, scoped
+        to the persona's allowed folders. Reads the ADR-078 manifest (ephemeral
+        in-memory build when `vault.manifest.enabled` is off); `[]` with no
+        vault or no readable folders. Navigation only — never grounding."""
+        mv = cls._get_master_vault()
+        if not mv:
+            return []
+        allowed_dirs = cls.get_allowed_dirs(profile)
+        if not allowed_dirs:
+            return []
+
+        mv_real = os.path.realpath(mv)
+        prefixes: List[str] = []
+        for d in allowed_dirs:
+            d_real = os.path.realpath(d)
+            if d_real == mv_real:
+                prefixes = [""]
+                break
+            prefixes.append(os.path.relpath(d_real, mv_real).replace(os.sep, "/"))
+
+        manifest = cls.get_manifest()
+        if manifest is None:
+            manifest = vault_manifest.build(mv, cls._get_vault_snapshot(mv, [mv]))
+        return vault_tree.build_tree(manifest.get("nodes", []), prefixes)
 
     @classmethod
     def _search_fts(cls, mv: str, search_dirs: List[str], query_clean: str, max_results: int) -> Optional[List[Dict[str, Any]]]:

@@ -168,6 +168,8 @@ Per-file responsibility breakdown: **[Package Layering & Modular Design](docs/wi
 | Command | Purpose |
 | :--- | :--- |
 | `/switch @handle` | Switch active persona |
+| `/config [get\|set] <key> <val>` | Inspect or live-tune a validated runtime knob |
+| `/persona set @handle <key> <val>` | Set a per-persona knob (`temperature`, `model`, …) |
 | `/model find <query>` | Search and switch live models |
 | `/worker <skill\|mcp> <task>` | Dispatch an isolated sub-agent worker |
 | `/vault <query>` | Query the sandboxed Obsidian vault |

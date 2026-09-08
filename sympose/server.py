@@ -96,11 +96,25 @@ def create_app(engine: Any) -> FastAPI:
 
     # Resolve the frontend root: a built Vite bundle (ui/dist) wins over the
     # hand-authored vanilla scaffold (ui/) when present. Both are optional.
+    # Resolved relative to the package first (works no matter which directory
+    # the dashboard was launched from — the repo root, `ui/`, or `~/.sympose`)
+    # and only then relative to the process CWD.
+    _pkg_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     ui_candidates = [
+        os.path.join(_pkg_root, "ui", "dist"),
         os.path.join(os.getcwd(), "ui", "dist"),
+        os.path.join(_pkg_root, "ui"),
         os.path.join(os.getcwd(), "ui"),
     ]
     ui_root = next((p for p in ui_candidates if os.path.isfile(os.path.join(p, "index.html"))), None)
+    if ui_root:
+        log.info("[server] dashboard frontend: %s", ui_root)
+    else:
+        log.warning(
+            "[server] no UI bundle found (looked under %s and CWD) — serving the "
+            "API-only placeholder at `/`. Build it with `cd ui && npm run build`.",
+            _pkg_root,
+        )
 
     @app.get("/", response_class=HTMLResponse)
     def index() -> str:

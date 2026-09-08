@@ -11,13 +11,15 @@ tags:
 
 # ADR-078 — Materialized Vault Manifest (Structural Map) for the Agent & Dashboard Graph
 
-- **Status:** Accepted — manifest engine implemented 2026-09-09
+- **Status:** Accepted — implemented across 2026-09-09: the manifest engine
   (`sympose/vault_manifest.py`, config knobs, `VaultManager` write-through +
-  accessor, tests), plus the first ADR-078.7 slice: a manifest-backed vault
-  structure digest in `resolve_turn_context` and the `vault_recall` Discovery
-  rewrite. Still pending: `GET /api/vault/graph`, the worker-side discovery
-  rewrite, and routing `get_discovered_folders` / `find_chronological_notes`
-  through the manifest.
+  accessor); ADR-078.7 agent slice (manifest-backed structure digest in
+  `resolve_turn_context`, worker injection, `vault_recall` Discovery rewrite);
+  and the dashboard slice (`GET /api/vault/graph` in `sympose/server.py`,
+  `VaultManager.get_vault_graph()`, the nebula showcase now fetching it with
+  `mock-nebula.json` as offline fallback). Still pending: routing
+  `get_discovered_folders` / `find_chronological_notes` through the manifest,
+  and the ADR-078.4 delta-read.
 - **Date:** 2026-09-09
 - **Deciders:** damiro (Lead Architect); Grace / Claude (Sonnet 5) (Engineering Partner)
 - Builds on the retrieval caches in `sympose/vault.py`
@@ -242,10 +244,6 @@ end-to-end:
   read the Structure Map first for vault shape, filesystem probing as the
   fallback, with the "where, never what a note says" boundary restated.
 
-Still pending: `GET /api/vault/graph`, the worker-side `run_command` discovery
-rewrite, and routing `get_discovered_folders` / `find_chronological_notes`
-through the manifest.
-
 ## Implementation Note (2026-09-09 — worker injection + default-on)
 
 - **`WorkerEngine._build_worker_context`** — a `vault_recall` / `vault_write`
@@ -310,3 +308,24 @@ through the manifest.
   body in the manifest could feed a persona fabricated content, violating the
   zero-hallucination grounding guarantee. Bodies stay out; grounding reads
   disk.
+
+## Implementation Note (2026-09-09 — dashboard graph + wider routing)
+
+- **`GET /api/vault/graph`** (`sympose/server.py`) → `VaultManager.get_vault_graph()`
+  — a `NebulaGraph`-shaped projection of the manifest: nodes
+  `{id, label, folder, tags, val, exists}` where `val` is link degree + 1 (node
+  radius), links `{source, target}`. Whole-vault, no persona parameter. Falls
+  back to an ephemeral in-memory `vault_manifest.build()` when
+  `vault.manifest.enabled` is off; `{nodes: [], links: []}` when no vault is
+  configured.
+- **`ui/src/routes/nebula-showcase.tsx`** — the tag-hub synthesis IIFE became
+  `buildMasterGraph(raw)`; the component holds the graph in state, painting the
+  bundled `mock-nebula.json` first and swapping to `GET /api/vault/graph` on
+  mount. The mock stays as the offline-dev fallback rather than being deleted.
+- **`resolve_turn_context` tier 1b widened.** The first phrasing test that
+  reached a live vault ("so, hows our vault doing? how many files are in?")
+  missed the original narrow regex and spawned a `find`/`python3` worker that
+  ran ~95 s. The trigger now fires for any "how big / how organised / how many /
+  what's in / stats / breakdown / summary" question that names the vault, and
+  is suppressed when the message carries a subject (`about X`, a quoted title) —
+  that is a search, not a shape question.

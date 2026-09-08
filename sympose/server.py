@@ -77,6 +77,12 @@ def create_app(engine: Any) -> FastAPI:
             "digest": digest,
         }
 
+    @app.get("/api/vault/graph")
+    def get_vault_graph() -> Dict[str, Any]:
+        """Whole-vault knowledge graph (ADR-078) for the dashboard nebula:
+        `{nodes: [{id, label, folder, tags, val, exists}], links: [{source, target}]}`."""
+        return VaultManager.get_vault_graph()
+
     @app.get("/api/vault/note")
     def read_note(
         path: str = Query(..., description="Relative path of note"),

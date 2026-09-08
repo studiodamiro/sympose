@@ -443,6 +443,34 @@ class VaultManager:
         )
 
     @classmethod
+    def get_vault_graph(cls) -> Dict[str, Any]:
+        """`NebulaGraph`-shaped projection of the manifest for
+        `GET /api/vault/graph`: nodes `{id, label, folder, tags, val, exists}`
+        (`val` = link degree + 1, scales the node radius), links
+        `{source, target}`. Falls back to an ephemeral in-memory build when
+        `vault.manifest.enabled` is off; `{nodes: [], links: []}` with no vault."""
+        manifest = cls.get_manifest()
+        if manifest is None:
+            mv = cls._get_master_vault()
+            if not mv:
+                return {"nodes": [], "links": []}
+            manifest = vault_manifest.build(mv, cls._get_vault_snapshot(mv, [mv]))
+        links = manifest.get("links", [])
+        degree: Dict[str, int] = {}
+        for l in links:
+            degree[l["source"]] = degree.get(l["source"], 0) + 1
+            degree[l["target"]] = degree.get(l["target"], 0) + 1
+        nodes = [
+            {
+                "id": n["id"], "label": n.get("title") or n["id"], "folder": n["folder"],
+                "tags": n.get("tags", []), "val": degree.get(n["id"], 0) + 1,
+                "exists": n.get("exists", True),
+            }
+            for n in manifest.get("nodes", [])
+        ]
+        return {"nodes": nodes, "links": links}
+
+    @classmethod
     def _search_fts(cls, mv: str, search_dirs: List[str], query_clean: str, max_results: int) -> Optional[List[Dict[str, Any]]]:
         """`sqlite_fts` search path (ADR-070.5). Returns None if the index isn't
         usable this run — the caller falls back to the `direct` walk below."""
@@ -1100,13 +1128,18 @@ class VaultManager:
         if not mv or not allowed_dirs:
             return None
 
-        # 1b. Vault structure map (ADR-078) — "how is my vault organised / what
-        #     folders / how many notes / how is it connected". Disk-true counts,
-        #     no walk. Inert unless `vault.manifest.enabled`; structure only.
-        if re.search(r"\b(structure|structured|organi[sz]e|organi[sz]ed|organi[sz]ation|"
-                     r"hierarch\w*|layout|topolog\w*|folders?|how many notes?|vault map|"
-                     r"map of (?:my |the )?vault|overview of (?:my |the )?vault)\b", msg, re.I) \
-           and re.search(r"\b(vault|notes?|folders?|journal|obsidian)\b", msg, re.I):
+        # 1b. Vault structure map (ADR-078). Any "how big / how organised / how
+        #     many / what's in / stats" question about the vault gets the
+        #     disk-true map — cheap, always accurate, no walk. Skipped when the
+        #     message names a subject (that's a search, not a shape question).
+        #     Inert unless `vault.manifest.enabled`; structure only.
+        if (re.search(r"\b(vault|obsidian|journal|(?:my|our|the)\s+notes?)\b", msg, re.I)
+                and re.search(r"\b(structure|structured|organi[sz]\w+|hierarch\w+|layout|"
+                              r"topolog\w+|folders?|sub-?folders?|breakdown|stats?|status|"
+                              r"summary|overview|snapshot|inventory|shape|size|"
+                              r"how many|how much|how big|how large|how'?s|hows|"
+                              r"what'?s in|state of|count)\b", msg, re.I)
+                and not re.search(r"\babout\b|\bregarding\b|[\"'][^\"']{2,}[\"']", msg)):
             manifest = cls.get_manifest()
             if manifest and manifest.get("nodes"):
                 return cls.format_manifest_digest(manifest)

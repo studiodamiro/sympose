@@ -291,12 +291,26 @@ class TestResolveTurnContextStructureTier:
         (tmp_vault_dir / "Daily").mkdir()
         (tmp_vault_dir / "Daily" / "2026-09-09.md").write_text("# Day\n#jour\n")
 
-    def test_structure_query_returns_the_map_when_enabled(self, tmp_vault_dir, monkeypatch):
+    @pytest.mark.parametrize("q", [
+        "how is my vault organised?",
+        "how many notes are in my vault?",
+        "so, hows our vault doing? how many files are in?",
+        "give me a vault summary",
+        "what's the breakdown of my vault",
+    ])
+    def test_structure_query_returns_the_map_when_enabled(self, tmp_vault_dir, monkeypatch, q):
         from sympose.vault import VaultManager
         self._enable(monkeypatch, tmp_vault_dir)
         prof = {"vault_folders": ["*"], "skills": ["vault_recall"], "handle": "t"}
-        out = VaultManager.resolve_turn_context(prof, "how is my vault organised?")
+        out = VaultManager.resolve_turn_context(prof, q)
         assert out is not None and out.startswith("### Ground-Truth Vault Structure Map")
+
+    def test_subject_query_does_not_hijack_search(self, tmp_vault_dir, monkeypatch):
+        from sympose.vault import VaultManager
+        self._enable(monkeypatch, tmp_vault_dir)
+        prof = {"vault_folders": ["*"], "skills": ["vault_recall"], "handle": "t"}
+        out = VaultManager.resolve_turn_context(prof, "what's in my vault about Rilke?")
+        assert out is None or not out.startswith("### Ground-Truth Vault Structure Map")
 
     def test_structure_query_inert_when_manifest_disabled(self, tmp_vault_dir, monkeypatch):
         from sympose.vault import VaultManager
@@ -310,6 +324,43 @@ class TestResolveTurnContextStructureTier:
         prof = {"vault_folders": ["*"], "skills": ["vault_recall"], "handle": "t"}
         out = VaultManager.resolve_turn_context(prof, "how is my vault organised?")
         assert out is None or not out.startswith("### Ground-Truth Vault Structure Map")
+
+
+class TestVaultGraph:
+    def _vault(self, tmp_vault_dir):
+        (tmp_vault_dir / "Notes").mkdir()
+        (tmp_vault_dir / "Notes" / "hub.md").write_text("# Hub\ntags: [x]\n[[a]] [[b]] [[ghost]]\n")
+        (tmp_vault_dir / "Notes" / "a.md").write_text("# A\n")
+        (tmp_vault_dir / "Notes" / "b.md").write_text("# B\n[[a]]\n")
+
+    def test_empty_graph_when_no_vault(self, monkeypatch):
+        from sympose.vault import VaultManager
+        monkeypatch.setenv("MASTER_VAULT_PATH", "")
+        assert VaultManager.get_vault_graph() == {"nodes": [], "links": []}
+
+    def test_nebula_shape_and_degree_weight(self, tmp_vault_dir, monkeypatch):
+        from sympose.vault import VaultManager
+        monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
+        self._vault(tmp_vault_dir)
+        g = VaultManager.get_vault_graph()
+        by_id = {n["id"]: n for n in g["nodes"]}
+        assert set(by_id["hub"]) == {"id", "label", "folder", "tags", "val", "exists"}
+        # hub: 3 outbound -> val 4 ; a: 2 inbound -> val 3 ; b: 1 in + 1 out -> val 3
+        assert by_id["hub"]["val"] == 4
+        assert by_id["a"]["val"] == 3
+        assert by_id["ghost"]["exists"] is False
+        assert {(l["source"], l["target"]) for l in g["links"]} >= {("hub", "a"), ("hub", "ghost"), ("b", "a")}
+
+    def test_works_with_knob_disabled_via_ephemeral_build(self, tmp_vault_dir, monkeypatch):
+        from sympose.vault import VaultManager
+        from sympose.vault import config_manager
+        real_get = config_manager.get
+        monkeypatch.setattr(config_manager, "get",
+                            lambda k, d=None: False if k == "vault.manifest.enabled" else real_get(k, d))
+        monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
+        self._vault(tmp_vault_dir)
+        g = VaultManager.get_vault_graph()
+        assert "hub" in {n["id"] for n in g["nodes"]} and g["links"]
 
 
 class TestWorkerManifestInjection:

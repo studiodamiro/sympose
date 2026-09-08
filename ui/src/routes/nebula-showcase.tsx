@@ -102,7 +102,9 @@ export function NebulaShowcase() {
   const nebulaRef = React.useRef<KnowledgeNebulaHandle>(null)
 
   // Live vault graph from GET /api/vault/graph; the bundled mock is the
-  // first paint and the offline fallback.
+  // first paint and the offline fallback. `graphSource` tells which one is
+  // on screen (surfaced as a corner badge + a console line).
+  const [graphSource, setGraphSource] = React.useState<"sample" | "live">("sample")
   const [masterGraph, setMasterGraph] = React.useState<NebulaGraph>(() =>
     buildMasterGraph(rawGraph as { nodes: any[]; links: any[] })
   )
@@ -111,10 +113,20 @@ export function NebulaShowcase() {
     fetch("/api/vault/graph")
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
       .then((data: NebulaGraph) => {
-        if (!cancelled && data?.nodes?.length) setMasterGraph(buildMasterGraph(data))
+        if (cancelled) return
+        if (data?.nodes?.length) {
+          setMasterGraph(buildMasterGraph(data))
+          setGraphSource("live")
+          console.info(
+            `[nebula] live vault · ${data.nodes.length} notes, ${data.links?.length ?? 0} links from /api/vault/graph`
+          )
+        } else {
+          console.info("[nebula] /api/vault/graph returned no nodes — showing the bundled sample")
+        }
       })
-      .catch(() => {
-        /* backend unreachable — keep the bundled mock */
+      .catch((err) => {
+        if (!cancelled)
+          console.info(`[nebula] /api/vault/graph unreachable (${err}) — showing the bundled sample`)
       })
     return () => {
       cancelled = true
@@ -328,6 +340,26 @@ export function NebulaShowcase() {
         onBackgroundClick={() => setSelectedNodeId(null)}
         className="absolute inset-0"
       />
+
+      {/* Data-source badge — is this the live vault or the bundled sample? */}
+      <div
+        className={`pointer-events-none absolute bottom-4 left-4 z-20 flex items-center gap-1.5 rounded-full px-2.5 py-1 font-mono text-[11px] font-medium backdrop-blur-sm ${
+          graphSource === "live"
+            ? isLight
+              ? "bg-emerald-500/10 text-emerald-700 ring-1 ring-emerald-600/20"
+              : "bg-emerald-400/10 text-emerald-300 ring-1 ring-emerald-400/25"
+            : isLight
+              ? "bg-amber-500/10 text-amber-700 ring-1 ring-amber-600/20"
+              : "bg-amber-400/10 text-amber-300 ring-1 ring-amber-400/25"
+        }`}
+      >
+        <span
+          className={`size-1.5 rounded-full ${
+            graphSource === "live" ? "bg-emerald-400" : "bg-amber-400"
+          }`}
+        />
+        {graphSource === "live" ? "live vault" : "bundled sample"} · {masterGraph.nodes.length} nodes
+      </div>
 
       {/* Top Bar: Heading & Light/Dark / Back controls */}
       <div className="pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between gap-4 p-4 sm:p-5">

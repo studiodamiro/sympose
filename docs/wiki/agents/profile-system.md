@@ -24,7 +24,7 @@ To add a new agent, simply drop a minimal YAML file into `profiles/`:
 name: "Richard Feynman"
 handle: "feynman"
 title: "First-Principles Physics & Intuition Master"
-model: "gemini/gemini-3.5-flash-lite"
+model: "gemini/gemini-3.6-flash"
 ```
 
 ---
@@ -80,7 +80,7 @@ Every complete, production-grade agent in Sympose satisfies seven foundational a
 
 | # | Prerequisite | Responsibility & Standard |
 | :--- | :--- | :--- |
-| **1** | **Identity & Manifest** | Unique handle (`@handle`), display name, role title, and fast LLM model (`gemini-3.5-flash-lite`, `claude-3-5-sonnet`, `ollama/gemma2`). |
+| **1** | **Identity & Manifest** | Unique handle (`@handle`), display name, role title, and fast LLM model (`gemini-3.6-flash`, `claude-3-5-sonnet`, `ollama/gemma2`). |
 | **2** | **Soul Directives (`_soul.md`)** | Distinct tone, role authority, domain heuristics, worker delegation directives, and strict anti-hallucination boundaries. |
 | **3** | **Working Memory (`_memory.md`)** | Mode selection (`share_memory: true` for team collaboration; `false` for air-gapped private reflection), linked to universal user card. |
 | **4** | **Obsidian Vault Sandbox** | Explicit domain folder whitelist (`vault_folders: [...]`) or root access (`["*"]`), verified on disk. |

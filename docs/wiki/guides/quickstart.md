@@ -98,11 +98,11 @@ device, then log in with the generated password (see
 Once the terminal launches, type naturally:
 
 ```
-You (to @samantha | gemini-3.5-flash-lite): I need to study Svelte in December 2026.
+You (to @samantha | gemini-3.6-flash): I need to study Svelte in December 2026.
 
 Samantha:
 Got it, damiro! Svelte's compile-time reactivity makes it an excellent choice...
-[0.78s TTFT | 0.85s total | gemini-3.5-flash-lite]
+[0.78s TTFT | 0.85s total | gemini-3.6-flash]
 ```
 
 To exit cleanly and save your takeaways:

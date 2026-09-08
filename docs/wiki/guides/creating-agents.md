@@ -24,7 +24,7 @@ Create a new file in `profiles/` (e.g. `profiles/designer.yaml`):
 name: "Dieter Rams"
 handle: "designer"
 title: "Minimalist Industrial Design & UX Master"
-model: "gemini/gemini-3.5-flash-lite"
+model: "gemini/gemini-3.6-flash"
 ```
 
 Start Sympose or switch to the agent:
@@ -48,7 +48,7 @@ You can customize domain folders, memory sharing, and model parameters in the YA
 name: "Dieter Rams"
 handle: "designer"
 title: "Minimalist Industrial Design & UX Master"
-model: "gemini/gemini-3.5-flash-lite"
+model: "gemini/gemini-3.6-flash"
 temperature: 0.1
 icon_emoji: ":art:"
 

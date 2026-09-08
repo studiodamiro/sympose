@@ -107,7 +107,7 @@ When a worker runs, its execution model is resolved in the following priority or
 1. **Explicit Task Model**: `WorkerTask(..., model="...")` if specified in code.
 2. **Skill Recommendation**: The first entry in `recommended_models:` from the loaded skill's [`SKILL.md`](../agents/skills-system.md) frontmatter.
 3. **Global Environment**: `DEFAULT_MODEL` specified in `.env` (e.g. `DEFAULT_MODEL=openrouter/anthropic/claude-3.7-sonnet`).
-4. **System Default**: Fallback to `gemini/gemini-3.5-flash-lite`.
+4. **System Default**: Fallback to `gemini/gemini-3.6-flash`.
 
 ---
 

@@ -3,7 +3,7 @@ name: "subagent_spawn"
 title: "Sub-Agent Worker Spawning & Delegation"
 description: "Dispatching isolated, skill-equipped sub-agent workers via [SPAWN_WORKER] and synthesising their reports without polluting the main context."
 recommended_models:
-  - "gemini/gemini-3.5-flash-lite"
+  - "gemini/gemini-3.6-flash"
   - "anthropic/claude-3-5-sonnet-20241022"
 tags:
   - orchestration

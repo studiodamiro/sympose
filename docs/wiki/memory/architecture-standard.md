@@ -155,7 +155,7 @@ os.environ.pop("GOOGLE_APPLICATION_CREDENTIALS", None)
 
 ## 6. Token Economics & Cost Calculation
 
-Using `gemini-3.5-flash-lite` ($0.075 per 1M input tokens):
+Using `gemini-3.6-flash` ($0.075 per 1M input tokens):
 
 $$\text{Cost per 1,000 Turns} = \frac{1,000 \times \text{Trigger Rate (15\%)} \times 250 \text{ tokens}}{1,000,000} \times \$0.075 \approx \mathbf{\$0.0028}$$
 
@@ -174,7 +174,7 @@ Session logs created on `/exit` follow structured YAML frontmatter:
 type: session-log
 agent: samantha
 date: 2026-08-24 18:35
-model: gemini/gemini-3.5-flash-lite
+model: gemini/gemini-3.6-flash
 tags:
   - sympose/session
   - agent/samantha
@@ -204,7 +204,7 @@ Sympose strictly enforces **Vault Agnosticism**: it adapts to any user-chosen di
 To avoid burning frontier cloud tokens and leaking personal reflections, historical recall operates on a **3-Tier Funnel**:
 
 1. **Tier 0 (Deterministic Filter)**: Mechanical file/path matching and regex (`<0.005s`, 0 tokens).
-2. **Tier 1 (Local LLM Triage / $0.00)**: Sub-agent worker running `ollama/qwen2.5:14b` or `ollama/gemma2:9b` (or `gemini/gemini-3.5-flash-lite`) executes `sympose/builtin_skills/vault_recall/SKILL.md` to parse YAML frontmatter and extract `## Key Decisions` and `## Action Items`.
+2. **Tier 1 (Local LLM Triage / $0.00)**: Sub-agent worker running `ollama/qwen2.5:14b` or `ollama/gemma2:9b` (or `gemini/gemini-3.6-flash`) executes `sympose/builtin_skills/vault_recall/SKILL.md` to parse YAML frontmatter and extract `## Key Decisions` and `## Action Items`.
 3. **Tier 2 (Frontier Deep Synthesis - Optional)**: Paid models (Claude Sonnet 4.5 / Gemini 3.7) receive only the isolated high-signal excerpts when complex code synthesis or architecture refactoring is required.
 
 ---

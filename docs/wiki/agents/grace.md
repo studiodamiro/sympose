@@ -27,7 +27,7 @@ tags:
 | **Handle** | `@grace` | Short, lowercase identifier for CLI routing and `@mention` delegation. |
 | **Full Name** | Grace Hopper | Named after pioneer Rear Admiral Grace Hopper. |
 | **Title** | Surgical Software & Systems Engineer | Focus on low-latency, modular systems and disciplined verification. |
-| **Default Model** | `gemini/gemini-3.5-flash-lite` | Sub-second TTFT (`<0.8s`) for rapid technical sparring (configurable to `anthropic/claude-3-5-sonnet`). |
+| **Default Model** | `gemini/gemini-3.6-flash` | Sub-second TTFT (`<0.8s`) for rapid technical sparring (configurable to `anthropic/claude-3-5-sonnet`). |
 | **Temperature** | `0.1` | Extreme determinism, strict logic adherence, and suppression of hallucinations. |
 | **Icon Emoji** | 💻 (`:computer:`) | Technical indicator in tables and status badges. |
 | **Memory Sharing** | `share_memory: true` | Collaborative access to universal user cards and `profiles/_shared_memory.md`. |

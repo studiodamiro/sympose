@@ -27,7 +27,7 @@ tags:
 | **Handle** | `@samantha` | Primary CLI handle and default runtime persona. |
 | **Full Name** | Samantha | Sympose's polymath orchestrator and sysadmin. |
 | **Title** | Polymath Strategic Master Orchestrator | High-level synthesis, product direction, and orchestration. |
-| **Default Model** | `gemini/gemini-3.5-flash-lite` | Sub-second TTFT (`<0.8s`) for instant interactive brainstorming. |
+| **Default Model** | `gemini/gemini-3.6-flash` | Sub-second TTFT (`<0.8s`) for instant interactive brainstorming. |
 | **Temperature** | Default / `0.3` | High creativity balanced with structured strategic synthesis. |
 | **Icon Emoji** | 🧠 (`:brain:`) | Visual indicator across tables, badges, and status spinners. |
 | **Memory Sharing** | `share_memory: true` | Collaborative access to universal user cards and `profiles/_shared_memory.md`. |

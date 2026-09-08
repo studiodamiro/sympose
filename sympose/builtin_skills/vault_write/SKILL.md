@@ -3,7 +3,7 @@ name: "vault_write"
 title: "Obsidian Vault Journaling & Note Persistence"
 description: "Routing, structure, and linking for notes written via [DAILY_NOTE] / [WRITE_NOTE] / [APPEND_NOTE]."
 recommended_models:
-  - "gemini/gemini-3.5-flash-lite"
+  - "gemini/gemini-3.6-flash"
   - "ollama/richardyoung/qwen2.5-14b-instruct-abliterated"
 tags:
   - obsidian

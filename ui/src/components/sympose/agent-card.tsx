@@ -7,15 +7,6 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { ModelChip } from "@/components/sympose/model-chip"
 
-/** First letter of each of the first two words — "Grace Hopper" -> "GH". */
-function initials(name: string): string {
-  return name
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((w) => w[0]?.toUpperCase() ?? "")
-    .join("")
-}
-
 interface AgentCardProps {
   /** Live roster from `GET /api/personas`. */
   personas: LivePersona[]
@@ -66,11 +57,17 @@ function AgentCard({ personas, active, onSwitch, className }: AgentCardProps) {
         aria-hidden
       />
 
-      {/* identity — avatar lifts into the band */}
-      <div className="-mt-16 flex items-end gap-3">
-        <Avatar size="lg" className="size-16 ring-4 ring-panel">
-          <AvatarFallback className="bg-muted text-base font-medium text-fg-strong">
-            {initials(current.name)}
+      {/* identity — the 64px avatar straddles the band's bottom edge: its
+          centre sits on the edge (half in the band, half below). `border-4`
+          (border-box) keeps its visual bounds equal to its layout box, so its
+          left edge lines up with the title / chip / switcher below. */}
+      <div className="-mt-12 flex items-end gap-3">
+        <Avatar className="size-16 shrink-0 border-4 border-panel">
+          <AvatarFallback
+            className="text-background"
+            style={{ background: visuals.accent }}
+          >
+            <HugeiconsIcon icon={visuals.icon} className="size-7" />
           </AvatarFallback>
         </Avatar>
         <div className="min-w-0 pb-1">

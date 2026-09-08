@@ -56,7 +56,7 @@ mcp_servers:
   - "github"
 recommended_models:
   - "openrouter/anthropic/claude-3.7-sonnet"
-  - "gemini/gemini-3.5-flash-lite"
+  - "gemini/gemini-3.6-flash"
 ---
 
 # 🌲 Git Workflow Playbook
@@ -88,7 +88,7 @@ To equip an agent with skills, add the `skills:` list to their manifest in `prof
 name: "Grace Hopper"
 handle: "grace"
 title: "Surgical Software & Systems Engineer"
-model: "gemini/gemini-3.5-flash-lite"
+model: "gemini/gemini-3.6-flash"
 
 skills:
   - "git_workflow"

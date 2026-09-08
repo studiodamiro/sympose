@@ -52,7 +52,7 @@ Generated Obsidian session notes are written with full YAML metadata:
 type: session-log
 agent: samantha
 date: 2026-08-24 18:35
-model: gemini/gemini-3.5-flash-lite
+model: gemini/gemini-3.6-flash
 tags:
   - sympose/session
   - agent/samantha

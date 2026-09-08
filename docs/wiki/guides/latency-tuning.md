@@ -118,7 +118,7 @@ turn instead of just the first.
 
 ### Change Backend Model in Real-Time:
 ```bash
-/model gemini/gemini-3.5-flash-lite
+/model gemini/gemini-3.6-flash
 ```
 
 ### Clear Context if History Grows Heavy:

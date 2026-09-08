@@ -56,7 +56,7 @@ SKIP_PATTERNS = [
 
 ### Performance & Economics:
 - **Skip Rate**: >80% of casual turns are skipped in `<0.01ms` (0 extra tokens).
-- **Cost**: Less than **$0.003 per 1,000 conversational turns** using `gemini-3.5-flash-lite`.
+- **Cost**: Less than **$0.003 per 1,000 conversational turns** using `gemini-3.6-flash`.
 - **Latency Impact**: **0.00s** added to user streaming (runs in a detached daemon thread).
 
 ---

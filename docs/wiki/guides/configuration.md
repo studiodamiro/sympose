@@ -83,7 +83,7 @@ Sympose natively supports multi-provider model routing powered by `litellm`. You
 | Provider / Router | Model Prefix Format | Required `.env` Variable | Example Model ID |
 | :--- | :--- | :--- | :--- |
 | **OpenRouter** | `openrouter/<provider>/<model>` | `OPENROUTER_API_KEY` | `openrouter/anthropic/claude-3.7-sonnet`, `openrouter/deepseek/deepseek-r1` |
-| **Google Gemini** | `gemini/<model>` | `GEMINI_API_KEY` | `gemini/gemini-3.5-flash-lite`, `gemini/gemini-2.5-pro` |
+| **Google Gemini** | `gemini/<model>` | `GEMINI_API_KEY` | `gemini/gemini-3.6-flash`, `gemini/gemini-2.5-pro` |
 | **Anthropic Claude** | `anthropic/<model>` | `ANTHROPIC_API_KEY` | `anthropic/claude-3-5-sonnet-20241022` |
 | **OpenAI** | `openai/<model>` | `OPENAI_API_KEY` | `openai/gpt-4o`, `openai/o3-mini` |
 | **Local Ollama** | `ollama/<model>` | *(None / `ollama serve`)* | `ollama/qwen2.5:7b`, `ollama/deepseek-r1:14b` |
@@ -100,7 +100,7 @@ flowchart TD
     subgraph Worker["2. Ephemeral Sub-Agent Workers"]
         C["Explicit Task Model (task.model)"] --> D["Skill Recommendation (SKILL.md frontmatter)"]
         D --> E["Global Environment (DEFAULT_MODEL in .env)"]
-        E --> F["System Fallback (gemini/gemini-3.5-flash-lite)"]
+        E --> F["System Fallback (gemini/gemini-3.6-flash)"]
     end
     subgraph Archival["3. Session Summarization & Distillation"]
         G["config.yaml (session.exit_behavior.summarization_model)"]
@@ -114,7 +114,7 @@ flowchart TD
    - **Step 1:** Explicit `model` parameter if dispatched programmatically in code.
    - **Step 2:** `recommended_models` list declared in [`sympose/builtin_skills/<skill>/SKILL.md`](../../../sympose/builtin_skills/code_review/SKILL.md) frontmatter.
    - **Step 3:** `DEFAULT_MODEL` declared in `.env`.
-   - **Step 4:** System fallback (`gemini/gemini-3.5-flash-lite`).
+   - **Step 4:** System fallback (`gemini/gemini-3.6-flash`).
 3. **Session Archivist & Distillation**:
    - Specified via `session.exit_behavior.summarization_model` in [`config.yaml`](../../../config.yaml).
 

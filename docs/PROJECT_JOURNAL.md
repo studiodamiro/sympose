@@ -115,6 +115,7 @@ one in [`docs/wiki/index.md`](./wiki/index.md) are kept in sync per the
 
 | Date | Entry |
 | ---- | ----- |
+| 2026-09-09 | [Dashboard Agent Picker & Persona Roster Contract](./journal/2026-09/2026-09-09_dashboard-agent-picker.md) |
 | 2026-09-09 | [ADR-078 — Materialized Vault Manifest (Structural Map) for the Agent & Dashboard Graph](./journal/2026-09/2026-09-09_adr-078-vault-manifest-materialized-map.md) |
 | 2026-09-08 | [Declarative Config Schema (Tiers 1–3)](./journal/2026-09/2026-09-08_declarative-config-schema.md) |
 | 2026-09-07 | [Vault-Grounding Enforcement & Recall Phrasing (round 2)](./journal/2026-09/2026-09-07_vault-grounding-enforcement-and-recall-phrasing.md) |

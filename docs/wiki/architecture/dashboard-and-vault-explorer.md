@@ -161,6 +161,13 @@ The dashboard communicates with Sympose's native FastAPI gateway on `http://loca
 ### 3. Settings & Theme API (`/api/config/*`)
 * **`GET /api/config` / `PUT /api/config`**: Reads and updates runtime parameters in `config.yaml` (including visualizer and theme settings).
 
+### 4. Persona Roster API (`/api/personas`)
+* **`GET /api/personas`** *(shipped)*:
+  * Returns: `{ default: <handle>, personas: [{ handle, name, title, model, skills, is_default }] }` — a trimmed projection of each `profiles/*.yaml`, never the raw profile (no `soul_file` / `memory_file` paths, no `thinking_phrases`).
+  * Feeds the Agent panel's identity card and switcher.
+* The **active persona is client state**, not a server session: a `sympose:active_persona` cookie the dashboard passes as `?persona=` on sandboxed vault requests, mirroring the CLI's per-handle scoping. `samantha` (`vault_folders: ["*"]`) is the default.
+* Planned: `GET /api/personas/{handle}/soul` and `/memory` for the card's (currently disabled) Soul / Memory panels.
+
 ---
 
 ## 4. Hardware Resource Budget & Performance SLAs

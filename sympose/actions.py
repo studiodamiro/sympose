@@ -222,14 +222,30 @@ class ActionProcessor:
                 parts = inner.split("|", 1)
                 key, raw_val = parts[0].strip(), parts[1].strip()
                 if key and raw_val:
-                    val: Any = True if raw_val.lower() == "true" else (False if raw_val.lower() == "false" else raw_val)
-                    try: val = int(raw_val)
-                    except ValueError:
-                        try: val = float(raw_val)
-                        except ValueError: pass
-                    config_manager.set(key, val)
-                    config_manager.save()
-                    badges.append(f"> ⚙️ **{name} updated runtime configuration:** `{key}` = `{val}`")
+                    from sympose.config_schema import get_setting, coerce, validate
+                    setting = get_setting(key)
+                    if setting and setting.scope == "persona":
+                        badges.append(f"> ⚠️ **`{key}` is a per-persona setting** — edit `profiles/<handle>.yaml`, not runtime config.")
+                    else:
+                        if setting:
+                            try:
+                                val: Any = coerce(setting, raw_val)
+                            except ValueError as e:
+                                badges.append(f"> ⚠️ **`[CONFIG_SET]` rejected:** `{key}` — {e}.")
+                                continue
+                            ok, err = validate(key, val)
+                            if not ok:
+                                badges.append(f"> ⚠️ **`[CONFIG_SET]` rejected:** `{key}` {err}.")
+                                continue
+                        else:
+                            val = True if raw_val.lower() == "true" else (False if raw_val.lower() == "false" else raw_val)
+                            try: val = int(raw_val)
+                            except ValueError:
+                                try: val = float(raw_val)
+                                except ValueError: pass
+                        config_manager.set(key, val)
+                        config_manager.save()
+                        badges.append(f"> ⚙️ **{name} updated runtime configuration:** `{key}` = `{val}`")
 
             # 7. CREATE_PERSONA
             elif tag == "CREATE_PERSONA":

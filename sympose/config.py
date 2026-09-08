@@ -4,12 +4,14 @@ Configuration, Security & Utility Helpers for Sympose.
 
 import os
 import re
+import copy
 import logging
 from typing import Any, Dict, Optional
 import yaml
 from dotenv import load_dotenv
 
 from sympose.workspace import resolve_workspace_dir
+from sympose.config_schema import default_for
 
 # Suppress verbose LiteLLM and external logs
 logging.getLogger("LiteLLM").setLevel(logging.ERROR)
@@ -104,7 +106,10 @@ class ConfigManager:
 
     def reload(self) -> Dict[str, Any]:
         """Reloads configuration from YAML file and merges with defaults."""
-        self.data = dict(self.DEFAULT_CONFIG)
+        # deepcopy: DEFAULT_CONFIG is a class attribute with nested dicts —
+        # a shallow copy lets set()/_deep_merge() mutate the shared nested dicts
+        # and permanently corrupt the class-level defaults.
+        self.data = copy.deepcopy(self.DEFAULT_CONFIG)
         if os.path.exists(self.config_path):
             try:
                 with open(self.config_path, "r", encoding="utf-8") as f:
@@ -139,14 +144,16 @@ class ConfigManager:
             pass
 
     def get(self, dotpath: str, default: Any = None) -> Any:
-        """Gets a configuration value using dot notation (e.g. 'performance.request_timeout')."""
+        """Gets a configuration value using dot notation (e.g. 'performance.request_timeout').
+        When the key is absent and no explicit `default` is passed, falls back to
+        the declared default in `config_schema` (or None for an unknown key)."""
         keys = dotpath.split(".")
         val = self.data
         for k in keys:
             if isinstance(val, dict) and k in val:
                 val = val[k]
             else:
-                return default
+                return default if default is not None else default_for(dotpath)
         return val
 
     def set(self, dotpath: str, value: Any) -> None:

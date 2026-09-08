@@ -173,49 +173,89 @@ class CommandInterceptor:
                     yield f"\n\n⚠️ {res.get('message', 'Failed to save session.')}"
             return _save()
 
-        # 4. Master Configuration (/config)
+        # 4. Master Configuration (/config) — schema-driven (see config_schema.py)
         if clean_input.startswith("/config"):
             def _config():
+                from sympose.config_schema import (
+                    SECTIONS, get_setting, global_settings, coerce, validate,
+                )
+                cfg = engine.config
                 parts = clean_input.split(maxsplit=3)
-                if len(parts) == 1:
-                    cfg = engine.config
-                    yield (
-                        "# ⚙️  ACTIVE RUNTIME CONFIGURATION\n\n"
-                        "### ⚡  PERFORMANCE & STREAMING\n"
-                        f"- `performance.request_timeout`: `{cfg.get('performance.request_timeout')}s`\n"
-                        f"- `performance.local_request_timeout`: `{cfg.get('performance.local_request_timeout', 120.0)}s`\n"
-                        f"- `performance.max_context_turns`: `{cfg.get('performance.max_context_turns')} turns`\n"
-                        f"- `performance.resume_context_turns`: `{cfg.get('performance.resume_context_turns', 6)} turns`\n"
-                        f"- `performance.max_worker_tool_turns`: `{cfg.get('performance.max_worker_tool_turns')} turns`\n"
-                        f"- `performance.stream`: `{cfg.get('performance.stream')}`\n\n"
-                        "### 💾  SESSION & MEMORY ARCHIVAL\n"
-                        f"- `session.exit_behavior.auto_save`: `{cfg.get('session.exit_behavior.auto_save')}`\n"
-                        f"- `session.exit_behavior.default_target`: `{cfg.get('session.exit_behavior.default_target')}`\n"
-                        f"- `session.exit_behavior.clear_terminal`: `{cfg.get('session.exit_behavior.clear_terminal')}`\n"
-                        f"- `session.exit_behavior.summarization_model`: `{cfg.get('session.exit_behavior.summarization_model') or DEFAULT_CHAT_MODEL}`\n"
-                        f"- `memory.compaction_threshold`: `{cfg.get('memory.compaction_threshold', 25)} lines`\n"
-                        f"- `memory.auto_compact`: `{cfg.get('memory.auto_compact', True)}`\n"
-                        f"- `vault.search_mode`: `{cfg.get('vault.search_mode')}`\n\n"
-                        "### 💡  LIVE TUNING\n"
-                        "- Tune knobs live with `/config set <key> <value>` (e.g. `/config set performance.max_context_turns 20`)."
+                sub = parts[1].lower() if len(parts) > 1 else ""
+
+                if not sub:
+                    out = ["# ⚙️  ACTIVE RUNTIME CONFIGURATION\n"]
+                    for section in SECTIONS:
+                        rows = [s for s in global_settings() if s.section == section]
+                        if not rows:
+                            continue
+                        out.append(f"\n### {section}")
+                        for s in rows:
+                            cur = cfg.get(s.key)
+                            shown = "(chat model)" if s.key.endswith("summarization_model") and not cur else (
+                                "''" if cur == "" else cur)
+                            lock = "" if s.live else "  _(restart)_"
+                            out.append(f"- `{s.key}` = `{shown}` — {s.description}{lock}")
+                    out.append(
+                        "\n### 💡  Tuning\n"
+                        "- `/config set <key> <value>` — change a live knob (persisted to disk)\n"
+                        "- `/config get <key>` — one key with its default and allowed values\n"
+                        "- Per-persona knobs (`vault_grounding`, `temperature`, …) live in `profiles/<handle>.yaml`"
                     )
-                elif parts[1].lower() == "set" and len(parts) >= 4:
+                    yield "\n".join(out)
+                    return
+
+                if sub == "get" and len(parts) >= 3:
+                    key = parts[2]
+                    s = get_setting(key)
+                    if not s:
+                        yield f"⚠️ Unknown config key `{key}`. Run `/config` to list them."
+                        return
+                    lines = [
+                        f"### `{key}`",
+                        f"- **value**: `{cfg.get(key)}`",
+                        f"- **default**: `{s.default}`",
+                        f"- **type**: `{s.type}`  •  **scope**: `{s.scope}`  •  **live**: `{s.live}`",
+                        f"- {s.description}",
+                    ]
+                    if s.choices:
+                        lines.append(f"- **allowed**: {', '.join(map(str, s.choices))}")
+                    if s.minimum is not None or s.maximum is not None:
+                        lines.append(f"- **range**: {s.minimum} … {s.maximum}")
+                    yield "\n".join(lines)
+                    return
+
+                if sub == "set" and len(parts) >= 4:
                     key, raw_val = parts[2], parts[3]
-                    val: Any = True if raw_val.lower() == "true" else (False if raw_val.lower() == "false" else raw_val)
+                    s = get_setting(key)
+                    if not s:
+                        yield f"⚠️ Unknown config key `{key}`. Run `/config` to list valid keys."
+                        return
+                    if s.scope == "persona":
+                        yield (f"⚠️ `{key}` is a **per-persona** setting — set it in "
+                               f"`profiles/<handle>.yaml`, not `/config`.")
+                        return
                     try:
-                        val = int(raw_val)
-                    except ValueError:
-                        try:
-                            val = float(raw_val)
-                        except ValueError:
-                            pass
+                        val = coerce(s, raw_val)
+                    except ValueError as e:
+                        yield f"⚠️ `{key}`: {e}."
+                        return
+                    ok, err = validate(key, val)
+                    if not ok:
+                        yield f"⚠️ `{key}`: {err}."
+                        return
                     engine.config.set(key, val)
                     engine.config.save()
-                    if "max_context_turns" in key:
+                    if key == "performance.max_context_turns":
                         engine.max_turns = int(val)
-                    yield f"✅ Config `{key}` updated to `{val}` (persisted to disk)."
-                else:
-                    yield "Usage:\n- `/config`: Show active settings\n- `/config set <key> <value>`: Update setting live"
+                    restart = "" if s.live else "  (needs a restart to take effect)"
+                    yield f"✅ `{key}` = `{val}` — persisted to disk.{restart}"
+                    return
+
+                yield ("Usage:\n"
+                       "- `/config` — show all settings\n"
+                       "- `/config get <key>` — inspect one\n"
+                       "- `/config set <key> <value>` — change a live knob")
             return _config()
 
         # 4b. Render Mode Switcher (/render)

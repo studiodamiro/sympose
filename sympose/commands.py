@@ -87,7 +87,7 @@ class CommandInterceptor:
                         yield f"⚠️ Session `{target_id}` not found."
                         return
                     turns = session.get("turns", [])
-                    k_turns = int(engine.config.get("performance.resume_context_turns", 6))
+                    k_turns = int(engine.config.get("performance.resume_context_turns"))
                     disp_turns = turns[-k_turns:] if k_turns > 0 else turns
                     TerminalUI.render_session_resumed(console, session.get("title", ""), session.get("handle", handle), disp_turns)
                     yield ""
@@ -118,7 +118,7 @@ class CommandInterceptor:
                 session = engine.resume_session(handle, chosen_id)
                 if session:
                     turns = session.get("turns", [])
-                    k_turns = int(engine.config.get("performance.resume_context_turns", 6))
+                    k_turns = int(engine.config.get("performance.resume_context_turns"))
                     disp_turns = turns[-k_turns:] if k_turns > 0 else turns
                     TerminalUI.render_session_resumed(console, session.get("title", ""), session.get("handle", handle), disp_turns)
                     yield ""
@@ -160,7 +160,7 @@ class CommandInterceptor:
         if clean_input.startswith("/save"):
             def _save():
                 parts = clean_input.split()
-                def_t = engine.config.get("session.exit_behavior.default_target", "both")
+                def_t = engine.config.get("session.exit_behavior.default_target")
                 target = parts[1].lower() if len(parts) > 1 else def_t
                 if target not in ("memory", "obsidian", "both"):
                     target = "both"
@@ -200,7 +200,7 @@ class CommandInterceptor:
                         "\n### 💡  Tuning\n"
                         "- `/config set <key> <value>` — change a live knob (persisted to disk)\n"
                         "- `/config get <key>` — one key with its default and allowed values\n"
-                        "- Per-persona knobs (`vault_grounding`, `temperature`, …) live in `profiles/<handle>.yaml`"
+                        "- Per-persona knobs (`vault_grounding`, `temperature`, …): `/persona set @<handle> <key> <value>`"
                     )
                     yield "\n".join(out)
                     return
@@ -232,8 +232,8 @@ class CommandInterceptor:
                         yield f"⚠️ Unknown config key `{key}`. Run `/config` to list valid keys."
                         return
                     if s.scope == "persona":
-                        yield (f"⚠️ `{key}` is a **per-persona** setting — set it in "
-                               f"`profiles/<handle>.yaml`, not `/config`.")
+                        yield (f"⚠️ `{key}` is a **per-persona** setting — use "
+                               f"`/persona set @<handle> {key} <value>`, not `/config`.")
                         return
                     try:
                         val = coerce(s, raw_val)
@@ -258,12 +258,46 @@ class CommandInterceptor:
                        "- `/config set <key> <value>` — change a live knob")
             return _config()
 
+        # 4a-bis. Per-persona knob editor (/persona)
+        if clean_input == "/persona" or clean_input.startswith("/persona "):
+            def _persona():
+                from sympose.config_schema import persona_settings
+                parts = clean_input.split(maxsplit=4)
+                sub = parts[1].lower() if len(parts) > 1 else "show"
+
+                if sub in ("show", "list", ""):
+                    t_handle = parts[2].replace("@", "").lower() if len(parts) > 2 else handle.lower()
+                    prof = engine.pm.get_profile(t_handle)
+                    if not prof:
+                        yield f"⚠️ Persona `@{t_handle}` not found."
+                        return
+                    out = [f"# 🎭  PER-PERSONA KNOBS — {prof.get('name', t_handle)} (`@{t_handle}`)\n"]
+                    for s in persona_settings():
+                        cur = prof.get(s.key, s.default)
+                        shown = "(inherit)" if cur in (None, "") else cur
+                        allowed = f"  _{', '.join(map(str, s.choices))}_" if s.choices else ""
+                        out.append(f"- `{s.key}` = `{shown}` — {s.description}{allowed}")
+                    out.append(f"\n💡 `/persona set @{t_handle} <key> <value>` — writes `profiles/{t_handle}.yaml`")
+                    yield "\n".join(out)
+                    return
+
+                if sub == "set" and len(parts) >= 5:
+                    t_handle, key, raw_val = parts[2].replace("@", "").lower(), parts[3], parts[4]
+                    ok, msg = engine.pm.set_persona_field(t_handle, key, raw_val)
+                    yield f"✅ {msg}" if ok else f"⚠️ {msg}"
+                    return
+
+                yield ("Usage:\n"
+                       "- `/persona show [@handle]` — list a persona's knobs\n"
+                       "- `/persona set @handle <key> <value>` — change one (e.g. `/persona set @sam temperature 0.6`)")
+            return _persona()
+
         # 4b. Render Mode Switcher (/render)
         if clean_input == "/render" or clean_input.startswith("/render "):
             def _render():
                 parts = clean_input.split()
                 sub = parts[1].lower() if len(parts) > 1 else ""
-                current_mode = str(engine.config.get("performance.render_mode", "hybrid")).lower()
+                current_mode = str(engine.config.get("performance.render_mode")).lower()
                 console = TerminalUI.get_console()
 
                 if not sub:
@@ -769,6 +803,7 @@ class CommandInterceptor:
                     "- `/render [hybrid|buffered|raw]` — Switch terminal render mode (interactive menu or direct)\n"
                     "- `/config` — View active runtime settings & performance knobs\n"
                     "- `/config set <key> <val>` — Live-tune knobs (e.g. `/config set performance.max_context_turns 20`)\n"
+                    "- `/persona [show|set] @<handle> <key> <val>` — View or set a persona's own knobs (e.g. `temperature`)\n"
                     "- `/delete @<handle>` — Safely archive & retire an agent persona\n"
                     "- `/help` — Show this command reference"
                 )

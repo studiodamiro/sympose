@@ -1,11 +1,12 @@
 """
 Unit tests for sympose.profiles.ProfileManager.bootstrap_missing_artifacts —
 the fallback soul-file scaffold used when a persona manifest doesn't provide
-`soul_content` (ADR-075.2).
+`soul_content` (ADR-075.2) — and `set_persona_field`, the `/persona set` write path.
 """
 
 import os
 import pytest
+import yaml
 
 from sympose.profiles import ProfileManager
 
@@ -37,3 +38,39 @@ class TestBootstrapMissingArtifactsFallbackSoul:
             "soul_file": "profiles/curie_soul.md",
         })
         assert (tmp_path / "curie_soul.md").exists()
+
+
+class TestSetPersonaField:
+    def _seed(self, tmp_path):
+        (tmp_path / "sam.yaml").write_text(
+            'name: "Sam"\nhandle: "sam"\nmodel: ""\nskills:\n  - vault_recall\n'
+        )
+        return ProfileManager(profiles_dir=str(tmp_path))
+
+    def test_writes_and_coerces_a_persona_knob(self, tmp_path):
+        pm = self._seed(tmp_path)
+        ok, msg = pm.set_persona_field("@sam", "temperature", "0.7")
+        assert ok
+        data = yaml.safe_load((tmp_path / "sam.yaml").read_text())
+        assert data["temperature"] == 0.7  # coerced to float, not "0.7"
+
+    def test_rejects_a_global_key_with_a_pointer_to_config(self, tmp_path):
+        pm = self._seed(tmp_path)
+        ok, msg = pm.set_persona_field("sam", "performance.stream", "true")
+        assert not ok and "/config set" in msg
+
+    def test_rejects_an_out_of_range_value(self, tmp_path):
+        pm = self._seed(tmp_path)
+        ok, msg = pm.set_persona_field("sam", "temperature", "9")
+        assert not ok and "<=" in msg
+        assert "temperature" not in yaml.safe_load((tmp_path / "sam.yaml").read_text())
+
+    def test_rejects_a_bad_enum(self, tmp_path):
+        pm = self._seed(tmp_path)
+        ok, msg = pm.set_persona_field("sam", "vault_grounding", "loose")
+        assert not ok and "auto" in msg
+
+    def test_unknown_persona_is_reported(self, tmp_path):
+        pm = self._seed(tmp_path)
+        ok, msg = pm.set_persona_field("nobody", "temperature", "0.5")
+        assert not ok and "not found" in msg

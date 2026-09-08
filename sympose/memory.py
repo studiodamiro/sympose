@@ -62,7 +62,7 @@ class HeuristicGatedExtractor:
                 prompt = tmpl.replace("{{user_message}}", user_message).replace("{{assistant_reply}}", assistant_reply)
                 # Use a dedicated short timeout for background daemon threads to
                 # prevent pileup under slow API conditions
-                bg_timeout = float(config.get("memory.extraction_timeout", 8.0))
+                bg_timeout = float(config.get("memory.extraction_timeout"))
                 kwargs = {"model": model, "messages": [{"role": "user", "content": prompt}], "stream": False, "timeout": bg_timeout}
                 for pfx, key in (("gemini/", "GEMINI_API_KEY"), ("anthropic/", "ANTHROPIC_API_KEY"), ("openai/", "OPENAI_API_KEY"), ("openrouter/", "OPENROUTER_API_KEY")):
                     if model.startswith(pfx) and os.getenv(key):
@@ -105,7 +105,7 @@ class SessionArchivist:
                 "model": summarization_model,
                 "messages": [{"role": "user", "content": prompt}],
                 "stream": False,
-                "timeout": float(self.config.get("performance.request_timeout", 30.0)),
+                "timeout": float(self.config.get("performance.request_timeout")),
             }
             if summarization_model.startswith("gemini/") and os.getenv("GEMINI_API_KEY"):
                 kwargs["api_key"] = os.getenv("GEMINI_API_KEY")
@@ -145,7 +145,7 @@ class SessionArchivist:
                     results["memory_content"] = memory_part
 
             if target in ("obsidian", "both") and obsidian_part:
-                subfolder = self.config.get("session.obsidian_subfolder") or self.config.get("session.exit_behavior.obsidian_subfolder", "Sessions")
+                subfolder = self.config.get("session.exit_behavior.obsidian_subfolder")
                 save_msg = VaultManager.write_session_note(profile, obsidian_part, subfolder=subfolder)
                 results["targets_saved"].append(save_msg)
                 results["obsidian_content"] = obsidian_part

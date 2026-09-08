@@ -9,6 +9,7 @@ from sympose.skills import skill_manager
 from sympose.mcp import mcp_registry
 from sympose.models import ModelCatalog
 from sympose.config import DEFAULT_CHAT_MODEL
+from sympose.config_schema import global_settings as _global_settings, persona_settings as _persona_settings
 
 try:
     import readline
@@ -30,6 +31,7 @@ class SymposeCompleter:
         "/model",
         "/render",
         "/config",
+        "/persona",
         "/vault",
         "/read",
         "/view",
@@ -72,22 +74,9 @@ class SymposeCompleter:
         "ollama/qwen2.5:7b",
     ]
 
-    CONFIG_KEYS = [
-        "performance.request_timeout",
-        "performance.local_request_timeout",
-        "performance.max_context_turns",
-        "performance.resume_context_turns",
-        "performance.max_worker_tool_turns",
-        "performance.stream",
-        "session.exit_behavior.auto_save",
-        "session.exit_behavior.default_target",
-        "session.exit_behavior.clear_terminal",
-        "session.exit_behavior.summarization_model",
-        "memory.compaction_threshold",
-        "memory.auto_compact",
-        "runtime.default_persona",
-        "vault.search_mode",
-    ]
+    # Derived from the schema so /config set completion can never drift from it.
+    CONFIG_KEYS = [s.key for s in _global_settings()]
+    PERSONA_KEYS = [s.key for s in _persona_settings()]
 
     def __init__(self, engine: Any):
         self.engine = engine
@@ -210,6 +199,15 @@ class SymposeCompleter:
         # /config set -> config keys
         if cmd == "/config" and "set" in tokens:
             return [k for k in self.CONFIG_KEYS if k.startswith(text)]
+
+        # /persona -> show|set, then @handle, then persona keys
+        if cmd == "/persona":
+            if len(tokens) < 2 or (len(tokens) == 2 and not line_l.endswith(" ")):
+                return [s for s in ("show", "set") if s.startswith(text)]
+            if text.startswith("@") or (len(tokens) >= 2 and tokens[-1] in ("show", "set") and line_l.endswith(" ")):
+                return [p for p in self.get_personas() if p.startswith(text)]
+            if "set" in tokens:
+                return [k for k in self.PERSONA_KEYS if k.startswith(text)]
 
         # /compact -> shared, @personas
         if cmd == "/compact":

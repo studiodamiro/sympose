@@ -4,14 +4,13 @@ Configuration, Security & Utility Helpers for Sympose.
 
 import os
 import re
-import copy
 import logging
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 import yaml
 from dotenv import load_dotenv
 
 from sympose.workspace import resolve_workspace_dir
-from sympose.config_schema import default_for
+from sympose.config_schema import build_default_config, default_for
 
 # Suppress verbose LiteLLM and external logs
 logging.getLogger("LiteLLM").setLevel(logging.ERROR)
@@ -51,53 +50,11 @@ DEFAULT_WORKER_MODEL: str = os.getenv("DEFAULT_WORKER_MODEL", DEFAULT_CHAT_MODEL
 
 
 class ConfigManager:
-    """Manages master configuration loading, validation, and dynamic updates."""
+    """Manages master configuration loading, validation, and dynamic updates.
 
-    DEFAULT_CONFIG: Dict[str, Any] = {
-        "performance": {
-            "request_timeout": 30.0,
-            "local_request_timeout": 60.0,
-            "local_keep_alive": None,  # -1 / 0 / "30m"; None = defer to OLLAMA_KEEP_ALIVE env
-            "max_context_turns": 15,
-            "max_worker_tool_turns": 8,
-            "drop_unsupported_params": True,
-            "stream": True,
-        },
-        "session": {
-            "exit_behavior": {
-                "auto_save": False,
-                "default_target": "both",
-                "clear_terminal": True,
-                "obsidian_subfolder": "Sessions",
-                "summarization_model": DEFAULT_CHAT_MODEL,
-            }
-        },
-        "memory": {
-            "user_profile_file": "profiles/user_profile.md",
-            "shared_memory_file": "profiles/_shared_memory.md",
-            "auto_compact": True,
-            "compaction_threshold": 25,
-            "extraction_timeout": 8.0,
-        },
-        "runtime": {
-            "default_persona": "samantha",
-            "profiles_dir": "profiles",
-        },
-        "vault": {
-            "daily_notes_folder": "Daily",
-            "daily_notes_format": "Daily/%Y/%m-%B/%Y-%m-%d.md",
-            "search_mode": "direct",
-            "ignore_folders": [
-                ".obsidian",
-                ".git",
-                "Attachments",
-                "Drawings",
-                "Movies",
-                ".trash",
-                "dot-files",
-            ],
-        },
-    }
+    Runtime defaults are not held here — `config_schema.build_default_config()`
+    materialises them from the one declarative `SETTINGS` list, and `config.yaml`
+    is layered on top."""
 
     def __init__(self, config_path: str = "config.yaml"):
         self.config_path = config_path
@@ -105,11 +62,11 @@ class ConfigManager:
         self.reload()
 
     def reload(self) -> Dict[str, Any]:
-        """Reloads configuration from YAML file and merges with defaults."""
-        # deepcopy: DEFAULT_CONFIG is a class attribute with nested dicts —
-        # a shallow copy lets set()/_deep_merge() mutate the shared nested dicts
-        # and permanently corrupt the class-level defaults.
-        self.data = copy.deepcopy(self.DEFAULT_CONFIG)
+        """Reloads configuration from YAML file and merges it over the schema
+        defaults. `build_default_config()` returns a fresh, independently-owned
+        dict each call, so `set()` / `_deep_merge()` cannot corrupt anything
+        shared."""
+        self.data = build_default_config()
         if os.path.exists(self.config_path):
             try:
                 with open(self.config_path, "r", encoding="utf-8") as f:
@@ -145,8 +102,13 @@ class ConfigManager:
 
     def get(self, dotpath: str, default: Any = None) -> Any:
         """Gets a configuration value using dot notation (e.g. 'performance.request_timeout').
-        When the key is absent and no explicit `default` is passed, falls back to
-        the declared default in `config_schema` (or None for an unknown key)."""
+
+        Every global setting with a non-None schema default is materialised into
+        `self.data` at load time, so a known key always resolves to its
+        `config.yaml` value or that schema default. The `default` argument is
+        only consulted for keys that are genuinely absent — unknown keys, or
+        schema keys whose declared default is None (e.g. `local_keep_alive`) —
+        and otherwise `config_schema`'s declared default is used."""
         keys = dotpath.split(".")
         val = self.data
         for k in keys:

@@ -3,13 +3,21 @@ Unit tests for sympose.config_schema — the declarative config registry that
 `/config`, `/config set` and `[CONFIG_SET]` are built on.
 """
 
+from pathlib import Path
+
 import pytest
+
+import yaml
 
 from sympose.config_schema import (
     SETTINGS, SECTIONS, get_setting, default_for, coerce, validate,
-    global_settings, persona_settings,
+    global_settings, persona_settings, build_default_config,
 )
+from sympose.config_reference import render_reference_md
+from sympose.bootstrap import render_seed_config
 from sympose.config import ConfigManager
+
+_REFERENCE_DOC = Path(__file__).resolve().parents[2] / "docs/wiki/reference/configuration.md"
 
 
 class TestSchemaIntegrity:
@@ -36,26 +44,81 @@ class TestSchemaIntegrity:
     def test_global_and_persona_partition(self):
         assert len(global_settings()) + len(persona_settings()) == len(SETTINGS)
 
-    def test_schema_defaults_agree_with_ConfigManager_DEFAULT_CONFIG(self):
-        """Where DEFAULT_CONFIG defines a key, the schema default must match it."""
-        flat = {}
+    def test_no_hand_maintained_default_mirror(self):
+        """The schema is the only source of runtime defaults — nothing shadows it."""
+        assert not hasattr(ConfigManager, "DEFAULT_CONFIG")
 
-        def _flatten(d, prefix=""):
-            for k, v in d.items():
-                p = f"{prefix}{k}"
-                if isinstance(v, dict):
-                    _flatten(v, p + ".")
-                else:
-                    flat[p] = v
 
-        _flatten(ConfigManager.DEFAULT_CONFIG)
-        for key, val in flat.items():
-            s = get_setting(key)
-            if s is None:
-                continue
-            if s.default in (None, ""):
-                continue  # schema "" / None = "unset, resolve elsewhere"
-            assert s.default == val, f"{key}: schema {s.default!r} != DEFAULT_CONFIG {val!r}"
+def _flatten(d, prefix=""):
+    out = {}
+    for k, v in d.items():
+        p = f"{prefix}{k}"
+        if isinstance(v, dict):
+            out.update(_flatten(v, p + "."))
+        else:
+            out[p] = v
+    return out
+
+
+class TestBuiltDefaults:
+    def test_materialised_defaults_match_the_schema(self):
+        flat = _flatten(build_default_config())
+        # every non-None global default is present, with its declared value
+        expected = {s.key: s.default for s in global_settings() if s.default is not None}
+        assert flat == expected
+
+    def test_none_defaults_are_omitted_not_nulled(self):
+        """A None default means 'unset' — it must not land as an explicit key."""
+        flat = _flatten(build_default_config())
+        for s in global_settings():
+            if s.default is None:
+                assert s.key not in flat
+
+    def test_fresh_ConfigManager_resolves_every_global_key_to_its_default(self, tmp_path):
+        cm = ConfigManager(str(tmp_path / "none.yaml"))
+        for s in global_settings():
+            assert cm.get(s.key) == default_for(s.key), s.key
+
+    def test_returned_dict_is_independent_per_call(self):
+        a = build_default_config()
+        a["vault"]["ignore_folders"].append("__mutated__")
+        assert "__mutated__" not in build_default_config()["vault"]["ignore_folders"]
+
+
+class TestSeedConfig:
+    def test_seed_parses_and_holds_only_known_keys(self):
+        data = yaml.safe_load(render_seed_config())
+        for key in _flatten(data):
+            assert get_setting(key) is not None, f"seed config.yaml has unknown key {key}"
+
+    def test_seed_round_trips_to_the_built_defaults(self):
+        assert yaml.safe_load(render_seed_config()) == build_default_config()
+
+
+class TestReferenceDoc:
+    def test_committed_doc_is_current(self):
+        """docs/wiki/reference/configuration.md is generated from SETTINGS.
+        Regenerate: python -m sympose.config_reference > docs/wiki/reference/configuration.md"""
+        assert _REFERENCE_DOC.read_text(encoding="utf-8") == render_reference_md(), (
+            "configuration.md is stale — regenerate with "
+            "`python -m sympose.config_reference > docs/wiki/reference/configuration.md`"
+        )
+
+    def test_every_global_key_is_documented(self):
+        body = _REFERENCE_DOC.read_text(encoding="utf-8")
+        for s in global_settings():
+            assert f"`{s.key}`" in body
+
+
+class TestCompleterKeyLists:
+    """The Tab-completer derives its key lists from the schema — guard against
+    a hand-maintained copy creeping back in."""
+
+    def test_completer_lists_track_the_schema(self):
+        from sympose.completer import SymposeCompleter
+
+        assert SymposeCompleter.CONFIG_KEYS == [s.key for s in global_settings()]
+        assert SymposeCompleter.PERSONA_KEYS == [s.key for s in persona_settings()]
 
 
 class TestCoerce:
@@ -96,9 +159,13 @@ class TestConfigManagerSchemaFallback:
         cm = ConfigManager(str(tmp_path / "none.yaml"))
         assert cm.get("vault.grounding_default") == "auto"
 
-    def test_explicit_default_still_wins(self, tmp_path):
+    def test_explicit_default_only_applies_to_genuinely_absent_keys(self, tmp_path):
         cm = ConfigManager(str(tmp_path / "none.yaml"))
-        assert cm.get("vault.grounding_default", "trust") == "trust"
+        # a materialised key ignores the arg and returns its schema default
+        assert cm.get("vault.grounding_default", "trust") == "auto"
+        # an unknown key, and a None-default schema key, fall through to the arg
+        assert cm.get("no.such.key", "x") == "x"
+        assert cm.get("performance.local_keep_alive", "-1") == "-1"
 
     def test_unknown_key_is_none(self, tmp_path):
         cm = ConfigManager(str(tmp_path / "none.yaml"))

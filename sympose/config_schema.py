@@ -10,8 +10,9 @@ Standalone by design: imports nothing from `sympose` so `config.py` can import i
 at module load without a cycle.
 """
 
+import copy
 from dataclasses import dataclass
-from typing import Any, Optional, Sequence, Tuple
+from typing import Any, Dict, Optional, Sequence, Tuple
 
 
 @dataclass(frozen=True)
@@ -42,10 +43,10 @@ SETTINGS: Tuple[Setting, ...] = (
     # --- Performance & Streaming -----------------------------------------
     Setting("performance.request_timeout", "float", 30.0,
             "Cloud-model HTTP timeout, seconds.", "Performance & Streaming", minimum=1),
-    Setting("performance.local_request_timeout", "float", 60.0,
+    Setting("performance.local_request_timeout", "float", 120.0,
             "Local (ollama/…) model timeout, seconds.", "Performance & Streaming", minimum=1),
-    Setting("performance.local_keep_alive", "str", "",
-            "Ollama residency hint: -1 forever, 0 unload, '30m'. Empty = defer to OLLAMA_KEEP_ALIVE.",
+    Setting("performance.local_keep_alive", "str", None,
+            "Ollama residency hint: -1 forever, 0 unload, '30m'. Unset = defer to OLLAMA_KEEP_ALIVE.",
             "Performance & Streaming"),
     Setting("performance.max_context_turns", "int", 15,
             "Conversation turns kept in the model context window.", "Performance & Streaming", minimum=1),
@@ -76,7 +77,7 @@ SETTINGS: Tuple[Setting, ...] = (
     # --- Session & Memory ----------------------------------------------
     Setting("session.exit_behavior.auto_save", "bool", False,
             "Auto-save the session on exit.", "Session & Memory"),
-    Setting("session.exit_behavior.default_target", "str", "both",
+    Setting("session.exit_behavior.default_target", "str", "memory",
             "Where an auto-saved session goes.", "Session & Memory",
             choices=("memory", "vault", "both")),
     Setting("session.exit_behavior.clear_terminal", "bool", True,
@@ -158,6 +159,24 @@ def default_for(key: str) -> Any:
 
 def global_settings() -> list:
     return [s for s in SETTINGS if s.scope == "global"]
+
+
+def build_default_config() -> Dict[str, Any]:
+    """Materialise every global setting's default into the nested dict shape
+    `ConfigManager` layers `config.yaml` onto. This is the *only* source of
+    runtime defaults — there is no hand-maintained mirror. A fresh dict (with
+    independent list/dict values) is returned on every call, so callers may
+    mutate it freely."""
+    out: Dict[str, Any] = {}
+    for s in SETTINGS:
+        if s.scope != "global" or s.default is None:
+            continue
+        node = out
+        *branches, leaf = s.key.split(".")
+        for part in branches:
+            node = node.setdefault(part, {})
+        node[leaf] = copy.deepcopy(s.default)
+    return out
 
 
 def persona_settings() -> list:

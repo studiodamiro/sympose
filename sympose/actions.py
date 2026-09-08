@@ -225,7 +225,7 @@ class ActionProcessor:
                     from sympose.config_schema import get_setting, coerce, validate
                     setting = get_setting(key)
                     if setting and setting.scope == "persona":
-                        badges.append(f"> ⚠️ **`{key}` is a per-persona setting** — edit `profiles/<handle>.yaml`, not runtime config.")
+                        badges.append(f"> ⚠️ **`{key}` is a per-persona setting** — use `/persona set @<handle> {key} <value>`, not runtime config.")
                     else:
                         if setting:
                             try:

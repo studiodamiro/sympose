@@ -54,7 +54,7 @@ class PersonaEngine:
         explicit = str(profile.get("vault_grounding", "") or "").strip().lower()
         if explicit in ("strict", "trust"):
             return explicit
-        default = str(self.config.get("vault.grounding_default", "auto") or "auto").strip().lower()
+        default = str(self.config.get("vault.grounding_default") or "auto").strip().lower()
         if default in ("strict", "trust"):
             return default
         backend = str(target_model or "").split("/", 1)[0].strip().lower()
@@ -96,7 +96,7 @@ class PersonaEngine:
 
     def __init__(self, profile_manager: ProfileManager, max_turns: Optional[int] = None):
         self.pm, self.config, self.archivist = profile_manager, config_manager, SessionArchivist(profile_manager)
-        self.max_turns = max_turns or int(self.config.get("performance.max_context_turns", 15))
+        self.max_turns = max_turns or int(self.config.get("performance.max_context_turns"))
         self.histories: Dict[str, List[Dict[str, str]]] = {}
         self.active_sessions: Dict[str, str] = {}
         self.model_overrides: Dict[str, str] = {}
@@ -134,7 +134,7 @@ class PersonaEngine:
         session = SessionManager.load_session(session_id)
         if not session:
             return None
-        k_turns = int(self.config.get("performance.resume_context_turns", 6))
+        k_turns = int(self.config.get("performance.resume_context_turns"))
         turns = session.get("turns", [])
         recent_turns = turns[-k_turns:] if k_turns > 0 else turns
         hydrated: List[Dict[str, str]] = []
@@ -194,7 +194,7 @@ class PersonaEngine:
     def _build_kwargs(self, target_model: str, profile: Dict[str, Any], messages: List[Dict[str, Any]], stream: bool = True) -> Dict[str, Any]:
         is_loc = target_model.startswith("ollama/") or ":11434" in str(profile.get("api_base", ""))
         to_key = "performance.local_request_timeout" if is_loc else "performance.request_timeout"
-        kwargs = {"model": target_model, "messages": messages, "stream": stream, "timeout": float(self.config.get(to_key, 120.0 if is_loc else 30.0))}
+        kwargs = {"model": target_model, "messages": messages, "stream": stream, "timeout": float(self.config.get(to_key))}
         for pfx, key in (("gemini/", "GEMINI_API_KEY"), ("anthropic/", "ANTHROPIC_API_KEY"), ("openai/", "OPENAI_API_KEY"), ("openrouter/", "OPENROUTER_API_KEY")):
             if target_model.startswith(pfx) and os.getenv(key):
                 kwargs["api_key"] = os.getenv(key)
@@ -333,7 +333,7 @@ class PersonaEngine:
         strict = self._grounding_mode(profile, target_model) == "strict" and not vault_ctx
 
         try:
-            stream_val = bool(self.config.get("performance.stream", True))
+            stream_val = bool(self.config.get("performance.stream"))
             response = litellm.completion(**self._build_kwargs(target_model, profile, active_messages, stream=stream_val))
             sink: List[str] = []
             held: List[str] = []

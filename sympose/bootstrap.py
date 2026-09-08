@@ -18,26 +18,27 @@ except ImportError:
     ROUNDED = None
 
 from sympose.config import DEFAULT_CHAT_MODEL
+from sympose.config_schema import build_default_config
 from sympose.prompt_assets import load_prompt
 from sympose.workspace import resolve_workspace_dir  # noqa: F401  (re-exported for existing callers)
 
 
-DEFAULT_CONFIG_YAML = """# Sympose Master Configuration
-performance:
-  request_timeout: 10.0
-  max_context_turns: 15
-  resume_context_turns: 6
-  sub_second_streaming: true
+_CONFIG_SEED_HEADER = (
+    "# Sympose Master Configuration\n"
+    "# Generated from the schema in sympose/config_schema.py — every global default.\n"
+    "# Key reference (types, allowed values, live-vs-restart):\n"
+    "#   docs/wiki/reference/configuration.md\n"
+    "# Edit any value freely; unknown keys are ignored. `/config set` rewrites this "
+    "file at runtime.\n\n"
+)
 
-runtime:
-  default_persona: "samantha"
-  profiles_dir: "profiles"
 
-vault:
-  daily_notes_folder: "Daily"
-  daily_notes_format: "Daily/%Y/%m-%B/%Y-%m-%d.md"
-  search_mode: "direct"
-"""
+def render_seed_config() -> str:
+    """Starter `config.yaml` for a fresh workspace: the schema's global defaults
+    serialised in full, with no hand-maintained key list left to drift."""
+    return _CONFIG_SEED_HEADER + yaml.safe_dump(
+        build_default_config(), sort_keys=False, default_flow_style=False
+    )
 
 SAMANTHA_YAML = f"""name: "Samantha"
 handle: "samantha"
@@ -137,7 +138,7 @@ def ensure_workspace(workspace_dir: str) -> bool:
     if not os.path.exists(config_file):
         is_fresh = True
         with open(config_file, "w", encoding="utf-8") as f:
-            f.write(DEFAULT_CONFIG_YAML)
+            f.write(render_seed_config())
 
     # 2. Starter Samantha Profile
     sam_yaml_file = os.path.join(profiles_dir, "samantha.yaml")

@@ -180,7 +180,10 @@ function VaultTreeRow({
       role="treeitem"
       aria-selected={isSelected}
       onClick={() => onSelect?.(node)}
-      style={{ paddingLeft: `${depth * 14 + 8 + 20}px` }}
+      // Nested notes align under the parent folder's label (+20 clears the
+      // disclosure chevron); top-level notes have no folder above them, so
+      // they sit flush to reclaim that space.
+      style={{ paddingLeft: `${depth * 14 + 8 + (depth > 0 ? 20 : 0)}px` }}
       className={cn(
         "flex w-full items-center gap-1.5 py-1 pr-2 text-left transition-colors",
         "focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none",

@@ -131,6 +131,14 @@ work.
   `<VaultTree>` in the folder panels (every folder row opens the same whole
   scoped tree — the mockup's shape). Selecting a note only records the path
   for now; note-open is a later slice.
+- **`ui/` main menu is now live** — the left rail is built from the tree's
+  surface (top-level folders + root notes like `README.md`) in the tree's own
+  order, not the static 13-entry `VAULT_FOLDERS` list. `VAULT_FOLDERS` is kept
+  only as a curated name→icon map (unknown folders fall back to a generic
+  folder glyph; root notes get a note glyph). The highlighted section is
+  *derived* — a persisted id that no longer exists after a persona switch
+  falls back to the first surface entry, no `setState`-in-effect. The demo
+  routes (`menu-showcase`, `components-gallery`) still use the static list.
 - Tests: `tests/unit/test_vault_tree.py` (nesting, ordering, ghost exclusion,
   prefix scoping, path-boundary match) and a route-registered assertion in
   `test_server.py`. Full suite 309 passing.

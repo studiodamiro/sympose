@@ -1,7 +1,12 @@
 import * as React from "react"
 import { Link } from "react-router-dom"
 import { HugeiconsIcon } from "@hugeicons/react"
-import { ThumbsUpIcon } from "@hugeicons/core-free-icons"
+import {
+  File01Icon,
+  Folder01Icon,
+  Note01Icon,
+  ThumbsUpIcon,
+} from "@hugeicons/core-free-icons"
 
 import { cn } from "@/lib/utils"
 import {
@@ -35,11 +40,16 @@ import {
   type VaultNode,
 } from "@/components/sympose"
 
-const ITEMS: MainMenuItem[] = VAULT_FOLDERS.map((f) => ({
-  id: f.name,
-  label: f.name,
-  icon: f.icon,
-}))
+/** Curated name → icon map, so known folders keep their glyph when the menu is
+ *  driven by the live vault instead of the static `VAULT_FOLDERS` list. */
+const FOLDER_ICONS = new Map(VAULT_FOLDERS.map((f) => [f.name, f.icon]))
+
+/** Icon for a top-level vault entry surfaced on the main menu. */
+function menuIconFor(node: VaultNode) {
+  if (node.type === "note")
+    return node.name.endsWith(".md") ? Note01Icon : File01Icon
+  return FOLDER_ICONS.get(node.name) ?? Folder01Icon
+}
 
 /** Labels for the non-folder sections the footer rows can select. */
 const SECTION_LABELS: Record<string, string> = {
@@ -50,14 +60,6 @@ const SECTION_LABELS: Record<string, string> = {
 const AUTO_COLLAPSE_COOKIE = "sympose:pref.autoCollapseMenu"
 const SECTION_COOKIE = "sympose:shell.section"
 const RAIL_COOKIE = "sympose:shell.rail"
-
-/** Everything the content panel can be pointed at — folders plus the two
- *  non-folder sections — so a persisted value can be validated on load. */
-const VALID_SECTIONS = new Set<string>([
-  ...VAULT_FOLDERS.map((f) => f.name),
-  MENU_SETTINGS_ID,
-  MENU_ACCOUNT_ID,
-])
 
 /**
  * `<MainMenu>` mounted as the real app shell — full viewport height, no demo
@@ -80,10 +82,11 @@ export function AppShell() {
 
   // The highlighted folder / section — persisted, since the content panel is
   // usually hidden on phone and should come back pointed where it was left.
-  const [active, setActive] = React.useState<string>(() => {
-    const saved = getCookie(SECTION_COOKIE)
-    return saved && VALID_SECTIONS.has(saved) ? saved : "Projects"
-  })
+  // The menu is driven by the live vault, so a persisted folder id is only
+  // reconciled once the tree has loaded (see the effect below the fetch).
+  const [active, setActive] = React.useState<string>(
+    () => getCookie(SECTION_COOKIE) || ""
+  )
   React.useEffect(() => {
     setCookie(SECTION_COOKIE, active)
   }, [active])
@@ -128,8 +131,11 @@ export function AppShell() {
       : panels.isOpen("editor")
         ? "editor"
         : null
-    if (active === MENU_SETTINGS_ID || active === MENU_ACCOUNT_ID) {
-      setActive("Projects")
+    if (
+      (active === MENU_SETTINGS_ID || active === MENU_ACCOUNT_ID) &&
+      menuItems.length > 0
+    ) {
+      setActive(menuItems[0].id)
     }
     panels.open("content")
     setMenuShown(true)
@@ -141,7 +147,9 @@ export function AppShell() {
     if (isPhone && (id === MENU_SETTINGS_ID || id === MENU_ACCOUNT_ID)) {
       setMenuShown(false)
     }
-    if (id === active && panels.isOpen("content")) {
+    // A root note row (README.md) also selects it in the tree.
+    if (noteIds.has(id)) setSelectedNote(id)
+    if (id === resolvedActive && panels.isOpen("content")) {
       panels.close("content")
     } else {
       setActive(id)
@@ -252,7 +260,28 @@ export function AppShell() {
     }
   }, [activePersona])
 
-  const activeLabel = SECTION_LABELS[active] ?? active
+  // Main menu = the vault's surface (top-level folders + root notes like
+  // README.md), in the tree's own order, with curated icons where the folder
+  // name is known. The two footer sentinels (Settings, Agent) stay separate.
+  const menuItems: MainMenuItem[] = vaultTree.map((node) => ({
+    id: node.path,
+    label: node.name,
+    icon: menuIconFor(node),
+  }))
+  const noteIds = new Set(
+    vaultTree.filter((n) => n.type === "note").map((n) => n.path)
+  )
+
+  // `active` holds the user's last explicit pick; a persisted folder id that no
+  // longer exists (e.g. after switching to a persona with a narrower sandbox)
+  // falls back to the first surface entry — derived, not synced.
+  const isSentinel = active === MENU_SETTINGS_ID || active === MENU_ACCOUNT_ID
+  const resolvedActive =
+    isSentinel || menuItems.some((i) => i.id === active)
+      ? active
+      : (menuItems[0]?.id ?? active)
+
+  const activeLabel = SECTION_LABELS[resolvedActive] ?? resolvedActive
   // Phone: the rail only shows alongside the content panel — the two are one
   // view. Desktop / tablet: always shown.
   const menuOpen = isPhone ? menuShown && contentOpen : true
@@ -369,12 +398,12 @@ export function AppShell() {
           while they are parked off to the inline-start */}
       <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
         <MainMenu
-          items={ITEMS}
+          items={menuItems}
           // above the stage so the content panel tucks *behind* it on hide
           className="z-20"
           open={menuOpen}
           hideChrome={isPhone}
-          activeId={contentOpen ? active : undefined}
+          activeId={contentOpen ? resolvedActive : undefined}
           onSelectItem={(item) => selectSection(item.id)}
           onOpenSettings={() => selectSection(MENU_SETTINGS_ID)}
           onSelectAccount={() => selectSection(MENU_ACCOUNT_ID)}

@@ -71,11 +71,11 @@ function AgentCard({ personas, active, onSwitch, className }: AgentCardProps) {
             <HugeiconsIcon icon={visuals.icon} className="size-7" />
           </AvatarFallback>
         </Avatar>
-        <div className="min-w-0 pt-1">
+        <div className="min-w-0 pt-1.5">
           <h2 className="truncate font-heading text-lg leading-tight font-semibold text-background">
             {current.name}
           </h2>
-          <p className="mt-2 text-sm leading-snug text-balance text-fg-muted">
+          <p className="mt-3 text-sm leading-snug text-balance text-fg-muted">
             {current.title}
           </p>
         </div>

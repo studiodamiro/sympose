@@ -20,7 +20,11 @@ import { useFillWidth } from "@/lib/use-fill-width"
 import { useTransientFlag } from "@/lib/use-transient-flag"
 import { usePanels } from "@/lib/use-panels"
 import { useActivePersona } from "@/lib/use-active-persona"
-import { fetchPersonas, type LivePersona } from "@/lib/personas"
+import {
+  fetchPersonas,
+  resolvePersonaVisuals,
+  type LivePersona,
+} from "@/lib/personas"
 import { fetchVaultTree } from "@/lib/vault-tree-api"
 import { VAULT_FOLDERS } from "@/lib/vault-folders"
 import {
@@ -292,6 +296,11 @@ export function AppShell() {
         : []
 
   const activeLabel = SECTION_LABELS[resolvedActive] ?? resolvedActive
+
+  // The main-menu account row wears the active persona's name, icon and accent.
+  const activeAgentName =
+    personas.find((p) => p.handle === activePersona)?.name ?? activePersona
+  const activeAgentVisuals = resolvePersonaVisuals(activePersona)
   // Phone: the rail only shows alongside the content panel — the two are one
   // view. Desktop / tablet: always shown.
   const menuOpen = isPhone ? menuShown && contentOpen : true
@@ -420,6 +429,11 @@ export function AppShell() {
           onSelectItem={(item) => selectSection(item.id)}
           onOpenSettings={() => selectSection(MENU_SETTINGS_ID)}
           onSelectAccount={() => selectSection(MENU_ACCOUNT_ID)}
+          account={{
+            name: activeAgentName,
+            icon: activeAgentVisuals.icon,
+            accent: activeAgentVisuals.accent,
+          }}
           collapsed={menu.collapsed}
           onCollapsedChange={(c) =>
             setMenu((m) => ({

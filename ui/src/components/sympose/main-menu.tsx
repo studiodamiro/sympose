@@ -66,8 +66,11 @@ interface MainMenuProps extends Omit<React.ComponentProps<"nav">, "onSelect"> {
   onOpenSettings?: () => void
   /** Account row clicked. Pair with `activeId === MENU_ACCOUNT_ID`. */
   onSelectAccount?: () => void
-  /** Account row label + avatar seed. */
-  account?: { name: string }
+  /**
+   * Account row: label plus, when the active persona is known, its icon and
+   * accent for the avatar (falls back to the first letter on `bg-accent`).
+   */
+  account?: { name: string; icon?: IconSvgElement; accent?: string }
   /** Cookie key to persist the dragged width as a user preference. */
   storageKey?: string
   /**
@@ -311,8 +314,25 @@ function MainMenu({
               >
                 <span className={SLOT}>
                   <Avatar size="sm">
-                    <AvatarFallback className="bg-accent text-[11px] font-medium uppercase">
-                      {account.name.slice(0, 1)}
+                    <AvatarFallback
+                      className={cn(
+                        "text-[11px] font-medium uppercase",
+                        account.accent ? "text-background" : "bg-accent"
+                      )}
+                      style={
+                        account.accent
+                          ? { background: account.accent }
+                          : undefined
+                      }
+                    >
+                      {account.icon ? (
+                        <HugeiconsIcon
+                          icon={account.icon}
+                          className="size-3.5"
+                        />
+                      ) : (
+                        account.name.slice(0, 1)
+                      )}
                     </AvatarFallback>
                   </Avatar>
                 </span>

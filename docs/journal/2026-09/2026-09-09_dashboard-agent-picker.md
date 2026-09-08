@@ -93,7 +93,11 @@ so the later slices inherit them:
   rendered **disabled** pending their endpoints.
 - **`src/routes/app-shell.tsx`** — roster fetched once on mount, the active
   handle lifted to the shell, `<AgentCard>` rendered in the existing
-  `MENU_ACCOUNT_ID` ("Agent") content panel.
+  `MENU_ACCOUNT_ID` content panel.
+- **`src/components/sympose/main-menu.tsx`** — the footer account row wears
+  the active persona: `account` gained optional `icon` / `accent`, so the
+  avatar shows the persona's glyph on its accent instead of a grey initial,
+  and the label is the persona's full name rather than the word "Agent".
 
 ## 3. Deferred
 

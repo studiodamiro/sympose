@@ -13,9 +13,11 @@ tags:
 
 - **Status:** Accepted — manifest engine implemented 2026-09-09
   (`sympose/vault_manifest.py`, config knobs, `VaultManager` write-through +
-  accessor, tests). The `GET /api/vault/graph` endpoint and the
-  `vault_recall` / `resolve_turn_context` rewrite (ADR-078.7) are the follow-up
-  integration pass and are not yet done.
+  accessor, tests), plus the first ADR-078.7 slice: a manifest-backed vault
+  structure digest in `resolve_turn_context` and the `vault_recall` Discovery
+  rewrite. Still pending: `GET /api/vault/graph`, the worker-side discovery
+  rewrite, and routing `get_discovered_folders` / `find_chronological_notes`
+  through the manifest.
 - **Date:** 2026-09-09
 - **Deciders:** damiro (Lead Architect); Grace / Claude (Sonnet 5) (Engineering Partner)
 - Builds on the retrieval caches in `sympose/vault.py`
@@ -219,6 +221,28 @@ in this pass: an external edit still triggers a full `_get_vault_snapshot`
 rebuild, gated by the cheap mtime check so idle cost stays zero. Sympose's own
 writes already avoid the walk via `patch_note`. The incremental external-edit
 path is a clean follow-up that changes neither the schema nor the API.
+
+## Implementation Note (2026-09-09 — agent structure tier)
+
+First slice of ADR-078.7 (the agent consumer), so the manifest is testable
+end-to-end:
+
+- **`VaultManager.format_manifest_digest()`** — a compact, disk-true
+  `### Ground-Truth Vault Structure Map` (top-level folder counts, top tags,
+  most-linked notes, unresolved-link count). Pure; lives with the other
+  `VaultManager` digest formatters rather than in `vault_manifest.py`, matching
+  `format_search_digest` / `get_backlinks_digest`.
+- **`VaultManager.resolve_turn_context()` tier 1b** — a "how is my vault
+  organised / what folders / how many notes / how is it connected" query
+  returns the digest. Inert unless `vault.manifest.enabled` (the tier calls
+  `get_manifest()`, which is `None` when the knob is off).
+- **`vault_recall/SKILL.md`** — the Discovery section now tells the model to
+  read the Structure Map first for vault shape, filesystem probing as the
+  fallback, with the "where, never what a note says" boundary restated.
+
+Still pending: `GET /api/vault/graph`, the worker-side `run_command` discovery
+rewrite, and routing `get_discovered_folders` / `find_chronological_notes`
+through the manifest.
 
 ## Alternatives rejected
 

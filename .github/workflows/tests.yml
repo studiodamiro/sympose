@@ -28,3 +28,29 @@ jobs:
 
       - name: Run unit tests
         run: pytest -q
+
+  ui-bundle:
+    # The dashboard bundle is committed under sympose/webui/ so `pipx install`
+    # ships it (ADR-079). Rebuild it and fail if the committed copy has drifted.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+
+      - name: Build the dashboard
+        run: npm ci && npm run build
+        working-directory: ui
+
+      - name: Fail if sympose/webui/ is stale
+        run: |
+          if ! git diff --quiet -- sympose/webui; then
+            echo "::error::sympose/webui/ is out of date. Run 'cd ui && npm run build' and commit the result."
+            git diff --stat -- sympose/webui
+            exit 1
+          fi

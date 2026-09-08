@@ -54,8 +54,23 @@ def create_app(engine: Any) -> FastAPI:
 
     @app.get("/api/personas")
     def list_personas() -> Dict[str, Any]:
+        """Roster for the dashboard agent picker — a trimmed projection of each
+        profile (never the raw manifest: no `soul_file` / `memory_file` paths,
+        no `thinking_phrases`)."""
+        default = engine.config.get("runtime.default_persona")
         return {
-            "personas": [p for p in engine.pm.profiles.values()]
+            "default": default,
+            "personas": [
+                {
+                    "handle": p.get("handle", h),
+                    "name": p.get("name", h),
+                    "title": p.get("title", ""),
+                    "model": p.get("model", ""),
+                    "skills": p.get("skills") or [],
+                    "is_default": p.get("handle", h) == default,
+                }
+                for h, p in engine.pm.profiles.items()
+            ],
         }
 
     @app.get("/api/config")
@@ -83,6 +98,15 @@ def create_app(engine: Any) -> FastAPI:
         `{nodes: [{id, label, folder, tags, val, exists}], links: [{source, target}]}`."""
         return VaultManager.get_vault_graph()
 
+    @app.get("/api/vault/tree")
+    def get_vault_tree(
+        persona: Optional[str] = Query("samantha", description="Persona handle for sandbox scoping")
+    ) -> Dict[str, Any]:
+        """Nested `VaultNode` directory tree (ADR-078 manifest projection) for
+        the dashboard browser, scoped to the persona's allowed vault folders."""
+        profile = engine.pm.get_profile(persona) or engine.pm.get_profile("samantha")
+        return {"persona": persona, "tree": VaultManager.get_vault_tree(profile)}
+
     @app.get("/api/vault/note")
     def read_note(
         path: str = Query(..., description="Relative path of note"),
@@ -94,13 +118,15 @@ def create_app(engine: Any) -> FastAPI:
             raise HTTPException(status_code=404, detail=content)
         return {"path": path, "content": content}
 
-    # Resolve the frontend root: a built Vite bundle (ui/dist) wins over the
-    # hand-authored vanilla scaffold (ui/) when present. Both are optional.
-    # Resolved relative to the package first (works no matter which directory
-    # the dashboard was launched from — the repo root, `ui/`, or `~/.sympose`)
-    # and only then relative to the process CWD.
-    _pkg_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    # Resolve the frontend root. The committed, packaged bundle
+    # (`sympose/webui/`, ADR-079) is authoritative — it ships in the wheel, so a
+    # `pipx install git+…` serves the real dashboard. A source checkout that has
+    # run `npm run build` also writes there. The old `ui/dist` and the
+    # hand-authored `ui/` scaffold remain as fallbacks for a stale tree.
+    _pkg_dir = os.path.dirname(os.path.abspath(__file__))
+    _pkg_root = os.path.dirname(_pkg_dir)
     ui_candidates = [
+        os.path.join(_pkg_dir, "webui"),
         os.path.join(_pkg_root, "ui", "dist"),
         os.path.join(os.getcwd(), "ui", "dist"),
         os.path.join(_pkg_root, "ui"),

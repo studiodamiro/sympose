@@ -58,6 +58,12 @@ maintenance cost it imposes on that system.
   ADR first.
 - Verify before opening a PR: `.venv/bin/pytest` must pass, and any UI change
   must pass `cd ui && npm run typecheck` and `cd ui && npm run build`.
+- The compiled dashboard is committed at `sympose/webui/` so `pipx install
+  git+…` ships it (ADR-079). After any `ui/` change, run `cd ui && npm run
+  build` and commit the regenerated `sympose/webui/` in the same change — CI
+  rebuilds it and fails on drift. Build with the Node version in `.nvmrc`
+  (`nvm use`), the same version CI runs, or the hashed asset names will not
+  match and the `ui-bundle` job will fail.
 
 ---
 

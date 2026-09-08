@@ -65,3 +65,80 @@ export const PERSONA_LIST: Persona[] = Object.values(PERSONAS)
 export function getPersona(handle: string): Persona | undefined {
   return PERSONAS[handle.replace(/^@/, "").toLowerCase()]
 }
+
+/**
+ * Live roster row from `GET /api/personas` — the backend's trimmed profile
+ * projection. Identity + model + skills only; visuals (icon, accent) are not
+ * a backend concern and are resolved client-side via `resolvePersonaVisuals`.
+ */
+export interface LivePersona {
+  handle: string
+  name: string
+  title: string
+  model: string
+  skills: string[]
+  isDefault: boolean
+}
+
+interface PersonasResponse {
+  default: string
+  personas: Array<{
+    handle: string
+    name: string
+    title: string
+    model: string
+    skills: string[]
+    is_default: boolean
+  }>
+}
+
+/**
+ * Fetch the live persona roster. Falls back to the static `PERSONA_LIST` when
+ * the backend is unreachable (offline dev), so the picker always renders.
+ */
+export async function fetchPersonas(): Promise<LivePersona[]> {
+  try {
+    const res = await fetch("/api/personas")
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    const data = (await res.json()) as PersonasResponse
+    return data.personas.map((p) => ({
+      handle: p.handle,
+      name: p.name,
+      title: p.title,
+      model: p.model,
+      skills: p.skills ?? [],
+      isDefault: p.is_default,
+    }))
+  } catch (err) {
+    console.info(
+      `[personas] /api/personas unreachable (${err}) — using the static roster`
+    )
+    return PERSONA_LIST.map((p) => ({
+      handle: p.handle,
+      name: p.name,
+      title: p.title,
+      model: p.model,
+      skills: [],
+      isDefault: p.handle === "samantha",
+    }))
+  }
+}
+
+/** Neutral visuals for a handle not in the curated static roster. */
+const DEFAULT_VISUALS = {
+  icon: BrainIcon,
+  accent: "oklch(0.58 0.02 260)",
+  accentDark: "oklch(0.72 0.02 260)",
+} as const
+
+/** Icon + light/dark accent for a persona, curated when known, neutral otherwise. */
+export function resolvePersonaVisuals(handle: string): {
+  icon: IconSvgElement
+  accent: string
+  accentDark: string
+} {
+  const p = getPersona(handle)
+  return p
+    ? { icon: p.icon, accent: p.accent, accentDark: p.accentDark }
+    : DEFAULT_VISUALS
+}

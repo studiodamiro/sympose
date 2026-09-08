@@ -10,12 +10,17 @@ import {
 } from "@hugeicons/core-free-icons"
 
 import { cn } from "@/lib/utils"
+import { getCookie, setCookie } from "@/lib/cookies"
 
 /**
  * Vault directory tree (UI_DESIGN_REFERENCE.md §5 / Module C). Collapsible,
  * sandbox-aware — system folders (`.obsidian`, `.git`, `Attachments`, `.trash`)
  * are filtered out. Folders use a disclosure row; note leaves render in the
  * `--entity` accent. Pure presentation: pass a tree, get selection callbacks.
+ *
+ * With a `storageKey`, the set of expanded folder paths is persisted to that
+ * cookie so the open/closed shape survives a reload. Paths are vault-absolute
+ * and therefore unique across folder views, so one key can back every panel.
  */
 export interface VaultNode {
   name: string
@@ -41,6 +46,8 @@ interface VaultTreeProps extends Omit<React.ComponentProps<"div">, "onSelect"> {
   nodes: VaultNode[]
   selectedPath?: string
   defaultExpanded?: string[]
+  /** Cookie key to persist the expanded folder paths under. */
+  storageKey?: string
   onSelect?: (node: VaultNode) => void
 }
 
@@ -49,12 +56,22 @@ function VaultTree({
   nodes,
   selectedPath,
   defaultExpanded = [],
+  storageKey,
   onSelect,
   ...props
 }: VaultTreeProps) {
-  const [expanded, setExpanded] = React.useState<Set<string>>(
-    () => new Set(defaultExpanded)
-  )
+  const [expanded, setExpanded] = React.useState<Set<string>>(() => {
+    const seed = new Set(defaultExpanded)
+    if (storageKey) {
+      const saved = getCookie(storageKey)
+      if (saved) for (const p of saved.split(",")) if (p) seed.add(p)
+    }
+    return seed
+  })
+
+  React.useEffect(() => {
+    if (storageKey) setCookie(storageKey, [...expanded].join(","))
+  }, [storageKey, expanded])
 
   const toggle = React.useCallback((path: string) => {
     setExpanded((prev) => {
@@ -90,7 +107,9 @@ function VaultTree({
 }
 
 function isDailyFolder(name: string) {
-  return /^\d{4}$/.test(name) || /^\d{2}-[A-Za-z]+$/.test(name) || name === "Daily"
+  return (
+    /^\d{4}$/.test(name) || /^\d{2}-[A-Za-z]+$/.test(name) || name === "Daily"
+  )
 }
 
 function VaultTreeRow({
@@ -161,7 +180,10 @@ function VaultTreeRow({
       role="treeitem"
       aria-selected={isSelected}
       onClick={() => onSelect?.(node)}
-      style={{ paddingLeft: `${depth * 14 + 8 + 20}px` }}
+      // Nested notes align under the parent folder's label (+20 clears the
+      // disclosure chevron); top-level notes have no folder above them, so
+      // they sit flush to reclaim that space.
+      style={{ paddingLeft: `${depth * 14 + 8 + (depth > 0 ? 20 : 0)}px` }}
       className={cn(
         "flex w-full items-center gap-1.5 py-1 pr-2 text-left transition-colors",
         "focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none",

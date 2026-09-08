@@ -145,6 +145,10 @@ The dashboard communicates with Sympose's native FastAPI gateway on `http://loca
 * **`GET /api/vault/graph`**:
   * Returns: `{ nodes: [{ id, label, folder, tags, val }], links: [{ source, target }] }`
   * Sub-5ms response time served directly from Python in-memory index.
+  * Whole-vault, persona-independent — the nebula is an explorer surface.
+* **`GET /api/vault/tree?persona=<handle>`** *(shipped)*:
+  * Returns: `{ persona, tree: [{ name, path, type: "folder" | "note", children? }] }` — the ADR-078 manifest folded into a nested directory tree, folders before notes, each group sorted case-insensitively. Ghost nodes (unresolved `[[wikilinks]]`) are excluded.
+  * **Persona-scoped**: filtered to the persona's `vault_folders` via a vault-relative path-prefix match, the same sandbox every other `/api/vault/*` read honours. `samantha` (`["*"]`) sees the whole vault. Pure projection of the one whole-vault manifest — no extra walk.
 * **`GET /api/vault/cloud`**:
   * Returns high-density note and tag taxonomy with reference counts for 2D bubble clouds.
 * **`GET /api/vault/note?path=<rel_path>`**:
@@ -160,6 +164,14 @@ The dashboard communicates with Sympose's native FastAPI gateway on `http://loca
 
 ### 3. Settings & Theme API (`/api/config/*`)
 * **`GET /api/config` / `PUT /api/config`**: Reads and updates runtime parameters in `config.yaml` (including visualizer and theme settings).
+
+### 4. Persona Roster API (`/api/personas`)
+* **`GET /api/personas`** *(shipped)*:
+  * Returns: `{ default: <handle>, personas: [{ handle, name, title, model, skills, is_default }] }` — a trimmed projection of each `profiles/*.yaml`, never the raw profile (no `soul_file` / `memory_file` paths, no `thinking_phrases`).
+  * Feeds the Agent panel's identity card and switcher.
+* The **active persona is client state**, not a server session: a `sympose:active_persona` cookie the dashboard passes as `?persona=` on sandboxed vault requests, mirroring the CLI's per-handle scoping. `samantha` (`vault_folders: ["*"]`) is the default.
+* Planned: `GET /api/personas/{handle}/soul` and `/memory` for the card's (currently disabled) Soul / Memory panels.
+* The switcher writes the cookie; `GET /api/vault/tree?persona=` is its first consumer (the browser re-fetches the tree on every persona switch).
 
 ---
 

@@ -25,6 +25,7 @@ one in [`docs/wiki/index.md`](./wiki/index.md) are kept in sync per the
 
 | ADR | Title | Status | Date | Source |
 | --- | ----- | ------ | ---- | ------ |
+| ADR-077 | Declarative Configuration Schema as Single Source of Truth | Accepted | 2026-09-08 | [2026-09-08_adr-077-declarative-configuration-schema.md](./journal/2026-09/2026-09-08_adr-077-declarative-configuration-schema.md) |
 | ADR-076 | Skill Playbook Single-Source & Compression | Accepted | 2026-09-07 | [2026-09-07_adr-076-skill-playbook-single-source-and-compression.md](./journal/2026-09/2026-09-07_adr-076-skill-playbook-single-source-and-compression.md) |
 | ADR-075 | Persona Soul Content in CREATE_PERSONA | Accepted | 2026-09-05 | [2026-09-05_adr-075-persona-soul-content-in-create-persona.md](./journal/2026-09/2026-09-05_adr-075-persona-soul-content-in-create-persona.md) |
 | ADR-074 | Default Persona Vault Scope & Onboarding Persona-Genesis Nudge | Accepted | 2026-09-05 | [2026-09-05_adr-074-default-persona-vault-scope-and-onboarding-genesis-nudge.md](./journal/2026-09/2026-09-05_adr-074-default-persona-vault-scope-and-onboarding-genesis-nudge.md) |
@@ -113,7 +114,7 @@ one in [`docs/wiki/index.md`](./wiki/index.md) are kept in sync per the
 
 | Date | Entry |
 | ---- | ----- |
-| 2026-09-08 | [Declarative Config Schema (Tier 1)](./journal/2026-09/2026-09-08_declarative-config-schema.md) |
+| 2026-09-08 | [Declarative Config Schema (Tiers 1–3)](./journal/2026-09/2026-09-08_declarative-config-schema.md) |
 | 2026-09-07 | [Vault-Grounding Enforcement & Recall Phrasing (round 2)](./journal/2026-09/2026-09-07_vault-grounding-enforcement-and-recall-phrasing.md) |
 | 2026-09-07 | [Vault Recall vs. Conversational Phrasing](./journal/2026-09/2026-09-07_vault-recall-conversational-phrasing.md) |
 | 2026-09-07 | [ADR-076 — Skill Playbook Single-Source & Compression](./journal/2026-09/2026-09-07_adr-076-skill-playbook-single-source-and-compression.md) |

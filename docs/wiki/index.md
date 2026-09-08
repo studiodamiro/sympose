@@ -77,12 +77,13 @@ graph TD
 * **[Developer Workflows & Daemon Persistence](./guides/developer-workflows.md):** Pair-programming with Grace across Antigravity, VS Code, and background 24/7 Slack daemon.
 * **[Slack Integration & Setup](./guides/slack-integration.md):** 1-Click App Manifest, Socket Mode, and multi-agent Slack deployment.
 * **[Slack Socket Mode Setup Guide](./guides/slack-setup.md):** The full step-by-step app-manifest walkthrough.
-* **[Configuration](./guides/configuration.md):** Centralized `config.yaml` and dynamic in-session tuning.
+* **[Configuration](./guides/configuration.md):** Schema-defined knobs, `config.yaml`, and in-session `/config` / `/persona` tuning.
 * **[Latency & Performance Tuning Guide](./guides/latency-tuning.md):** The catalog of knobs, timeouts, context windows, and model configuration governing the sub-second SLA.
 * **[Creating Custom Agents](./guides/creating-agents.md):** Defining new persona models, prompts, and vault permissions.
 
 ### 📖 [Reference](./reference/cli-commands.md)
 * **[CLI Commands & Shortcuts](./reference/cli-commands.md):** Complete guide to `/save`, `/config`, `/switch`, `/note`, `/daily`, and `/ask`.
+* **[Configuration Reference](./reference/configuration.md):** Every runtime knob — type, default, allowed values, live-vs-restart — generated from `config_schema.py`.
 * **[Action Tags Reference](./reference/action-tags.md):** Every `[TAG: args]` an agent can emit — `WRITE_NOTE`, `SPAWN_WORKER`, `CREATE_PERSONA`, and the rest — plus the malformed-tag warning contract.
 * **[Python API Reference](./reference/python-api.md):** Package internals, class hierarchies, and integration hooks.
 * **[Web Dashboard UI Design Reference](./reference/ui-design-reference.md):** The flat "Sovereign Craft" design brief — theme presets, semantic tokens, layout shell, per-screen artboards.
@@ -99,6 +100,7 @@ list and is kept in sync per the
 
 | ADR | Title | Status | Date |
 | --- | ----- | ------ | ---- |
+| [ADR-077](../journal/2026-09/2026-09-08_adr-077-declarative-configuration-schema.md) | Declarative Configuration Schema as Single Source of Truth | Accepted | 2026-09-08 |
 | [ADR-076](../journal/2026-09/2026-09-07_adr-076-skill-playbook-single-source-and-compression.md) | Skill Playbook Single-Source & Compression | Accepted | 2026-09-07 |
 | [ADR-075](../journal/2026-09/2026-09-05_adr-075-persona-soul-content-in-create-persona.md) | Persona Soul Content in CREATE_PERSONA | Accepted | 2026-09-05 |
 | [ADR-074](../journal/2026-09/2026-09-05_adr-074-default-persona-vault-scope-and-onboarding-genesis-nudge.md) | Default Persona Vault Scope & Onboarding Persona-Genesis Nudge | Accepted | 2026-09-05 |

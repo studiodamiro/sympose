@@ -9,14 +9,15 @@ tags:
   - sympose/dashboard
 ---
 
-# Sympose Engineering Log: Dashboard Agent Picker & Persona Roster Contract
+# Sympose Engineering Log: Dashboard Agent Picker & Persona-Scoped Vault Tree
 
 > **Date:** Tuesday, September 9, 2026
-> **Topic:** First slice of stitching the terminal's persona surface into the
-> web dashboard — a trimmed `/api/personas` roster contract and the Agent
-> panel's identity card + switcher
+> **Topic:** First two slices of stitching the terminal into the web dashboard
+> — a trimmed `/api/personas` roster contract with the Agent panel's identity
+> card + switcher, and the persona-scoped `/api/vault/tree` directory map it
+> drives
 > **Participants:** damiro (Lead Architect), Grace (Engineering Partner)
-> **Status:** Implemented, tested (`.venv/bin/pytest` 304 passing,
+> **Status:** Implemented, tested (`.venv/bin/pytest` 309 passing,
 > `npm run typecheck` + `eslint` clean), pushed on
 > `feat/dashboard-agent-picker`.
 
@@ -99,20 +100,49 @@ so the later slices inherit them:
 - `GET /api/personas/{handle}/soul` and `/memory` — the content endpoints the
   disabled Soul / Memory buttons will call.
 - The card's PINNED / RECENT lists — no defined data source yet.
-- Consumers of the active-persona handle: the persona-scoped vault tree
-  (`GET /api/vault/tree?persona=`) and the chat stream. The picker only
-  writes the cookie today.
+- The chat stream — the other consumer of the active-persona handle.
 - Auth: the UI's `fetch()` calls still send no credentials against the
   ADR-064.1 password guard.
 - Persona avatars are initials / icons — there is no photo field in the
   profile schema.
 
-## 4. Notes
+## 4. Follow-up (same day): the persona-scoped vault tree
+
+The picker's first real consumer landed immediately after: `GET
+/api/vault/tree?persona=<handle>`, the vault-mapping half of the stitching
+work.
+
+- **`sympose/vault_tree.py`** (new) — `build_tree(nodes, allowed_prefixes)`, a
+  pure fold of the ADR-078 manifest `nodes` into the nested `VaultNode` shape
+  the frontend already defines (`{name, path, type, children?}`): folders
+  before notes, each group case-insensitively sorted, ghosts (no `rel_path`)
+  dropped. Persona scoping is a vault-relative path-prefix filter applied
+  here, so the single whole-vault manifest still backs both the unscoped
+  nebula and the scoped tree.
+- **`VaultManager.get_vault_tree(profile)`** — resolves the master vault and
+  `get_allowed_dirs(profile)` to relative prefixes (`realpath` compare; the
+  vault root itself becomes `""` = whole vault), then delegates to
+  `build_tree`. Ephemeral in-memory manifest build when
+  `vault.manifest.enabled` is off, matching `get_vault_graph`.
+- **`sympose/server.py`** — `GET /api/vault/tree`, persona query param
+  defaulting to `samantha`, same pattern as `/api/vault/backlinks`.
+- **`ui/`** — `fetchVaultTree(persona)` in `src/lib/vault-tree-api.ts`; the
+  shell re-fetches on every persona switch and renders the existing
+  `<VaultTree>` in the folder panels (every folder row opens the same whole
+  scoped tree — the mockup's shape). Selecting a note only records the path
+  for now; note-open is a later slice.
+- Tests: `tests/unit/test_vault_tree.py` (nesting, ordering, ghost exclusion,
+  prefix scoping, path-boundary match) and a route-registered assertion in
+  `test_server.py`. Full suite 309 passing.
+
+## 5. Notes
 
 - `ui/dist` is git-ignored, so the branch does not carry a built bundle; the
   install side needs `cd ui && npm run build` after pulling, and a restart of
-  `app.py --dashboard` to serve the new `/api/personas` shape.
-- `sympose/server.py` is now ~226 LOC, over the 200-LOC guideline. The
-  `/api/personas` change is a trim of an existing endpoint rather than a new
-  concern, so it was made in place; if the Soul / Memory endpoints land, the
-  personas routes should move to their own router module.
+  `app.py --dashboard` to serve the new `/api/personas` and `/api/vault/tree`
+  routes.
+- `sympose/server.py` is now ~235 LOC, over the 200-LOC guideline. The
+  `/api/personas` change was a trim of an existing endpoint; `/api/vault/tree`
+  is a ~7-line thin route delegating to `VaultManager`, with the real logic in
+  `vault_tree.py`. If the persona/soul/memory endpoints land, the route
+  definitions in `create_app` should move to per-domain routers.

@@ -1014,6 +1014,72 @@ class VaultManager:
         except Exception as e:
             return f"Error: Failed to append note: {e}"
 
+    # Sentinels the dashboard's `PUT /api/vault/note` maps onto HTTP status codes.
+    NOTE_NOT_FOUND = "__note_not_found__"
+    NOTE_DENIED = "__note_denied__"
+
+    @classmethod
+    def overwrite_note(cls, profile: Dict[str, Any], note_name: str, content: str) -> str:
+        """Replace an *existing* vault note's file with `content`, verbatim (the
+        editor already owns the whole document, frontmatter included). Resolves
+        the same file `read_note` would return, so a dashboard save lands back on
+        the note it was opened from. Overwrite only — a path with no existing
+        file returns `NOTE_NOT_FOUND` rather than creating one (ADR-081); a path
+        outside the persona's sandbox returns `NOTE_DENIED`. On success the note
+        is re-indexed and the manifest refreshed, exactly as `write_note` does.
+        """
+        mv, allowed_dirs = cls._get_master_vault(), cls.get_allowed_dirs(profile)
+        if not mv or not allowed_dirs:
+            return cls.NOTE_DENIED
+        clean_name = note_name.strip().strip("\"'")
+        if not clean_name.endswith(".md"):
+            clean_name += ".md"
+
+        target_file: Optional[str] = None
+        direct_target = os.path.join(mv, clean_name)
+        for allowed in allowed_dirs:
+            if is_safe_path(direct_target, allowed) and os.path.isfile(direct_target):
+                target_file = direct_target
+                break
+        if target_file is None:
+            for allowed in allowed_dirs:
+                candidate = os.path.join(allowed, os.path.basename(clean_name))
+                if is_safe_path(candidate, allowed) and os.path.isfile(candidate):
+                    target_file = candidate
+                    break
+        if target_file is None:
+            stem = os.path.splitext(os.path.basename(clean_name))[0].lower()
+            raw_ignore = config_manager.get("vault.ignore_folders") or [".obsidian", ".git", "Attachments", ".trash"]
+            ignore_dirs = {str(d).lower().strip() for d in raw_ignore}
+            for allowed in allowed_dirs:
+                for root, dirs, files in os.walk(allowed):
+                    dirs[:] = [d for d in dirs if d.lower() not in ignore_dirs and not d.startswith(".")]
+                    for fn in files:
+                        if fn.endswith(".md") and os.path.splitext(fn)[0].lower() == stem:
+                            fp = os.path.join(root, fn)
+                            if is_safe_path(fp, allowed):
+                                target_file = fp
+                                break
+                    if target_file:
+                        break
+                if target_file:
+                    break
+
+        if target_file is None:
+            return cls.NOTE_NOT_FOUND
+        if not any(is_safe_path(target_file, allowed) for allowed in allowed_dirs):
+            return cls.NOTE_DENIED
+
+        rel_display = os.path.relpath(target_file, mv)
+        try:
+            with open(target_file, "w", encoding="utf-8") as f:
+                f.write(content.rstrip("\n") + "\n")
+            cls._reindex_note_if_enabled(mv, target_file)
+            cls._update_manifest_if_enabled(mv, target_file)
+            return f"Saved note: `{rel_display}`"
+        except Exception as e:
+            return f"Error: Failed to write note: {e}"
+
     @classmethod
     def _sync_frontmatter_tags(cls, file_path: str, new_tags: List[str]) -> None:
         """Dynamically merges new tags into the file's YAML frontmatter block."""

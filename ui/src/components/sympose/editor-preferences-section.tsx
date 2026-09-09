@@ -100,6 +100,16 @@ function EditorPreferencesSection({
           { value: "on", label: "Shown" },
         ]}
       />
+      <PrefToggle
+        field="autosave"
+        label="Autosave"
+        value={prefs.autosave}
+        onChange={setPref}
+        options={[
+          { value: "off", label: "Off" },
+          { value: "on", label: "On" },
+        ]}
+      />
     </ControlSection>
   )
 }

@@ -9,11 +9,21 @@ from fastapi import FastAPI, Query, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel, Field
 from sympose.vault import VaultManager
 from sympose.config import config_manager
 from sympose.auth import require_dashboard_auth
 
 log = logging.getLogger(__name__)
+
+
+class NoteWrite(BaseModel):
+    """Body of `PUT /api/vault/note` — the dashboard editor saving a note back
+    to the vault verbatim (frontmatter included). `path` names an existing note;
+    creating new files is out of scope (ADR-081)."""
+    path: str = Field(..., min_length=1)
+    content: str
+    persona: str = "samantha"
 
 
 def create_app(engine: Any) -> FastAPI:
@@ -117,6 +127,21 @@ def create_app(engine: Any) -> FastAPI:
         if content.startswith("Note `") and "not found" in content:
             raise HTTPException(status_code=404, detail=content)
         return {"path": path, "content": content}
+
+    @app.put("/api/vault/note")
+    def write_note(body: NoteWrite) -> Dict[str, Any]:
+        """Save the dashboard editor's contents back to an existing vault note.
+        404 when the note doesn't exist (no create), 403 when the path resolves
+        outside the persona's sandbox."""
+        profile = engine.pm.get_profile(body.persona) or engine.pm.get_profile("samantha")
+        result = VaultManager.overwrite_note(profile, body.path, body.content)
+        if result == VaultManager.NOTE_NOT_FOUND:
+            raise HTTPException(status_code=404, detail=f"Note `{body.path}` not found in allowed vault folders.")
+        if result == VaultManager.NOTE_DENIED:
+            raise HTTPException(status_code=403, detail=f"Path `{body.path}` is outside the assigned sandbox.")
+        if result.startswith("Error:"):
+            raise HTTPException(status_code=500, detail=result)
+        return {"path": body.path, "detail": result}
 
     # Resolve the frontend root. The committed, packaged bundle
     # (`sympose/webui/`, ADR-079) is authoritative — it ships in the wheel, so a

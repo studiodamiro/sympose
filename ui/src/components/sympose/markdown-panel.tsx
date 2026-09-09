@@ -1,6 +1,7 @@
 import * as React from "react"
 import { Stylo, splitFrontmatter, type ToolbarConfig } from "@damiro/stylo"
 import { languages as CODE_LANGUAGES } from "@codemirror/language-data"
+import { toast } from "sonner"
 import "@damiro/stylo/styles.css"
 import "@damiro/stylo/katex.css"
 import { HugeiconsIcon } from "@hugeicons/react"
@@ -22,7 +23,7 @@ import { cn } from "@/lib/utils"
 import { useResizable } from "@/lib/use-resizable"
 import { useFillWidth } from "@/lib/use-fill-width"
 import { useTransientFlag } from "@/lib/use-transient-flag"
-import { fetchVaultNote } from "@/lib/vault-note-api"
+import { fetchVaultNote, saveVaultNote } from "@/lib/vault-note-api"
 import { extractWikilinks } from "@/lib/extract-wikilinks"
 import type { EditorPreferences } from "@/lib/use-editor-preferences"
 import { FrontmatterCard } from "@/components/sympose/frontmatter-card"
@@ -41,9 +42,11 @@ import { FrontmatterCard } from "@/components/sympose/frontmatter-card"
  * bounded height (`min-h-0 flex-1`), so its own toolbar stays pinned as a plain
  * flex sibling of the scrolling canvas — no `position: fixed`, no watchdog.
  *
- * Loading is wired to the vault (`GET /api/vault/note`); writing back to the
- * vault is not yet — `onSave` is intentionally left unset, so stylo's `save`
- * toolbar button renders disabled until that lands.
+ * Loading is wired to the vault (`GET /api/vault/note`); saving goes back
+ * through `PUT /api/vault/note` (ADR-081). `onSave` recombines the frontmatter
+ * card's `---` block with stylo's body and writes the whole note verbatim —
+ * driven by the toolbar `save` button and `⌘/Ctrl-S`, or automatically a beat
+ * after typing stops when Settings › Markdown editor › Autosave is on.
  */
 interface MarkdownPanelProps extends React.ComponentProps<"div"> {
   storageKey?: string
@@ -121,6 +124,20 @@ type NoteLoadState =
   | { status: "loading" }
   | { status: "error" }
   | { status: "ready"; content: string }
+
+/** How long typing has to pause before an autosave fires (ms). */
+const AUTOSAVE_DELAY = 1500
+
+/**
+ * Reassemble the full note the way the vault stores it: the frontmatter card's
+ * `---` block (its inner text, no fences — same shape `splitFrontmatter` yields)
+ * back in front of stylo's body. `null` frontmatter means the note never had a
+ * block, so the body is the whole document.
+ */
+function joinNote(frontmatter: string | null, body: string): string {
+  if (frontmatter === null) return body
+  return `---\n${frontmatter.replace(/\s+$/, "")}\n---\n\n${body}`
+}
 
 /**
  * Live width of an ancestor `levels` up from `ref`. `<ContentPanel>` reads its
@@ -207,7 +224,17 @@ function MarkdownPanel({
   // never sees it, so editing a pill never touches CodeMirror's undo history.
   const [frontmatter, setFrontmatter] = React.useState<string | null>(null)
   const [body, setBody] = React.useState("")
-  const { surface, reveal, selectionUI, focusOutline } = preferences
+  const { surface, reveal, selectionUI, focusOutline, autosave } = preferences
+
+  // The note text as last persisted (in `joinNote` form, so the dirty check
+  // compares like with like). A save-in-flight guard keeps a slow write or a
+  // fast typist from stacking overlapping `PUT`s. `loadedPathRef` is the path
+  // whose content is actually in `body`/`frontmatter` right now — on a note
+  // switch `path` changes a frame before the fetch resolves, and saving in that
+  // gap would write the old body to the new note.
+  const savedTextRef = React.useRef<string>("")
+  const savingRef = React.useRef(false)
+  const loadedPathRef = React.useRef<string | undefined>(undefined)
 
   React.useEffect(() => {
     if (!path) return
@@ -219,14 +246,49 @@ function MarkdownPanel({
         return
       }
       const split = splitFrontmatter(result.content)
-      setFrontmatter(split ? split.frontmatter : null)
-      setBody(split ? split.body : result.content)
+      const fm = split ? split.frontmatter : null
+      const bd = split ? split.body : result.content
+      setFrontmatter(fm)
+      setBody(bd)
+      savedTextRef.current = joinNote(fm, bd)
+      loadedPathRef.current = path
       setFetch({ status: "ready", content: result.content })
     })
     return () => {
       alive = false
     }
   }, [path, persona])
+
+  // Persist the current frontmatter + body to the vault. Shared by the toolbar
+  // `save` button, `⌘/Ctrl-S` (both via stylo's `onSave`), and the autosave
+  // timer. No-ops when there is nothing to save or a write is already running;
+  // `silent` keeps autosave from toasting on every idle pause.
+  const saveNote = React.useCallback(
+    async ({ silent = false }: { silent?: boolean } = {}) => {
+      if (!path || savingRef.current || loadedPathRef.current !== path) return
+      const text = joinNote(frontmatter, body)
+      if (text === savedTextRef.current) return
+      savingRef.current = true
+      const result = await saveVaultNote(path, text, persona)
+      savingRef.current = false
+      if (result.ok) {
+        savedTextRef.current = text
+        if (!silent) toast.success("Note saved")
+      } else {
+        toast.error(result.error)
+      }
+    },
+    [path, persona, frontmatter, body]
+  )
+
+  // Autosave — a trailing debounce on every body/frontmatter change. Off by
+  // default (Settings › Markdown editor); the explicit save paths stay live
+  // regardless. Re-armed on each edit, cancelled on unmount / note switch.
+  React.useEffect(() => {
+    if (autosave !== "on" || note.status !== "ready") return
+    const id = window.setTimeout(() => void saveNote({ silent: true }), AUTOSAVE_DELAY)
+    return () => window.clearTimeout(id)
+  }, [autosave, note.status, saveNote])
 
   // Outbound `[[wikilinks]]` for the footer — derived from the note as loaded,
   // not from live keystrokes, so typing never re-scans the whole document.
@@ -335,6 +397,7 @@ function MarkdownPanel({
               key={`${path}:${surface}:${reveal}:${selectionUI}`}
               value={body}
               onChange={setBody}
+              onSave={() => void saveNote()}
               onWikiLinkClick={onWikiLinkClick}
               mode={surface}
               inPlace={{ reveal, selectionUI }}

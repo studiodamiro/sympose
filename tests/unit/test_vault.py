@@ -189,6 +189,48 @@ class TestWriteNote:
 
 
 # ---------------------------------------------------------------------------
+# VaultManager.overwrite_note (dashboard editor save — ADR-081)
+# ---------------------------------------------------------------------------
+
+class TestOverwriteNote:
+    def test_overwrites_existing_verbatim(self, tmp_vault_dir, monkeypatch):
+        from sympose.vault import VaultManager
+        note_path = tmp_vault_dir / "Notes" / "diary.md"
+        write_note(str(note_path), "---\ntitle: Diary\n---\n\nold body\n")
+        monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
+        profile = {"vault_folders": ["*"]}
+
+        new_text = "---\ntitle: Diary\ntags:\n  - kept\n---\n\nrewritten body"
+        result = VaultManager.overwrite_note(profile, "Notes/diary", new_text)
+
+        assert result.startswith("Saved note:")
+        # written back exactly, normalised to a single trailing newline
+        assert note_path.read_text() == new_text + "\n"
+
+    def test_missing_note_is_not_created(self, tmp_vault_dir, monkeypatch):
+        from sympose.vault import VaultManager
+        monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
+        profile = {"vault_folders": ["*"]}
+
+        result = VaultManager.overwrite_note(profile, "Notes/ghost", "should not land")
+
+        assert result == VaultManager.NOTE_NOT_FOUND
+        assert not (tmp_vault_dir / "Notes" / "ghost.md").exists()
+
+    def test_outside_sandbox_denied(self, tmp_vault_dir, tmp_path, monkeypatch):
+        from sympose.vault import VaultManager
+        outside = tmp_path / "outside" / "secret.md"
+        write_note(str(outside), "before")
+        monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
+        profile = {"vault_folders": ["*"]}
+
+        result = VaultManager.overwrite_note(profile, "../outside/secret", "after")
+
+        assert result == VaultManager.NOTE_NOT_FOUND or result == VaultManager.NOTE_DENIED
+        assert outside.read_text() == "before"
+
+
+# ---------------------------------------------------------------------------
 # Backlink cache — mtime invalidation
 # ---------------------------------------------------------------------------
 

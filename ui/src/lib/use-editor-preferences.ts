@@ -6,12 +6,19 @@ export type EditorSurface = "in-place" | "source"
 export type EditorReveal = "caret" | "never"
 export type EditorSelectionUI = "menu" | "bar"
 export type EditorFocusOutline = "on" | "off"
+export type EditorAutosave = "on" | "off"
 
 export interface EditorPreferences {
   surface: EditorSurface
   reveal: EditorReveal
   selectionUI: EditorSelectionUI
   focusOutline: EditorFocusOutline
+  /**
+   * Persist body/frontmatter edits to the vault automatically, a beat after
+   * typing stops (ADR-081). `"off"` (default) leaves saving to the toolbar
+   * button and `⌘/Ctrl-S`.
+   */
+  autosave: EditorAutosave
 }
 
 const COOKIES = {
@@ -19,6 +26,7 @@ const COOKIES = {
   reveal: "sympose:editor.reveal",
   selectionUI: "sympose:editor.selection_ui",
   focusOutline: "sympose:editor.focus_outline",
+  autosave: "sympose:editor.autosave",
 } as const
 
 const DEFAULTS: EditorPreferences = {
@@ -26,6 +34,7 @@ const DEFAULTS: EditorPreferences = {
   reveal: "caret",
   selectionUI: "menu",
   focusOutline: "off",
+  autosave: "off",
 }
 
 /**
@@ -47,6 +56,8 @@ export function useEditorPreferences(): readonly [
     focusOutline:
       (getCookie(COOKIES.focusOutline) as EditorFocusOutline) ||
       DEFAULTS.focusOutline,
+    autosave:
+      (getCookie(COOKIES.autosave) as EditorAutosave) || DEFAULTS.autosave,
   }))
 
   const set = React.useCallback(

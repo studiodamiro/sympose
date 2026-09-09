@@ -34,6 +34,68 @@ def test_vault_tree_endpoint_registered():
     assert any(getattr(r, "path", "") == "/api/vault/tree" for r in app.routes)
 
 
+def test_vault_note_write_endpoint_registered():
+    app = _app()
+    put_routes = [
+        r for r in app.routes
+        if getattr(r, "path", "") == "/api/vault/note" and "PUT" in getattr(r, "methods", set())
+    ]
+    assert put_routes, "PUT /api/vault/note missing — the dashboard editor cannot save"
+
+
+class TestVaultNoteWrite:
+    """`PUT /api/vault/note` maps `VaultManager.overwrite_note`'s sentinels onto
+    HTTP status codes (ADR-081)."""
+
+    def _client(self, monkeypatch, overwrite_result):
+        from fastapi.testclient import TestClient
+        from sympose.auth import DASHBOARD_USER
+        import sympose.server as server
+
+        monkeypatch.setenv("DASHBOARD_PASSWORD", "pw")
+        monkeypatch.setattr(
+            server.VaultManager, "overwrite_note",
+            classmethod(lambda cls, profile, path, content: overwrite_result),
+        )
+        engine = MagicMock()
+        engine.pm.get_profile.return_value = {"vault_folders": ["*"]}
+        engine.pm.profiles = {}
+        return TestClient(server.create_app(engine)), DASHBOARD_USER
+
+    def test_success_returns_200(self, monkeypatch):
+        client, user = self._client(monkeypatch, "Saved note: `x.md`")
+        resp = client.put(
+            "/api/vault/note",
+            json={"path": "x", "content": "body", "persona": "samantha"},
+            auth=(user, "pw"),
+        )
+        assert resp.status_code == 200
+        assert resp.json()["detail"].startswith("Saved note:")
+
+    def test_missing_note_returns_404(self, monkeypatch):
+        from sympose.vault import VaultManager
+        client, user = self._client(monkeypatch, VaultManager.NOTE_NOT_FOUND)
+        resp = client.put(
+            "/api/vault/note", json={"path": "ghost", "content": ""}, auth=(user, "pw")
+        )
+        assert resp.status_code == 404
+
+    def test_denied_note_returns_403(self, monkeypatch):
+        from sympose.vault import VaultManager
+        client, user = self._client(monkeypatch, VaultManager.NOTE_DENIED)
+        resp = client.put(
+            "/api/vault/note", json={"path": "../evil", "content": ""}, auth=(user, "pw")
+        )
+        assert resp.status_code == 403
+
+    def test_blank_path_rejected(self, monkeypatch):
+        client, user = self._client(monkeypatch, "Saved note: `x.md`")
+        resp = client.put(
+            "/api/vault/note", json={"path": "", "content": "body"}, auth=(user, "pw")
+        )
+        assert resp.status_code == 422
+
+
 def _route(app, path):
     return next(r for r in app.routes if getattr(r, "path", "") == path)
 

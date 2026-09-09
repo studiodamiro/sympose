@@ -129,13 +129,24 @@ type NoteLoadState =
 const AUTOSAVE_DELAY = 1500
 
 /**
- * Reassemble the full note the way the vault stores it: the frontmatter card's
- * `---` block (its inner text, no fences — same shape `splitFrontmatter` yields)
- * back in front of stylo's body. `null` frontmatter means the note never had a
- * block, so the body is the whole document.
+ * Reassemble the full note the way the vault stores it.
+ *
+ * - No frontmatter block in the original → the body is the whole document.
+ * - Block present but the card never touched it → splice the body back onto the
+ *   file's *exact* original prefix (`originalPrefix`), so an unrelated body edit
+ *   never reformats the YAML (quote style, indentation, blank lines, CRLFs all
+ *   survive).
+ * - Card edited a field → re-serialise from its parsed model. Normalising the
+ *   block is unavoidable and expected here.
  */
-function joinNote(frontmatter: string | null, body: string): string {
+function joinNote(
+  frontmatter: string | null,
+  body: string,
+  originalPrefix: string | null,
+  frontmatterEdited: boolean
+): string {
   if (frontmatter === null) return body
+  if (!frontmatterEdited && originalPrefix !== null) return originalPrefix + body
   return `---\n${frontmatter.replace(/\s+$/, "")}\n---\n\n${body}`
 }
 
@@ -235,6 +246,11 @@ function MarkdownPanel({
   const savedTextRef = React.useRef<string>("")
   const savingRef = React.useRef(false)
   const loadedPathRef = React.useRef<string | undefined>(undefined)
+  // The note's exact `---`…`---` prefix as loaded, and whether the frontmatter
+  // card has since edited a field — together these let a body-only save keep
+  // the original YAML block byte-for-byte (see `joinNote`).
+  const originalPrefixRef = React.useRef<string | null>(null)
+  const frontmatterEditedRef = React.useRef(false)
 
   React.useEffect(() => {
     if (!path) return
@@ -248,9 +264,14 @@ function MarkdownPanel({
       const split = splitFrontmatter(result.content)
       const fm = split ? split.frontmatter : null
       const bd = split ? split.body : result.content
+      const prefix = split
+        ? result.content.slice(0, result.content.length - split.body.length)
+        : null
       setFrontmatter(fm)
       setBody(bd)
-      savedTextRef.current = joinNote(fm, bd)
+      originalPrefixRef.current = prefix
+      frontmatterEditedRef.current = false
+      savedTextRef.current = joinNote(fm, bd, prefix, false)
       loadedPathRef.current = path
       setFetch({ status: "ready", content: result.content })
     })
@@ -266,7 +287,12 @@ function MarkdownPanel({
   const saveNote = React.useCallback(
     async ({ silent = false }: { silent?: boolean } = {}) => {
       if (!path || savingRef.current || loadedPathRef.current !== path) return
-      const text = joinNote(frontmatter, body)
+      const text = joinNote(
+        frontmatter,
+        body,
+        originalPrefixRef.current,
+        frontmatterEditedRef.current
+      )
       if (text === savedTextRef.current) return
       savingRef.current = true
       const result = await saveVaultNote(path, text, persona)
@@ -409,7 +435,12 @@ function MarkdownPanel({
                     {frontmatter !== null && (
                       <FrontmatterCard
                         raw={frontmatter}
-                        onChange={setFrontmatter}
+                        onChange={(raw) => {
+                          // A real card edit — from here on the block is
+                          // re-serialised on save rather than kept verbatim.
+                          frontmatterEditedRef.current = true
+                          setFrontmatter(raw)
+                        }}
                         onLinkClick={onWikiLinkClick}
                         // `mt-2` — the card's own left/right `mx-2` (see
                         // frontmatter-card.tsx), applied to the top too, so the

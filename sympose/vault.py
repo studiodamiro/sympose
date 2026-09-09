@@ -1014,9 +1014,10 @@ class VaultManager:
         except Exception as e:
             return f"Error: Failed to append note: {e}"
 
-    # Sentinels the dashboard's `PUT /api/vault/note` maps onto HTTP status codes.
+    # Sentinels the dashboard's `PUT` / `POST /api/vault/note` map onto HTTP status codes.
     NOTE_NOT_FOUND = "__note_not_found__"
     NOTE_DENIED = "__note_denied__"
+    NOTE_EXISTS = "__note_exists__"
 
     @classmethod
     def overwrite_note(cls, profile: Dict[str, Any], note_name: str, content: str) -> str:
@@ -1079,6 +1080,48 @@ class VaultManager:
             return f"Saved note: `{rel_display}`"
         except Exception as e:
             return f"Error: Failed to write note: {e}"
+
+    @classmethod
+    def create_note(cls, profile: Dict[str, Any], note_name: str, content: Optional[str] = None) -> str:
+        """Create a *new* vault note from the dashboard (ADR-083). `note_name` is
+        a path relative to the vault — `Folder/Sub/Title` — and is placed under
+        the master vault when it contains a separator, otherwise in the persona's
+        primary folder. Refuses (`NOTE_EXISTS`) rather than overwriting an
+        existing file — that is `overwrite_note`'s job. `NOTE_DENIED` for a path
+        outside the sandbox. When `content` is omitted a minimal
+        frontmatter + title stub is seeded so the editor opens onto something
+        editable. Re-indexed and added to the manifest like any other write."""
+        mv, allowed_dirs, primary_dir = cls._get_master_vault(), cls.get_allowed_dirs(profile), cls.get_primary_dir(profile)
+        if not mv or not allowed_dirs:
+            return cls.NOTE_DENIED
+        clean_name = note_name.strip().strip("\"'").lstrip("/\\")
+        if not clean_name:
+            return cls.NOTE_DENIED
+        if not clean_name.endswith(".md"):
+            clean_name += ".md"
+
+        base = mv if ("/" in clean_name or "\\" in clean_name) else (primary_dir or mv)
+        target_file = os.path.realpath(os.path.join(base, clean_name))
+        if not any(is_safe_path(target_file, allowed) for allowed in allowed_dirs):
+            return cls.NOTE_DENIED
+        if os.path.exists(target_file):
+            return cls.NOTE_EXISTS
+
+        if content is None or not content.strip():
+            title = os.path.splitext(os.path.basename(clean_name))[0].replace("_", " ").replace("-", " ").strip().title()
+            today = datetime.datetime.now().strftime("%Y-%m-%d")
+            content = f"---\ntitle: {title}\ncreated: {today}\ntags: []\n---\n\n# {title}\n\n"
+
+        rel_display = os.path.relpath(target_file, mv)
+        try:
+            os.makedirs(os.path.dirname(target_file), exist_ok=True)
+            with open(target_file, "w", encoding="utf-8") as f:
+                f.write(content if content.endswith("\n") else content + "\n")
+            cls._reindex_note_if_enabled(mv, target_file)
+            cls._update_manifest_if_enabled(mv, target_file)
+            return f"Created note: `{rel_display}`"
+        except Exception as e:
+            return f"Error: Failed to create note: {e}"
 
     @classmethod
     def _sync_frontmatter_tags(cls, file_path: str, new_tags: List[str]) -> None:

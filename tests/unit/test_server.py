@@ -114,6 +114,50 @@ class TestVaultNoteWrite:
         assert resp.status_code == 422
 
 
+class TestVaultNoteCreate:
+    """`POST /api/vault/note` maps `VaultManager.create_note`'s sentinels onto
+    HTTP status codes (ADR-083)."""
+
+    def _client(self, monkeypatch, create_result):
+        from fastapi.testclient import TestClient
+        from sympose.auth import DASHBOARD_USER
+        import sympose.server as server
+
+        monkeypatch.setenv("DASHBOARD_PASSWORD", "pw")
+        monkeypatch.setattr(
+            server.VaultManager, "create_note",
+            classmethod(lambda cls, profile, path, content=None: create_result),
+        )
+        engine = MagicMock()
+        engine.pm.get_profile.return_value = {"vault_folders": ["*"]}
+        engine.pm.profiles = {}
+        return TestClient(server.create_app(engine)), DASHBOARD_USER
+
+    def test_success_returns_201(self, monkeypatch):
+        client, user = self._client(monkeypatch, "Created note: `Ideas/x.md`")
+        resp = client.post(
+            "/api/vault/note", json={"path": "Ideas/x"}, auth=(user, "pw")
+        )
+        assert resp.status_code == 201
+        assert resp.json()["detail"].startswith("Created note:")
+
+    def test_existing_note_returns_409(self, monkeypatch):
+        from sympose.vault import VaultManager
+        client, user = self._client(monkeypatch, VaultManager.NOTE_EXISTS)
+        resp = client.post(
+            "/api/vault/note", json={"path": "Ideas/taken"}, auth=(user, "pw")
+        )
+        assert resp.status_code == 409
+
+    def test_denied_returns_403(self, monkeypatch):
+        from sympose.vault import VaultManager
+        client, user = self._client(monkeypatch, VaultManager.NOTE_DENIED)
+        resp = client.post(
+            "/api/vault/note", json={"path": "../evil"}, auth=(user, "pw")
+        )
+        assert resp.status_code == 403
+
+
 def _route(app, path):
     return next(r for r in app.routes if getattr(r, "path", "") == path)
 

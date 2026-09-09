@@ -231,6 +231,56 @@ class TestOverwriteNote:
 
 
 # ---------------------------------------------------------------------------
+# VaultManager.create_note (dashboard new-note — ADR-083)
+# ---------------------------------------------------------------------------
+
+class TestCreateNote:
+    def test_creates_with_seeded_stub(self, tmp_vault_dir, monkeypatch):
+        from sympose.vault import VaultManager
+        monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
+        profile = {"vault_folders": ["*"]}
+
+        result = VaultManager.create_note(profile, "Ideas/rocket-stove")
+
+        assert result.startswith("Created note:")
+        body = (tmp_vault_dir / "Ideas" / "rocket-stove.md").read_text()
+        assert body.startswith("---\n")
+        assert "title: Rocket Stove" in body
+        assert "# Rocket Stove" in body
+
+    def test_honours_supplied_content(self, tmp_vault_dir, monkeypatch):
+        from sympose.vault import VaultManager
+        monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
+        profile = {"vault_folders": ["*"]}
+
+        VaultManager.create_note(profile, "Notes/verbatim", "just this\n")
+
+        assert (tmp_vault_dir / "Notes" / "verbatim.md").read_text() == "just this\n"
+
+    def test_refuses_to_clobber_existing(self, tmp_vault_dir, monkeypatch):
+        from sympose.vault import VaultManager
+        note = tmp_vault_dir / "Notes" / "taken.md"
+        write_note(str(note), "original")
+        monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
+        profile = {"vault_folders": ["*"]}
+
+        result = VaultManager.create_note(profile, "Notes/taken", "new")
+
+        assert result == VaultManager.NOTE_EXISTS
+        assert note.read_text() == "original"
+
+    def test_outside_sandbox_denied(self, tmp_vault_dir, tmp_path, monkeypatch):
+        from sympose.vault import VaultManager
+        monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
+        profile = {"vault_folders": ["*"]}
+
+        result = VaultManager.create_note(profile, "../escapee", "x")
+
+        assert result == VaultManager.NOTE_DENIED
+        assert not (tmp_path / "escapee.md").exists()
+
+
+# ---------------------------------------------------------------------------
 # Backlink cache — mtime invalidation
 # ---------------------------------------------------------------------------
 

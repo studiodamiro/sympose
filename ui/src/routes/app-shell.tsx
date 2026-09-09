@@ -1,10 +1,12 @@
 import * as React from "react"
 import { Link } from "react-router-dom"
 import { HugeiconsIcon } from "@hugeicons/react"
+import { toast } from "sonner"
 import {
   File01Icon,
   Folder01Icon,
   Note01Icon,
+  NoteAddIcon,
   ThumbsUpIcon,
 } from "@hugeicons/core-free-icons"
 
@@ -27,6 +29,7 @@ import {
   type LivePersona,
 } from "@/lib/personas"
 import { fetchVaultTree } from "@/lib/vault-tree-api"
+import { createVaultNote } from "@/lib/vault-note-api"
 import { findNoteByWikilink } from "@/lib/find-note-by-wikilink"
 import { VAULT_FOLDERS } from "@/lib/vault-folders"
 import {
@@ -263,6 +266,12 @@ export function AppShell() {
   // switcher. Every folder row opens the same panel: the whole scoped tree.
   const [vaultTree, setVaultTree] = React.useState<VaultNode[]>([])
   const [selectedNote, setSelectedNote] = React.useState<string>()
+  // Bumped after a note is created (ADR-083) to re-pull the tree so the new
+  // file shows up without a persona switch.
+  const [vaultRefreshKey, setVaultRefreshKey] = React.useState(0)
+  // `null` = the new-note input is closed; a string = its current value.
+  const [newNoteName, setNewNoteName] = React.useState<string | null>(null)
+  const [creatingNote, setCreatingNote] = React.useState(false)
   React.useEffect(() => {
     let alive = true
     fetchVaultTree(activePersona).then((tree) => {
@@ -271,7 +280,7 @@ export function AppShell() {
     return () => {
       alive = false
     }
-  }, [activePersona])
+  }, [activePersona, vaultRefreshKey])
 
   // Main menu = the vault's surface (top-level folders + root notes like
   // README.md), in the tree's own order, with curated icons where the folder
@@ -317,6 +326,30 @@ export function AppShell() {
 
   const activeLabel = SECTION_LABELS[resolvedActive] ?? resolvedActive
 
+  // Create a note in the folder currently in view (or the vault root when a
+  // root note is the active surface), then open it in the editor (ADR-083).
+  const submitNewNote = async () => {
+    const name = (newNoteName ?? "")
+      .trim()
+      .replace(/\.md$/i, "")
+      .replace(/^\/+|\/+$/g, "")
+    if (!name || creatingNote) return
+    const folder = activeNode?.type === "folder" ? resolvedActive : ""
+    const target = folder ? `${folder}/${name}` : name
+    setCreatingNote(true)
+    const result = await createVaultNote(target, activePersona)
+    setCreatingNote(false)
+    if (!result.ok) {
+      toast.error(result.error)
+      return
+    }
+    setNewNoteName(null)
+    setVaultRefreshKey((k) => k + 1)
+    setSelectedNote(`${target}.md`)
+    panels.open("editor")
+    toast.success(`Created ${name}`)
+  }
+
   // The main-menu account row wears the active persona's name, icon and accent.
   const activeAgentName =
     personas.find((p) => p.handle === activePersona)?.name ?? activePersona
@@ -359,17 +392,55 @@ export function AppShell() {
         <EditorPreferencesSection prefs={editorPrefs} setPref={setEditorPref} />
         {/* Footer — pinned to the panel's bottom edge. Read-only Slack daemon
             status (ADR-082) on the left, the compact light/dark switch on the
-            right. */}
-        <div className="mt-auto flex items-center justify-between gap-4 border-t border-border pt-4">
+            right. Negative margins cancel the scroll surface's whole inset
+            (`p-8` desktop, `px-4 py-6` phone) so the `border-t` runs edge to
+            edge like the editor panel's `Links` divider; the gutter is then
+            re-applied as the footer's own padding, and `py-3` lands the row on
+            the same line as `Links` (12px above the card edge). */}
+        <div
+          className={cn(
+            "mt-auto flex items-center justify-between gap-4 border-t border-border py-3",
+            isPhone ? "-mx-4 -mb-6 px-4" : "-mx-8 -mb-8 px-8"
+          )}
+        >
           <SlackStatusPill />
           <ThemeToggle />
         </div>
       </>
     ) : (
       <div className="flex flex-col gap-2">
-        <h2 className="px-2 font-heading text-2xl font-semibold text-fg-strong">
-          {activeLabel || "Vault"}
-        </h2>
+        <div className="flex items-center justify-between gap-2 px-2">
+          <h2 className="font-heading text-2xl font-semibold text-fg-strong">
+            {activeLabel || "Vault"}
+          </h2>
+          <button
+            type="button"
+            onClick={() => setNewNoteName((v) => (v === null ? "" : null))}
+            aria-label="New note"
+            aria-pressed={newNoteName !== null}
+            className="grid size-7 shrink-0 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground aria-pressed:text-foreground"
+          >
+            <HugeiconsIcon icon={NoteAddIcon} className="size-4" />
+          </button>
+        </div>
+        {newNoteName !== null && (
+          <input
+            autoFocus
+            value={newNoteName}
+            disabled={creatingNote}
+            onChange={(e) => setNewNoteName(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") void submitNewNote()
+              else if (e.key === "Escape") setNewNoteName(null)
+            }}
+            placeholder={
+              activeNode?.type === "folder"
+                ? `New note in ${activeLabel}… ↵`
+                : "New note name… ↵"
+            }
+            className="mx-2 rounded-md border border-border bg-background px-2 py-1.5 text-sm outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:opacity-50"
+          />
+        )}
         {vaultTree.length === 0 ? (
           <p className="px-2 text-sm text-fg-muted">
             No notes in scope — check that the dashboard API is reachable and

@@ -25,6 +25,7 @@ one in [`docs/wiki/index.md`](./wiki/index.md) are kept in sync per the
 
 | ADR | Title | Status | Date | Source |
 | --- | ----- | ------ | ---- | ------ |
+| ADR-083 | Editor Note Creation & Frontmatter Round-Trip Fidelity | Accepted | 2026-09-10 | [2026-09-10_adr-083-editor-note-creation-and-frontmatter-fidelity.md](./journal/2026-09/2026-09-10_adr-083-editor-note-creation-and-frontmatter-fidelity.md) |
 | ADR-082 | Slack Daemon Heartbeat & Dashboard Status Pill | Accepted | 2026-09-10 | [2026-09-10_adr-082-slack-heartbeat-status.md](./journal/2026-09/2026-09-10_adr-082-slack-heartbeat-status.md) |
 | ADR-081 | Vault Note Write-Back from the Dashboard Editor | Accepted | 2026-09-10 | [2026-09-10_adr-081-vault-note-write-back.md](./journal/2026-09/2026-09-10_adr-081-vault-note-write-back.md) |
 | ADR-080 | Stylo as the Vault Markdown Editor | Accepted | 2026-09-10 | [2026-09-10_adr-080-stylo-vault-markdown-editor.md](./journal/2026-09/2026-09-10_adr-080-stylo-vault-markdown-editor.md) |
@@ -119,6 +120,7 @@ one in [`docs/wiki/index.md`](./wiki/index.md) are kept in sync per the
 
 | Date | Entry |
 | ---- | ----- |
+| 2026-09-10 | [ADR-083 — Editor Note Creation & Frontmatter Round-Trip Fidelity](./journal/2026-09/2026-09-10_adr-083-editor-note-creation-and-frontmatter-fidelity.md) |
 | 2026-09-10 | [ADR-082 — Slack Daemon Heartbeat & Dashboard Status Pill](./journal/2026-09/2026-09-10_adr-082-slack-heartbeat-status.md) |
 | 2026-09-10 | [ADR-081 — Vault Note Write-Back from the Dashboard Editor](./journal/2026-09/2026-09-10_adr-081-vault-note-write-back.md) |
 | 2026-09-10 | [Stylo Integration — Vault Wiring, Editor Preferences & UI Polish (ADR-080)](./journal/2026-09/2026-09-10_stylo-editor-integration-and-polish.md) |

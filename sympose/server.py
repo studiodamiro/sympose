@@ -20,11 +20,19 @@ log = logging.getLogger(__name__)
 
 
 class NoteWrite(BaseModel):
-    """Body of `PUT /api/vault/note` — the dashboard editor saving a note back
-    to the vault verbatim (frontmatter included). `path` names an existing note;
-    creating new files is out of scope (ADR-081)."""
+    """Body of `PUT /api/vault/note` — the dashboard editor saving an *existing*
+    note back to the vault verbatim, frontmatter included (ADR-081)."""
     path: str = Field(..., min_length=1)
     content: str
+    persona: str = "samantha"
+
+
+class NoteCreate(BaseModel):
+    """Body of `POST /api/vault/note` — create a *new* note at `path` (relative
+    to the vault, e.g. `Projects/Idea`). `content` is optional; omitted, the
+    backend seeds a frontmatter + title stub (ADR-083)."""
+    path: str = Field(..., min_length=1)
+    content: Optional[str] = None
     persona: str = "samantha"
 
 
@@ -38,7 +46,7 @@ def create_app(engine: Any, workspace_dir: Optional[str] = None) -> FastAPI:
     workspace_dir = workspace_dir or resolve_workspace_dir()
     app = FastAPI(
         title="Sympose Multi-Model Agent Hub API",
-        version="0.2.24",
+        version="0.2.25",
         description="FastAPI REST API & Standalone Vault Gateway for Sympose",
         docs_url="/docs",
         redoc_url="/redoc",
@@ -62,7 +70,7 @@ def create_app(engine: Any, workspace_dir: Optional[str] = None) -> FastAPI:
     def health_check() -> Dict[str, Any]:
         return {
             "status": "healthy",
-            "version": "0.2.24",
+            "version": "0.2.25",
             "active_personas": list(engine.pm.profiles.keys()),
             "default_persona": engine.config.get("runtime.default_persona"),
         }
@@ -156,6 +164,20 @@ def create_app(engine: Any, workspace_dir: Optional[str] = None) -> FastAPI:
             raise HTTPException(status_code=500, detail=result)
         return {"path": body.path, "detail": result}
 
+    @app.post("/api/vault/note", status_code=201)
+    def create_note(body: NoteCreate) -> Dict[str, Any]:
+        """Create a new vault note (ADR-083). 409 if a file already exists at
+        that path, 403 if it resolves outside the persona's sandbox."""
+        profile = engine.pm.get_profile(body.persona) or engine.pm.get_profile("samantha")
+        result = VaultManager.create_note(profile, body.path, body.content)
+        if result == VaultManager.NOTE_EXISTS:
+            raise HTTPException(status_code=409, detail=f"A note already exists at `{body.path}`.")
+        if result == VaultManager.NOTE_DENIED:
+            raise HTTPException(status_code=403, detail=f"Path `{body.path}` is outside the assigned sandbox.")
+        if result.startswith("Error:"):
+            raise HTTPException(status_code=500, detail=result)
+        return {"path": body.path, "detail": result}
+
     # Resolve the frontend root. The committed, packaged bundle
     # (`sympose/webui/`, ADR-079) is authoritative — it ships in the wheel, so a
     # `pipx install git+…` serves the real dashboard. A source checkout that has
@@ -190,7 +212,7 @@ def create_app(engine: Any, workspace_dir: Optional[str] = None) -> FastAPI:
             from importlib.metadata import version as pkg_version
             _version = pkg_version("sympose")
         except Exception:
-            _version = "0.2.24"
+            _version = "0.2.25"
         return f"""
         <!DOCTYPE html>
         <html lang="en">

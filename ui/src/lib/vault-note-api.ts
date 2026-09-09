@@ -57,3 +57,34 @@ export async function saveVaultNote(
     return { ok: false, error: `Save failed — backend unreachable (${err})` }
   }
 }
+
+export type CreateVaultNoteResult =
+  | { ok: true; path: string }
+  | { ok: false; error: string }
+
+/**
+ * Client for `POST /api/vault/note` — create a new note at `path` (relative to
+ * the vault, e.g. `Projects/Idea`). The backend seeds a frontmatter + title
+ * stub. A 409 means a note already exists there, a 403 that the path is outside
+ * the persona's sandbox (ADR-083).
+ */
+export async function createVaultNote(
+  path: string,
+  persona: string
+): Promise<CreateVaultNoteResult> {
+  try {
+    const res = await fetch("/api/vault/note", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ path, persona }),
+    })
+    if (res.ok) return { ok: true, path }
+    const detail = await res
+      .json()
+      .then((b) => (b as { detail?: string }).detail)
+      .catch(() => undefined)
+    return { ok: false, error: detail || `Couldn't create note (HTTP ${res.status})` }
+  } catch (err) {
+    return { ok: false, error: `Couldn't create note — backend unreachable (${err})` }
+  }
+}

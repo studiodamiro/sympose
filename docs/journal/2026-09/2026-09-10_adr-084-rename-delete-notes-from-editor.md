@@ -98,6 +98,14 @@ so a deleted file's row lingered until the next mtime-drift rebuild.
   `Projects/`) keep the stale prefix; they still resolve by stem in Obsidian.
   Same-folder rename — the common case — is exact.
 
+### Follow-up (same day)
+
+The same actions now also hang off the **vault tree rows** — a `⋯` button on
+row hover / focus, or right-click on the row (`<VaultRowMenu>`): Rename… and
+Delete… on a note row, "New note here" on a folder row (creates
+`Folder/Untitled`, auto-numbered). It reuses these endpoints unchanged; the app
+shell fixes up `selectedNote` and re-pulls the tree via the row callbacks.
+
 ## Alternatives rejected
 
 - **Hard `os.remove` on delete.** Simpler, but unrecoverable unless the vault
@@ -111,9 +119,6 @@ so a deleted file's row lingered until the next mtime-drift rebuild.
   for the same resource. `PATCH` (partial update — the name) and `DELETE` are
   the standard verbs; they sit naturally next to the existing `GET` / `PUT` /
   `POST` on `/api/vault/note`.
-- **Tree-row context menus for rename/delete.** The Obsidian-native spot, and
-  worth adding later, but this pass is editor-scoped per the request. One menu
-  in one place first.
 - **A confirmation `Dialog` for delete.** Heavier than the action needs; the
   toast action is a single, dismissible, undo-shaped affordance and keeps the
   editor uninterrupted.

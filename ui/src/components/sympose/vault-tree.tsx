@@ -11,6 +11,7 @@ import {
 
 import { cn } from "@/lib/utils"
 import { getCookie, setCookie } from "@/lib/cookies"
+import { VaultRowMenu } from "@/components/sympose/vault-row-menu"
 
 /**
  * Vault directory tree (UI_DESIGN_REFERENCE.md §5 / Module C). Collapsible,
@@ -21,6 +22,10 @@ import { getCookie, setCookie } from "@/lib/cookies"
  * With a `storageKey`, the set of expanded folder paths is persisted to that
  * cookie so the open/closed shape survives a reload. Paths are vault-absolute
  * and therefore unique across folder views, so one key can back every panel.
+ *
+ * Pass `persona` + the `onRenamed` / `onDeleted` / `onCreated` callbacks to
+ * enable per-row actions (rename / delete a note, new note in a folder —
+ * ADR-084): a `⋯` button on hover / focus, or right-click on the row.
  */
 export interface VaultNode {
   name: string
@@ -42,7 +47,20 @@ export function filterVaultTree(nodes: VaultNode[]): VaultNode[] {
     )
 }
 
-interface VaultTreeProps extends Omit<React.ComponentProps<"div">, "onSelect"> {
+interface RowActions {
+  /** Persona handle scoping the vault-note API calls. */
+  persona?: string
+  /** A note row was renamed: old path → new vault-relative path. */
+  onRenamed?: (oldPath: string, newPath: string) => void
+  /** A note row was moved to trash. */
+  onDeleted?: (path: string) => void
+  /** A new note was created from a folder row. */
+  onCreated?: (path: string) => void
+}
+
+interface VaultTreeProps
+  extends Omit<React.ComponentProps<"div">, "onSelect">,
+    RowActions {
   nodes: VaultNode[]
   selectedPath?: string
   defaultExpanded?: string[]
@@ -58,6 +76,10 @@ function VaultTree({
   defaultExpanded = [],
   storageKey,
   onSelect,
+  persona,
+  onRenamed,
+  onDeleted,
+  onCreated,
   ...props
 }: VaultTreeProps) {
   const [expanded, setExpanded] = React.useState<Set<string>>(() => {
@@ -83,6 +105,7 @@ function VaultTree({
   }, [])
 
   const visible = React.useMemo(() => filterVaultTree(nodes), [nodes])
+  const actions: RowActions = { persona, onRenamed, onDeleted, onCreated }
 
   return (
     <div
@@ -100,6 +123,7 @@ function VaultTree({
           onToggle={toggle}
           selectedPath={selectedPath}
           onSelect={onSelect}
+          actions={actions}
         />
       ))}
     </div>
@@ -119,6 +143,7 @@ function VaultTreeRow({
   onToggle,
   selectedPath,
   onSelect,
+  actions,
 }: {
   node: VaultNode
   depth: number
@@ -126,10 +151,36 @@ function VaultTreeRow({
   onToggle: (path: string) => void
   selectedPath?: string
   onSelect?: (node: VaultNode) => void
+  actions: RowActions
 }) {
   const isOpen = expanded.has(node.path)
   const isSelected = selectedPath === node.path
-  const pad = { paddingLeft: `${depth * 14}px` }
+  const basePad = depth * 14
+  const [menuOpen, setMenuOpen] = React.useState(false)
+
+  const menu =
+    actions.persona &&
+    actions.onRenamed &&
+    actions.onDeleted &&
+    actions.onCreated ? (
+      <VaultRowMenu
+        node={node}
+        persona={actions.persona}
+        paddingLeft={node.type === "folder" ? basePad : basePad + (depth > 0 ? 20 : 0)}
+        open={menuOpen}
+        onOpenChange={setMenuOpen}
+        onRenamed={actions.onRenamed}
+        onDeleted={actions.onDeleted}
+        onCreated={actions.onCreated}
+      />
+    ) : null
+
+  const onContextMenu = menu
+    ? (e: React.MouseEvent) => {
+        e.preventDefault()
+        setMenuOpen(true)
+      }
+    : undefined
 
   if (node.type === "folder") {
     const FolderGlyph = isDailyFolder(node.name)
@@ -139,25 +190,31 @@ function VaultTreeRow({
         : Folder01Icon
     return (
       <div role="treeitem" aria-expanded={isOpen}>
-        <button
-          type="button"
-          onClick={() => onToggle(node.path)}
-          style={pad}
-          className={cn(
-            "group/row flex w-full items-center gap-1.5 py-1 pr-2 text-left text-muted-foreground transition-colors hover:bg-accent hover:text-foreground",
-            "focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
-          )}
+        <div
+          className="group/row relative flex items-center"
+          onContextMenu={onContextMenu}
         >
-          <HugeiconsIcon
-            icon={ArrowRight01Icon}
+          <button
+            type="button"
+            onClick={() => onToggle(node.path)}
+            style={{ paddingLeft: `${basePad}px` }}
             className={cn(
-              "size-3.5 shrink-0 text-fg-muted transition-transform",
-              isOpen && "rotate-90"
+              "flex min-w-0 flex-1 items-center gap-1.5 py-1 pr-8 text-left text-muted-foreground transition-colors hover:bg-accent hover:text-foreground",
+              "focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
             )}
-          />
-          <HugeiconsIcon icon={FolderGlyph} className="size-3.5 shrink-0" />
-          <span className="truncate font-mono text-xs">{node.name}</span>
-        </button>
+          >
+            <HugeiconsIcon
+              icon={ArrowRight01Icon}
+              className={cn(
+                "size-3.5 shrink-0 text-fg-muted transition-transform",
+                isOpen && "rotate-90"
+              )}
+            />
+            <HugeiconsIcon icon={FolderGlyph} className="size-3.5 shrink-0" />
+            <span className="truncate font-mono text-xs">{node.name}</span>
+          </button>
+          {menu}
+        </div>
         {isOpen &&
           node.children?.map((child) => (
             <VaultTreeRow
@@ -168,6 +225,7 @@ function VaultTreeRow({
               onToggle={onToggle}
               selectedPath={selectedPath}
               onSelect={onSelect}
+              actions={actions}
             />
           ))}
       </div>
@@ -175,29 +233,35 @@ function VaultTreeRow({
   }
 
   return (
-    <button
-      type="button"
+    <div
       role="treeitem"
       aria-selected={isSelected}
-      onClick={() => onSelect?.(node)}
-      // Nested notes align under the parent folder's label (+20 clears the
-      // disclosure chevron); top-level notes have no folder above them, so
-      // they sit flush with the panel gutter (matching Settings / Agent).
-      style={{ paddingLeft: `${depth * 14 + (depth > 0 ? 20 : 0)}px` }}
-      className={cn(
-        "flex w-full items-center gap-1.5 py-1 pr-2 text-left transition-colors",
-        "focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none",
-        isSelected
-          ? "bg-accent text-entity"
-          : "text-entity/85 hover:bg-accent hover:text-entity"
-      )}
+      className="group/row relative flex items-center"
+      onContextMenu={onContextMenu}
     >
-      <HugeiconsIcon
-        icon={node.name.endsWith(".md") ? Note01Icon : File01Icon}
-        className="size-3.5 shrink-0 text-fg-muted"
-      />
-      <span className="truncate">{node.name}</span>
-    </button>
+      <button
+        type="button"
+        onClick={() => onSelect?.(node)}
+        // Nested notes align under the parent folder's label (+20 clears the
+        // disclosure chevron); top-level notes have no folder above them, so
+        // they sit flush with the panel gutter (matching Settings / Agent).
+        style={{ paddingLeft: `${basePad + (depth > 0 ? 20 : 0)}px` }}
+        className={cn(
+          "flex min-w-0 flex-1 items-center gap-1.5 py-1 pr-8 text-left transition-colors",
+          "focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none",
+          isSelected
+            ? "bg-accent text-entity"
+            : "text-entity/85 hover:bg-accent hover:text-entity"
+        )}
+      >
+        <HugeiconsIcon
+          icon={node.name.endsWith(".md") ? Note01Icon : File01Icon}
+          className="size-3.5 shrink-0 text-fg-muted"
+        />
+        <span className="truncate">{node.name}</span>
+      </button>
+      {menu}
+    </div>
   )
 }
 

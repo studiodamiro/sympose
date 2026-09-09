@@ -455,6 +455,20 @@ export function AppShell() {
             storageKey="sympose:vault.expanded"
             selectedPath={selectedNote}
             onSelect={(node) => setSelectedNote(node.path)}
+            persona={activePersona}
+            onRenamed={(oldPath, newPath) => {
+              setVaultRefreshKey((k) => k + 1)
+              if (selectedNote === oldPath) setSelectedNote(newPath)
+            }}
+            onDeleted={(path) => {
+              setVaultRefreshKey((k) => k + 1)
+              if (selectedNote === path) setSelectedNote(undefined)
+            }}
+            onCreated={(path) => {
+              setVaultRefreshKey((k) => k + 1)
+              setSelectedNote(path)
+              panels.open("editor")
+            }}
           />
         )}
       </div>

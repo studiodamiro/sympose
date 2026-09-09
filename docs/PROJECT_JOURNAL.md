@@ -25,6 +25,7 @@ one in [`docs/wiki/index.md`](./wiki/index.md) are kept in sync per the
 
 | ADR | Title | Status | Date | Source |
 | --- | ----- | ------ | ---- | ------ |
+| ADR-080 | Stylo as the Vault Markdown Editor | Accepted | 2026-09-10 | [2026-09-10_adr-080-stylo-vault-markdown-editor.md](./journal/2026-09/2026-09-10_adr-080-stylo-vault-markdown-editor.md) |
 | ADR-079 | Prebuilt Dashboard Bundle Shipped in the Package | Accepted | 2026-09-09 | [2026-09-09_adr-079-prebuilt-dashboard-bundle.md](./journal/2026-09/2026-09-09_adr-079-prebuilt-dashboard-bundle.md) |
 | ADR-078 | Materialized Vault Manifest (Structural Map) for the Agent & Dashboard Graph | Accepted | 2026-09-09 | [2026-09-09_adr-078-vault-manifest-materialized-map.md](./journal/2026-09/2026-09-09_adr-078-vault-manifest-materialized-map.md) |
 | ADR-077 | Declarative Configuration Schema as Single Source of Truth | Accepted | 2026-09-08 | [2026-09-08_adr-077-declarative-configuration-schema.md](./journal/2026-09/2026-09-08_adr-077-declarative-configuration-schema.md) |
@@ -116,6 +117,8 @@ one in [`docs/wiki/index.md`](./wiki/index.md) are kept in sync per the
 
 | Date | Entry |
 | ---- | ----- |
+| 2026-09-10 | [Stylo Integration — Vault Wiring, Editor Preferences & UI Polish (ADR-080)](./journal/2026-09/2026-09-10_stylo-editor-integration-and-polish.md) |
+| 2026-09-10 | [ADR-080 — Stylo as the Vault Markdown Editor](./journal/2026-09/2026-09-10_adr-080-stylo-vault-markdown-editor.md) |
 | 2026-09-09 | [ADR-079 — Prebuilt Dashboard Bundle Shipped in the Package](./journal/2026-09/2026-09-09_adr-079-prebuilt-dashboard-bundle.md) |
 | 2026-09-09 | [Dashboard Agent Picker & Persona-Scoped Vault Tree](./journal/2026-09/2026-09-09_dashboard-agent-picker.md) |
 | 2026-09-09 | [ADR-078 — Materialized Vault Manifest (Structural Map) for the Agent & Dashboard Graph](./journal/2026-09/2026-09-09_adr-078-vault-manifest-materialized-map.md) |

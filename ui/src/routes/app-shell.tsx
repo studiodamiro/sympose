@@ -20,12 +20,14 @@ import { useFillWidth } from "@/lib/use-fill-width"
 import { useTransientFlag } from "@/lib/use-transient-flag"
 import { usePanels } from "@/lib/use-panels"
 import { useActivePersona } from "@/lib/use-active-persona"
+import { useEditorPreferences } from "@/lib/use-editor-preferences"
 import {
   fetchPersonas,
   resolvePersonaVisuals,
   type LivePersona,
 } from "@/lib/personas"
 import { fetchVaultTree } from "@/lib/vault-tree-api"
+import { findNoteByWikilink } from "@/lib/find-note-by-wikilink"
 import { VAULT_FOLDERS } from "@/lib/vault-folders"
 import {
   ActionBadge,
@@ -34,6 +36,7 @@ import {
   ChatMessage,
   ChatPanel,
   ContentPanel,
+  EditorPreferencesSection,
   MainMenu,
   MarkdownPanel,
   MENU_ACCOUNT_ID,
@@ -225,19 +228,23 @@ export function AppShell() {
   // opening or closing. Otherwise max-width just follows the live measurement
   // instantly, so the chat tracks a neighbour's slide instead of lagging it.
   const chatToggling = useTransientFlag(chatOpen)
-  // Editor grows into the chat's area when nothing sits to its right — but only
-  // on the smaller breakpoints, where space is scarce. On desktop it keeps its
-  // dragged width and the freed area just sits blank when chat closes (a
-  // full-bleed editor is an uncomfortable measure on a wide screen). Content
-  // never grows — it is navigation, it keeps its dragged width even when alone.
-  const editorFill =
-    breakpoint !== "desktop" && editorOpen && !chatOpen && !unfillFirst
+  // Editor grows into whatever's free to its right — the chat's area, the
+  // content panel's if that's closed too — on every breakpoint, not just the
+  // smaller ones. (Desktop used to keep its dragged width and leave the freed
+  // area blank instead, on the theory that a full-bleed editor reads
+  // uncomfortably wide; but the editor's own canvas no longer caps its
+  // reading measure either — see the markdown panel's own full-width pass —
+  // so that box was just leaving real vacated space empty for no remaining
+  // benefit.) Content never grows — it is navigation, it keeps its dragged
+  // width even when alone.
+  const editorFill = editorOpen && !chatOpen && !unfillFirst
 
   // Agent picker — the active persona is client state (a cookie), and the
   // roster is fetched once. Both feed the `MENU_ACCOUNT_ID` panel; the handle
   // is lifted here so the vault panels can scope their `?persona=` calls to it
   // once those land.
   const [activePersona, setActivePersona] = useActivePersona()
+  const [editorPrefs, setEditorPref] = useEditorPreferences()
   const [personas, setPersonas] = React.useState<LivePersona[]>([])
   React.useEffect(() => {
     let alive = true
@@ -275,6 +282,17 @@ export function AppShell() {
   const noteIds = new Set(
     vaultTree.filter((n) => n.type === "note").map((n) => n.path)
   )
+
+  // A `[[wikilink]]` clicked inside the open note — resolve it against the
+  // full (nested) tree by filename stem and jump the editor there. Silently
+  // does nothing for a target the sandboxed tree doesn't contain.
+  const openWikilink = (target: string) => {
+    const match = findNoteByWikilink(vaultTree, target)
+    if (match) {
+      setSelectedNote(match.path)
+      panels.open("editor")
+    }
+  }
 
   // `active` holds the user's last explicit pick; a persisted folder id that no
   // longer exists (e.g. after switching to a persona with a narrower sandbox)
@@ -336,6 +354,7 @@ export function AppShell() {
           third closes whichever you touched longest ago, and the rightmost one
           grows to fill the space.
         </p>
+        <EditorPreferencesSection prefs={editorPrefs} setPref={setEditorPref} />
       </>
     ) : (
       <div className="flex flex-col gap-2">
@@ -474,6 +493,7 @@ export function AppShell() {
             open={contentOpen}
             phone={isPhone}
             plain={plainPage}
+            fill={active === MENU_SETTINGS_ID || active === MENU_ACCOUNT_ID}
             flushBottomLeft={
               !isPhone && contentOpen && active === MENU_ACCOUNT_ID
             }
@@ -483,6 +503,10 @@ export function AppShell() {
 
           <MarkdownPanel
             storageKey="sympose:shell.md"
+            path={selectedNote}
+            persona={activePersona}
+            onWikiLinkClick={openWikilink}
+            preferences={editorPrefs}
             open={editorOpen}
             fill={editorFill}
             phone={isPhone}
@@ -494,11 +518,13 @@ export function AppShell() {
               margin). max-width clamps it to the same measurement: normally it
               just follows along, but for the ~320ms the chat is itself opening
               or closing (`chatToggling`) the max-width transition is armed so
-              the collapse tweens between real pixel widths. On desktop the clamp
-              stays at the full width even while closed, so the editor keeps its
-              width and the area just sits blank — the toggle there reads as a
-              crossfade + slide-up-from-below. Chat sits one z-level below the
-              editor, so any horizontal motion starts from the editor's edge. */}
+              the collapse tweens between real pixel widths — collapsing to 0
+              when closed, on every breakpoint, is what actually frees the width
+              `editorFill` above grows the editor into; the chat panel itself is
+              always faded/translated out regardless, so the toggle still reads
+              as a crossfade even though the width is now moving too. Chat sits
+              one z-level below the editor, so any horizontal motion starts from
+              the editor's edge. */}
           <div
             ref={chatSlotRef}
             data-state={chatOpen ? "open" : "closed"}
@@ -515,8 +541,7 @@ export function AppShell() {
               flexGrow: 1,
               flexShrink: 1,
               flexBasis: 0,
-              maxWidth:
-                chatOpen || breakpoint === "desktop" ? chatAvailW || 9999 : 0,
+              maxWidth: chatOpen ? chatAvailW || 9999 : 0,
             }}
           >
             <ChatPanel

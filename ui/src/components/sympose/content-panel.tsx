@@ -45,6 +45,21 @@ interface ContentPanelProps extends React.ComponentProps<"div"> {
    */
   plain?: boolean
   /**
+   * Desktop: for the same "destination, not vault navigation" pages `plain`
+   * already carves out (Settings, Agent). Stays a normal, draggable panel
+   * (the resize handle is not dropped, and its ceiling lifts to the full
+   * stage width instead of the ordinary half): the dragged width from before
+   * `fill` turned on is remembered and restored when it turns back off, so
+   * resizing a destination page never bleeds into the vault view's own
+   * (cookie-persisted) width. A width dragged while filled gets its own
+   * cookie (`${storageKey}.fill`) and comes back the next time `fill` turns
+   * on; before that's ever happened, it starts at the same default third of
+   * the stage the vault view itself defaults to — full-bleed only reads
+   * right on the phone shell, where this prop plays no part at all (`phone`
+   * already fills the row on its own).
+   */
+  fill?: boolean
+  /**
    * Cookie key for the inner scroll offset. Restored on mount and written back
    * (debounced) as the user scrolls — the panel is often hidden on phone, so it
    * should come back exactly where it was left.
@@ -64,6 +79,7 @@ function ContentPanel({
   flushBottomLeft = false,
   phone = false,
   plain = false,
+  fill = false,
   scrollKey,
   children,
   style,
@@ -95,25 +111,67 @@ function ContentPanel({
     [scrollKey]
   )
 
+  // An eighth of the stage, not a quarter — `<MarkdownPanel>`'s own `min`
+  // mirrors this exact rule (see its comment) so neither working panel can be
+  // dragged narrower than the other; keep the two in sync if this changes.
   const min = React.useCallback(
-    () => Math.round(stageWidth(wrapRef.current) / 4),
+    () => Math.round(stageWidth(wrapRef.current) / 8),
     []
   )
+  // Normally capped at half the stage, same as always — but while `fill` is
+  // on, the ceiling lifts to the whole stage: a destination page isn't
+  // competing with a neighbour for room the way the vault view is, so
+  // there's no reason to stop it short of full-bleed if it's dragged there
+  // on purpose (it just doesn't *start* there — see the effect below).
   const max = React.useCallback(
-    () => Math.round(stageWidth(wrapRef.current) / 2),
-    []
+    () =>
+      fill
+        ? stageWidth(wrapRef.current)
+        : Math.round(stageWidth(wrapRef.current) / 2),
+    [fill]
   )
   const defaultSize = React.useCallback(
     () => Math.round(stageWidth(wrapRef.current) / 3),
     []
   )
 
-  const { size, dragging, handleProps } = useResizable({
+  // A separate cookie for the `fill` (Settings / Agent) width — sharing
+  // `storageKey` would mean dragging a destination page's panel silently
+  // overwrites the vault view's own persisted width the moment you next
+  // visit it.
+  const fillStorageKey = storageKey ? `${storageKey}.fill` : undefined
+
+  const { size, setSize, dragging, handleProps } = useResizable({
     min,
     max,
     defaultSize,
-    storageKey,
+    storageKey: fill ? fillStorageKey : storageKey,
   })
+
+  // `fill` starts the panel at its last dragged `fill` width, or the same
+  // default third of the stage the vault view itself defaults to the very
+  // first time — but leaves it a normal, draggable panel from there (see the
+  // prop doc). Dragging while filled commits to `fillStorageKey` just like
+  // any other resize, since `useResizable` above is already pointed at it.
+  // Entering separately saves the vault view's own dragged width in memory to
+  // restore on exit, since that isn't read back from a cookie the way the
+  // two panel widths themselves are.
+  const preFillSize = React.useRef<number | null>(null)
+  const sizeRef = React.useRef(size)
+  sizeRef.current = size
+  const prevFill = React.useRef(fill)
+  React.useEffect(() => {
+    if (fill === prevFill.current) return
+    prevFill.current = fill
+    if (fill) {
+      preFillSize.current = sizeRef.current
+      const stored = fillStorageKey ? getCookieNumber(fillStorageKey) : null
+      setSize(stored ?? defaultSize())
+    } else if (preFillSize.current != null) {
+      setSize(preFillSize.current)
+      preFillSize.current = null
+    }
+  }, [fill, defaultSize, setSize, fillStorageKey])
 
   return (
     <div
@@ -122,16 +180,19 @@ function ContentPanel({
       data-state={open ? "open" : "closed"}
       data-dragging={dragging || undefined}
       className={cn(
-        // never grows — the content panel is navigation, it keeps its dragged
-        // width and leaves the stage to the work surfaces even when it is alone.
-        // z-20: the top of the stage's panel stack (menu is a separate sibling),
-        // so the editor parks *behind* it and slides out from its right edge.
-        "group/panel z-20 data-dragging:select-none",
+        // z-20: the top of the stage's panel stack (menu is a separate
+        // sibling), so the editor parks *behind* it and slides out from its
+        // right edge.
+        "group/panel z-20 min-w-0 data-dragging:select-none",
         phone
           ? // phone: one surface at a time, so the panel is an absolute layer
             // that crossfades + slides a touch from the left on reveal
             "absolute inset-0 flex flex-col transition-[opacity,translate] duration-300 ease-in-out"
-          : "relative shrink-0 py-2 pe-2 transition-[margin,opacity] duration-300 ease-out data-dragging:transition-none",
+          : // `ease-in-out`, not `ease-out` — matches `<MarkdownPanel>` and the
+            // chat slot's own reveal transitions. The odd one out was most
+            // noticeable on hide: the same curve run in reverse looks
+            // asymmetric next to the other two panels closing alongside it.
+            "relative shrink-0 py-2 pe-2 transition-[width,margin,opacity] duration-300 ease-in-out data-dragging:transition-none",
         // desktop reveal: a negative inline-start margin parks the panel one
         // width to the left (clipped by the shell row's overflow-hidden), opening
         // tweens it back to 0 so it fades and slides in from behind <MainMenu>.
@@ -142,7 +203,14 @@ function ContentPanel({
       style={
         phone
           ? style
-          : { width: size, marginInlineStart: open ? 0 : -size, ...style }
+          : {
+              // `size` is the single source of truth for width now — `fill`
+              // only ever seeds or restores it (see the effect above), so
+              // there's no separate flex/max-width clamp to keep in sync.
+              width: size,
+              marginInlineStart: open ? 0 : -size,
+              ...style,
+            }
       }
       {...props}
     >

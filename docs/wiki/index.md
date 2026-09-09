@@ -100,6 +100,7 @@ list and is kept in sync per the
 
 | ADR | Title | Status | Date |
 | --- | ----- | ------ | ---- |
+| [ADR-080](../journal/2026-09/2026-09-10_adr-080-stylo-vault-markdown-editor.md) | Stylo as the Vault Markdown Editor | Accepted | 2026-09-10 |
 | [ADR-079](../journal/2026-09/2026-09-09_adr-079-prebuilt-dashboard-bundle.md) | Prebuilt Dashboard Bundle Shipped in the Package | Accepted | 2026-09-09 |
 | [ADR-078](../journal/2026-09/2026-09-09_adr-078-vault-manifest-materialized-map.md) | Materialized Vault Manifest (Structural Map) for the Agent & Dashboard Graph | Accepted | 2026-09-09 |
 | [ADR-077](../journal/2026-09/2026-09-08_adr-077-declarative-configuration-schema.md) | Declarative Configuration Schema as Single Source of Truth | Accepted | 2026-09-08 |

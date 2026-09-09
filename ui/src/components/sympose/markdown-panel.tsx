@@ -1,6 +1,9 @@
 import * as React from "react"
+import { Stylo, splitFrontmatter, type ToolbarConfig } from "@damiro/stylo"
+import { languages as CODE_LANGUAGES } from "@codemirror/language-data"
+import "@damiro/stylo/styles.css"
+import "@damiro/stylo/katex.css"
 import { HugeiconsIcon } from "@hugeicons/react"
-import type { IconSvgElement } from "@hugeicons/react"
 import {
   FloppyDiskIcon,
   Heading01Icon,
@@ -19,6 +22,10 @@ import { cn } from "@/lib/utils"
 import { useResizable } from "@/lib/use-resizable"
 import { useFillWidth } from "@/lib/use-fill-width"
 import { useTransientFlag } from "@/lib/use-transient-flag"
+import { fetchVaultNote } from "@/lib/vault-note-api"
+import { extractWikilinks } from "@/lib/extract-wikilinks"
+import type { EditorPreferences } from "@/lib/use-editor-preferences"
+import { FrontmatterCard } from "@/components/sympose/frontmatter-card"
 
 /**
  * The markdown editor / reader — the middle stage panel, between `<ContentPanel>`
@@ -27,22 +34,27 @@ import { useTransientFlag } from "@/lib/use-transient-flag"
  * via `storageKey`); when nothing does, pass `fill` and it takes the leftover
  * width instead.
  *
- * Scope for now is a *reader* with an editing chrome on top — the toolbar marks
- * are inert placeholders. What a first cut should carry, and why:
+ * The editing surface is `stylo` (`@damiro/stylo`) in its default `in-place`
+ * mode — frontmatter, headings, and wikilinks render inline in the canvas, so
+ * there is no separate read-only mock to keep in sync with the real document.
+ * `toolbar.sticky` is deliberately left unset: the panel already gives stylo a
+ * bounded height (`min-h-0 flex-1`), so its own toolbar stays pinned as a plain
+ * flex sibling of the scrolling canvas — no `position: fixed`, no watchdog.
  *
- * - A frontmatter header (title / date / agent / tags) — every vault note is a
- *   YAML-front-matter markdown file; surfacing it read-only anchors the note's
- *   identity without a raw `---` block.
- * - Prose with a real type hierarchy (heading, body, blockquote) at a capped
- *   measure — this is a reading surface first.
- * - Inline `[[wikilinks]]`, de-bracketed and in `--brand` for reader mode, plus
- *   an outbound-links footer — the vault is a graph; links are load-bearing.
- * - A minimal toolbar (H1 / H2 · bold / italic / underline / strike · lists ·
- *   code · quote) and a save action. No heading-level dropdown, no tables UI,
- *   no slash menu yet — those are the second pass.
+ * Loading is wired to the vault (`GET /api/vault/note`); writing back to the
+ * vault is not yet — `onSave` is intentionally left unset, so stylo's `save`
+ * toolbar button renders disabled until that lands.
  */
 interface MarkdownPanelProps extends React.ComponentProps<"div"> {
   storageKey?: string
+  /** Relative vault path of the note to load. `undefined` shows the empty state. */
+  path?: string
+  /** Persona handle to scope the `/api/vault/note` request to. */
+  persona?: string
+  /** Fires when the reader clicks a `[[wikilink]]` in the canvas. */
+  onWikiLinkClick?: (target: string) => void
+  /** Editing surface/decoration preferences — Settings > Markdown editor. */
+  preferences: EditorPreferences
   /**
    * Revealed when true (default), collapsed when false. The panel stays mounted
    * either way and transitions its width / opacity / offset, so it fades and
@@ -63,21 +75,52 @@ interface MarkdownPanelProps extends React.ComponentProps<"div"> {
   phone?: boolean
 }
 
-interface Frontmatter {
-  title: string
-  date: string
-  agent: string
-  tags: string[]
+/** stylo's default toolbar minus `undo`/`redo`/`link`/`wikilink`/`hr`/`frontmatter`/
+ *  `table`/`math` — the same command set the old mock's inert buttons implied,
+ *  plus `underline` (opt-in upstream) and `save` (disabled without `onSave`). */
+const TOOLBAR_ITEMS: ToolbarConfig = {
+  items: [
+    "h1",
+    "h2",
+    "|",
+    "bold",
+    "italic",
+    "underline",
+    "strike",
+    "|",
+    "bulletList",
+    "orderedList",
+    "|",
+    "codeBlock",
+    "quote",
+    "|",
+    "save",
+  ],
 }
 
-const SAMPLE_FRONTMATTER: Frontmatter = {
-  title: "Fonts particular weight",
-  date: "2060-08-24",
-  agent: "Samantha",
-  tags: ["jour", "projects", "finance", "virginia"],
-}
+const TOOLBAR_ICONS = {
+  h1: <HugeiconsIcon icon={Heading01Icon} className="size-4" />,
+  h2: <HugeiconsIcon icon={Heading02Icon} className="size-4" />,
+  bold: <HugeiconsIcon icon={TextBoldIcon} className="size-4" />,
+  italic: <HugeiconsIcon icon={TextItalicIcon} className="size-4" />,
+  underline: <HugeiconsIcon icon={TextUnderlineIcon} className="size-4" />,
+  strike: <HugeiconsIcon icon={TextStrikethroughIcon} className="size-4" />,
+  bulletList: (
+    <HugeiconsIcon icon={LeftToRightListBulletIcon} className="size-4" />
+  ),
+  orderedList: (
+    <HugeiconsIcon icon={LeftToRightListNumberIcon} className="size-4" />
+  ),
+  codeBlock: <HugeiconsIcon icon={SourceCodeIcon} className="size-4" />,
+  quote: <HugeiconsIcon icon={QuoteDownIcon} className="size-4" />,
+  save: <HugeiconsIcon icon={FloppyDiskIcon} className="size-4" />,
+} as const
 
-const SAMPLE_LINKS = ["mapping", "designer", "fonts"]
+type NoteLoadState =
+  | { status: "empty" }
+  | { status: "loading" }
+  | { status: "error" }
+  | { status: "ready"; content: string }
 
 /**
  * Live width of an ancestor `levels` up from `ref`. `<ContentPanel>` reads its
@@ -104,39 +147,13 @@ function useAncestorWidth(
   return w
 }
 
-/** One mark button in the toolbar — inert in this mock. */
-function MarkButton({ icon, label }: { icon: IconSvgElement; label: string }) {
-  return (
-    <button
-      type="button"
-      aria-label={label}
-      className="grid size-8 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
-    >
-      <HugeiconsIcon icon={icon} className="size-4" />
-    </button>
-  )
-}
-
-/** A cluster of related mark buttons — clusters wrap as units on narrow widths. */
-function MarkGroup({ children }: { children: React.ReactNode }) {
-  return <div className="flex items-center gap-0.5">{children}</div>
-}
-
-/** Reader-mode wikilink — de-bracketed, `--brand`, opens the note on click. */
-function DocLink({ children }: { children: React.ReactNode }) {
-  return (
-    <button
-      type="button"
-      className="font-semibold text-brand underline-offset-4 hover:underline focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
-    >
-      {children}
-    </button>
-  )
-}
-
 function MarkdownPanel({
   className,
   storageKey,
+  path,
+  persona = "samantha",
+  onWikiLinkClick,
+  preferences,
   open = true,
   fill = false,
   phone = false,
@@ -154,11 +171,11 @@ function MarkdownPanel({
   // editor tracks the content panel sliding out instead of lagging behind it.
   const fillToggling = useTransientFlag(fill)
 
-  // Minimum is a quarter of the shell row — the exact rule `<ContentPanel>`
+  // Minimum is an eighth of the shell row — the exact rule `<ContentPanel>`
   // uses — so neither working panel can be dragged narrower than the other.
   // Otherwise free up to two-thirds of the split area, defaulting to half; the
   // `|| fallback` covers the first render before anything has been measured.
-  const min = React.useCallback(() => Math.round(shellW / 4) || 360, [shellW])
+  const min = React.useCallback(() => Math.round(shellW / 8) || 180, [shellW])
   const max = React.useCallback(
     () => Math.round((stageW * 2) / 3) || 9999,
     [stageW]
@@ -175,7 +192,48 @@ function MarkdownPanel({
     storageKey,
   })
 
-  const fm = SAMPLE_FRONTMATTER
+  // "empty" is derived straight from `path`, not effect-driven state — nothing
+  // to synchronize with an external system until there's a path to fetch. On a
+  // note switch the previous note's content is left showing (no loading flash)
+  // until the new fetch resolves — the same convention `fetchVaultTree` uses.
+  const [fetch, setFetch] = React.useState<Exclude<NoteLoadState, { status: "empty" }>>(
+    { status: "loading" }
+  )
+  const note: NoteLoadState = React.useMemo(
+    () => (path ? fetch : { status: "empty" }),
+    [path, fetch]
+  )
+  // The frontmatter card owns the `---` block entirely — stylo's own value
+  // never sees it, so editing a pill never touches CodeMirror's undo history.
+  const [frontmatter, setFrontmatter] = React.useState<string | null>(null)
+  const [body, setBody] = React.useState("")
+  const { surface, reveal, selectionUI, focusOutline } = preferences
+
+  React.useEffect(() => {
+    if (!path) return
+    let alive = true
+    fetchVaultNote(path, persona).then((result) => {
+      if (!alive) return
+      if (!result) {
+        setFetch({ status: "error" })
+        return
+      }
+      const split = splitFrontmatter(result.content)
+      setFrontmatter(split ? split.frontmatter : null)
+      setBody(split ? split.body : result.content)
+      setFetch({ status: "ready", content: result.content })
+    })
+    return () => {
+      alive = false
+    }
+  }, [path, persona])
+
+  // Outbound `[[wikilinks]]` for the footer — derived from the note as loaded,
+  // not from live keystrokes, so typing never re-scans the whole document.
+  const links = React.useMemo(
+    () => (note.status === "ready" ? extractWikilinks(note.content) : []),
+    [note]
+  )
 
   return (
     <div
@@ -183,6 +241,7 @@ function MarkdownPanel({
       data-slot="markdown-panel"
       data-state={open ? "open" : "closed"}
       data-dragging={dragging || undefined}
+      data-phone={phone || undefined}
       className={cn(
         // same wrapper insets as <ContentPanel>: py-2 top/bottom margin, pe-2
         // right margin — so the gap to <ContentPanel> (its pe-2), the gap to the
@@ -236,119 +295,104 @@ function MarkdownPanel({
             : "rounded-lg bg-panel text-panel-foreground"
         )}
       >
-        {/* toolbar — the mark clusters wrap to multiple rows on narrow widths
-            (tablet); the save action stays pinned to the top-right corner. When
-            the editor fills the stage, extra end padding clears the floating
-            chat action group that overlaps this corner. */}
-        <div
-          className={cn(
-            "flex shrink-0 items-start justify-between gap-2 py-2",
-            // no divider on phone — the editor is a plain surface there; the
-            // toolbar's gutter matches the chat panel's (`px-4`)
-            phone ? "ps-4 pe-4" : "border-b border-border ps-3",
-            !phone && (fill ? "pe-24" : "pe-3")
-          )}
-        >
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-            <MarkGroup>
-              <MarkButton icon={Heading01Icon} label="Heading 1" />
-              <MarkButton icon={Heading02Icon} label="Heading 2" />
-            </MarkGroup>
-            <MarkGroup>
-              <MarkButton icon={TextBoldIcon} label="Bold" />
-              <MarkButton icon={TextItalicIcon} label="Italic" />
-              <MarkButton icon={TextUnderlineIcon} label="Underline" />
-              <MarkButton icon={TextStrikethroughIcon} label="Strikethrough" />
-            </MarkGroup>
-            <MarkGroup>
-              <MarkButton
-                icon={LeftToRightListBulletIcon}
-                label="Bullet list"
-              />
-              <MarkButton
-                icon={LeftToRightListNumberIcon}
-                label="Numbered list"
-              />
-            </MarkGroup>
-            <MarkGroup>
-              <MarkButton icon={SourceCodeIcon} label="Code block" />
-              <MarkButton icon={QuoteDownIcon} label="Blockquote" />
-            </MarkGroup>
+        {note.status === "empty" && (
+          <div className="grid flex-1 place-items-center px-6 text-center text-sm text-fg-muted">
+            Select a note to open it here.
           </div>
-          <button
-            type="button"
-            aria-label="Save note"
-            className="grid size-8 shrink-0 place-items-center self-start rounded-md text-brand transition-colors hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
-          >
-            <HugeiconsIcon icon={FloppyDiskIcon} className="size-4" />
-          </button>
-        </div>
+        )}
 
-        {/* document — on phone the gutter matches the chat panel's (`px-4`) */}
-        <div className="min-h-0 flex-1 overflow-y-auto">
+        {note.status === "loading" && (
+          <div className="grid flex-1 place-items-center px-6 text-center text-sm text-fg-muted">
+            Loading…
+          </div>
+        )}
+
+        {note.status === "error" && (
+          <div className="grid flex-1 place-items-center px-6 text-center text-sm text-fg-muted">
+            Couldn't load this note.
+          </div>
+        )}
+
+        {note.status === "ready" && (
+          // stylo owns its own toolbar + scrolling canvas as one bounded flex
+          // column (`min-h-0` here is what lets its `flex: 1 1 auto` surface
+          // scroll internally instead of the toolbar scrolling away with it).
+          // The key remounts on a note switch (so CodeMirror's undo history and
+          // selection never leak from one note into another) and on a surface/
+          // reveal/selectionUI change from Settings — `inPlace` config and mode
+          // are both applied-at-mount, per stylo's own documented contract.
+          //
+          // Full panel width, no reading-column cap — the frontmatter card
+          // shares it. The frontmatter card itself rides `toolbar.render`
+          // (below) instead of sitting before `<Stylo>`, so it lands *between*
+          // the toolbar and the canvas: the toolbar stays the panel's very
+          // first row, flush with the stage's floating action group.
           <div
-            className={cn(
-              "mx-auto flex max-w-[68ch] flex-col gap-6",
-              phone ? "px-4 py-6" : "px-6 py-6 sm:px-8"
-            )}
+            data-focus-outline={focusOutline}
+            className="flex min-h-0 w-full flex-1 flex-col text-sm leading-relaxed"
           >
-            {/* frontmatter — inverted to bg-background so it lifts off the
-                panel fill (--card is not distinct from --background in light) */}
-            <dl className="grid grid-cols-[max-content_1fr] gap-x-4 gap-y-1.5 rounded-lg border border-border bg-background p-4 font-mono text-xs">
-              <dt className="text-fg-muted uppercase">Title</dt>
-              <dd className="text-foreground">{fm.title}</dd>
-              <dt className="text-fg-muted uppercase">Date</dt>
-              <dd className="text-foreground">{fm.date}</dd>
-              <dt className="text-fg-muted uppercase">Agent</dt>
-              <dd className="text-foreground">{fm.agent}</dd>
-              <dt className="text-fg-muted uppercase">Tags</dt>
-              <dd className="text-foreground">{fm.tags.join(", ")}</dd>
-            </dl>
-
-            {/* prose */}
-            <article className="flex flex-col gap-4 text-sm leading-relaxed text-muted-foreground">
-              <h2 className="font-heading text-lg font-semibold text-fg-strong">
-                {fm.title}
-              </h2>
-              <p>
-                Most fonts have a particular weight which corresponds to one of
-                the numbers in <DocLink>Common weight name mapping</DocLink>.
-                However some fonts, called variable fonts, can support a range
-                of weights with a more or less fine granularity, and this can
-                give the <DocLink>designer</DocLink> a much closer degree of
-                control over the chosen weight.
-              </p>
-              <blockquote className="border-l-2 border-border pl-4 text-fg-muted italic">
-                a man who chooses to enjoy a pleasure that has no annoying
-                consequences
-              </blockquote>
-              <p>
-                However some fonts, called variable fonts, can support a range
-                of weights with a more or less fine granularity, and this can
-                give the designer a much closer degree of control over the
-                chosen weight.
-              </p>
-            </article>
-
-            {/* outbound links */}
-            <div className="flex flex-col gap-2 border-t border-border pt-4">
-              <span className="font-mono text-xs text-fg-muted uppercase">
-                Links
-              </span>
-              <div className="flex flex-wrap gap-2">
-                {SAMPLE_LINKS.map((l) => (
+            <Stylo
+              key={`${path}:${surface}:${reveal}:${selectionUI}`}
+              value={body}
+              onChange={setBody}
+              onWikiLinkClick={onWikiLinkClick}
+              mode={surface}
+              inPlace={{ reveal, selectionUI }}
+              toolbar={{
+                ...TOOLBAR_ITEMS,
+                render: (bar) => (
+                  <>
+                    {bar}
+                    {frontmatter !== null && (
+                      <FrontmatterCard
+                        raw={frontmatter}
+                        onChange={setFrontmatter}
+                        onLinkClick={onWikiLinkClick}
+                        // `mt-2` — the card's own left/right `mx-2` (see
+                        // frontmatter-card.tsx), applied to the top too, so the
+                        // toolbar-to-card gap matches the card's own side
+                        // margins instead of sitting flush underneath it.
+                        // Horizontal *content* padding is the established
+                        // gutter (`px-6 sm:px-8`/`px-4` on phone) minus that
+                        // same `mx-2`, so the labels still land on the note
+                        // body's own left edge rather than double-counting it.
+                        className={cn("mt-2", phone ? "px-2" : "px-4 sm:px-6")}
+                      />
+                    )}
+                  </>
+                ),
+              }}
+              icons={TOOLBAR_ICONS}
+              codeLanguages={CODE_LANGUAGES}
+              placeholder="Start writing…"
+              className="h-full min-h-0 flex-1"
+            />
+            {links.length > 0 && (
+              <div
+                className={cn(
+                  // Same established gutter as the frontmatter card above and
+                  // every other panel (`<ChatPanel>`, `<ContentPanel>`).
+                  "flex shrink-0 flex-wrap items-center gap-2 border-t border-border py-3",
+                  phone ? "px-4" : "px-6 sm:px-8"
+                )}
+              >
+                <span className="font-mono text-xs text-fg-muted uppercase">
+                  Links
+                </span>
+                {links.map((target) => (
                   <button
-                    key={l}
+                    key={target}
                     type="button"
+                    onClick={() => onWikiLinkClick?.(target)}
                     className="rounded-full border border-border bg-background px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
                   >
-                    {l}
+                    {target}
                   </button>
                 ))}
               </div>
-            </div>
+            )}
           </div>
-        </div>
+        )}
       </div>
 
       {/* right-edge resize handle — mirrors <ContentPanel>; gone when filling

@@ -174,3 +174,186 @@
     @apply font-sans;
     }
 }
+
+/* Bridges stylo's `--stylo-*` tokens (ADR-002) onto Sympose's own — every
+   value is a `var()` onto a token that already flips under `.dark`, so this
+   needs no separate dark block of its own. `--stylo-link` takes `--entity`,
+   the token already reserved for "[[wikilinks]], note titles". `.stylo`'s own
+   border/radius are dropped — the markdown panel's card supplies both.
+
+   `--stylo-bg` is `--panel`, not `transparent`: stylo's floating chrome (the
+   right-click menu, its URL input, the selection bar, the link-hover tooltip
+   — all `position: fixed`, all in inplace/theme.ts) reads this same token for
+   its own background, since stylo exposes no separate "floating surface"
+   token. `transparent` here made those popups read as invisible against real
+   content instead of just the base canvas. */
+[data-slot="markdown-panel"] .stylo {
+  height: 100%;
+  border: none;
+  border-radius: 0;
+
+  --stylo-bg: var(--panel);
+  /* Body prose reads as `--muted-foreground`, not full-contrast
+     `--panel-foreground` — matching how every other panel splits its type:
+     `<ChatMessage>`'s own text is `text-muted-foreground`, full-contrast is
+     reserved for headings and labels. `--stylo-text` is inherited by
+     everything in `.cm-content` including headings; the heading rule below
+     bumps `h1`–`h5` back up so they still stand out against the now-muted
+     paragraph text around them. */
+  --stylo-text: var(--muted-foreground);
+  --stylo-text-muted: var(--fg-muted);
+  --stylo-border: var(--border);
+  --stylo-accent: var(--brand);
+  --stylo-link: var(--entity);
+  --stylo-ring: var(--ring);
+  --stylo-radius: var(--radius-md);
+
+  /* Fenced-code syntax colors — stylo ships its own default palette
+     (`tokens.css`), a set of stock, fully-saturated hex hues with no relation
+     to Sympose's own restrained OKLCH accents. Rebuilt here from the same
+     small set every other colored bit of UI already draws from, instead of
+     introducing a code-only rainbow: `--brand` for structural tokens
+     (keywords, functions, markup tags), `--ok` for strings, the amber
+     `--chip-foreground` already used for inline code for literals, `--fg-muted`
+     for comments, and the base text color for anything not worth calling out
+     (types, property names) — only `invalid` keeps `--destructive`, since an
+     actual error is the one case that should still read as an alarm. */
+  --stylo-syntax-keyword: var(--brand);
+  --stylo-syntax-string: var(--ok);
+  --stylo-syntax-escape: var(--chip-foreground);
+  --stylo-syntax-comment: var(--fg-muted);
+  --stylo-syntax-number: var(--chip-foreground);
+  --stylo-syntax-constant: var(--chip-foreground);
+  --stylo-syntax-function: var(--brand);
+  --stylo-syntax-type: var(--stylo-text);
+  --stylo-syntax-property: var(--stylo-text);
+  --stylo-syntax-tag: var(--brand);
+  --stylo-syntax-invalid: var(--destructive);
+}
+
+/* stylo hard-codes a system font stack on `.cm-content` (no `--stylo-font*`
+   token exists to bridge instead), which otherwise wins over the app's own
+   `font-sans` inherited from `html`. Headings get the app's serif display
+   face, matching every other heading in Sympose (`font-heading`, e.g. the
+   vault/settings page titles in `<AppShell>`) instead of the canvas's own
+   fallback stack. `!important` because CodeMirror's `EditorView.theme`
+   compiles to a selector this specific already. */
+[data-slot="markdown-panel"] .cm-content {
+  font-family: var(--font-sans) !important;
+}
+[data-slot="markdown-panel"] .cm-inplace-h1,
+[data-slot="markdown-panel"] .cm-inplace-h2,
+[data-slot="markdown-panel"] .cm-inplace-h3,
+[data-slot="markdown-panel"] .cm-inplace-h4,
+[data-slot="markdown-panel"] .cm-inplace-h5,
+[data-slot="markdown-panel"] .cm-inplace-h6 {
+  font-family: var(--font-heading) !important;
+}
+/* Full-contrast against the muted `--stylo-text` body color above, matching
+   how every page title in Sympose (`font-heading text-fg-strong`) is already
+   the strong color while its surrounding body copy is muted. Not `h6`: stylo
+   already gives it its own deliberately-muted treatment
+   (`color: var(--stylo-text-muted)` in its own theme), one step further down
+   than body text — leave that distinction alone. */
+[data-slot="markdown-panel"] .cm-inplace-h1,
+[data-slot="markdown-panel"] .cm-inplace-h2,
+[data-slot="markdown-panel"] .cm-inplace-h3,
+[data-slot="markdown-panel"] .cm-inplace-h4,
+[data-slot="markdown-panel"] .cm-inplace-h5 {
+  color: var(--fg-strong) !important;
+}
+
+/* stylo's own base theme sets `.cm-editor`'s font-size directly (`0.9375rem`,
+   15px) — a plain-CSS declaration on the element itself, so the `text-sm`
+   (14px) this panel is wrapped in never reaches it by inheritance. Every
+   in-place heading is sized in `em` off this one value, so leaving it alone
+   doesn't just make body text a pixel larger than the rest of the app — it
+   scales every heading up with it. */
+[data-slot="markdown-panel"] .cm-editor {
+  font-size: 0.875rem !important;
+}
+
+/* stylo's own `.cm-content` gutter (`0.75rem` on every side) is narrower than
+   every other panel's established horizontal margin — widened to match so the
+   note body's left edge lines up with the frontmatter card and Links footer
+   above/below it (`px-6 sm:px-8`, or `px-4` on the phone shell — the same
+   `data-phone` markdown-panel.tsx already carries for this purpose) instead
+   of reading as its own margin. Vertical padding is untouched (stylo's own
+   rhythm). */
+[data-slot="markdown-panel"] .cm-content {
+  padding-left: 1.5rem !important;
+  padding-right: 1.5rem !important;
+}
+@media (min-width: 640px) {
+  [data-slot="markdown-panel"] .cm-content {
+    padding-left: 2rem !important;
+    padding-right: 2rem !important;
+  }
+}
+[data-slot="markdown-panel"][data-phone] .cm-content {
+  padding-left: 1rem !important;
+  padding-right: 1rem !important;
+}
+
+/* stylo's floating chrome (context menu, its URL input, selection bar,
+   link-hover tooltip) shares the CSS class names below across both. Giving
+   them their own frosted `--popover` surface — rather than just inheriting
+   the flat `--panel` above — is what actually makes a menu read as "above"
+   the document instead of blending into it. */
+[data-slot="markdown-panel"] .cm-inplace-menu-panel,
+[data-slot="markdown-panel"] .cm-inplace-menu-input,
+[data-slot="markdown-panel"] .cm-inplace-selbar,
+[data-slot="markdown-panel"] .cm-inplace-href-tip {
+  background: color-mix(in srgb, var(--popover) 82%, transparent) !important;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+/* stylo runs two independent floating affordances that can legitimately be
+   on screen at once and don't know about each other: the persistent
+   selection-formatting bar (`inPlace.selectionUI: "bar"`) and the right-click
+   menu — right-clicking a selection while the bar mode is on opens the menu
+   directly on top of the still-showing bar. `.cm-inplace-menu` is the menu's
+   own (visibility-toggling, `hidden`-attributed) wrapper, present for both
+   the right-click menu and the bar's own link/wikilink field popup — either
+   one open is reason enough to step the bar aside until it closes. */
+[data-slot="markdown-panel"] .cm-editor:has(.cm-inplace-menu:not([hidden])) .cm-inplace-selbar {
+  display: none !important;
+}
+
+/* The focus ring CodeMirror draws around the whole editing surface —
+   `.cm-editor.cm-focused` in stylo.module.css — toggled from Settings >
+   Markdown editor > Focus outline. Scoped to the outline only, not
+   `--stylo-ring` itself, since that token doubles as the active-menu-item
+   accent color elsewhere in stylo's theme. */
+[data-focus-outline="off"] .cm-editor.cm-focused {
+  outline: none !important;
+}
+
+/* A minimal, auto-hiding scrollbar app-wide — invisible at rest, a thin
+   `--border`-colored thumb while the pointer is over the scrolling box.
+   Applied globally (not just the editor's `.cm-scroller`) so every scroll
+   container — the vault tree, chat transcript, settings, the editing
+   surface — reads as one consistent scrollbar rather than the editor's
+   custom one next to the browser's stock ones everywhere else. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+*:hover {
+  scrollbar-color: var(--border) transparent;
+}
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 999px;
+}
+*:hover::-webkit-scrollbar-thumb {
+  background: var(--border);
+}

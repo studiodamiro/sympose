@@ -6,7 +6,9 @@ export { ChatActionGroup, ChatPanel } from "./chat-panel"
 export { ContentPanel } from "./content-panel"
 export { Composer } from "./composer"
 export { ControlRow, ControlSection } from "./control-section"
+export { EditorPreferencesSection } from "./editor-preferences-section"
 export { EntityPath } from "./entity-path"
+export { FrontmatterCard } from "./frontmatter-card"
 // `KnowledgeNebula` is intentionally NOT re-exported here — it pulls in
 // three.js / 3d-force-graph, and this barrel is imported by the app shell.
 // Import it directly from "@/components/sympose/knowledge-nebula", lazily.

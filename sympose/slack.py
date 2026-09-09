@@ -3,7 +3,7 @@
 Multi-agent concurrent router, thread context fetcher & event dispatcher.
 """
 
-import os, re, sys, time, logging, threading
+import os, re, sys, time, atexit, logging, threading
 from collections import defaultdict
 from typing import Dict, List, Tuple, Any, Optional, Set
 
@@ -13,6 +13,7 @@ except ImportError: App, SocketModeHandler = None, None
 from sympose.engine import PersonaEngine
 from sympose.actions import ActionProcessor
 from sympose.config import convert_md_to_slack_mrkdwn
+from sympose import slack_heartbeat
 
 log = logging.getLogger(__name__)
 
@@ -240,13 +241,30 @@ class MultiAgentSlackRunner:
     """Discovers and runs all configured persona Slack bots concurrently."""
 
     @classmethod
-    def run_all(cls, engine: PersonaEngine, persona_override: Optional[str] = None) -> None:
+    def run_all(cls, engine: PersonaEngine, persona_override: Optional[str] = None, workspace_dir: Optional[str] = None) -> None:
         daemons = [d for h in ([persona_override.lower()] if persona_override else [p["handle"].lower() for p in engine.pm.list_personas()]) if (d := SlackDaemon(engine, default_persona=h))._validate_tokens() and d.setup()]
         if not daemons:
             sys.exit("⚠️ [Sympose Slack] Missing or invalid Slack tokens in .env.")
         log.info("[Sympose] Launching %d Slack Agent(s)...", len(daemons))
+        if workspace_dir:
+            cls._start_heartbeat(workspace_dir, [d.default_persona for d in daemons])
         threads = [threading.Thread(target=d.start, daemon=True) for d in daemons]
         for t in threads: t.start()
         try:
             for t in threads: t.join()
         except (KeyboardInterrupt, SystemExit): pass
+
+    @staticmethod
+    def _start_heartbeat(workspace_dir: str, personas: List[str]) -> None:
+        """Stamp `.slack_heartbeat.json` now and every `WRITE_INTERVAL`s from a
+        daemon thread, so `GET /api/slack/status` can tell the dashboard whether
+        Slack is live (ADR-082). Cleared on a clean exit."""
+        slack_heartbeat.write_heartbeat(workspace_dir, personas)
+        atexit.register(slack_heartbeat.clear_heartbeat, workspace_dir)
+
+        def _loop() -> None:
+            while True:
+                time.sleep(slack_heartbeat.WRITE_INTERVAL)
+                slack_heartbeat.write_heartbeat(workspace_dir, personas)
+
+        threading.Thread(target=_loop, daemon=True, name="slack-heartbeat").start()

@@ -41,6 +41,8 @@ import {
   MarkdownPanel,
   MENU_ACCOUNT_ID,
   MENU_SETTINGS_ID,
+  SlackStatusPill,
+  ThemeToggle,
   TopBar,
   VaultTree,
   type MainMenuItem,
@@ -355,6 +357,13 @@ export function AppShell() {
           grows to fill the space.
         </p>
         <EditorPreferencesSection prefs={editorPrefs} setPref={setEditorPref} />
+        {/* Footer — pinned to the panel's bottom edge. Read-only Slack daemon
+            status (ADR-082) on the left, the compact light/dark switch on the
+            right. */}
+        <div className="mt-auto flex items-center justify-between gap-4 border-t border-border pt-4">
+          <SlackStatusPill />
+          <ThemeToggle />
+        </div>
       </>
     ) : (
       <div className="flex flex-col gap-2">

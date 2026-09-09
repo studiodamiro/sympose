@@ -10,6 +10,9 @@
 # sqlite_fts vault search index, generated per-workspace (ADR-070.5)
 .vault_index/
 
+# Slack daemon liveness heartbeat, written per-workspace (ADR-082)
+.slack_heartbeat.json
+
 # Python
 __pycache__/
 *.py[cod]

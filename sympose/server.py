@@ -13,6 +13,8 @@ from pydantic import BaseModel, Field
 from sympose.vault import VaultManager
 from sympose.config import config_manager
 from sympose.auth import require_dashboard_auth
+from sympose import slack_heartbeat
+from sympose.workspace import resolve_workspace_dir
 
 log = logging.getLogger(__name__)
 
@@ -26,11 +28,14 @@ class NoteWrite(BaseModel):
     persona: str = "samantha"
 
 
-def create_app(engine: Any) -> FastAPI:
+def create_app(engine: Any, workspace_dir: Optional[str] = None) -> FastAPI:
     """Factory creating the FastAPI application bound to a PersonaEngine instance.
     Every route (including `/`, `/docs`, and the vault/config API) sits behind the
     ADR-064.1 password guard — call `ensure_dashboard_password()` before this so
-    `DASHBOARD_PASSWORD` is set in the environment first."""
+    `DASHBOARD_PASSWORD` is set in the environment first. `workspace_dir` locates
+    per-workspace runtime state (the Slack heartbeat); it defaults to the same
+    resolution the CLI uses."""
+    workspace_dir = workspace_dir or resolve_workspace_dir()
     app = FastAPI(
         title="Sympose Multi-Model Agent Hub API",
         version="0.2.24",
@@ -86,6 +91,14 @@ def create_app(engine: Any) -> FastAPI:
     @app.get("/api/config")
     def get_config() -> Dict[str, Any]:
         return {"config": engine.config.data}
+
+    @app.get("/api/slack/status")
+    def slack_status() -> Dict[str, Any]:
+        """Liveness of the `sympose --slack` daemon, read from its workspace
+        heartbeat file (ADR-082): `state` is `connected` / `stale` / `offline`,
+        with `last_seen` and the live persona handles. Read-only — the dashboard
+        never starts or stops the daemon."""
+        return slack_heartbeat.read_status(workspace_dir)
 
     @app.get("/api/vault/backlinks")
     def get_backlinks(
@@ -252,7 +265,7 @@ def run_server(engine: Any, workspace_dir: str, host: str = "127.0.0.1", port: i
     from sympose.auth import ensure_dashboard_password, DASHBOARD_USER
 
     password = ensure_dashboard_password(workspace_dir)
-    app = create_app(engine)
+    app = create_app(engine, workspace_dir=workspace_dir)
 
     ssl_kwargs: Dict[str, Any] = {}
     if tls:

@@ -68,7 +68,7 @@ def main():
             tls=tls_enabled,
         )
     elif args.slack:
-        MultiAgentSlackRunner.run_all(engine, persona_override=args.persona)
+        MultiAgentSlackRunner.run_all(engine, persona_override=args.persona, workspace_dir=workspace_dir)
     else:
         cli = TerminalInterface(engine)
         cli.run(initial_handle=default_persona)

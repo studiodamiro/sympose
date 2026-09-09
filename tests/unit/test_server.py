@@ -43,6 +43,24 @@ def test_vault_note_write_endpoint_registered():
     assert put_routes, "PUT /api/vault/note missing — the dashboard editor cannot save"
 
 
+def test_slack_status_endpoint_registered_and_reads_heartbeat(tmp_path, monkeypatch):
+    from sympose import slack_heartbeat
+
+    engine = MagicMock()
+    engine.pm.profiles = {}
+    app = create_app(engine, workspace_dir=str(tmp_path))
+    route = _route(app, "/api/slack/status")
+
+    # No heartbeat file yet -> offline
+    assert route.endpoint()["state"] == "offline"
+
+    # Daemon writes one -> connected, with persona handles
+    slack_heartbeat.write_heartbeat(str(tmp_path), ["samantha"])
+    payload = route.endpoint()
+    assert payload["state"] == "connected"
+    assert payload["personas"] == ["samantha"]
+
+
 class TestVaultNoteWrite:
     """`PUT /api/vault/note` maps `VaultManager.overwrite_note`'s sentinels onto
     HTTP status codes (ADR-081)."""

@@ -100,6 +100,7 @@ list and is kept in sync per the
 
 | ADR | Title | Status | Date |
 | --- | ----- | ------ | ---- |
+| [ADR-082](../journal/2026-09/2026-09-10_adr-082-slack-heartbeat-status.md) | Slack Daemon Heartbeat & Dashboard Status Pill | Accepted | 2026-09-10 |
 | [ADR-081](../journal/2026-09/2026-09-10_adr-081-vault-note-write-back.md) | Vault Note Write-Back from the Dashboard Editor | Accepted | 2026-09-10 |
 | [ADR-080](../journal/2026-09/2026-09-10_adr-080-stylo-vault-markdown-editor.md) | Stylo as the Vault Markdown Editor | Accepted | 2026-09-10 |
 | [ADR-079](../journal/2026-09/2026-09-09_adr-079-prebuilt-dashboard-bundle.md) | Prebuilt Dashboard Bundle Shipped in the Package | Accepted | 2026-09-09 |

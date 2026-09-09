@@ -35,8 +35,10 @@ export {
   SegmentedControl,
   type SegmentedControlOption,
 } from "./segmented-control"
+export { SlackStatusPill } from "./slack-status-pill"
 export { StatusBar, type StatusBarItem, type StatusBarLink } from "./status-bar"
 export { StatusTag } from "./status-tag"
+export { ThemeToggle } from "./theme-toggle"
 export { TopBar } from "./top-bar"
 export { filterVaultTree, VaultTree, type VaultNode } from "./vault-tree"
 export { WikiLink } from "./wiki-link"

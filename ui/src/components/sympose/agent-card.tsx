@@ -14,6 +14,11 @@ interface AgentCardProps {
   active: string
   /** Switch the active persona (writes the cookie upstream). */
   onSwitch: (handle: string) => void
+  /**
+   * Phone shell: the containing panel is padded `px-4 py-6` instead of the
+   * desktop `p-8`, so the accent band's bleed margins change to match.
+   */
+  phone?: boolean
   className?: string
 }
 
@@ -25,7 +30,13 @@ interface AgentCardProps {
  * `--persona-accent` custom property `<PersonaPill>` uses, so runtime-created
  * personas that are not in the static roster still get a stable colour.
  */
-function AgentCard({ personas, active, onSwitch, className }: AgentCardProps) {
+function AgentCard({
+  personas,
+  active,
+  onSwitch,
+  phone = false,
+  className,
+}: AgentCardProps) {
   const current = personas.find((p) => p.handle === active) ?? personas[0]
   const others = personas.filter((p) => p.handle !== current?.handle)
 
@@ -50,10 +61,14 @@ function AgentCard({ personas, active, onSwitch, className }: AgentCardProps) {
         } as React.CSSProperties
       }
     >
-      {/* accent band — bleeds to the panel edges (cancels its `p-6`); the
-          panel's own rounded top corners + overflow clip it */}
+      {/* accent band — bleeds to the panel edges by cancelling the panel's own
+          gutter (`p-8` desktop / `px-4 py-6` phone); the panel's rounded top
+          corners + overflow clip it */}
       <div
-        className="-mx-6 -mt-6 h-28 rounded-tl-lg rounded-tr-lg bg-(--persona-accent) dark:bg-(--persona-accent-dark)"
+        className={cn(
+          "h-28 rounded-tl-lg rounded-tr-lg bg-(--persona-accent) dark:bg-(--persona-accent-dark)",
+          phone ? "-mx-4 -mt-6" : "-mx-8 -mt-8"
+        )}
         aria-hidden
       />
 

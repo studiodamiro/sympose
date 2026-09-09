@@ -129,7 +129,7 @@ function VaultTreeRow({
 }) {
   const isOpen = expanded.has(node.path)
   const isSelected = selectedPath === node.path
-  const pad = { paddingLeft: `${depth * 14 + 8}px` }
+  const pad = { paddingLeft: `${depth * 14}px` }
 
   if (node.type === "folder") {
     const FolderGlyph = isDailyFolder(node.name)
@@ -182,8 +182,8 @@ function VaultTreeRow({
       onClick={() => onSelect?.(node)}
       // Nested notes align under the parent folder's label (+20 clears the
       // disclosure chevron); top-level notes have no folder above them, so
-      // they sit flush to reclaim that space.
-      style={{ paddingLeft: `${depth * 14 + 8 + (depth > 0 ? 20 : 0)}px` }}
+      // they sit flush with the panel gutter (matching Settings / Agent).
+      style={{ paddingLeft: `${depth * 14 + (depth > 0 ? 20 : 0)}px` }}
       className={cn(
         "flex w-full items-center gap-1.5 py-1 pr-2 text-left transition-colors",
         "focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none",

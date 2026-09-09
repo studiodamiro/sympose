@@ -233,16 +233,16 @@ export function AppShell() {
   // opening or closing. Otherwise max-width just follows the live measurement
   // instantly, so the chat tracks a neighbour's slide instead of lagging it.
   const chatToggling = useTransientFlag(chatOpen)
-  // Editor grows into whatever's free to its right — the chat's area, the
-  // content panel's if that's closed too — on every breakpoint, not just the
-  // smaller ones. (Desktop used to keep its dragged width and leave the freed
-  // area blank instead, on the theory that a full-bleed editor reads
-  // uncomfortably wide; but the editor's own canvas no longer caps its
-  // reading measure either — see the markdown panel's own full-width pass —
-  // so that box was just leaving real vacated space empty for no remaining
-  // benefit.) Content never grows — it is navigation, it keeps its dragged
-  // width even when alone.
-  const editorFill = editorOpen && !chatOpen && !unfillFirst
+  // Editor grows into whatever's free to its right (the chat's area, the
+  // content panel's if that's closed too) — but only on the smaller
+  // breakpoints, where screen room is scarce and a parked chat leaving a blank
+  // column reads as broken. On desktop the editor keeps its dragged,
+  // cookie-persisted width when the chat is hidden and the vacated space stays
+  // empty; the resize handle stays live so that width is the user's to set.
+  // Content never grows — it is navigation, it keeps its dragged width even
+  // when alone.
+  const editorFill =
+    editorOpen && !chatOpen && !unfillFirst && breakpoint !== "desktop"
 
   // Agent picker — the active persona is client state (a cookie), and the
   // roster is fetched once. Both feed the `MENU_ACCOUNT_ID` panel; the handle
@@ -368,6 +368,7 @@ export function AppShell() {
         personas={personas}
         active={activePersona}
         onSwitch={setActivePersona}
+        phone={isPhone}
       />
     ) : active === MENU_SETTINGS_ID ? (
       <>
@@ -409,7 +410,7 @@ export function AppShell() {
       </>
     ) : (
       <div className="flex flex-col gap-2">
-        <div className="flex items-center justify-between gap-2 px-2">
+        <div className="flex items-center justify-between gap-2">
           <h2 className="font-heading text-2xl font-semibold text-fg-strong">
             {activeLabel || "Vault"}
           </h2>
@@ -438,16 +439,16 @@ export function AppShell() {
                 ? `New note in ${activeLabel}… ↵`
                 : "New note name… ↵"
             }
-            className="mx-2 rounded-md border border-border bg-background px-2 py-1.5 text-sm outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:opacity-50"
+            className="rounded-md border border-border bg-background px-2 py-1.5 text-sm outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:opacity-50"
           />
         )}
         {vaultTree.length === 0 ? (
-          <p className="px-2 text-sm text-fg-muted">
+          <p className="text-sm text-fg-muted">
             No notes in scope — check that the dashboard API is reachable and
             the persona has vault folders.
           </p>
         ) : panelNodes.length === 0 ? (
-          <p className="px-2 text-sm text-fg-muted">This folder is empty.</p>
+          <p className="text-sm text-fg-muted">This folder is empty.</p>
         ) : (
           <VaultTree
             nodes={panelNodes}
@@ -560,15 +561,11 @@ export function AppShell() {
             storageKey="sympose:shell.panel"
             scrollKey="sympose:shell.panel.scroll"
             contentClassName={
-              // the Agent panel bleeds its accent band to the panel edges, so
-              // it takes a single fixed pad its band can cancel with `-m-6`
-              active === MENU_ACCOUNT_ID
-                ? "p-6"
-                : !isPhone
-                  ? "p-8"
-                  : plainPage
-                    ? "px-4 py-6"
-                    : "p-6"
+              // Settings, Agent and the Vault view all share one gutter: `p-8`
+              // on desktop/tablet, `px-4 py-6` on the phone plain page, `p-6`
+              // for the phone vault surface. The Agent card cancels this same
+              // pad with its own negative-margin accent band (see AgentCard).
+              !isPhone ? "p-8" : plainPage ? "px-4 py-6" : "p-6"
             }
             open={contentOpen}
             phone={isPhone}

@@ -160,3 +160,31 @@ def patch_note(
         m["meta"]["watermark"] = _top_level_watermark(mv, ignore)
         _write_atomic(path, m)
         _mem_cache[path] = m
+
+
+def remove_note(
+    workspace_dir: str, mv: str, rel_path: str,
+    *, ignore_folders: Optional[List[str]] = None,
+) -> None:
+    """Drop a note's node and its outgoing links after the file is deleted or
+    renamed away. Incoming links from other notes are left as-is — they resolve
+    to a ghost until those notes are themselves repatched (a rename repatches
+    them; a delete leaves the ghost, which is correct). No-op until a manifest
+    exists."""
+    path = manifest_path(workspace_dir, mv)
+    ignore = {str(d).lower().strip() for d in (ignore_folders or [])}
+    with _lock_for(path):
+        m = _mem_cache.get(path) or _load_file(path)
+        if m is None:
+            return
+        st = _stem(rel_path)
+        m["nodes"] = [n for n in m["nodes"] if n["id"] != st]
+        m["links"] = [l for l in m["links"] if l["source"] != st]
+        # keep a bare id only while something still points at it
+        referenced = {l["source"] for l in m["links"]} | {l["target"] for l in m["links"]}
+        m["nodes"] = [n for n in m["nodes"] if n.get("exists") or n["id"] in referenced]
+        m["meta"]["note_count"] = sum(1 for n in m["nodes"] if n.get("exists"))
+        m["meta"]["generated_at"] = time.time()
+        m["meta"]["watermark"] = _top_level_watermark(mv, ignore)
+        _write_atomic(path, m)
+        _mem_cache[path] = m

@@ -88,3 +88,74 @@ export async function createVaultNote(
     return { ok: false, error: `Couldn't create note — backend unreachable (${err})` }
   }
 }
+
+async function detailOf(res: Response): Promise<string | undefined> {
+  return res
+    .json()
+    .then((b) => (b as { detail?: string }).detail)
+    .catch(() => undefined)
+}
+
+export type RenameVaultNoteResult =
+  | { ok: true; path: string; detail: string }
+  | { ok: false; error: string }
+
+/**
+ * Client for `PATCH /api/vault/note` — rename `path` to `newName` (a bare stem
+ * stays in the same folder) and rewrite the `[[wikilinks]]` that referenced it
+ * (ADR-084). 404 source gone, 409 target taken, 403 outside the sandbox.
+ * `path` in the result is the note's new vault-relative path.
+ */
+export async function renameVaultNote(
+  path: string,
+  newName: string,
+  persona: string
+): Promise<RenameVaultNoteResult> {
+  try {
+    const res = await fetch("/api/vault/note", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ path, new_path: newName, persona }),
+    })
+    if (res.ok) {
+      const body = (await res.json()) as { path: string; detail: string }
+      return { ok: true, path: body.path, detail: body.detail }
+    }
+    return {
+      ok: false,
+      error: (await detailOf(res)) || `Rename failed (HTTP ${res.status})`,
+    }
+  } catch (err) {
+    return { ok: false, error: `Rename failed — backend unreachable (${err})` }
+  }
+}
+
+export type DeleteVaultNoteResult =
+  | { ok: true; detail: string }
+  | { ok: false; error: string }
+
+/**
+ * Client for `DELETE /api/vault/note` — move the note to `<vault>/.trash/`
+ * (ADR-084). 404 if it's already gone, 403 outside the sandbox.
+ */
+export async function deleteVaultNote(
+  path: string,
+  persona: string
+): Promise<DeleteVaultNoteResult> {
+  try {
+    const res = await fetch(
+      `/api/vault/note?path=${encodeURIComponent(path)}&persona=${encodeURIComponent(persona)}`,
+      { method: "DELETE" }
+    )
+    if (res.ok) {
+      const body = (await res.json()) as { detail: string }
+      return { ok: true, detail: body.detail }
+    }
+    return {
+      ok: false,
+      error: (await detailOf(res)) || `Delete failed (HTTP ${res.status})`,
+    }
+  } catch (err) {
+    return { ok: false, error: `Delete failed — backend unreachable (${err})` }
+  }
+}

@@ -583,6 +583,14 @@ export function AppShell() {
             path={selectedNote}
             persona={activePersona}
             onWikiLinkClick={openWikilink}
+            onRenamed={(newPath) => {
+              setSelectedNote(newPath)
+              setVaultRefreshKey((k) => k + 1)
+            }}
+            onDeleted={() => {
+              setSelectedNote(undefined)
+              setVaultRefreshKey((k) => k + 1)
+            }}
             preferences={editorPrefs}
             open={editorOpen}
             fill={editorFill}

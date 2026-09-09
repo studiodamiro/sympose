@@ -158,6 +158,73 @@ class TestVaultNoteCreate:
         assert resp.status_code == 403
 
 
+class TestVaultNoteRenameDelete:
+    """`PATCH` / `DELETE /api/vault/note` sentinel → status-code mapping (ADR-084)."""
+
+    def _client(self, monkeypatch, *, rename_result=None, delete_result=None):
+        from fastapi.testclient import TestClient
+        from sympose.auth import DASHBOARD_USER
+        import sympose.server as server
+
+        monkeypatch.setenv("DASHBOARD_PASSWORD", "pw")
+        if rename_result is not None:
+            monkeypatch.setattr(
+                server.VaultManager, "rename_note",
+                classmethod(lambda cls, profile, path, new_path: rename_result),
+            )
+        if delete_result is not None:
+            monkeypatch.setattr(
+                server.VaultManager, "delete_note",
+                classmethod(lambda cls, profile, path: delete_result),
+            )
+        engine = MagicMock()
+        engine.pm.get_profile.return_value = {"vault_folders": ["*"]}
+        engine.pm.profiles = {}
+        return TestClient(server.create_app(engine)), DASHBOARD_USER
+
+    def test_rename_success(self, monkeypatch):
+        client, user = self._client(monkeypatch, rename_result="Renamed to `N/b.md` (2 files relinked)")
+        resp = client.patch(
+            "/api/vault/note", json={"path": "N/a", "new_path": "b"}, auth=(user, "pw")
+        )
+        assert resp.status_code == 200
+        assert resp.json()["path"] == "b"
+
+    def test_rename_target_exists_409(self, monkeypatch):
+        from sympose.vault import VaultManager
+        client, user = self._client(monkeypatch, rename_result=VaultManager.NOTE_EXISTS)
+        resp = client.patch(
+            "/api/vault/note", json={"path": "N/a", "new_path": "b"}, auth=(user, "pw")
+        )
+        assert resp.status_code == 409
+
+    def test_rename_missing_404(self, monkeypatch):
+        from sympose.vault import VaultManager
+        client, user = self._client(monkeypatch, rename_result=VaultManager.NOTE_NOT_FOUND)
+        resp = client.patch(
+            "/api/vault/note", json={"path": "ghost", "new_path": "b"}, auth=(user, "pw")
+        )
+        assert resp.status_code == 404
+
+    def test_delete_success(self, monkeypatch):
+        client, user = self._client(monkeypatch, delete_result="Moved to trash: `.trash/N/a.md`")
+        resp = client.delete("/api/vault/note?path=N/a", auth=(user, "pw"))
+        assert resp.status_code == 200
+        assert "trash" in resp.json()["detail"]
+
+    def test_delete_missing_404(self, monkeypatch):
+        from sympose.vault import VaultManager
+        client, user = self._client(monkeypatch, delete_result=VaultManager.NOTE_NOT_FOUND)
+        resp = client.delete("/api/vault/note?path=ghost", auth=(user, "pw"))
+        assert resp.status_code == 404
+
+    def test_delete_denied_403(self, monkeypatch):
+        from sympose.vault import VaultManager
+        client, user = self._client(monkeypatch, delete_result=VaultManager.NOTE_DENIED)
+        resp = client.delete("/api/vault/note?path=../evil", auth=(user, "pw"))
+        assert resp.status_code == 403
+
+
 def _route(app, path):
     return next(r for r in app.routes if getattr(r, "path", "") == path)
 

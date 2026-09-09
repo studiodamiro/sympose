@@ -98,6 +98,22 @@ def upsert_note(workspace_dir: str, mv: str, rel_path: str, file_name: str, meta
         conn.close()
 
 
+def remove_note(workspace_dir: str, mv: str, rel_path: str) -> None:
+    """Drop a single note row after the file is deleted or renamed away.
+    Best-effort: never raises. A stale row would otherwise linger until the
+    next mtime-drift rebuild."""
+    conn = _connect(index_path(workspace_dir, mv))
+    if conn is None:
+        return
+    try:
+        conn.execute("DELETE FROM notes WHERE rel_path = ?", (rel_path,))
+        conn.commit()
+    except Exception:
+        log.debug("[vault_index] remove failed for %s", rel_path, exc_info=True)
+    finally:
+        conn.close()
+
+
 def ensure_fresh(workspace_dir: str, mv: str, snapshot_provider: Callable[[], List[Dict[str, Any]]]) -> bool:
     """Full rebuild if the tracked mtime watermark drifted since the last
     rebuild. `snapshot_provider()` returns VaultManager._get_vault_snapshot's

@@ -1,0 +1,125 @@
+import * as React from "react"
+import { HugeiconsIcon } from "@hugeicons/react"
+import {
+  Delete02Icon,
+  Edit01Icon,
+  MoreHorizontalIcon,
+} from "@hugeicons/core-free-icons"
+import { toast } from "sonner"
+
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { deleteVaultNote, renameVaultNote } from "@/lib/vault-note-api"
+
+/**
+ * The `⋯` menu on the editor toolbar — Rename / Delete for the open note
+ * (ADR-084). Rename swaps the button for an inline field (Enter commits, Esc /
+ * blur cancels); Delete asks for confirmation through a toast action. Owns the
+ * API calls itself; the parent is only told the note moved so it can repoint
+ * `selectedNote` and refresh the tree.
+ */
+function NoteActionsMenu({
+  path,
+  persona,
+  onRenamed,
+  onDeleted,
+}: {
+  /** Vault-relative path of the open note. */
+  path: string
+  persona: string
+  /** Called with the note's new vault-relative path after a rename. */
+  onRenamed: (newPath: string) => void
+  /** Called after the note is moved to trash. */
+  onDeleted: () => void
+}) {
+  const stem = React.useMemo(() => {
+    const base = path.split("/").pop() ?? path
+    return base.replace(/\.md$/i, "")
+  }, [path])
+
+  const [renaming, setRenaming] = React.useState<string | null>(null)
+  const [busy, setBusy] = React.useState(false)
+
+  const submitRename = async () => {
+    const name = (renaming ?? "")
+      .trim()
+      .replace(/\.md$/i, "")
+      .replace(/^\/+|\/+$/g, "")
+    if (!name || busy || name === stem) {
+      setRenaming(null)
+      return
+    }
+    setBusy(true)
+    const res = await renameVaultNote(path, name, persona)
+    setBusy(false)
+    if (res.ok) {
+      setRenaming(null)
+      onRenamed(res.path)
+      toast.success(res.detail)
+    } else {
+      toast.error(res.error)
+    }
+  }
+
+  const confirmDelete = () => {
+    toast(`Move “${stem}” to trash?`, {
+      action: {
+        label: "Delete",
+        onClick: async () => {
+          const res = await deleteVaultNote(path, persona)
+          if (res.ok) {
+            onDeleted()
+            toast.success(res.detail)
+          } else {
+            toast.error(res.error)
+          }
+        },
+      },
+    })
+  }
+
+  if (renaming !== null) {
+    return (
+      <input
+        autoFocus
+        value={renaming}
+        disabled={busy}
+        aria-label="New note name"
+        onChange={(e) => setRenaming(e.target.value)}
+        onBlur={() => setRenaming(null)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") void submitRename()
+          else if (e.key === "Escape") setRenaming(null)
+        }}
+        className="h-7 w-44 rounded-md border border-border bg-background px-2 text-xs outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:opacity-50"
+      />
+    )
+  }
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        aria-label="Note actions"
+        className="grid size-7 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground data-[popup-open]:bg-accent data-[popup-open]:text-foreground"
+      >
+        <HugeiconsIcon icon={MoreHorizontalIcon} className="size-4" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <DropdownMenuItem onClick={() => setRenaming(stem)}>
+          <HugeiconsIcon icon={Edit01Icon} />
+          Rename…
+        </DropdownMenuItem>
+        <DropdownMenuItem variant="destructive" onClick={confirmDelete}>
+          <HugeiconsIcon icon={Delete02Icon} />
+          Delete…
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
+
+export { NoteActionsMenu }

@@ -1032,40 +1032,8 @@ class VaultManager:
         mv, allowed_dirs = cls._get_master_vault(), cls.get_allowed_dirs(profile)
         if not mv or not allowed_dirs:
             return cls.NOTE_DENIED
-        clean_name = note_name.strip().strip("\"'")
-        if not clean_name.endswith(".md"):
-            clean_name += ".md"
 
-        target_file: Optional[str] = None
-        direct_target = os.path.join(mv, clean_name)
-        for allowed in allowed_dirs:
-            if is_safe_path(direct_target, allowed) and os.path.isfile(direct_target):
-                target_file = direct_target
-                break
-        if target_file is None:
-            for allowed in allowed_dirs:
-                candidate = os.path.join(allowed, os.path.basename(clean_name))
-                if is_safe_path(candidate, allowed) and os.path.isfile(candidate):
-                    target_file = candidate
-                    break
-        if target_file is None:
-            stem = os.path.splitext(os.path.basename(clean_name))[0].lower()
-            raw_ignore = config_manager.get("vault.ignore_folders") or [".obsidian", ".git", "Attachments", ".trash"]
-            ignore_dirs = {str(d).lower().strip() for d in raw_ignore}
-            for allowed in allowed_dirs:
-                for root, dirs, files in os.walk(allowed):
-                    dirs[:] = [d for d in dirs if d.lower() not in ignore_dirs and not d.startswith(".")]
-                    for fn in files:
-                        if fn.endswith(".md") and os.path.splitext(fn)[0].lower() == stem:
-                            fp = os.path.join(root, fn)
-                            if is_safe_path(fp, allowed):
-                                target_file = fp
-                                break
-                    if target_file:
-                        break
-                if target_file:
-                    break
-
+        target_file = cls._resolve_existing_note(profile, note_name)
         if target_file is None:
             return cls.NOTE_NOT_FOUND
         if not any(is_safe_path(target_file, allowed) for allowed in allowed_dirs):
@@ -1101,7 +1069,10 @@ class VaultManager:
             clean_name += ".md"
 
         base = mv if ("/" in clean_name or "\\" in clean_name) else (primary_dir or mv)
-        target_file = os.path.realpath(os.path.join(base, clean_name))
+        # `is_safe_path` resolves symlinks itself; keep `target_file` a plain
+        # join so `os.path.relpath(…, mv)` here and in the re-index helpers
+        # stays correct even when `mv` sits under a symlink (macOS `/var`).
+        target_file = os.path.normpath(os.path.join(base, clean_name))
         if not any(is_safe_path(target_file, allowed) for allowed in allowed_dirs):
             return cls.NOTE_DENIED
         if os.path.exists(target_file):
@@ -1122,6 +1093,171 @@ class VaultManager:
             return f"Created note: `{rel_display}`"
         except Exception as e:
             return f"Error: Failed to create note: {e}"
+
+    @classmethod
+    def _resolve_existing_note(cls, profile: Dict[str, Any], note_name: str) -> Optional[str]:
+        """Absolute path of the file `read_note` would open for `note_name`, or
+        `None`: direct path under the master vault → basename in an allowed
+        folder → recursive case-insensitive stem match. Shared by
+        `overwrite_note` / `rename_note` / `delete_note`."""
+        mv, allowed_dirs = cls._get_master_vault(), cls.get_allowed_dirs(profile)
+        if not mv or not allowed_dirs:
+            return None
+        clean = note_name.strip().strip("\"'")
+        if not clean.endswith(".md"):
+            clean += ".md"
+
+        direct = os.path.join(mv, clean)
+        for allowed in allowed_dirs:
+            if is_safe_path(direct, allowed) and os.path.isfile(direct):
+                return direct
+        for allowed in allowed_dirs:
+            cand = os.path.join(allowed, os.path.basename(clean))
+            if is_safe_path(cand, allowed) and os.path.isfile(cand):
+                return cand
+        stem = os.path.splitext(os.path.basename(clean))[0].lower()
+        raw_ignore = config_manager.get("vault.ignore_folders") or [".obsidian", ".git", "Attachments", ".trash"]
+        ignore_dirs = {str(d).lower().strip() for d in raw_ignore}
+        for allowed in allowed_dirs:
+            for root, dirs, files in os.walk(allowed):
+                dirs[:] = [d for d in dirs if d.lower() not in ignore_dirs and not d.startswith(".")]
+                for fn in files:
+                    if fn.endswith(".md") and os.path.splitext(fn)[0].lower() == stem:
+                        fp = os.path.join(root, fn)
+                        if is_safe_path(fp, allowed):
+                            return fp
+        return None
+
+    _WIKILINK_RE = re.compile(r"(!?)\[\[([^\[\]\r\n]+?)\]\]")
+
+    @classmethod
+    def _rewrite_wikilink_targets(cls, text: str, old_stem: str, new_stem: str) -> Tuple[str, int]:
+        """Retarget every `[[old]]` / `![[old]]` / `[[old#h]]` / `[[old|a]]`
+        (and the `Folder/old` path form) to `new_stem`, leaving any `#heading`
+        and `|alias` intact. Returns the rewritten text and the hit count."""
+        old_l = old_stem.strip().lower()
+
+        def repl(m: "re.Match[str]") -> str:
+            bang, inner = m.group(1), m.group(2)
+            head = re.match(r"^([^#|]*)(.*)$", inner)
+            target, tail = head.group(1), head.group(2)
+            segs = target.split("/")
+            if segs[-1].strip().lower() != old_l:
+                return m.group(0)
+            segs[-1] = new_stem
+            return f"{bang}[[{'/'.join(segs)}{tail}]]"
+
+        new_text, n = cls._WIKILINK_RE.subn(repl, text)
+        return new_text, n
+
+    @classmethod
+    def rename_note(cls, profile: Dict[str, Any], old_name: str, new_name: str) -> str:
+        """Rename a vault note and rewrite every `[[wikilink]]` that pointed at
+        it (ADR-084). `new_name` stays in the same folder unless it carries a
+        separator. `NOTE_NOT_FOUND` / `NOTE_EXISTS` / `NOTE_DENIED` as for the
+        other note ops."""
+        mv, allowed_dirs = cls._get_master_vault(), cls.get_allowed_dirs(profile)
+        if not mv or not allowed_dirs:
+            return cls.NOTE_DENIED
+        src = cls._resolve_existing_note(profile, old_name)
+        if src is None:
+            return cls.NOTE_NOT_FOUND
+
+        clean_new = new_name.strip().strip("\"'").lstrip("/\\")
+        if not clean_new:
+            return cls.NOTE_DENIED
+        if not clean_new.endswith(".md"):
+            clean_new += ".md"
+        # Plain join (not realpath) so the relpaths below stay correct under a
+        # symlinked vault root; `is_safe_path` resolves symlinks on its own.
+        dst = os.path.normpath(
+            os.path.join(mv, clean_new)
+            if ("/" in clean_new or "\\" in clean_new)
+            else os.path.join(os.path.dirname(src), clean_new)
+        )
+        if not any(is_safe_path(dst, allowed) for allowed in allowed_dirs):
+            return cls.NOTE_DENIED
+        if os.path.exists(dst):
+            return cls.NOTE_EXISTS
+
+        old_rel, new_rel = os.path.relpath(src, mv), os.path.relpath(dst, mv)
+        old_stem = os.path.splitext(os.path.basename(src))[0]
+        new_stem = os.path.splitext(os.path.basename(dst))[0]
+        ref_files = sorted({b["rel_path"] for b in cls.get_backlinks(profile, old_stem)})
+
+        try:
+            os.makedirs(os.path.dirname(dst), exist_ok=True)
+            os.rename(src, dst)
+        except OSError as e:
+            return f"Error: Failed to rename note: {e}"
+
+        updated = 0
+        for rel in ref_files:
+            fp = os.path.join(mv, rel)
+            if rel == old_rel or not os.path.isfile(fp):
+                continue
+            if not any(is_safe_path(fp, allowed) for allowed in allowed_dirs):
+                continue
+            try:
+                with open(fp, "r", encoding="utf-8", errors="ignore") as f:
+                    content = f.read()
+                rewritten, hits = cls._rewrite_wikilink_targets(content, old_stem, new_stem)
+                if hits:
+                    with open(fp, "w", encoding="utf-8") as f:
+                        f.write(rewritten)
+                    updated += 1
+                    cls._reindex_note_if_enabled(mv, fp)
+                    cls._update_manifest_if_enabled(mv, fp)
+            except OSError:
+                continue
+
+        ws = cls._workspace_dir()
+        ignore = config_manager.get("vault.ignore_folders") or []
+        try:
+            vault_index.remove_note(ws, mv, old_rel)
+            vault_manifest.remove_note(ws, mv, old_rel, ignore_folders=ignore)
+        except Exception:
+            log.debug("[vault] rename de-index failed for %s", old_rel, exc_info=True)
+        cls._reindex_note_if_enabled(mv, dst)
+        cls._update_manifest_if_enabled(mv, dst)
+        _BACKLINK_CACHE.clear()
+
+        tail = f" ({updated} file{'s' if updated != 1 else ''} relinked)" if updated else ""
+        return f"Renamed to `{new_rel}`{tail}"
+
+    @classmethod
+    def delete_note(cls, profile: Dict[str, Any], note_name: str) -> str:
+        """Move a vault note to `<vault>/.trash/` preserving its relative path
+        (ADR-084) — recoverable, and `.trash` is already an ignored folder. A
+        name clash in the trash gets a timestamp suffix."""
+        mv, allowed_dirs = cls._get_master_vault(), cls.get_allowed_dirs(profile)
+        if not mv or not allowed_dirs:
+            return cls.NOTE_DENIED
+        src = cls._resolve_existing_note(profile, note_name)
+        if src is None:
+            return cls.NOTE_NOT_FOUND
+        if not any(is_safe_path(src, allowed) for allowed in allowed_dirs):
+            return cls.NOTE_DENIED
+
+        old_rel = os.path.relpath(src, mv)
+        dest = os.path.join(mv, ".trash", old_rel)
+        try:
+            os.makedirs(os.path.dirname(dest), exist_ok=True)
+            if os.path.exists(dest):
+                stem, ext = os.path.splitext(dest)
+                dest = f"{stem}-{datetime.datetime.now().strftime('%Y%m%d%H%M%S')}{ext}"
+            os.rename(src, dest)
+        except OSError as e:
+            return f"Error: Failed to delete note: {e}"
+
+        ws = cls._workspace_dir()
+        try:
+            vault_index.remove_note(ws, mv, old_rel)
+            vault_manifest.remove_note(ws, mv, old_rel, ignore_folders=config_manager.get("vault.ignore_folders") or [])
+        except Exception:
+            log.debug("[vault] delete de-index failed for %s", old_rel, exc_info=True)
+        _BACKLINK_CACHE.clear()
+        return f"Moved to trash: `{os.path.relpath(dest, mv)}`"
 
     @classmethod
     def _sync_frontmatter_tags(cls, file_path: str, new_tags: List[str]) -> None:

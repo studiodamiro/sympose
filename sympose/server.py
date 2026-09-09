@@ -36,6 +36,15 @@ class NoteCreate(BaseModel):
     persona: str = "samantha"
 
 
+class NoteRename(BaseModel):
+    """Body of `PATCH /api/vault/note` — rename `path` to `new_path` and rewrite
+    every `[[wikilink]]` that referenced it (ADR-084). `new_path` stays in the
+    same folder unless it carries a separator."""
+    path: str = Field(..., min_length=1)
+    new_path: str = Field(..., min_length=1)
+    persona: str = "samantha"
+
+
 def create_app(engine: Any, workspace_dir: Optional[str] = None) -> FastAPI:
     """Factory creating the FastAPI application bound to a PersonaEngine instance.
     Every route (including `/`, `/docs`, and the vault/config API) sits behind the
@@ -177,6 +186,40 @@ def create_app(engine: Any, workspace_dir: Optional[str] = None) -> FastAPI:
         if result.startswith("Error:"):
             raise HTTPException(status_code=500, detail=result)
         return {"path": body.path, "detail": result}
+
+    @app.patch("/api/vault/note")
+    def rename_note(body: NoteRename) -> Dict[str, Any]:
+        """Rename a note and rewrite the `[[wikilinks]]` that pointed at it
+        (ADR-084). 404 if the source is gone, 409 if the target exists, 403
+        outside the sandbox."""
+        profile = engine.pm.get_profile(body.persona) or engine.pm.get_profile("samantha")
+        result = VaultManager.rename_note(profile, body.path, body.new_path)
+        if result == VaultManager.NOTE_NOT_FOUND:
+            raise HTTPException(status_code=404, detail=f"Note `{body.path}` not found in allowed vault folders.")
+        if result == VaultManager.NOTE_EXISTS:
+            raise HTTPException(status_code=409, detail=f"A note already exists at `{body.new_path}`.")
+        if result == VaultManager.NOTE_DENIED:
+            raise HTTPException(status_code=403, detail=f"Path `{body.new_path}` is outside the assigned sandbox.")
+        if result.startswith("Error:"):
+            raise HTTPException(status_code=500, detail=result)
+        return {"path": body.new_path, "detail": result}
+
+    @app.delete("/api/vault/note")
+    def delete_note(
+        path: str = Query(..., description="Relative path of the note to delete"),
+        persona: Optional[str] = Query("samantha"),
+    ) -> Dict[str, Any]:
+        """Move a note to `<vault>/.trash/` (ADR-084). 404 if it doesn't exist,
+        403 if it resolves outside the persona's sandbox."""
+        profile = engine.pm.get_profile(persona) or engine.pm.get_profile("samantha")
+        result = VaultManager.delete_note(profile, path)
+        if result == VaultManager.NOTE_NOT_FOUND:
+            raise HTTPException(status_code=404, detail=f"Note `{path}` not found in allowed vault folders.")
+        if result == VaultManager.NOTE_DENIED:
+            raise HTTPException(status_code=403, detail=f"Path `{path}` is outside the assigned sandbox.")
+        if result.startswith("Error:"):
+            raise HTTPException(status_code=500, detail=result)
+        return {"path": path, "detail": result}
 
     # Resolve the frontend root. The committed, packaged bundle
     # (`sympose/webui/`, ADR-079) is authoritative — it ships in the wheel, so a

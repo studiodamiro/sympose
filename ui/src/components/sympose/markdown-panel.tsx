@@ -27,6 +27,7 @@ import { fetchVaultNote, saveVaultNote } from "@/lib/vault-note-api"
 import { extractWikilinks } from "@/lib/extract-wikilinks"
 import type { EditorPreferences } from "@/lib/use-editor-preferences"
 import { FrontmatterCard } from "@/components/sympose/frontmatter-card"
+import { NoteActionsMenu } from "@/components/sympose/note-actions-menu"
 
 /**
  * The markdown editor / reader — the middle stage panel, between `<ContentPanel>`
@@ -56,6 +57,10 @@ interface MarkdownPanelProps extends React.ComponentProps<"div"> {
   persona?: string
   /** Fires when the reader clicks a `[[wikilink]]` in the canvas. */
   onWikiLinkClick?: (target: string) => void
+  /** The open note was renamed (ADR-084) — value is its new vault-relative path. */
+  onRenamed?: (newPath: string) => void
+  /** The open note was moved to trash (ADR-084). */
+  onDeleted?: () => void
   /** Editing surface/decoration preferences — Settings > Markdown editor. */
   preferences: EditorPreferences
   /**
@@ -181,6 +186,8 @@ function MarkdownPanel({
   path,
   persona = "samantha",
   onWikiLinkClick,
+  onRenamed,
+  onDeleted,
   preferences,
   open = true,
   fill = false,
@@ -431,7 +438,22 @@ function MarkdownPanel({
                 ...TOOLBAR_ITEMS,
                 render: (bar) => (
                   <>
-                    {bar}
+                    {/* stylo's toolbar row, with the note-actions `⋯` overlaid
+                        at its right edge (the built-in items are left-aligned,
+                        so that space is free). Only shown once a note is open. */}
+                    <div className="relative">
+                      {bar}
+                      {path && (
+                        <div className="absolute inset-y-0 right-1.5 flex items-center">
+                          <NoteActionsMenu
+                            path={path}
+                            persona={persona}
+                            onRenamed={(next) => onRenamed?.(next)}
+                            onDeleted={() => onDeleted?.()}
+                          />
+                        </div>
+                      )}
+                    </div>
                     {frontmatter !== null && (
                       <FrontmatterCard
                         raw={frontmatter}

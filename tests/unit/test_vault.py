@@ -281,6 +281,90 @@ class TestCreateNote:
 
 
 # ---------------------------------------------------------------------------
+# VaultManager.rename_note / delete_note (dashboard editor — ADR-084)
+# ---------------------------------------------------------------------------
+
+class TestRenameNote:
+    def test_renames_and_rewrites_wikilinks(self, tmp_vault_dir, monkeypatch):
+        from sympose.vault import VaultManager
+        (tmp_vault_dir / "Notes").mkdir()
+        write_note(str(tmp_vault_dir / "Notes" / "alpha.md"), "# Alpha\n")
+        write_note(
+            str(tmp_vault_dir / "Notes" / "beta.md"),
+            "links [[alpha]], [[Notes/alpha|first]], ![[alpha#intro]], and [[alphabet]]\n",
+        )
+        monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
+        profile = {"vault_folders": ["*"]}
+
+        result = VaultManager.rename_note(profile, "Notes/alpha", "omega")
+
+        assert result.startswith("Renamed to `Notes/omega.md`")
+        assert (tmp_vault_dir / "Notes" / "omega.md").exists()
+        assert not (tmp_vault_dir / "Notes" / "alpha.md").exists()
+        beta = (tmp_vault_dir / "Notes" / "beta.md").read_text()
+        assert "[[omega]]" in beta
+        assert "[[Notes/omega|first]]" in beta
+        assert "![[omega#intro]]" in beta
+        assert "[[alphabet]]" in beta  # stem match is exact, not substring
+
+    def test_missing_source_not_found(self, tmp_vault_dir, monkeypatch):
+        from sympose.vault import VaultManager
+        monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
+        result = VaultManager.rename_note({"vault_folders": ["*"]}, "ghost", "x")
+        assert result == VaultManager.NOTE_NOT_FOUND
+
+    def test_target_exists_refused(self, tmp_vault_dir, monkeypatch):
+        from sympose.vault import VaultManager
+        (tmp_vault_dir / "N").mkdir()
+        write_note(str(tmp_vault_dir / "N" / "a.md"), "a")
+        write_note(str(tmp_vault_dir / "N" / "b.md"), "b")
+        monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
+        result = VaultManager.rename_note({"vault_folders": ["*"]}, "N/a", "b")
+        assert result == VaultManager.NOTE_EXISTS
+        assert (tmp_vault_dir / "N" / "a.md").read_text() == "a"
+
+    def test_target_outside_sandbox_denied(self, tmp_vault_dir, monkeypatch):
+        from sympose.vault import VaultManager
+        write_note(str(tmp_vault_dir / "keep.md"), "x")
+        monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
+        result = VaultManager.rename_note({"vault_folders": ["*"]}, "keep", "../escaped")
+        assert result == VaultManager.NOTE_DENIED
+        assert (tmp_vault_dir / "keep.md").exists()
+
+
+class TestDeleteNote:
+    def test_moves_to_trash(self, tmp_vault_dir, monkeypatch):
+        from sympose.vault import VaultManager
+        (tmp_vault_dir / "Notes").mkdir()
+        write_note(str(tmp_vault_dir / "Notes" / "scrap.md"), "junk")
+        monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
+
+        result = VaultManager.delete_note({"vault_folders": ["*"]}, "Notes/scrap")
+
+        assert result == "Moved to trash: `.trash/Notes/scrap.md`"
+        assert not (tmp_vault_dir / "Notes" / "scrap.md").exists()
+        assert (tmp_vault_dir / ".trash" / "Notes" / "scrap.md").read_text() == "junk"
+
+    def test_trash_name_clash_gets_suffix(self, tmp_vault_dir, monkeypatch):
+        from sympose.vault import VaultManager
+        (tmp_vault_dir / ".trash").mkdir()
+        write_note(str(tmp_vault_dir / ".trash" / "dupe.md"), "old trash")
+        write_note(str(tmp_vault_dir / "dupe.md"), "new")
+        monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
+
+        result = VaultManager.delete_note({"vault_folders": ["*"]}, "dupe")
+
+        assert result.startswith("Moved to trash: `.trash/dupe-")
+        assert (tmp_vault_dir / ".trash" / "dupe.md").read_text() == "old trash"
+
+    def test_missing_not_found(self, tmp_vault_dir, monkeypatch):
+        from sympose.vault import VaultManager
+        monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
+        result = VaultManager.delete_note({"vault_folders": ["*"]}, "ghost")
+        assert result == VaultManager.NOTE_NOT_FOUND
+
+
+# ---------------------------------------------------------------------------
 # Backlink cache — mtime invalidation
 # ---------------------------------------------------------------------------
 

@@ -3,11 +3,10 @@ import { Link } from "react-router-dom"
 import { HugeiconsIcon } from "@hugeicons/react"
 import { toast } from "sonner"
 import {
-  Delete03Icon,
+  Add01Icon,
   File01Icon,
   Folder01Icon,
   Note01Icon,
-  NoteAddIcon,
   ThumbsUpIcon,
 } from "@hugeicons/core-free-icons"
 
@@ -45,6 +44,7 @@ import {
   MarkdownPanel,
   MENU_ACCOUNT_ID,
   MENU_SETTINGS_ID,
+  MENU_TRASH_ID,
   SlackStatusPill,
   ThemeToggle,
   TopBar,
@@ -69,6 +69,7 @@ function menuIconFor(node: VaultNode) {
 const SECTION_LABELS: Record<string, string> = {
   [MENU_SETTINGS_ID]: "Settings",
   [MENU_ACCOUNT_ID]: "Agent",
+  [MENU_TRASH_ID]: "Trash",
 }
 
 const AUTO_COLLAPSE_COOKIE = "sympose:pref.autoCollapseMenu"
@@ -146,7 +147,9 @@ export function AppShell() {
         ? "editor"
         : null
     if (
-      (active === MENU_SETTINGS_ID || active === MENU_ACCOUNT_ID) &&
+      (active === MENU_SETTINGS_ID ||
+        active === MENU_ACCOUNT_ID ||
+        active === MENU_TRASH_ID) &&
       menuItems.length > 0
     ) {
       setActive(menuItems[0].id)
@@ -163,6 +166,8 @@ export function AppShell() {
     }
     // A root note row (README.md) also selects it in the tree.
     if (noteIds.has(id)) setSelectedNote(id)
+    // Leaving the tree for the trash view: drop any half-typed new-note name.
+    if (id === MENU_TRASH_ID) setNewNoteName(null)
     if (id === resolvedActive && panels.isOpen("content")) {
       panels.close("content")
     } else {
@@ -274,8 +279,9 @@ export function AppShell() {
   // `null` = the new-note input is closed; a string = its current value.
   const [newNoteName, setNewNoteName] = React.useState<string | null>(null)
   const [creatingNote, setCreatingNote] = React.useState(false)
-  // The vault panel shows the trash (ADR-085) instead of the tree while on.
-  const [trashView, setTrashView] = React.useState(false)
+  // The vault panel shows the trash (ADR-085) instead of the tree when the
+  // main-menu Trash row is the active section.
+  const trashView = active === MENU_TRASH_ID
   React.useEffect(() => {
     let alive = true
     fetchVaultTree(activePersona).then((tree) => {
@@ -312,7 +318,10 @@ export function AppShell() {
   // `active` holds the user's last explicit pick; a persisted folder id that no
   // longer exists (e.g. after switching to a persona with a narrower sandbox)
   // falls back to the first surface entry — derived, not synced.
-  const isSentinel = active === MENU_SETTINGS_ID || active === MENU_ACCOUNT_ID
+  const isSentinel =
+    active === MENU_SETTINGS_ID ||
+    active === MENU_ACCOUNT_ID ||
+    active === MENU_TRASH_ID
   const resolvedActive =
     isSentinel || menuItems.some((i) => i.id === active)
       ? active
@@ -418,31 +427,17 @@ export function AppShell() {
           <h2 className="font-heading text-2xl font-semibold text-fg-strong">
             {trashView ? "Trash" : activeLabel || "Vault"}
           </h2>
-          <div className="flex shrink-0 items-center gap-1">
-            {!trashView && (
-              <button
-                type="button"
-                onClick={() => setNewNoteName((v) => (v === null ? "" : null))}
-                aria-label="New note"
-                aria-pressed={newNoteName !== null}
-                className="grid size-7 shrink-0 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground aria-pressed:text-foreground"
-              >
-                <HugeiconsIcon icon={NoteAddIcon} className="size-4" />
-              </button>
-            )}
+          {!trashView && (
             <button
               type="button"
-              onClick={() => {
-                setTrashView((v) => !v)
-                setNewNoteName(null)
-              }}
-              aria-label="Trash"
-              aria-pressed={trashView}
+              onClick={() => setNewNoteName((v) => (v === null ? "" : null))}
+              aria-label="New note"
+              aria-pressed={newNoteName !== null}
               className="grid size-7 shrink-0 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground aria-pressed:text-foreground"
             >
-              <HugeiconsIcon icon={Delete03Icon} className="size-4" />
+              <HugeiconsIcon icon={Add01Icon} className="size-4" />
             </button>
-          </div>
+          )}
         </div>
         {trashView ? (
           <TrashList
@@ -573,6 +568,7 @@ export function AppShell() {
           onSelectItem={(item) => selectSection(item.id)}
           onOpenSettings={() => selectSection(MENU_SETTINGS_ID)}
           onSelectAccount={() => selectSection(MENU_ACCOUNT_ID)}
+          onSelectTrash={() => selectSection(MENU_TRASH_ID)}
           account={{
             name: activeAgentName,
             icon: activeAgentVisuals.icon,

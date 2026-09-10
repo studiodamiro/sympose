@@ -1,7 +1,11 @@
 import * as React from "react"
 import { HugeiconsIcon } from "@hugeicons/react"
 import type { IconSvgElement } from "@hugeicons/react"
-import { Settings01Icon, SidebarLeft01Icon } from "@hugeicons/core-free-icons"
+import {
+  Delete03Icon,
+  Settings01Icon,
+  SidebarLeft01Icon,
+} from "@hugeicons/core-free-icons"
 
 import { cn } from "@/lib/utils"
 import { useResizable } from "@/lib/use-resizable"
@@ -53,6 +57,7 @@ export interface MainMenuItem {
  */
 export const MENU_SETTINGS_ID = "__settings__"
 export const MENU_ACCOUNT_ID = "__account__"
+export const MENU_TRASH_ID = "__trash__"
 
 interface MainMenuProps extends Omit<React.ComponentProps<"nav">, "onSelect"> {
   items: MainMenuItem[]
@@ -66,6 +71,12 @@ interface MainMenuProps extends Omit<React.ComponentProps<"nav">, "onSelect"> {
   onOpenSettings?: () => void
   /** Account row clicked. Pair with `activeId === MENU_ACCOUNT_ID`. */
   onSelectAccount?: () => void
+  /**
+   * Trash row clicked. Pair with `activeId === MENU_TRASH_ID`. Sits in the
+   * footer just above Settings and, unlike Settings / account, stays visible
+   * on phone (`hideChrome`) since it has no TopBar home.
+   */
+  onSelectTrash?: () => void
   /**
    * Account row: label plus, when the active persona is known, its icon and
    * accent for the avatar (falls back to the first letter on `bg-accent`).
@@ -134,6 +145,7 @@ function MainMenu({
   onCollapsedChange,
   onOpenSettings,
   onSelectAccount,
+  onSelectTrash,
   account = { name: "Agent" },
   storageKey,
   hideChrome = false,
@@ -284,6 +296,20 @@ function MainMenu({
               />
             </span>
             <span className={LABEL}>Collapse</span>
+          </button>
+          <button
+            type="button"
+            onClick={onSelectTrash}
+            aria-current={activeId === MENU_TRASH_ID ? "page" : undefined}
+            className={cn(
+              ROW,
+              activeId === MENU_TRASH_ID ? ROW_ACTIVE : ROW_MUTED
+            )}
+          >
+            <span className={SLOT}>
+              <HugeiconsIcon icon={Delete03Icon} className="size-4.5" />
+            </span>
+            <span className={LABEL}>Trash</span>
           </button>
           {!hideChrome && (
             <>

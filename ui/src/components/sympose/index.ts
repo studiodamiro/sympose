@@ -17,6 +17,7 @@ export {
   MainMenu,
   MENU_ACCOUNT_ID,
   MENU_SETTINGS_ID,
+  MENU_TRASH_ID,
   type MainMenuItem,
 } from "./main-menu"
 export { MarkdownPanel } from "./markdown-panel"

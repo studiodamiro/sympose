@@ -156,31 +156,32 @@ function VaultTreeRow({
   const isOpen = expanded.has(node.path)
   const isSelected = selectedPath === node.path
   const basePad = depth * 14
-  const [menuOpen, setMenuOpen] = React.useState(false)
 
-  const menu =
-    actions.persona &&
-    actions.onRenamed &&
-    actions.onDeleted &&
-    actions.onCreated ? (
+  // Row actions (`⋯` button + right-click / long-press context menu) need the
+  // full callback set; the showcases pass a bare tree and get plain rows.
+  const menuReady =
+    !!actions.persona &&
+    !!actions.onRenamed &&
+    !!actions.onDeleted &&
+    !!actions.onCreated
+
+  // Wrap the row's `<button>` in its action host, or a plain `group/row` line
+  // when actions aren't wired.
+  const line = (rowButton: React.ReactNode, pad: number) =>
+    menuReady ? (
       <VaultRowMenu
         node={node}
-        persona={actions.persona}
-        paddingLeft={node.type === "folder" ? basePad : basePad + (depth > 0 ? 20 : 0)}
-        open={menuOpen}
-        onOpenChange={setMenuOpen}
-        onRenamed={actions.onRenamed}
-        onDeleted={actions.onDeleted}
-        onCreated={actions.onCreated}
-      />
-    ) : null
-
-  const onContextMenu = menu
-    ? (e: React.MouseEvent) => {
-        e.preventDefault()
-        setMenuOpen(true)
-      }
-    : undefined
+        persona={actions.persona!}
+        paddingLeft={pad}
+        onRenamed={actions.onRenamed!}
+        onDeleted={actions.onDeleted!}
+        onCreated={actions.onCreated!}
+      >
+        {rowButton}
+      </VaultRowMenu>
+    ) : (
+      <div className="group/row relative flex items-center">{rowButton}</div>
+    )
 
   if (node.type === "folder") {
     const FolderGlyph = isDailyFolder(node.name)
@@ -190,10 +191,7 @@ function VaultTreeRow({
         : Folder01Icon
     return (
       <div role="treeitem" aria-expanded={isOpen}>
-        <div
-          className="group/row relative flex items-center"
-          onContextMenu={onContextMenu}
-        >
+        {line(
           <button
             type="button"
             onClick={() => onToggle(node.path)}
@@ -212,9 +210,9 @@ function VaultTreeRow({
             />
             <HugeiconsIcon icon={FolderGlyph} className="size-3.5 shrink-0" />
             <span className="truncate font-mono text-xs">{node.name}</span>
-          </button>
-          {menu}
-        </div>
+          </button>,
+          basePad
+        )}
         {isOpen &&
           node.children?.map((child) => (
             <VaultTreeRow
@@ -233,34 +231,31 @@ function VaultTreeRow({
   }
 
   return (
-    <div
-      role="treeitem"
-      aria-selected={isSelected}
-      className="group/row relative flex items-center"
-      onContextMenu={onContextMenu}
-    >
-      <button
-        type="button"
-        onClick={() => onSelect?.(node)}
-        // Nested notes align under the parent folder's label (+20 clears the
-        // disclosure chevron); top-level notes have no folder above them, so
-        // they sit flush with the panel gutter (matching Settings / Agent).
-        style={{ paddingLeft: `${basePad + (depth > 0 ? 20 : 0)}px` }}
-        className={cn(
-          "flex min-w-0 flex-1 items-center gap-1.5 py-1 pr-8 text-left transition-colors",
-          "focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none",
-          isSelected
-            ? "bg-accent text-entity"
-            : "text-entity/85 hover:bg-accent hover:text-entity"
-        )}
-      >
-        <HugeiconsIcon
-          icon={node.name.endsWith(".md") ? Note01Icon : File01Icon}
-          className="size-3.5 shrink-0 text-fg-muted"
-        />
-        <span className="truncate">{node.name}</span>
-      </button>
-      {menu}
+    <div role="treeitem" aria-selected={isSelected}>
+      {line(
+        <button
+          type="button"
+          onClick={() => onSelect?.(node)}
+          // Nested notes align under the parent folder's label (+20 clears the
+          // disclosure chevron); top-level notes have no folder above them, so
+          // they sit flush with the panel gutter (matching Settings / Agent).
+          style={{ paddingLeft: `${basePad + (depth > 0 ? 20 : 0)}px` }}
+          className={cn(
+            "flex min-w-0 flex-1 items-center gap-1.5 py-1 pr-8 text-left transition-colors",
+            "focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none",
+            isSelected
+              ? "bg-accent text-entity"
+              : "text-entity/85 hover:bg-accent hover:text-entity"
+          )}
+        >
+          <HugeiconsIcon
+            icon={node.name.endsWith(".md") ? Note01Icon : File01Icon}
+            className="size-3.5 shrink-0 text-fg-muted"
+          />
+          <span className="truncate">{node.name}</span>
+        </button>,
+        basePad + (depth > 0 ? 20 : 0)
+      )}
     </div>
   )
 }

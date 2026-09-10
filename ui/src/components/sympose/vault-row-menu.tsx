@@ -16,6 +16,11 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuTrigger,
+} from "@/components/ui/context-menu"
+import {
   createVaultNote,
   deleteVaultNote,
   renameVaultNote,
@@ -24,21 +29,25 @@ import { ConfirmDialog } from "@/components/sympose/confirm-dialog"
 import type { VaultNode } from "@/components/sympose/vault-tree"
 
 /**
- * Row actions for the vault tree (ADR-084 §tree-rows). A `⋯` button — revealed
- * on row hover / focus, or by right-clicking the row (`open` is controlled by
- * the parent) — with:
- *   - **note**: Rename… (inline field overlaid on the row) and Delete… (modal
- *     confirm → moved to `.trash/`, recoverable from the trash view — ADR-085)
- *   - **folder**: New note here (creates `Folder/Untitled`, auto-numbered)
- * Owns the API calls and reports the outcome so the parent can re-pull the
- * tree and fix up the current selection.
+ * The interactive line of a vault tree row plus its two ways in to the same
+ * actions (ADR-084 §tree-rows):
+ *
+ *   - the `⋯` button, revealed on row hover / focus
+ *   - a right-click (fine pointer) or ~450ms long-press (touch / pen) anywhere
+ *     on the row, opening a pointer-anchored context menu
+ *
+ * Both carry the same rows — **note**: Rename… (an inline field overlaid on the
+ * row) and Delete… (modal confirm → moved to `.trash/`, recoverable from the
+ * trash view, ADR-085); **folder**: New note here (`Folder/Untitled`,
+ * auto-numbered). This component owns the API calls and the rename field; the
+ * row's own visual content is passed as `children`.
  */
 function VaultRowMenu({
   node,
   persona,
   paddingLeft,
-  open,
-  onOpenChange,
+  className,
+  children,
   onRenamed,
   onDeleted,
   onCreated,
@@ -47,8 +56,10 @@ function VaultRowMenu({
   persona: string
   /** Left inset of the row, so the inline rename field lines up with the label. */
   paddingLeft: number
-  open: boolean
-  onOpenChange: (open: boolean) => void
+  /** Extra classes for the row line (e.g. the `role="treeitem"` semantics). */
+  className?: string
+  /** The row's visual content — the disclosure / select `<button>`. */
+  children: React.ReactNode
   /** A note row was renamed: its old path and the new vault-relative path. */
   onRenamed: (oldPath: string, newPath: string) => void
   /** A note row was moved to trash. */
@@ -59,8 +70,8 @@ function VaultRowMenu({
   const isNote = node.type === "note"
   const stem = node.name.replace(/\.md$/i, "")
   const [renaming, setRenaming] = React.useState<string | null>(null)
-  // Rename mode is entered only once the menu has fully closed — see the
-  // `onOpenChangeComplete` handler below.
+  // Rename mode is entered only once the menu that launched it has fully
+  // closed — see `enterRenameAfterClose`.
   const [pendingRename, setPendingRename] = React.useState(false)
   const [busy, setBusy] = React.useState(false)
   const [deleteOpen, setDeleteOpen] = React.useState(false)
@@ -86,6 +97,17 @@ function VaultRowMenu({
     })
     return () => cancelAnimationFrame(id)
   }, [renameActive])
+
+  // Both menus defer entering the inline field to their `onOpenChangeComplete`:
+  // flipping `renaming` on the item click unmounts the trigger mid-close, and
+  // the focus Base UI then hands back lands on <body> — blurring the freshly
+  // mounted input and cancelling rename on the same frame.
+  const enterRenameAfterClose = (stillOpen: boolean) => {
+    if (!stillOpen && pendingRename) {
+      setPendingRename(false)
+      setRenaming(stem)
+    }
+  }
 
   const submitRename = async () => {
     const name = (renaming ?? "")
@@ -136,84 +158,81 @@ function VaultRowMenu({
     toast.error("Couldn't find a free “Untitled” name")
   }
 
-  if (renaming !== null) {
-    return (
-      <input
-        ref={inputRef}
-        value={renaming}
-        disabled={busy}
-        aria-label={`Rename ${stem}`}
-        onChange={(e) => setRenaming(e.target.value)}
-        onFocus={() => {
-          sawFocusRef.current = true
-        }}
-        onBlur={() => {
-          if (sawFocusRef.current) setRenaming(null)
-        }}
-        onClick={(e) => e.stopPropagation()}
-        onKeyDown={(e) => {
-          e.stopPropagation()
-          if (e.key === "Enter") void submitRename()
-          else if (e.key === "Escape") setRenaming(null)
-        }}
-        style={{ paddingLeft: `${paddingLeft + 20}px` }}
-        className="absolute inset-y-0 right-1 left-0 my-auto h-6 rounded-md border border-border bg-background pr-2 font-mono text-xs outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:opacity-50"
-      />
-    )
-  }
+  // One row list, rendered into both the `⋯` dropdown and the context menu —
+  // `ContextMenu.Item` is `Menu.Item`, so the same parts serve both.
+  const items = isNote ? (
+    <>
+      <DropdownMenuItem onClick={() => setPendingRename(true)}>
+        <HugeiconsIcon icon={Edit01Icon} />
+        Rename…
+      </DropdownMenuItem>
+      <DropdownMenuItem
+        variant="destructive"
+        onClick={() => setDeleteOpen(true)}
+      >
+        <HugeiconsIcon icon={Delete02Icon} />
+        Delete…
+      </DropdownMenuItem>
+    </>
+  ) : (
+    <DropdownMenuItem onClick={newNoteHere}>
+      <HugeiconsIcon icon={NoteAddIcon} />
+      New note here
+    </DropdownMenuItem>
+  )
 
   return (
-    <>
-      <DropdownMenu
-        modal={false}
-        open={open}
-        onOpenChange={onOpenChange}
-        onOpenChangeComplete={(next) => {
-          // Enter the inline field only after Base UI has finished closing the
-          // menu and handing focus back to the trigger. Flipping `renaming` on
-          // the item click unmounts the trigger mid-close, so the focus Base UI
-          // returns lands on <body> — blurring the freshly mounted input and
-          // cancelling rename on the same frame.
-          if (!next && pendingRename) {
-            setPendingRename(false)
-            setRenaming(stem)
-          }
-        }}
+    <ContextMenu onOpenChangeComplete={enterRenameAfterClose}>
+      <ContextMenuTrigger
+        className={cn("group/row relative flex items-center", className)}
       >
-        <DropdownMenuTrigger
-          aria-label={`${isNote ? "Note" : "Folder"} actions`}
-          onClick={(e) => e.stopPropagation()}
-          className={cn(
-            "absolute top-1/2 right-1 grid size-6 -translate-y-1/2 place-items-center rounded text-fg-muted",
-            "opacity-0 transition-opacity hover:bg-accent hover:text-foreground",
-            "group-hover/row:opacity-100 focus-visible:opacity-100 data-popup-open:opacity-100"
-          )}
+        {children}
+
+        {renaming !== null && (
+          <input
+            ref={inputRef}
+            value={renaming}
+            disabled={busy}
+            aria-label={`Rename ${stem}`}
+            onChange={(e) => setRenaming(e.target.value)}
+            onFocus={() => {
+              sawFocusRef.current = true
+            }}
+            onBlur={() => {
+              if (sawFocusRef.current) setRenaming(null)
+            }}
+            onClick={(e) => e.stopPropagation()}
+            onKeyDown={(e) => {
+              e.stopPropagation()
+              if (e.key === "Enter") void submitRename()
+              else if (e.key === "Escape") setRenaming(null)
+            }}
+            style={{ paddingLeft: `${paddingLeft + 20}px` }}
+            className="absolute inset-y-0 right-1 left-0 my-auto h-6 rounded-md border border-border bg-background pr-2 font-mono text-xs outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:opacity-50"
+          />
+        )}
+
+        <DropdownMenu
+          modal={false}
+          onOpenChangeComplete={enterRenameAfterClose}
         >
-          <HugeiconsIcon icon={MoreHorizontalIcon} className="size-3.5" />
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          {isNote ? (
-            <>
-              <DropdownMenuItem onClick={() => setPendingRename(true)}>
-                <HugeiconsIcon icon={Edit01Icon} />
-                Rename…
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                variant="destructive"
-                onClick={() => setDeleteOpen(true)}
-              >
-                <HugeiconsIcon icon={Delete02Icon} />
-                Delete…
-              </DropdownMenuItem>
-            </>
-          ) : (
-            <DropdownMenuItem onClick={newNoteHere}>
-              <HugeiconsIcon icon={NoteAddIcon} />
-              New note here
-            </DropdownMenuItem>
-          )}
-        </DropdownMenuContent>
-      </DropdownMenu>
+          <DropdownMenuTrigger
+            aria-label={`${isNote ? "Note" : "Folder"} actions`}
+            onClick={(e) => e.stopPropagation()}
+            className={cn(
+              "absolute top-1/2 right-1 grid size-6 -translate-y-1/2 place-items-center rounded text-fg-muted",
+              "opacity-0 transition-opacity hover:bg-accent hover:text-foreground",
+              "group-hover/row:opacity-100 focus-visible:opacity-100 data-popup-open:opacity-100"
+            )}
+          >
+            <HugeiconsIcon icon={MoreHorizontalIcon} className="size-3.5" />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">{items}</DropdownMenuContent>
+        </DropdownMenu>
+      </ContextMenuTrigger>
+
+      <ContextMenuContent>{items}</ContextMenuContent>
+
       <ConfirmDialog
         open={deleteOpen}
         onOpenChange={setDeleteOpen}
@@ -222,7 +241,7 @@ function VaultRowMenu({
         confirmLabel="Move to trash"
         onConfirm={runDelete}
       />
-    </>
+    </ContextMenu>
   )
 }
 

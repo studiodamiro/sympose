@@ -309,6 +309,61 @@
   -webkit-backdrop-filter: blur(12px);
 }
 
+/* Give stylo's compact right-click menu the same geometry as Sympose's own
+   translucent dropdown (`DropdownMenuContent` / its items) — generous radius,
+   roomier rows, a soft drop shadow over a hairline ring instead of a hard
+   border — so the editor's right-click menu and the vault tree's read as one
+   component. The frosted surface itself is set by the rule above; this is
+   shape only. `!important` throughout: stylo injects these as a CodeMirror
+   `EditorView.theme()` stylesheet whose insertion order we can't rely on. */
+[data-slot="markdown-panel"] .cm-inplace-menu-panel {
+  min-width: 12rem !important;
+  padding: 0.25rem !important;
+  border: none !important;
+  border-radius: 1rem !important;
+  box-shadow:
+    0 25px 50px -12px rgb(0 0 0 / 0.25),
+    0 0 0 1px color-mix(in srgb, var(--foreground) 8%, transparent) !important;
+}
+[data-slot="markdown-panel"] .cm-inplace-menu-item {
+  gap: 0.625rem !important;
+  padding: 0.5rem 0.75rem !important;
+  border-radius: 0.75rem !important;
+  font-size: 0.875rem !important;
+}
+[data-slot="markdown-panel"] .cm-inplace-menu-item svg {
+  width: 1rem !important;
+  height: 1rem !important;
+}
+[data-slot="markdown-panel"] .cm-inplace-menu-item:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--foreground) 10%, transparent) !important;
+}
+[data-slot="markdown-panel"] .cm-inplace-menu-sep {
+  margin: 0.25rem !important;
+  background: color-mix(in srgb, var(--border) 50%, transparent) !important;
+}
+
+/* Sympose's own pointer-anchored context menu (`components/ui/context-menu`)
+   on a coarse pointer: open the rows and glyphs up for a fingertip, the same
+   way the editor's touch menu does (`@media (pointer: coarse)` in stylo's
+   theme bumps its rows to `9px 0.75em` / `1em`). Fine pointers keep the
+   compact dropdown metrics. */
+@media (pointer: coarse) {
+  [data-slot="context-menu-content"] {
+    min-width: 14rem;
+  }
+  [data-slot="context-menu-content"] [data-slot="dropdown-menu-item"] {
+    padding: 0.625rem 0.75rem;
+    font-size: 0.9375rem;
+  }
+  [data-slot="context-menu-content"]
+    [data-slot="dropdown-menu-item"]
+    svg:not([class*="size-"]) {
+    width: 1.15rem;
+    height: 1.15rem;
+  }
+}
+
 /* stylo runs two independent floating affordances that can legitimately be
    on screen at once and don't know about each other: the persistent
    selection-formatting bar (`inPlace.selectionUI: "bar"`) and the right-click

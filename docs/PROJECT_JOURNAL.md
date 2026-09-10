@@ -25,6 +25,7 @@ one in [`docs/wiki/index.md`](./wiki/index.md) are kept in sync per the
 
 | ADR | Title | Status | Date | Source |
 | --- | ----- | ------ | ---- | ------ |
+| ADR-086 | Vault Tree Context Menu & Trash in the Main Menu | Accepted | 2026-09-11 | [2026-09-11_adr-086-vault-tree-context-menu-and-trash-in-main-menu.md](./journal/2026-09/2026-09-11_adr-086-vault-tree-context-menu-and-trash-in-main-menu.md) |
 | ADR-085 | Note Recovery: the Vault Trash View | Accepted | 2026-09-10 | [2026-09-10_adr-085-note-recovery-trash-view.md](./journal/2026-09/2026-09-10_adr-085-note-recovery-trash-view.md) |
 | ADR-084 | Rename & Delete Notes from the Editor | Accepted | 2026-09-10 | [2026-09-10_adr-084-rename-delete-notes-from-editor.md](./journal/2026-09/2026-09-10_adr-084-rename-delete-notes-from-editor.md) |
 | ADR-083 | Editor Note Creation & Frontmatter Round-Trip Fidelity | Accepted | 2026-09-10 | [2026-09-10_adr-083-editor-note-creation-and-frontmatter-fidelity.md](./journal/2026-09/2026-09-10_adr-083-editor-note-creation-and-frontmatter-fidelity.md) |
@@ -122,6 +123,7 @@ one in [`docs/wiki/index.md`](./wiki/index.md) are kept in sync per the
 
 | Date | Entry |
 | ---- | ----- |
+| 2026-09-11 | [ADR-086 — Vault Tree Context Menu & Trash in the Main Menu](./journal/2026-09/2026-09-11_adr-086-vault-tree-context-menu-and-trash-in-main-menu.md) |
 | 2026-09-10 | [ADR-085 — Note Recovery: the Vault Trash View](./journal/2026-09/2026-09-10_adr-085-note-recovery-trash-view.md) |
 | 2026-09-10 | [ADR-084 — Rename & Delete Notes from the Editor](./journal/2026-09/2026-09-10_adr-084-rename-delete-notes-from-editor.md) |
 | 2026-09-10 | [ADR-083 — Editor Note Creation & Frontmatter Round-Trip Fidelity](./journal/2026-09/2026-09-10_adr-083-editor-note-creation-and-frontmatter-fidelity.md) |

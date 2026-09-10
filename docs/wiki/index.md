@@ -100,6 +100,7 @@ list and is kept in sync per the
 
 | ADR | Title | Status | Date |
 | --- | ----- | ------ | ---- |
+| [ADR-086](../journal/2026-09/2026-09-11_adr-086-vault-tree-context-menu-and-trash-in-main-menu.md) | Vault Tree Context Menu & Trash in the Main Menu | Accepted | 2026-09-11 |
 | [ADR-085](../journal/2026-09/2026-09-10_adr-085-note-recovery-trash-view.md) | Note Recovery: the Vault Trash View | Accepted | 2026-09-10 |
 | [ADR-084](../journal/2026-09/2026-09-10_adr-084-rename-delete-notes-from-editor.md) | Rename & Delete Notes from the Editor | Accepted | 2026-09-10 |
 | [ADR-083](../journal/2026-09/2026-09-10_adr-083-editor-note-creation-and-frontmatter-fidelity.md) | Editor Note Creation & Frontmatter Round-Trip Fidelity | Accepted | 2026-09-10 |

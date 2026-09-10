@@ -253,7 +253,7 @@ def create_app(engine: Any, workspace_dir: Optional[str] = None) -> FastAPI:
         profile = engine.pm.get_profile(body.persona) or engine.pm.get_profile("samantha")
         result = VaultManager.restore_from_trash(profile, body.path)
         if result == VaultManager.NOTE_NOT_FOUND:
-            raise HTTPException(status_code=404, detail=f"`{body.path}` is not in the trash.")
+            raise HTTPException(status_code=404, detail=f"`{body.path}` is not in the bin.")
         if result == VaultManager.NOTE_EXISTS:
             raise HTTPException(status_code=409, detail="A note already exists at the original path.")
         if result == VaultManager.NOTE_DENIED:
@@ -272,7 +272,7 @@ def create_app(engine: Any, workspace_dir: Optional[str] = None) -> FastAPI:
         profile = engine.pm.get_profile(persona) or engine.pm.get_profile("samantha")
         result = VaultManager.purge_from_trash(profile, path)
         if result == VaultManager.NOTE_NOT_FOUND:
-            raise HTTPException(status_code=404, detail=f"`{path}` is not in the trash.")
+            raise HTTPException(status_code=404, detail=f"`{path}` is not in the bin.")
         if result == VaultManager.NOTE_DENIED:
             raise HTTPException(status_code=403, detail=f"Path `{path}` is outside the assigned sandbox.")
         if result.startswith("Error:"):

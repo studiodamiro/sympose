@@ -38,11 +38,12 @@ function splitPath(rel: string): { dir: string; name: string } {
 }
 
 /**
- * The vault trash (ADR-085) — a flat list of notes `delete_note` moved to
- * `<vault>/.trash/`, each restorable to its original path or deletable for
- * good. Shown in place of `<VaultTree>` when the panel's trash toggle is on.
- * Owns its own fetch; `refreshKey` lets the shell force a re-pull after an
- * outside change (e.g. a fresh delete from the editor).
+ * The vault bin (ADR-085) — a flat list of notes `delete_note` moved to
+ * `<vault>/.trash/` (the folder keeps Obsidian's name; the UI says "Bin"),
+ * each restorable to its original path or deletable for good. Shown in place
+ * of `<VaultTree>` when the main-menu Bin row is the active section. Owns its
+ * own fetch; `refreshKey` lets the shell force a re-pull after an outside
+ * change (e.g. a fresh delete from the editor).
  */
 function TrashList({
   persona,
@@ -91,7 +92,7 @@ function TrashList({
 
   if (items === null) {
     return (
-      <p className={cn("text-sm text-fg-muted", className)}>Loading trash…</p>
+      <p className={cn("text-sm text-fg-muted", className)}>Loading bin…</p>
     )
   }
 
@@ -102,7 +103,7 @@ function TrashList({
           <EmptyMedia variant="icon">
             <HugeiconsIcon icon={Delete02Icon} />
           </EmptyMedia>
-          <EmptyTitle>Trash is empty</EmptyTitle>
+          <EmptyTitle>Bin is empty</EmptyTitle>
           <EmptyDescription>
             Deleted notes land here and can be restored to where they were.
           </EmptyDescription>
@@ -122,7 +123,7 @@ function TrashList({
           onClick={() => setPendingEmpty(true)}
           className="text-xs text-fg-muted transition-colors hover:text-destructive"
         >
-          Empty trash
+          Empty bin
         </button>
       </div>
 
@@ -190,11 +191,11 @@ function TrashList({
       <ConfirmDialog
         open={pendingEmpty}
         onOpenChange={setPendingEmpty}
-        title="Empty the trash?"
+        title="Empty the bin?"
         description={`Permanently deletes ${items.length} note${
           items.length === 1 ? "" : "s"
         } from disk. This cannot be undone.`}
-        confirmLabel="Empty trash"
+        confirmLabel="Empty bin"
         onConfirm={async () => {
           const res = await emptyTrash(persona)
           if (res.ok) {

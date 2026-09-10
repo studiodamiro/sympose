@@ -72,9 +72,10 @@ interface MainMenuProps extends Omit<React.ComponentProps<"nav">, "onSelect"> {
   /** Account row clicked. Pair with `activeId === MENU_ACCOUNT_ID`. */
   onSelectAccount?: () => void
   /**
-   * Trash row clicked. Pair with `activeId === MENU_TRASH_ID`. Sits in the
-   * footer just above Settings and, unlike Settings / account, stays visible
-   * on phone (`hideChrome`) since it has no TopBar home.
+   * Bin row clicked. Pair with `activeId === MENU_TRASH_ID`. Sits in the footer
+   * just above Settings and, unlike Settings / account, stays visible on phone
+   * (`hideChrome`) since it has no TopBar home. (The row reads "Bin"; the
+   * underlying folder stays `<vault>/.trash/`, Obsidian's own convention.)
    */
   onSelectTrash?: () => void
   /**
@@ -309,7 +310,7 @@ function MainMenu({
             <span className={SLOT}>
               <HugeiconsIcon icon={Delete03Icon} className="size-4.5" />
             </span>
-            <span className={LABEL}>Trash</span>
+            <span className={LABEL}>Bin</span>
           </button>
           {!hideChrome && (
             <>

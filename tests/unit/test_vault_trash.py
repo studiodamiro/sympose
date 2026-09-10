@@ -182,7 +182,7 @@ class TestPurge:
 
         result = VaultManager.empty_trash({"vault_folders": ["Shared"]})
 
-        assert result == "Emptied trash (2 notes)"
+        assert result == "Emptied the bin (2 notes)"
         assert not (tmp_vault_dir / ".trash" / "Shared").exists()
         assert (tmp_vault_dir / ".trash" / "Private" / "keep.md").exists()
 

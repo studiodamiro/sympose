@@ -207,10 +207,10 @@ class TestVaultNoteRenameDelete:
         assert resp.status_code == 404
 
     def test_delete_success(self, monkeypatch):
-        client, user = self._client(monkeypatch, delete_result="Moved to trash: `.trash/N/a.md`")
+        client, user = self._client(monkeypatch, delete_result="Moved to the bin: `.trash/N/a.md`")
         resp = client.delete("/api/vault/note?path=N/a", auth=(user, "pw"))
         assert resp.status_code == 200
-        assert "trash" in resp.json()["detail"]
+        assert "bin" in resp.json()["detail"]
 
     def test_delete_missing_404(self, monkeypatch):
         from sympose.vault import VaultManager
@@ -287,10 +287,10 @@ class TestVaultTrash:
         assert resp.status_code == 403
 
     def test_empty_trash(self, monkeypatch):
-        client, user = self._client(monkeypatch, empty_trash="Emptied trash (3 notes)")
+        client, user = self._client(monkeypatch, empty_trash="Emptied the bin (3 notes)")
         resp = client.post("/api/vault/trash/empty", json={}, auth=(user, "pw"))
         assert resp.status_code == 200
-        assert resp.json()["detail"] == "Emptied trash (3 notes)"
+        assert resp.json()["detail"] == "Emptied the bin (3 notes)"
 
 
 def _route(app, path):

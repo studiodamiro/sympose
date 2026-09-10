@@ -341,7 +341,7 @@ class TestDeleteNote:
 
         result = VaultManager.delete_note({"vault_folders": ["*"]}, "Notes/scrap")
 
-        assert result == "Moved to trash: `.trash/Notes/scrap.md`"
+        assert result == "Moved to the bin: `.trash/Notes/scrap.md`"
         assert not (tmp_vault_dir / "Notes" / "scrap.md").exists()
         assert (tmp_vault_dir / ".trash" / "Notes" / "scrap.md").read_text() == "junk"
 
@@ -354,7 +354,7 @@ class TestDeleteNote:
 
         result = VaultManager.delete_note({"vault_folders": ["*"]}, "dupe")
 
-        assert result.startswith("Moved to trash: `.trash/dupe-")
+        assert result.startswith("Moved to the bin: `.trash/dupe-")
         assert (tmp_vault_dir / ".trash" / "dupe.md").read_text() == "old trash"
 
     def test_missing_not_found(self, tmp_vault_dir, monkeypatch):

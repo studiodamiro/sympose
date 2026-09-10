@@ -1266,7 +1266,7 @@ class VaultManager:
         except Exception:
             log.debug("[vault] delete de-index failed for %s", old_rel, exc_info=True)
         _BACKLINK_CACHE.clear()
-        return f"Moved to trash: `{os.path.relpath(dest, mv)}`"
+        return f"Moved to the bin: `{os.path.relpath(dest, mv)}`"
 
     # ------------------------------------------------------------------
     # Trash recovery (ADR-085) — thin, sandbox-scoped wrappers over
@@ -1331,7 +1331,7 @@ class VaultManager:
         if not mv or not allowed:
             return cls.NOTE_DENIED
         n = vault_trash.purge_all(mv, allowed)
-        return f"Emptied trash ({n} note{'s' if n != 1 else ''})"
+        return f"Emptied the bin ({n} note{'s' if n != 1 else ''})"
 
     @classmethod
     def _sync_frontmatter_tags(cls, file_path: str, new_tags: List[str]) -> None:

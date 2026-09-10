@@ -38,7 +38,7 @@ import type { VaultNode } from "@/components/sympose/vault-tree"
  *
  * Both carry the same rows — **note**: Rename… (an inline field overlaid on the
  * row) and Delete… (modal confirm → moved to `.trash/`, recoverable from the
- * trash view, ADR-085); **folder**: New note here (`Folder/Untitled`,
+ * Bin, ADR-085); **folder**: New note here (`Folder/Untitled`,
  * auto-numbered). This component owns the API calls and the rename field; the
  * row's own visual content is passed as `children`.
  */
@@ -236,9 +236,9 @@ function VaultRowMenu({
       <ConfirmDialog
         open={deleteOpen}
         onOpenChange={setDeleteOpen}
-        title={`Move “${stem}” to trash?`}
-        description="You can restore it from the vault trash later."
-        confirmLabel="Move to trash"
+        title={`Move “${stem}” to the bin?`}
+        description="You can restore it from the vault bin later."
+        confirmLabel="Move to bin"
         onConfirm={runDelete}
       />
     </ContextMenu>

@@ -13,7 +13,7 @@ import {
 
 /**
  * A controlled yes/no confirm modal for irreversible-ish actions — moving a
- * note to trash, deleting it for good, emptying the trash (ADR-084 / ADR-085).
+ * note to the bin, deleting it for good, emptying the bin (ADR-084 / ADR-085).
  * Replaces the earlier sonner-toast confirm, whose action button was a single
  * misclick away from deleting.
  *

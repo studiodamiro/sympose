@@ -69,7 +69,7 @@ function menuIconFor(node: VaultNode) {
 const SECTION_LABELS: Record<string, string> = {
   [MENU_SETTINGS_ID]: "Settings",
   [MENU_ACCOUNT_ID]: "Agent",
-  [MENU_TRASH_ID]: "Trash",
+  [MENU_TRASH_ID]: "Bin",
 }
 
 const AUTO_COLLAPSE_COOKIE = "sympose:pref.autoCollapseMenu"
@@ -166,7 +166,7 @@ export function AppShell() {
     }
     // A root note row (README.md) also selects it in the tree.
     if (noteIds.has(id)) setSelectedNote(id)
-    // Leaving the tree for the trash view: drop any half-typed new-note name.
+    // Leaving the tree for the bin: drop any half-typed new-note name.
     if (id === MENU_TRASH_ID) setNewNoteName(null)
     if (id === resolvedActive && panels.isOpen("content")) {
       panels.close("content")
@@ -279,8 +279,8 @@ export function AppShell() {
   // `null` = the new-note input is closed; a string = its current value.
   const [newNoteName, setNewNoteName] = React.useState<string | null>(null)
   const [creatingNote, setCreatingNote] = React.useState(false)
-  // The vault panel shows the trash (ADR-085) instead of the tree when the
-  // main-menu Trash row is the active section.
+  // The vault panel shows the bin (ADR-085) instead of the tree when the
+  // main-menu Bin row is the active section.
   const trashView = active === MENU_TRASH_ID
   React.useEffect(() => {
     let alive = true
@@ -425,7 +425,7 @@ export function AppShell() {
       <div className="flex flex-col gap-2">
         <div className="flex items-center justify-between gap-2">
           <h2 className="font-heading text-2xl font-semibold text-fg-strong">
-            {trashView ? "Trash" : activeLabel || "Vault"}
+            {trashView ? "Bin" : activeLabel || "Vault"}
           </h2>
           {!trashView && (
             <button

@@ -38,13 +38,19 @@ coarse)` variant for touch. Ours looked nothing like it.
 
 ## Decision
 
-### 1. Trash is a main-menu row
+### 1. The bin is a main-menu row
 
 - New sentinel **`MENU_TRASH_ID`** in `main-menu.tsx`, alongside
   `MENU_SETTINGS_ID` / `MENU_ACCOUNT_ID`, with an `onSelectTrash` prop. It
   renders in the footer cluster **just above Settings**, and — unlike Settings
   and the account rows — stays visible on phone (`hideChrome`), since it has no
   `TopBar` home.
+- The row reads **"Bin"** — "Trash" was judged too harsh for a vault the user
+  is told is sovereign. Only the user-facing copy changed (the row, the panel
+  heading, the confirm-dialog / toast wording, and the two backend `detail`
+  strings). The folder stays `<vault>/.trash/` — Obsidian's own name for it —
+  and the internal identifiers (`MENU_TRASH_ID`, `trashView`, `TrashList`,
+  `vault-trash-api`, the `/api/vault/trash*` routes) keep "trash" too.
 - In the app shell, `trashView` is now **derived** (`active === MENU_TRASH_ID`),
   not a `useState`. `MENU_TRASH_ID` joins the `isSentinel` set so it survives
   `resolvedActive` reconciliation, and `selectSection` clears any half-typed
@@ -100,7 +106,7 @@ dependable.
   long-press, so a long-press does not also select the note / toggle the
   folder. If a device slips through, the row's `onClick` would still fire —
   acceptable (it just navigates), and revisit if it shows up.
-- Trash is now discoverable from the primary navigation on every breakpoint,
+- The bin is now discoverable from the primary navigation on every breakpoint,
   and the vault panel no longer carries a hidden mode of its own.
 - stylo overrides are `!important` and pinned to stylo's current class names
   (`cm-inplace-menu-panel` / `-item` / `-sep`); a stylo release that renames
@@ -118,9 +124,10 @@ dependable.
 - **A compact, flat menu matching stylo's default look.** Considered first.
   Rejected: damiro chose the Sympose translucent style for *every* right-click
   menu, so stylo's editor menu is restyled toward Sympose, not the reverse.
-- **Trash as the last row of the folder list** ("with the folders, last").
-  Rejected in favour of the footer, above Settings, so it groups with the
-  navigation destinations and holds its position as the folder list scrolls.
+- **The bin row as the last row of the folder list** ("with the folders,
+  last"). Rejected in favour of the footer, above Settings, so it groups with
+  the navigation destinations and holds its position as the folder list
+  scrolls.
 - **Restyle the shared `dropdown-menu` primitive globally.** Would drag the
   agent picker and every other dropdown along with it. The context menu already
   reuses the same shell (`menuPopupClass` + the item parts), so there is

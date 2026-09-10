@@ -164,9 +164,9 @@ function NoteActionsMenu({
       <ConfirmDialog
         open={deleteOpen}
         onOpenChange={setDeleteOpen}
-        title={`Move “${stem}” to trash?`}
-        description="You can restore it from the vault trash later."
-        confirmLabel="Move to trash"
+        title={`Move “${stem}” to the bin?`}
+        description="You can restore it from the vault bin later."
+        confirmLabel="Move to bin"
         onConfirm={runDelete}
       />
     </>

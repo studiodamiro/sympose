@@ -295,18 +295,25 @@
   padding-right: 1rem !important;
 }
 
-/* stylo's floating chrome (context menu, its URL input, selection bar,
-   link-hover tooltip) shares the CSS class names below across both. Give them
-   the same frosted surface as `menuPopupClass` (`components/ui/dropdown-menu`):
-   the panels' `--panel` tint, kept translucent and blurred so it reads as
-   floating above the document rather than blending into it. */
+/* ONE frosted surface for every menu in the app — the Sympose dropdowns and
+   pointer-anchored context menu (`components/ui/dropdown-menu` + `context-menu`)
+   and stylo's editor right-click menu / URL input / selection bar / link
+   tooltip. They used to paint their own backgrounds separately: the React side
+   via Tailwind's `bg-panel/88` (an oklab mix that read noticeably more
+   see-through) on a `::before` blur layer, stylo via its own `color-mix`. This
+   single rule keeps them byte-identical — a near-solid `--panel` tint over a
+   24px blur. `!important` is a no-op for the Sympose slots and is required to
+   beat stylo's injected `EditorView.theme()` stylesheet. */
+[data-slot="dropdown-menu-content"],
+[data-slot="dropdown-menu-sub-content"],
+[data-slot="context-menu-content"],
 [data-slot="markdown-panel"] .cm-inplace-menu-panel,
 [data-slot="markdown-panel"] .cm-inplace-menu-input,
 [data-slot="markdown-panel"] .cm-inplace-selbar,
 [data-slot="markdown-panel"] .cm-inplace-href-tip {
-  background: color-mix(in srgb, var(--panel) 88%, transparent) !important;
-  backdrop-filter: blur(24px) saturate(1.5);
-  -webkit-backdrop-filter: blur(24px) saturate(1.5);
+  background: color-mix(in srgb, var(--panel) 94%, transparent) !important;
+  -webkit-backdrop-filter: blur(24px) saturate(1.4);
+  backdrop-filter: blur(24px) saturate(1.4);
 }
 
 /* Give stylo's compact right-click menu the same geometry as Sympose's own
@@ -330,10 +337,15 @@
   padding: 0.5rem 0.75rem !important;
   border-radius: var(--radius-md) !important;
   font-size: 0.875rem !important;
+  /* stylo's menu rows inherit `--stylo-text`, which the bridge above points at
+     the deliberately-muted `--muted-foreground` (for editor body prose). A menu
+     label wants full contrast, like the Sympose menu items do. */
+  color: var(--panel-foreground) !important;
 }
 [data-slot="markdown-panel"] .cm-inplace-menu-item svg {
   width: 1rem !important;
   height: 1rem !important;
+  color: currentcolor !important;
 }
 [data-slot="markdown-panel"] .cm-inplace-menu-item:hover:not(:disabled) {
   background: color-mix(in srgb, var(--foreground) 10%, transparent) !important;

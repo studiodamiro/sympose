@@ -337,10 +337,11 @@
   padding: 0.5rem 0.75rem !important;
   border-radius: var(--radius-md) !important;
   font-size: 0.875rem !important;
-  /* stylo's menu rows inherit `--stylo-text`, which the bridge above points at
-     the deliberately-muted `--muted-foreground` (for editor body prose). A menu
-     label wants full contrast, like the Sympose menu items do. */
-  color: var(--panel-foreground) !important;
+  /* Rows at the app's general secondary-text weight (`--muted-foreground`),
+     matching the Sympose menu items — not stylo's own `--stylo-text`, which is
+     the same token but reads as "editor body prose" here. Full contrast only
+     on hover, below. */
+  color: var(--muted-foreground) !important;
 }
 [data-slot="markdown-panel"] .cm-inplace-menu-item svg {
   width: 1rem !important;
@@ -348,6 +349,7 @@
   color: currentcolor !important;
 }
 [data-slot="markdown-panel"] .cm-inplace-menu-item:hover:not(:disabled) {
+  color: var(--accent-foreground) !important;
   background: color-mix(in srgb, var(--foreground) 10%, transparent) !important;
 }
 [data-slot="markdown-panel"] .cm-inplace-menu-sep {

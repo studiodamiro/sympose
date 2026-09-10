@@ -65,6 +65,28 @@ function VaultRowMenu({
   const [busy, setBusy] = React.useState(false)
   const [deleteOpen, setDeleteOpen] = React.useState(false)
 
+  // `autoFocus` on the inline field is unreliable here: it mounts on the same
+  // tick the menu closes, and Base UI's modal focus restoration (plus the
+  // `inert` it briefly leaves on the rest of the page) can swallow it, so the
+  // field ends up unfocused and keystrokes fall through to global shortcuts.
+  // Focus it imperatively on the next frame instead, and ignore any `onBlur`
+  // that fires before the field has actually held focus.
+  const inputRef = React.useRef<HTMLInputElement>(null)
+  const sawFocusRef = React.useRef(false)
+  const renameActive = renaming !== null
+  React.useEffect(() => {
+    if (!renameActive) return
+    sawFocusRef.current = false
+    const id = requestAnimationFrame(() => {
+      const el = inputRef.current
+      if (el) {
+        el.focus()
+        el.select()
+      }
+    })
+    return () => cancelAnimationFrame(id)
+  }, [renameActive])
+
   const submitRename = async () => {
     const name = (renaming ?? "")
       .trim()
@@ -117,12 +139,17 @@ function VaultRowMenu({
   if (renaming !== null) {
     return (
       <input
-        autoFocus
+        ref={inputRef}
         value={renaming}
         disabled={busy}
         aria-label={`Rename ${stem}`}
         onChange={(e) => setRenaming(e.target.value)}
-        onBlur={() => setRenaming(null)}
+        onFocus={() => {
+          sawFocusRef.current = true
+        }}
+        onBlur={() => {
+          if (sawFocusRef.current) setRenaming(null)
+        }}
         onClick={(e) => e.stopPropagation()}
         onKeyDown={(e) => {
           e.stopPropagation()
@@ -138,6 +165,7 @@ function VaultRowMenu({
   return (
     <>
       <DropdownMenu
+        modal={false}
         open={open}
         onOpenChange={onOpenChange}
         onOpenChangeComplete={(next) => {

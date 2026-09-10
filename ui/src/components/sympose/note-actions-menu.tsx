@@ -49,6 +49,28 @@ function NoteActionsMenu({
   const [busy, setBusy] = React.useState(false)
   const [deleteOpen, setDeleteOpen] = React.useState(false)
 
+  // `autoFocus` on the inline field is unreliable here: it mounts on the same
+  // tick the menu closes, and Base UI's modal focus restoration (plus the
+  // `inert` it briefly leaves on the rest of the page) can swallow it, so the
+  // field ends up unfocused and keystrokes fall through to global shortcuts.
+  // Focus it imperatively on the next frame instead, and ignore any `onBlur`
+  // that fires before the field has actually held focus.
+  const inputRef = React.useRef<HTMLInputElement>(null)
+  const sawFocusRef = React.useRef(false)
+  const renameActive = renaming !== null
+  React.useEffect(() => {
+    if (!renameActive) return
+    sawFocusRef.current = false
+    const id = requestAnimationFrame(() => {
+      const el = inputRef.current
+      if (el) {
+        el.focus()
+        el.select()
+      }
+    })
+    return () => cancelAnimationFrame(id)
+  }, [renameActive])
+
   const submitRename = async () => {
     const name = (renaming ?? "")
       .trim()
@@ -83,12 +105,17 @@ function NoteActionsMenu({
   if (renaming !== null) {
     return (
       <input
-        autoFocus
+        ref={inputRef}
         value={renaming}
         disabled={busy}
         aria-label="New note name"
         onChange={(e) => setRenaming(e.target.value)}
-        onBlur={() => setRenaming(null)}
+        onFocus={() => {
+          sawFocusRef.current = true
+        }}
+        onBlur={() => {
+          if (sawFocusRef.current) setRenaming(null)
+        }}
         onKeyDown={(e) => {
           if (e.key === "Enter") void submitRename()
           else if (e.key === "Escape") setRenaming(null)
@@ -101,6 +128,7 @@ function NoteActionsMenu({
   return (
     <>
       <DropdownMenu
+        modal={false}
         onOpenChangeComplete={(open) => {
           // Swap the trigger for the inline field only after Base UI has
           // finished closing the menu and returning focus to the trigger.

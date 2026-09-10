@@ -225,6 +225,74 @@ class TestVaultNoteRenameDelete:
         assert resp.status_code == 403
 
 
+class TestVaultTrash:
+    """`/api/vault/trash*` sentinel → status-code mapping (ADR-085)."""
+
+    def _client(self, monkeypatch, **overrides):
+        from fastapi.testclient import TestClient
+        from sympose.auth import DASHBOARD_USER
+        import sympose.server as server
+
+        monkeypatch.setenv("DASHBOARD_PASSWORD", "pw")
+        for name, value in overrides.items():
+            monkeypatch.setattr(
+                server.VaultManager, name,
+                classmethod(lambda cls, *a, _v=value, **k: _v),
+            )
+        engine = MagicMock()
+        engine.pm.get_profile.return_value = {"vault_folders": ["*"]}
+        engine.pm.profiles = {}
+        return TestClient(server.create_app(engine)), DASHBOARD_USER
+
+    def test_list_trash_shape(self, monkeypatch):
+        rows = [{"trash_path": "a.md", "original_path": "a.md", "deleted_at": 1.0, "size": 3}]
+        client, user = self._client(monkeypatch, list_trash=rows)
+        resp = client.get("/api/vault/trash", auth=(user, "pw"))
+        assert resp.status_code == 200
+        assert resp.json() == {"count": 1, "items": rows}
+
+    def test_restore_success(self, monkeypatch):
+        client, user = self._client(monkeypatch, restore_from_trash="Restored to `Notes/a.md`")
+        resp = client.post(
+            "/api/vault/trash/restore", json={"path": "Notes/a.md"}, auth=(user, "pw")
+        )
+        assert resp.status_code == 200
+        assert "Restored" in resp.json()["detail"]
+
+    def test_restore_missing_404(self, monkeypatch):
+        from sympose.vault import VaultManager
+        client, user = self._client(monkeypatch, restore_from_trash=VaultManager.NOTE_NOT_FOUND)
+        resp = client.post(
+            "/api/vault/trash/restore", json={"path": "ghost.md"}, auth=(user, "pw")
+        )
+        assert resp.status_code == 404
+
+    def test_restore_target_occupied_409(self, monkeypatch):
+        from sympose.vault import VaultManager
+        client, user = self._client(monkeypatch, restore_from_trash=VaultManager.NOTE_EXISTS)
+        resp = client.post(
+            "/api/vault/trash/restore", json={"path": "a.md"}, auth=(user, "pw")
+        )
+        assert resp.status_code == 409
+
+    def test_purge_success(self, monkeypatch):
+        client, user = self._client(monkeypatch, purge_from_trash="Deleted permanently")
+        resp = client.delete("/api/vault/trash?path=a.md", auth=(user, "pw"))
+        assert resp.status_code == 200
+
+    def test_purge_denied_403(self, monkeypatch):
+        from sympose.vault import VaultManager
+        client, user = self._client(monkeypatch, purge_from_trash=VaultManager.NOTE_DENIED)
+        resp = client.delete("/api/vault/trash?path=../evil.md", auth=(user, "pw"))
+        assert resp.status_code == 403
+
+    def test_empty_trash(self, monkeypatch):
+        client, user = self._client(monkeypatch, empty_trash="Emptied trash (3 notes)")
+        resp = client.post("/api/vault/trash/empty", json={}, auth=(user, "pw"))
+        assert resp.status_code == 200
+        assert resp.json()["detail"] == "Emptied trash (3 notes)"
+
+
 def _route(app, path):
     return next(r for r in app.routes if getattr(r, "path", "") == path)
 

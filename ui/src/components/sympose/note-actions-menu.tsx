@@ -13,14 +13,15 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { ConfirmDialog } from "@/components/sympose/confirm-dialog"
 import { deleteVaultNote, renameVaultNote } from "@/lib/vault-note-api"
 
 /**
  * The `⋯` menu on the editor toolbar — Rename / Delete for the open note
  * (ADR-084). Rename swaps the button for an inline field (Enter commits, Esc /
- * blur cancels); Delete asks for confirmation through a toast action. Owns the
- * API calls itself; the parent is only told the note moved so it can repoint
- * `selectedNote` and refresh the tree.
+ * blur cancels); Delete asks for confirmation through a modal (ADR-085). Owns
+ * the API calls itself; the parent is only told the note moved so it can
+ * repoint `selectedNote` and refresh the tree.
  */
 function NoteActionsMenu({
   path,
@@ -43,6 +44,7 @@ function NoteActionsMenu({
 
   const [renaming, setRenaming] = React.useState<string | null>(null)
   const [busy, setBusy] = React.useState(false)
+  const [deleteOpen, setDeleteOpen] = React.useState(false)
 
   const submitRename = async () => {
     const name = (renaming ?? "")
@@ -65,21 +67,14 @@ function NoteActionsMenu({
     }
   }
 
-  const confirmDelete = () => {
-    toast(`Move “${stem}” to trash?`, {
-      action: {
-        label: "Delete",
-        onClick: async () => {
-          const res = await deleteVaultNote(path, persona)
-          if (res.ok) {
-            onDeleted()
-            toast.success(res.detail)
-          } else {
-            toast.error(res.error)
-          }
-        },
-      },
-    })
+  const runDelete = async () => {
+    const res = await deleteVaultNote(path, persona)
+    if (res.ok) {
+      onDeleted()
+      toast.success(res.detail)
+    } else {
+      toast.error(res.error)
+    }
   }
 
   if (renaming !== null) {
@@ -101,24 +96,37 @@ function NoteActionsMenu({
   }
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger
-        aria-label="Note actions"
-        className="grid size-7 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground data-[popup-open]:bg-accent data-[popup-open]:text-foreground"
-      >
-        <HugeiconsIcon icon={MoreHorizontalIcon} className="size-4" />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
-        <DropdownMenuItem onClick={() => setRenaming(stem)}>
-          <HugeiconsIcon icon={Edit01Icon} />
-          Rename…
-        </DropdownMenuItem>
-        <DropdownMenuItem variant="destructive" onClick={confirmDelete}>
-          <HugeiconsIcon icon={Delete02Icon} />
-          Delete…
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger
+          aria-label="Note actions"
+          className="grid size-7 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground data-[popup-open]:bg-accent data-[popup-open]:text-foreground"
+        >
+          <HugeiconsIcon icon={MoreHorizontalIcon} className="size-4" />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuItem onClick={() => setRenaming(stem)}>
+            <HugeiconsIcon icon={Edit01Icon} />
+            Rename…
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            variant="destructive"
+            onClick={() => setDeleteOpen(true)}
+          >
+            <HugeiconsIcon icon={Delete02Icon} />
+            Delete…
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+      <ConfirmDialog
+        open={deleteOpen}
+        onOpenChange={setDeleteOpen}
+        title={`Move “${stem}” to trash?`}
+        description="You can restore it from the vault trash later."
+        confirmLabel="Move to trash"
+        onConfirm={runDelete}
+      />
+    </>
   )
 }
 

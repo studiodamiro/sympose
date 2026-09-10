@@ -20,14 +20,15 @@ import {
   deleteVaultNote,
   renameVaultNote,
 } from "@/lib/vault-note-api"
+import { ConfirmDialog } from "@/components/sympose/confirm-dialog"
 import type { VaultNode } from "@/components/sympose/vault-tree"
 
 /**
  * Row actions for the vault tree (ADR-084 §tree-rows). A `⋯` button — revealed
  * on row hover / focus, or by right-clicking the row (`open` is controlled by
  * the parent) — with:
- *   - **note**: Rename… (inline field overlaid on the row) and Delete… (toast
- *     confirm → moved to `.trash/`)
+ *   - **note**: Rename… (inline field overlaid on the row) and Delete… (modal
+ *     confirm → moved to `.trash/`, recoverable from the trash view — ADR-085)
  *   - **folder**: New note here (creates `Folder/Untitled`, auto-numbered)
  * Owns the API calls and reports the outcome so the parent can re-pull the
  * tree and fix up the current selection.
@@ -59,6 +60,7 @@ function VaultRowMenu({
   const stem = node.name.replace(/\.md$/i, "")
   const [renaming, setRenaming] = React.useState<string | null>(null)
   const [busy, setBusy] = React.useState(false)
+  const [deleteOpen, setDeleteOpen] = React.useState(false)
 
   const submitRename = async () => {
     const name = (renaming ?? "")
@@ -81,21 +83,14 @@ function VaultRowMenu({
     }
   }
 
-  const confirmDelete = () => {
-    toast(`Move “${stem}” to trash?`, {
-      action: {
-        label: "Delete",
-        onClick: async () => {
-          const res = await deleteVaultNote(node.path, persona)
-          if (res.ok) {
-            onDeleted(node.path)
-            toast.success(res.detail)
-          } else {
-            toast.error(res.error)
-          }
-        },
-      },
-    })
+  const runDelete = async () => {
+    const res = await deleteVaultNote(node.path, persona)
+    if (res.ok) {
+      onDeleted(node.path)
+      toast.success(res.detail)
+    } else {
+      toast.error(res.error)
+    }
   }
 
   const newNoteHere = async () => {
@@ -132,44 +127,57 @@ function VaultRowMenu({
           else if (e.key === "Escape") setRenaming(null)
         }}
         style={{ paddingLeft: `${paddingLeft + 20}px` }}
-        className="absolute inset-y-0 left-0 right-1 my-auto h-6 rounded-md border border-border bg-background pr-2 font-mono text-xs outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:opacity-50"
+        className="absolute inset-y-0 right-1 left-0 my-auto h-6 rounded-md border border-border bg-background pr-2 font-mono text-xs outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:opacity-50"
       />
     )
   }
 
   return (
-    <DropdownMenu open={open} onOpenChange={onOpenChange}>
-      <DropdownMenuTrigger
-        aria-label={`${isNote ? "Note" : "Folder"} actions`}
-        onClick={(e) => e.stopPropagation()}
-        className={cn(
-          "absolute right-1 top-1/2 grid size-6 -translate-y-1/2 place-items-center rounded text-fg-muted",
-          "opacity-0 transition-opacity hover:bg-accent hover:text-foreground",
-          "group-hover/row:opacity-100 focus-visible:opacity-100 data-popup-open:opacity-100"
-        )}
-      >
-        <HugeiconsIcon icon={MoreHorizontalIcon} className="size-3.5" />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
-        {isNote ? (
-          <>
-            <DropdownMenuItem onClick={() => setRenaming(stem)}>
-              <HugeiconsIcon icon={Edit01Icon} />
-              Rename…
+    <>
+      <DropdownMenu open={open} onOpenChange={onOpenChange}>
+        <DropdownMenuTrigger
+          aria-label={`${isNote ? "Note" : "Folder"} actions`}
+          onClick={(e) => e.stopPropagation()}
+          className={cn(
+            "absolute top-1/2 right-1 grid size-6 -translate-y-1/2 place-items-center rounded text-fg-muted",
+            "opacity-0 transition-opacity hover:bg-accent hover:text-foreground",
+            "group-hover/row:opacity-100 focus-visible:opacity-100 data-popup-open:opacity-100"
+          )}
+        >
+          <HugeiconsIcon icon={MoreHorizontalIcon} className="size-3.5" />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          {isNote ? (
+            <>
+              <DropdownMenuItem onClick={() => setRenaming(stem)}>
+                <HugeiconsIcon icon={Edit01Icon} />
+                Rename…
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                variant="destructive"
+                onClick={() => setDeleteOpen(true)}
+              >
+                <HugeiconsIcon icon={Delete02Icon} />
+                Delete…
+              </DropdownMenuItem>
+            </>
+          ) : (
+            <DropdownMenuItem onClick={newNoteHere}>
+              <HugeiconsIcon icon={NoteAddIcon} />
+              New note here
             </DropdownMenuItem>
-            <DropdownMenuItem variant="destructive" onClick={confirmDelete}>
-              <HugeiconsIcon icon={Delete02Icon} />
-              Delete…
-            </DropdownMenuItem>
-          </>
-        ) : (
-          <DropdownMenuItem onClick={newNoteHere}>
-            <HugeiconsIcon icon={NoteAddIcon} />
-            New note here
-          </DropdownMenuItem>
-        )}
-      </DropdownMenuContent>
-    </DropdownMenu>
+          )}
+        </DropdownMenuContent>
+      </DropdownMenu>
+      <ConfirmDialog
+        open={deleteOpen}
+        onOpenChange={setDeleteOpen}
+        title={`Move “${stem}” to trash?`}
+        description="You can restore it from the vault trash later."
+        confirmLabel="Move to trash"
+        onConfirm={runDelete}
+      />
+    </>
   )
 }
 

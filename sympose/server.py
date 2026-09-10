@@ -45,6 +45,20 @@ class NoteRename(BaseModel):
     persona: str = "samantha"
 
 
+class TrashRestore(BaseModel):
+    """Body of `POST /api/vault/trash/restore` — move the trashed note at
+    `path` (a `.trash`-relative path from `GET /api/vault/trash`) back to where
+    it was deleted from (ADR-085)."""
+    path: str = Field(..., min_length=1)
+    persona: str = "samantha"
+
+
+class TrashEmpty(BaseModel):
+    """Body of `POST /api/vault/trash/empty` — permanently delete every in-scope
+    trashed note (ADR-085)."""
+    persona: str = "samantha"
+
+
 def create_app(engine: Any, workspace_dir: Optional[str] = None) -> FastAPI:
     """Factory creating the FastAPI application bound to a PersonaEngine instance.
     Every route (including `/`, `/docs`, and the vault/config API) sits behind the
@@ -220,6 +234,61 @@ def create_app(engine: Any, workspace_dir: Optional[str] = None) -> FastAPI:
         if result.startswith("Error:"):
             raise HTTPException(status_code=500, detail=result)
         return {"path": path, "detail": result}
+
+    @app.get("/api/vault/trash")
+    def list_trash(
+        persona: Optional[str] = Query("samantha"),
+    ) -> Dict[str, Any]:
+        """Recoverable notes in `<vault>/.trash` (ADR-085), scoped to the
+        persona, newest deletion first."""
+        profile = engine.pm.get_profile(persona) or engine.pm.get_profile("samantha")
+        items = VaultManager.list_trash(profile)
+        return {"count": len(items), "items": items}
+
+    @app.post("/api/vault/trash/restore")
+    def restore_trash(body: TrashRestore) -> Dict[str, Any]:
+        """Move a trashed note back to its original path (ADR-085). 404 if it's
+        not in the trash, 409 if something occupies the original path now, 403
+        outside the sandbox."""
+        profile = engine.pm.get_profile(body.persona) or engine.pm.get_profile("samantha")
+        result = VaultManager.restore_from_trash(profile, body.path)
+        if result == VaultManager.NOTE_NOT_FOUND:
+            raise HTTPException(status_code=404, detail=f"`{body.path}` is not in the trash.")
+        if result == VaultManager.NOTE_EXISTS:
+            raise HTTPException(status_code=409, detail="A note already exists at the original path.")
+        if result == VaultManager.NOTE_DENIED:
+            raise HTTPException(status_code=403, detail=f"Path `{body.path}` is outside the assigned sandbox.")
+        if result.startswith("Error:"):
+            raise HTTPException(status_code=500, detail=result)
+        return {"path": body.path, "detail": result}
+
+    @app.delete("/api/vault/trash")
+    def purge_trash(
+        path: str = Query(..., description="`.trash`-relative path of the note to delete forever"),
+        persona: Optional[str] = Query("samantha"),
+    ) -> Dict[str, Any]:
+        """Permanently delete one trashed note (ADR-085). 404 if it's not in the
+        trash, 403 outside the sandbox."""
+        profile = engine.pm.get_profile(persona) or engine.pm.get_profile("samantha")
+        result = VaultManager.purge_from_trash(profile, path)
+        if result == VaultManager.NOTE_NOT_FOUND:
+            raise HTTPException(status_code=404, detail=f"`{path}` is not in the trash.")
+        if result == VaultManager.NOTE_DENIED:
+            raise HTTPException(status_code=403, detail=f"Path `{path}` is outside the assigned sandbox.")
+        if result.startswith("Error:"):
+            raise HTTPException(status_code=500, detail=result)
+        return {"path": path, "detail": result}
+
+    @app.post("/api/vault/trash/empty")
+    def empty_trash(body: TrashEmpty) -> Dict[str, Any]:
+        """Permanently delete every in-scope trashed note (ADR-085)."""
+        profile = engine.pm.get_profile(body.persona) or engine.pm.get_profile("samantha")
+        result = VaultManager.empty_trash(profile)
+        if result == VaultManager.NOTE_DENIED:
+            raise HTTPException(status_code=403, detail="Vault access denied for this persona.")
+        if result.startswith("Error:"):
+            raise HTTPException(status_code=500, detail=result)
+        return {"detail": result}
 
     # Resolve the frontend root. The committed, packaged bundle
     # (`sympose/webui/`, ADR-079) is authoritative — it ships in the wheel, so a

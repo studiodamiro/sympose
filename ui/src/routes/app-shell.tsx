@@ -3,6 +3,7 @@ import { Link } from "react-router-dom"
 import { HugeiconsIcon } from "@hugeicons/react"
 import { toast } from "sonner"
 import {
+  Delete03Icon,
   File01Icon,
   Folder01Icon,
   Note01Icon,
@@ -47,6 +48,7 @@ import {
   SlackStatusPill,
   ThemeToggle,
   TopBar,
+  TrashList,
   VaultTree,
   type MainMenuItem,
   type VaultNode,
@@ -272,6 +274,8 @@ export function AppShell() {
   // `null` = the new-note input is closed; a string = its current value.
   const [newNoteName, setNewNoteName] = React.useState<string | null>(null)
   const [creatingNote, setCreatingNote] = React.useState(false)
+  // The vault panel shows the trash (ADR-085) instead of the tree while on.
+  const [trashView, setTrashView] = React.useState(false)
   React.useEffect(() => {
     let alive = true
     fetchVaultTree(activePersona).then((tree) => {
@@ -412,64 +416,90 @@ export function AppShell() {
       <div className="flex flex-col gap-2">
         <div className="flex items-center justify-between gap-2">
           <h2 className="font-heading text-2xl font-semibold text-fg-strong">
-            {activeLabel || "Vault"}
+            {trashView ? "Trash" : activeLabel || "Vault"}
           </h2>
-          <button
-            type="button"
-            onClick={() => setNewNoteName((v) => (v === null ? "" : null))}
-            aria-label="New note"
-            aria-pressed={newNoteName !== null}
-            className="grid size-7 shrink-0 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground aria-pressed:text-foreground"
-          >
-            <HugeiconsIcon icon={NoteAddIcon} className="size-4" />
-          </button>
+          <div className="flex shrink-0 items-center gap-1">
+            {!trashView && (
+              <button
+                type="button"
+                onClick={() => setNewNoteName((v) => (v === null ? "" : null))}
+                aria-label="New note"
+                aria-pressed={newNoteName !== null}
+                className="grid size-7 shrink-0 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground aria-pressed:text-foreground"
+              >
+                <HugeiconsIcon icon={NoteAddIcon} className="size-4" />
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => {
+                setTrashView((v) => !v)
+                setNewNoteName(null)
+              }}
+              aria-label="Trash"
+              aria-pressed={trashView}
+              className="grid size-7 shrink-0 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground aria-pressed:text-foreground"
+            >
+              <HugeiconsIcon icon={Delete03Icon} className="size-4" />
+            </button>
+          </div>
         </div>
-        {newNoteName !== null && (
-          <input
-            autoFocus
-            value={newNoteName}
-            disabled={creatingNote}
-            onChange={(e) => setNewNoteName(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") void submitNewNote()
-              else if (e.key === "Escape") setNewNoteName(null)
-            }}
-            placeholder={
-              activeNode?.type === "folder"
-                ? `New note in ${activeLabel}… ↵`
-                : "New note name… ↵"
-            }
-            className="rounded-md border border-border bg-background px-2 py-1.5 text-sm outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:opacity-50"
-          />
-        )}
-        {vaultTree.length === 0 ? (
-          <p className="text-sm text-fg-muted">
-            No notes in scope — check that the dashboard API is reachable and
-            the persona has vault folders.
-          </p>
-        ) : panelNodes.length === 0 ? (
-          <p className="text-sm text-fg-muted">This folder is empty.</p>
-        ) : (
-          <VaultTree
-            nodes={panelNodes}
-            storageKey="sympose:vault.expanded"
-            selectedPath={selectedNote}
-            onSelect={(node) => setSelectedNote(node.path)}
+        {trashView ? (
+          <TrashList
             persona={activePersona}
-            onRenamed={(oldPath, newPath) => {
-              setVaultRefreshKey((k) => k + 1)
-              if (selectedNote === oldPath) setSelectedNote(newPath)
-            }}
-            onDeleted={(path) => {
-              setVaultRefreshKey((k) => k + 1)
-              if (selectedNote === path) setSelectedNote(undefined)
-            }}
-            onCreated={(path) => {
-              setVaultRefreshKey((k) => k + 1)
-              setSelectedNote(path)
-              panels.open("editor")
-            }}
+            refreshKey={vaultRefreshKey}
+            onRestored={() => setVaultRefreshKey((k) => k + 1)}
           />
+        ) : (
+          <>
+            {newNoteName !== null && (
+              <input
+                autoFocus
+                value={newNoteName}
+                disabled={creatingNote}
+                onChange={(e) => setNewNoteName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") void submitNewNote()
+                  else if (e.key === "Escape") setNewNoteName(null)
+                }}
+                placeholder={
+                  activeNode?.type === "folder"
+                    ? `New note in ${activeLabel}… ↵`
+                    : "New note name… ↵"
+                }
+                className="rounded-md border border-border bg-background px-2 py-1.5 text-sm outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:opacity-50"
+              />
+            )}
+            {vaultTree.length === 0 ? (
+              <p className="text-sm text-fg-muted">
+                No notes in scope — check that the dashboard API is reachable
+                and the persona has vault folders.
+              </p>
+            ) : panelNodes.length === 0 ? (
+              <p className="text-sm text-fg-muted">This folder is empty.</p>
+            ) : (
+              <VaultTree
+                nodes={panelNodes}
+                storageKey="sympose:vault.expanded"
+                selectedPath={selectedNote}
+                onSelect={(node) => setSelectedNote(node.path)}
+                persona={activePersona}
+                onRenamed={(oldPath, newPath) => {
+                  setVaultRefreshKey((k) => k + 1)
+                  if (selectedNote === oldPath) setSelectedNote(newPath)
+                }}
+                onDeleted={(path) => {
+                  setVaultRefreshKey((k) => k + 1)
+                  if (selectedNote === path) setSelectedNote(undefined)
+                }}
+                onCreated={(path) => {
+                  setVaultRefreshKey((k) => k + 1)
+                  setSelectedNote(path)
+                  panels.open("editor")
+                }}
+              />
+            )}
+          </>
         )}
       </div>
     )

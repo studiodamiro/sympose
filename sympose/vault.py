@@ -7,7 +7,7 @@ import yaml
 from typing import Dict, Any, Optional, List, Tuple
 from collections import defaultdict
 from sympose.config import is_safe_path, config_manager
-from sympose import vault_index, vault_manifest, vault_tree
+from sympose import vault_index, vault_manifest, vault_tree, vault_trash
 
 log = logging.getLogger(__name__)
 
@@ -1240,13 +1240,22 @@ class VaultManager:
             return cls.NOTE_DENIED
 
         old_rel = os.path.relpath(src, mv)
-        dest = os.path.join(mv, ".trash", old_rel)
+        dest = os.path.join(mv, vault_trash.TRASH_DIRNAME, old_rel)
+        # `get_allowed_dirs` only ever returns folders under `mv`, so `old_rel`
+        # can't carry a `..` prefix — but assert the trash target stays in-bounds
+        # rather than trust that invariant from a distance.
+        if not is_safe_path(dest, mv):
+            return cls.NOTE_DENIED
         try:
             os.makedirs(os.path.dirname(dest), exist_ok=True)
             if os.path.exists(dest):
                 stem, ext = os.path.splitext(dest)
                 dest = f"{stem}-{datetime.datetime.now().strftime('%Y%m%d%H%M%S')}{ext}"
             os.rename(src, dest)
+            # `os.rename` keeps the note's own mtime; stamp it to now so the
+            # trash view's "deleted N ago" (ADR-085) reflects the deletion, not
+            # the last edit.
+            os.utime(dest, None)
         except OSError as e:
             return f"Error: Failed to delete note: {e}"
 
@@ -1258,6 +1267,71 @@ class VaultManager:
             log.debug("[vault] delete de-index failed for %s", old_rel, exc_info=True)
         _BACKLINK_CACHE.clear()
         return f"Moved to trash: `{os.path.relpath(dest, mv)}`"
+
+    # ------------------------------------------------------------------
+    # Trash recovery (ADR-085) — thin, sandbox-scoped wrappers over
+    # `vault_trash`. Restore re-indexes the note so it is searchable and
+    # back on the graph immediately; purge needs nothing (the file left
+    # the index when it was trashed).
+    # ------------------------------------------------------------------
+
+    _TRASH_SENTINEL_MAP = {
+        vault_trash.NOT_IN_TRASH: NOTE_NOT_FOUND,
+        vault_trash.TARGET_EXISTS: NOTE_EXISTS,
+        vault_trash.DENIED: NOTE_DENIED,
+    }
+
+    @classmethod
+    def list_trash(cls, profile: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Recoverable notes in `<vault>/.trash`, scoped to the persona's allowed
+        folders, newest deletion first (ADR-085)."""
+        mv, allowed = cls._get_master_vault(), cls.get_allowed_dirs(profile)
+        if not mv or not allowed:
+            return []
+        return vault_trash.list_trashed(mv, allowed)
+
+    @classmethod
+    def restore_from_trash(cls, profile: Dict[str, Any], trash_path: str) -> str:
+        """Move a trashed note back to its original path (ADR-085).
+        `NOTE_NOT_FOUND` if it isn't in the trash, `NOTE_EXISTS` if something
+        occupies the original spot now, `NOTE_DENIED` outside the sandbox."""
+        mv, allowed = cls._get_master_vault(), cls.get_allowed_dirs(profile)
+        if not mv or not allowed:
+            return cls.NOTE_DENIED
+        result = vault_trash.restore(mv, allowed, trash_path)
+        if result in cls._TRASH_SENTINEL_MAP:
+            return cls._TRASH_SENTINEL_MAP[result]
+        if result.startswith("Error:"):
+            return result
+        dst = os.path.join(mv, result)
+        cls._reindex_note_if_enabled(mv, dst)
+        cls._update_manifest_if_enabled(mv, dst)
+        _BACKLINK_CACHE.clear()
+        return f"Restored to `{result}`"
+
+    @classmethod
+    def purge_from_trash(cls, profile: Dict[str, Any], trash_path: str) -> str:
+        """Permanently delete one trashed note (ADR-085). `NOTE_NOT_FOUND` /
+        `NOTE_DENIED` as above. Irreversible — the client guards it behind a
+        confirm dialog."""
+        mv, allowed = cls._get_master_vault(), cls.get_allowed_dirs(profile)
+        if not mv or not allowed:
+            return cls.NOTE_DENIED
+        result = vault_trash.purge(mv, allowed, trash_path)
+        if result in cls._TRASH_SENTINEL_MAP:
+            return cls._TRASH_SENTINEL_MAP[result]
+        if result.startswith("Error:"):
+            return result
+        return "Deleted permanently"
+
+    @classmethod
+    def empty_trash(cls, profile: Dict[str, Any]) -> str:
+        """Permanently delete every in-scope trashed note (ADR-085)."""
+        mv, allowed = cls._get_master_vault(), cls.get_allowed_dirs(profile)
+        if not mv or not allowed:
+            return cls.NOTE_DENIED
+        n = vault_trash.purge_all(mv, allowed)
+        return f"Emptied trash ({n} note{'s' if n != 1 else ''})"
 
     @classmethod
     def _sync_frontmatter_tags(cls, file_path: str, new_tags: List[str]) -> None:

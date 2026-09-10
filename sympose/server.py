@@ -69,7 +69,7 @@ def create_app(engine: Any, workspace_dir: Optional[str] = None) -> FastAPI:
     workspace_dir = workspace_dir or resolve_workspace_dir()
     app = FastAPI(
         title="Sympose Multi-Model Agent Hub API",
-        version="0.2.25",
+        version="0.2.26",
         description="FastAPI REST API & Standalone Vault Gateway for Sympose",
         docs_url="/docs",
         redoc_url="/redoc",
@@ -93,7 +93,7 @@ def create_app(engine: Any, workspace_dir: Optional[str] = None) -> FastAPI:
     def health_check() -> Dict[str, Any]:
         return {
             "status": "healthy",
-            "version": "0.2.25",
+            "version": "0.2.26",
             "active_personas": list(engine.pm.profiles.keys()),
             "default_persona": engine.config.get("runtime.default_persona"),
         }
@@ -324,7 +324,7 @@ def create_app(engine: Any, workspace_dir: Optional[str] = None) -> FastAPI:
             from importlib.metadata import version as pkg_version
             _version = pkg_version("sympose")
         except Exception:
-            _version = "0.2.25"
+            _version = "0.2.26"
         return f"""
         <!DOCTYPE html>
         <html lang="en">

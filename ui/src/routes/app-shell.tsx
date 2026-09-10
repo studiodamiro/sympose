@@ -577,10 +577,16 @@ export function AppShell() {
         "flex h-svh w-full overflow-hidden bg-background text-foreground",
         isPhone && "flex-col"
       )}
-      // Feeds the `.sy-frosted-*` panel surfaces (ADR-088). At the defaults
-      // (`panelOpacity` 1, `panelBlur` 0 → attr `off`) the panels resolve to
-      // their solid tokens with no backdrop layer.
-      data-nebula-frost={nebulaPrefs.panelBlur > 0 ? "on" : "off"}
+      // Feeds the `.sy-frosted-*` panel surfaces (ADR-088). `off` (the default:
+      // opacity 1, blur 0) → solid tokens, no backdrop layer. `tint` → the
+      // opacity knob alone. `blur` → opacity + a real backdrop blur.
+      data-nebula-frost={
+        nebulaPrefs.panelBlur > 0
+          ? "blur"
+          : nebulaPrefs.panelOpacity < 1
+            ? "tint"
+            : "off"
+      }
       style={
         {
           "--sy-panel-blur": `${nebulaPrefs.panelBlur}px`,

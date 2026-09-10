@@ -128,13 +128,22 @@ Phase A. Every unexposed knob keeps its default.
   bottom-right over the layer in Explore.
 - **`NebulaAppearanceSection`** — Settings → *Knowledge Nebula*: the
   `Explore | Focus` `SegmentedControl`, then four sliders — **Focus blur**
-  (0–24 px) and **Focus tint** (0–100 % matte `--background` fill, a
-  `color-mix` so the blur survives at zero tint) for the scrim, and **Panel
-  blur** / **Panel opacity** for the frosted shell panels. Next to the editor
-  and notification sections. Default **Focus** ("Engine First, Face Second"),
+  (0–24 px) and **Focus tint** (0–100 %) for the scrim, and **Panel blur** /
+  **Panel opacity** for the frosted shell panels. Next to the editor and
+  notification sections. Default **Focus** ("Engine First, Face Second"),
   remembered in a cookie so the default is itself a knob.
 - `SegmentedControl` gained a `disabledValues` prop — a general, one-line
   addition — so the 3D segment can be shown-but-inert without a no-op handler.
+
+### The Focus scrim — two independent layers
+
+Blur and tint fought each other in a single `color-mix` layer (element opacity
+would have killed the blur; a low `color-mix` alpha meant tint could never
+reach *fully covered*). Split into two `absolute inset-0` siblings behind the
+panels: a **blur layer** — no fill, just `backdrop-filter: blur(focusBlur)`,
+always opaque-free so the blur renders — and a **tint layer** — a solid
+`bg-background` card at `opacity: focusTint`, a clean `0` (clear) → `1` (fully
+covered). Both clear in Explore.
 
 ### Frosted shell panels
 
@@ -142,13 +151,24 @@ Phase A. Every unexposed knob keeps its default.
 chat panels in Focus. Rather than edit every panel's animated markup, two
 drop-in utility classes — `.sy-frosted-panel` (for `bg-panel`) and
 `.sy-frosted-bg` (for `bg-background`) — replace the solid-fill class on each
-panel's surface. They read `--sy-panel-opacity` (a `color-mix` toward
-transparent) always, and `--sy-panel-blur` only under `[data-nebula-frost="on"]`
-— both set on the shell root from the knobs. At the defaults
-(`panelOpacity` 1, `panelBlur` 0 → attr `off`) each class resolves to exactly
-its old solid token with **no backdrop layer allocated**, so there is no cost
-or visual change until the knob is touched. `ChatPanel`, which had no background
-of its own, gains `.sy-frosted-bg` — solid `--background` at the defaults.
+panel's surface (vault content, editor card, chat, and the menu rail). The
+shell root carries a tri-state `data-nebula-frost`:
+
+- **`off`** (default, `panelOpacity` 1 & `panelBlur` 0) — each class resolves
+  to exactly its old solid token, no backdrop layer, no visual change.
+- **`tint`** (`panelOpacity` < 1) — the fill goes translucent via
+  `--sy-panel-opacity`; still no backdrop layer.
+- **`blur`** (`panelBlur` > 0) — adds `backdrop-filter` and caps the fill at
+  82 % so the blur is visible even with the opacity knob at 100 % (a fully
+  opaque panel has no backdrop to show).
+
+The editor is a special case: stylo paints its own opaque `--stylo-bg`
+(`= --panel`) over the frosted div, so under `tint` / `blur` the `.cm-editor`
+/ `.cm-scroller` background is forced transparent and the `.sy-frosted-panel`
+behind it does the tinting. stylo's floating menus set their background
+explicitly (the shared frosted-menu rule) and are untouched. `ChatPanel`, which
+had no background of its own, gains `.sy-frosted-bg` — solid `--background` at
+the defaults.
 
 ### `/nebula` route
 

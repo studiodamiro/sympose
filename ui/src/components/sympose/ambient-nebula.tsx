@@ -107,24 +107,23 @@ function AmbientNebula({
         }}
       />
 
-      {/* Focus: a matte, blurred scrim drops the graph to a hint behind the
-          panels — the renderer's own dimming is not enough to keep it out of
-          the way. `focusBlur` (radius) and `focusTint` (matte fill opacity)
-          knob it independently; the fill is a `color-mix` rather than element
-          opacity so blur still applies at zero tint. It clears in Explore. */}
+      {/* Focus dimming — two independent layers so blur and tint don't fight.
+          The blur layer stays fully opaque-free (just a `backdrop-filter`) so
+          its blur always renders; the tint layer is a solid `--background`
+          card at `focusTint` element opacity — a clean 0 (clear) → 1 (fully
+          covered). Both clear in Explore. */}
       <div
         aria-hidden
-        className={cn(
-          "absolute inset-0 transition-[background-color] duration-300",
-          explore && "pointer-events-none"
-        )}
+        className="pointer-events-none absolute inset-0 transition-[backdrop-filter] duration-300"
         style={{
-          backgroundColor: explore
-            ? "transparent"
-            : `color-mix(in srgb, var(--background) ${prefs.focusTint * 100}%, transparent)`,
           backdropFilter: explore ? "none" : `blur(${prefs.focusBlur}px)`,
           WebkitBackdropFilter: explore ? "none" : `blur(${prefs.focusBlur}px)`,
         }}
+      />
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 bg-background transition-opacity duration-300"
+        style={{ opacity: explore ? 0 : prefs.focusTint }}
       />
 
       {/* Explore-only chrome: data-source badge, folder legend, control dock. */}

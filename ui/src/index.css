@@ -432,7 +432,7 @@
    `data-nebula-frost` off) they resolve to exactly the solid token and no
    backdrop layer is allocated. The Settings → Knowledge Nebula knobs set
    `--sy-panel-blur` / `--sy-panel-opacity` on the shell root and flip
-   `data-nebula-frost` to `on`, which is what arms the backdrop blur. */
+   `data-nebula-frost` to `on`, which arms the backdrop blur. */
 .sy-frosted-panel {
   --sy-frost-base: var(--panel);
 }
@@ -447,7 +447,27 @@
     transparent
   );
 }
-[data-nebula-frost="on"] :is(.sy-frosted-panel, .sy-frosted-bg) {
+/* Blur armed (`data-nebula-frost="blur"`): add the backdrop blur, and cap the
+   fill opacity so the blur is actually visible even with the opacity knob at
+   100% — a fully opaque panel has no backdrop to show. The knob still takes it
+   below the cap. `"tint"` (opacity < 1, no blur) leaves the base rule alone
+   and allocates no backdrop layer. */
+[data-nebula-frost="blur"] :is(.sy-frosted-panel, .sy-frosted-bg) {
+  background-color: color-mix(
+    in srgb,
+    var(--sy-frost-base) min(calc(var(--sy-panel-opacity, 1) * 100%), 82%),
+    transparent
+  );
   backdrop-filter: blur(var(--sy-panel-blur, 0px));
   -webkit-backdrop-filter: blur(var(--sy-panel-blur, 0px));
+}
+/* The editor panel's stylo canvas paints its own opaque `--stylo-bg`
+   (`= --panel`) over the frosted surface, so neither the panel tint nor the
+   blur ever showed through the editor. Whenever frost is engaged at all, drop
+   the canvas to transparent and let the `.sy-frosted-panel` behind it tint /
+   blur. stylo's floating menus set their own explicit background (the shared
+   frosted-menu rule below), so they are unaffected. */
+:is([data-nebula-frost="tint"], [data-nebula-frost="blur"])
+  [data-slot="markdown-panel"] :is(.cm-editor, .cm-scroller) {
+  background: transparent !important;
 }

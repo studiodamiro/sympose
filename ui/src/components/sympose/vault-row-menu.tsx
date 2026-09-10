@@ -59,6 +59,9 @@ function VaultRowMenu({
   const isNote = node.type === "note"
   const stem = node.name.replace(/\.md$/i, "")
   const [renaming, setRenaming] = React.useState<string | null>(null)
+  // Rename mode is entered only once the menu has fully closed — see the
+  // `onOpenChangeComplete` handler below.
+  const [pendingRename, setPendingRename] = React.useState(false)
   const [busy, setBusy] = React.useState(false)
   const [deleteOpen, setDeleteOpen] = React.useState(false)
 
@@ -134,7 +137,21 @@ function VaultRowMenu({
 
   return (
     <>
-      <DropdownMenu open={open} onOpenChange={onOpenChange}>
+      <DropdownMenu
+        open={open}
+        onOpenChange={onOpenChange}
+        onOpenChangeComplete={(next) => {
+          // Enter the inline field only after Base UI has finished closing the
+          // menu and handing focus back to the trigger. Flipping `renaming` on
+          // the item click unmounts the trigger mid-close, so the focus Base UI
+          // returns lands on <body> — blurring the freshly mounted input and
+          // cancelling rename on the same frame.
+          if (!next && pendingRename) {
+            setPendingRename(false)
+            setRenaming(stem)
+          }
+        }}
+      >
         <DropdownMenuTrigger
           aria-label={`${isNote ? "Note" : "Folder"} actions`}
           onClick={(e) => e.stopPropagation()}
@@ -149,7 +166,7 @@ function VaultRowMenu({
         <DropdownMenuContent align="end">
           {isNote ? (
             <>
-              <DropdownMenuItem onClick={() => setRenaming(stem)}>
+              <DropdownMenuItem onClick={() => setPendingRename(true)}>
                 <HugeiconsIcon icon={Edit01Icon} />
                 Rename…
               </DropdownMenuItem>

@@ -43,6 +43,9 @@ function NoteActionsMenu({
   }, [path])
 
   const [renaming, setRenaming] = React.useState<string | null>(null)
+  // Rename mode is entered only once the menu has fully closed — see the
+  // `onOpenChangeComplete` handler below.
+  const [pendingRename, setPendingRename] = React.useState(false)
   const [busy, setBusy] = React.useState(false)
   const [deleteOpen, setDeleteOpen] = React.useState(false)
 
@@ -97,7 +100,19 @@ function NoteActionsMenu({
 
   return (
     <>
-      <DropdownMenu>
+      <DropdownMenu
+        onOpenChangeComplete={(open) => {
+          // Swap the trigger for the inline field only after Base UI has
+          // finished closing the menu and returning focus to the trigger.
+          // Doing it on the item click instead unmounts the trigger mid-close,
+          // and the focus Base UI then hands back lands on <body> — blurring
+          // the freshly mounted input and cancelling rename on the same frame.
+          if (!open && pendingRename) {
+            setPendingRename(false)
+            setRenaming(stem)
+          }
+        }}
+      >
         <DropdownMenuTrigger
           aria-label="Note actions"
           className="grid size-7 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground data-[popup-open]:bg-accent data-[popup-open]:text-foreground"
@@ -105,7 +120,7 @@ function NoteActionsMenu({
           <HugeiconsIcon icon={MoreHorizontalIcon} className="size-4" />
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
-          <DropdownMenuItem onClick={() => setRenaming(stem)}>
+          <DropdownMenuItem onClick={() => setPendingRename(true)}>
             <HugeiconsIcon icon={Edit01Icon} />
             Rename…
           </DropdownMenuItem>

@@ -296,31 +296,31 @@
 }
 
 /* stylo's floating chrome (context menu, its URL input, selection bar,
-   link-hover tooltip) shares the CSS class names below across both. Giving
-   them their own frosted `--popover` surface — rather than just inheriting
-   the flat `--panel` above — is what actually makes a menu read as "above"
-   the document instead of blending into it. */
+   link-hover tooltip) shares the CSS class names below across both. Give them
+   the same frosted surface as `menuPopupClass` (`components/ui/dropdown-menu`):
+   the panels' `--panel` tint, kept translucent and blurred so it reads as
+   floating above the document rather than blending into it. */
 [data-slot="markdown-panel"] .cm-inplace-menu-panel,
 [data-slot="markdown-panel"] .cm-inplace-menu-input,
 [data-slot="markdown-panel"] .cm-inplace-selbar,
 [data-slot="markdown-panel"] .cm-inplace-href-tip {
-  background: color-mix(in srgb, var(--popover) 82%, transparent) !important;
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  background: color-mix(in srgb, var(--panel) 88%, transparent) !important;
+  backdrop-filter: blur(24px) saturate(1.5);
+  -webkit-backdrop-filter: blur(24px) saturate(1.5);
 }
 
 /* Give stylo's compact right-click menu the same geometry as Sympose's own
-   translucent dropdown (`DropdownMenuContent` / its items) — generous radius,
-   roomier rows, a soft drop shadow over a hairline ring instead of a hard
-   border — so the editor's right-click menu and the vault tree's read as one
-   component. The frosted surface itself is set by the rule above; this is
-   shape only. `!important` throughout: stylo injects these as a CodeMirror
+   menus (`menuPopupClass` / `DropdownMenuItem`) — the panels' `--radius-lg`
+   corner, roomier rows, a soft drop shadow over a hairline ring instead of a
+   hard border — so every right-click menu in the app reads as one component.
+   The frosted surface itself is set by the rule above; this is shape only.
+   `!important` throughout: stylo injects these as a CodeMirror
    `EditorView.theme()` stylesheet whose insertion order we can't rely on. */
 [data-slot="markdown-panel"] .cm-inplace-menu-panel {
   min-width: 12rem !important;
   padding: 0.25rem !important;
   border: none !important;
-  border-radius: 1rem !important;
+  border-radius: var(--radius-lg) !important;
   box-shadow:
     0 25px 50px -12px rgb(0 0 0 / 0.25),
     0 0 0 1px color-mix(in srgb, var(--foreground) 8%, transparent) !important;
@@ -328,7 +328,7 @@
 [data-slot="markdown-panel"] .cm-inplace-menu-item {
   gap: 0.625rem !important;
   padding: 0.5rem 0.75rem !important;
-  border-radius: 0.75rem !important;
+  border-radius: var(--radius-md) !important;
   font-size: 0.875rem !important;
 }
 [data-slot="markdown-panel"] .cm-inplace-menu-item svg {

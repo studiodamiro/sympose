@@ -53,11 +53,18 @@ collapse to the edges in Explore" behaviour are **Phase B**.
 
 `AppShell` gains one hook (`useNebulaPreferences`), an idle gate
 (`requestIdleCallback`, `setTimeout` fallback), and a lazy `<AmbientNebula>`
-mounted `fixed inset-0 z-0` as the first child. The menu+stage row is lifted to
-`relative z-10`; the phone `TopBar` too. Everything else about the shell is
-untouched. The root keeps `bg-background` — it is the backdrop the transparent
-graph canvas composites onto; opaque panels (`bg-panel` / `bg-background`) float
-over the nebula exactly as the §5 diagram shows.
+mounted `fixed inset-0` as the first child. The menu+stage row keeps no
+stacking context of its own; `MainMenu` moves to `relative z-30` and the phone
+`TopBar` to `z-30` so both outrank the layer. Everything else about the shell
+is untouched. The root keeps `bg-background` — it is the backdrop the
+transparent graph canvas composites onto; opaque panels (`bg-panel` /
+`bg-background`) float over the nebula exactly as the §5 diagram shows.
+
+The layer's own `z` is the Explore/Focus switch: `z-0` (behind everything,
+`pointer-events: none`) in Focus, `z-20` (above the stage panels, live) in
+Explore — with `MainMenu`'s `z-30` still on top so the rail stays usable and
+Focus is one click away in Settings. Phase A Explore does not yet collapse the
+panels to the edges (Phase B); the raised layer simply covers them.
 
 ### `<AmbientNebula>` — the layer
 
@@ -98,16 +105,18 @@ agent/backend config). A single `SPEC` table declares each knob's cookie name,
 kind and default, and the read/write paths derive from it — the same
 single-declaration discipline ADR-077 applies server-side.
 
-All 19 knobs are persisted now (`interaction`, `mode`, the filter toggles, the
-display sliders, the four forces). Which ones the **dock** exposes is a
-separate, deliberately smaller list agreed with the lead:
+All 21 knobs are persisted now (`interaction`, `mode`, the filter toggles, the
+display sliders, the two Focus-scrim knobs, the four forces). Which ones the
+**dock** exposes is a separate, deliberately smaller list agreed with the lead:
 
 - **Toggles:** Orphans, Tags, `2D | 3D` (3D segment present but disabled — hint
   text points at Phase B).
 - **Display:** Labels, Node size, Link thickness.
 - **Forces:** Center, Repel, Link force, Link distance.
 
-No search input in Phase A. Every unexposed knob keeps its default.
+`focusBlur` and `focusTint` are exposed in Settings, not the dock — the dock is
+only on screen in Explore, where the Focus scrim is invisible. No search input
+in Phase A. Every unexposed knob keeps its default.
 
 ### Controls surfaces
 
@@ -116,9 +125,11 @@ No search input in Phase A. Every unexposed knob keeps its default.
   `ControlRow` primitives, `SegmentedControl`, and Hugeicons. Floats
   bottom-right over the layer in Explore.
 - **`NebulaAppearanceSection`** — Settings → *Knowledge Nebula*: the
-  `Explore | Focus` `SegmentedControl`, next to the editor and notification
-  sections. Default **Focus** ("Engine First, Face Second"), remembered in a
-  cookie so the default is itself a knob.
+  `Explore | Focus` `SegmentedControl` plus **Focus blur** (0–24 px backdrop
+  blur) and **Focus tint** (0–100 % matte `--background` fill, a `color-mix` so
+  the blur survives at zero tint), next to the editor and notification sections.
+  Default **Focus** ("Engine First, Face Second"), remembered in a cookie so the
+  default is itself a knob.
 - `SegmentedControl` gained a `disabledValues` prop — a general, one-line
   addition — so the 3D segment can be shown-but-inert without a no-op handler.
 
@@ -130,11 +141,14 @@ shared hooks.
 ## Consequences
 
 - The vault graph is now part of the product, not a side route. Default Focus
-  keeps the shell visually close to before — a 35 %-opacity drift behind the
-  panels — and Explore brings it forward, interactive, with the dock.
-- Phase A Explore is **visual only**: the panels do not yet collapse to the
-  edges, so you close them by hand to see the graph. Deferred to Phase B with
-  the 3D renderer, to keep this shell edit minimal.
+  keeps the shell visually close to before — an 80 %-tint, 12 px-blur scrim over
+  the graph, both dialable from Settings — and Explore brings it forward,
+  interactive, with the dock.
+- Phase A Explore raises the layer *over* the panels rather than collapsing
+  them to the edges as the design reference specifies — the graph and dock are
+  fully usable, but a left-open panel is covered, not tucked away. The real
+  collapse-and-restore is Phase B with the 3D renderer, to keep this shell edit
+  minimal.
 - three.js is not in the shell bundle at all until Phase B. The 2D renderer
   chunk loads on idle after first paint.
 - One more cookie family (`sympose:nebula.*`, 19 keys). Cookies, not

@@ -32,6 +32,15 @@ export interface NebulaPreferences {
   linkWidth: number
   noteDelayMs: number
   clickZoomDistance: number
+  /**
+   * Focus-mode scrim — how the graph is hidden behind the panels. No effect in
+   * Explore.
+   *   `focusBlur` — backdrop-blur radius in px (`0` = sharp).
+   *   `focusTint` — matte `--background` fill opacity over it (`0` = clear,
+   *   `1` = solid); reads as darkening in a dark theme, lightening in a light one.
+   */
+  focusBlur: number
+  focusTint: number
 
   // Forces
   centerForce: number
@@ -71,6 +80,8 @@ const SPEC: {
   linkWidth: { cookie: "sympose:nebula.link_width", kind: "num", default: 0.8 },
   noteDelayMs: { cookie: "sympose:nebula.note_delay_ms", kind: "num", default: 25 },
   clickZoomDistance: { cookie: "sympose:nebula.click_zoom_distance", kind: "num", default: 60 },
+  focusBlur: { cookie: "sympose:nebula.focus_blur", kind: "num", default: 12 },
+  focusTint: { cookie: "sympose:nebula.focus_tint", kind: "num", default: 0.8 },
   centerForce: { cookie: "sympose:nebula.center_force", kind: "num", default: 0.52 },
   repelForce: { cookie: "sympose:nebula.repel_force", kind: "num", default: 13.89 },
   linkForce: { cookie: "sympose:nebula.link_force", kind: "num", default: 1.0 },

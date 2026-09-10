@@ -577,6 +577,16 @@ export function AppShell() {
         "flex h-svh w-full overflow-hidden bg-background text-foreground",
         isPhone && "flex-col"
       )}
+      // Feeds the `.sy-frosted-*` panel surfaces (ADR-088). At the defaults
+      // (`panelOpacity` 1, `panelBlur` 0 → attr `off`) the panels resolve to
+      // their solid tokens with no backdrop layer.
+      data-nebula-frost={nebulaPrefs.panelBlur > 0 ? "on" : "off"}
+      style={
+        {
+          "--sy-panel-blur": `${nebulaPrefs.panelBlur}px`,
+          "--sy-panel-opacity": String(nebulaPrefs.panelOpacity),
+        } as React.CSSProperties
+      }
     >
       {/* Module A — the persistent ambient vault graph, behind every panel.
           `fixed inset-0 z-0`; the shell chrome sits at `z-20`+. */}

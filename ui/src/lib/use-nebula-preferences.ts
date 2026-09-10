@@ -16,6 +16,9 @@ export interface NebulaPreferences {
   /** `"2d"` flat canvas or `"3d"` WebGL cloud. Default `"2d"`; 3D is Phase B. */
   mode: NebulaMode
 
+  /** Show the folder-colour legend in Explore. */
+  legend: boolean
+
   // Filters
   tags: boolean
   attachments: boolean
@@ -41,6 +44,14 @@ export interface NebulaPreferences {
    */
   focusBlur: number
   focusTint: number
+  /**
+   * The shell panels over the nebula in Focus.
+   *   `panelBlur` — backdrop-blur radius in px behind each panel (`0` = off,
+   *   no backdrop layer allocated).
+   *   `panelOpacity` — panel fill opacity (`1` = the usual solid surface).
+   */
+  panelBlur: number
+  panelOpacity: number
 
   // Forces
   centerForce: number
@@ -67,6 +78,7 @@ const SPEC: {
 } = {
   interaction: { cookie: "sympose:nebula.interaction", kind: "enum", default: "focus" },
   mode: { cookie: "sympose:nebula.mode", kind: "enum", default: "2d" },
+  legend: { cookie: "sympose:nebula.legend", kind: "bool", default: true },
   tags: { cookie: "sympose:nebula.tags", kind: "bool", default: true },
   attachments: { cookie: "sympose:nebula.attachments", kind: "bool", default: false },
   existingOnly: { cookie: "sympose:nebula.existing_only", kind: "bool", default: false },
@@ -82,6 +94,8 @@ const SPEC: {
   clickZoomDistance: { cookie: "sympose:nebula.click_zoom_distance", kind: "num", default: 60 },
   focusBlur: { cookie: "sympose:nebula.focus_blur", kind: "num", default: 12 },
   focusTint: { cookie: "sympose:nebula.focus_tint", kind: "num", default: 0.8 },
+  panelBlur: { cookie: "sympose:nebula.panel_blur", kind: "num", default: 0 },
+  panelOpacity: { cookie: "sympose:nebula.panel_opacity", kind: "num", default: 1 },
   centerForce: { cookie: "sympose:nebula.center_force", kind: "num", default: 0.52 },
   repelForce: { cookie: "sympose:nebula.repel_force", kind: "num", default: 13.89 },
   linkForce: { cookie: "sympose:nebula.link_force", kind: "num", default: 1.0 },

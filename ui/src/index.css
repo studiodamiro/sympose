@@ -426,3 +426,28 @@
 *:hover::-webkit-scrollbar-thumb {
   background: var(--border);
 }
+/* Frosted panel surfaces — the shell panels sitting over the ambient Knowledge
+   Nebula (ADR-088). `.sy-frosted-panel` / `.sy-frosted-bg` are drop-in swaps
+   for `bg-panel` / `bg-background`: at the defaults (`--sy-panel-opacity: 1`,
+   `data-nebula-frost` off) they resolve to exactly the solid token and no
+   backdrop layer is allocated. The Settings → Knowledge Nebula knobs set
+   `--sy-panel-blur` / `--sy-panel-opacity` on the shell root and flip
+   `data-nebula-frost` to `on`, which is what arms the backdrop blur. */
+.sy-frosted-panel {
+  --sy-frost-base: var(--panel);
+}
+.sy-frosted-bg {
+  --sy-frost-base: var(--background);
+}
+.sy-frosted-panel,
+.sy-frosted-bg {
+  background-color: color-mix(
+    in srgb,
+    var(--sy-frost-base) calc(var(--sy-panel-opacity, 1) * 100%),
+    transparent
+  );
+}
+[data-nebula-frost="on"] :is(.sy-frosted-panel, .sy-frosted-bg) {
+  backdrop-filter: blur(var(--sy-panel-blur, 0px));
+  -webkit-backdrop-filter: blur(var(--sy-panel-blur, 0px));
+}

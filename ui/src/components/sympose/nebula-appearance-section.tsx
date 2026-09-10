@@ -121,6 +121,28 @@ function NebulaAppearanceSection({
         prefs={prefs}
         setPref={setPref}
       />
+
+      <SliderRow
+        label="Panel blur"
+        field="panelBlur"
+        min={0}
+        max={24}
+        step={1}
+        format={(v) => `${Math.round(v)}px`}
+        prefs={prefs}
+        setPref={setPref}
+      />
+      <SliderRow
+        label="Panel opacity"
+        field="panelOpacity"
+        min={0.4}
+        max={1}
+        step={0.05}
+        format={(v) => `${Math.round(v * 100)}%`}
+        hint="Let the nebula show through the vault, editor and chat panels. Below 100% the panels turn translucent; blur frosts what shows through."
+        prefs={prefs}
+        setPref={setPref}
+      />
     </ControlSection>
   )
 }

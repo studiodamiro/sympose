@@ -206,7 +206,7 @@ function MainMenu({
       data-dragging={dragging || undefined}
       aria-label="Main menu"
       className={cn(
-        "group/menu relative flex h-full flex-col overflow-x-hidden bg-background text-foreground",
+        "group/menu relative flex h-full flex-col overflow-x-hidden sy-frosted-bg text-foreground",
         // width tween for resize; margin+opacity tween for the phone show/hide
         // reveal (parked one width to the inline-start when closed)
         "transition-[width,margin,opacity] duration-200 ease-out data-dragging:transition-none data-dragging:select-none",

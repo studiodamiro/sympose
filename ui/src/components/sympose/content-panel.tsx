@@ -223,7 +223,7 @@ function ContentPanel({
           // chat and the editor — no fill, no rounding
           phone && plain
             ? "text-foreground"
-            : "bg-panel text-panel-foreground",
+            : "sy-frosted-panel text-panel-foreground",
           // explicit per-corner radii — a `rounded-lg` shorthand plus a
           // `rounded-bl-none` override is unreliable (Tailwind re-emits the
           // shorthand after the longhand and re-rounds the corner).

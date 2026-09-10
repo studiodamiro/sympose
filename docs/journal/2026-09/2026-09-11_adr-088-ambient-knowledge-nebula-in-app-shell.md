@@ -105,18 +105,20 @@ agent/backend config). A single `SPEC` table declares each knob's cookie name,
 kind and default, and the read/write paths derive from it — the same
 single-declaration discipline ADR-077 applies server-side.
 
-All 21 knobs are persisted now (`interaction`, `mode`, the filter toggles, the
-display sliders, the two Focus-scrim knobs, the four forces). Which ones the
-**dock** exposes is a separate, deliberately smaller list agreed with the lead:
+All 24 knobs are persisted now (`interaction`, `mode`, `legend`, the filter
+toggles, the display sliders, the two Focus-scrim knobs, the two panel-frost
+knobs, the four forces). Which ones the **dock** exposes is a separate,
+deliberately smaller list agreed with the lead:
 
-- **Toggles:** Orphans, Tags, `2D | 3D` (3D segment present but disabled — hint
-  text points at Phase B).
+- **Toggles:** Orphans, Tags, Legend, `2D | 3D` (3D segment present but
+  disabled — hint text points at Phase B).
 - **Display:** Labels, Node size, Link thickness.
 - **Forces:** Center, Repel, Link force, Link distance.
 
-`focusBlur` and `focusTint` are exposed in Settings, not the dock — the dock is
-only on screen in Explore, where the Focus scrim is invisible. No search input
-in Phase A. Every unexposed knob keeps its default.
+`focusBlur` / `focusTint` (the Focus scrim) and `panelBlur` / `panelOpacity`
+(the frosted shell panels, below) are exposed in Settings, not the dock — the
+dock is only on screen in Explore, where both are invisible. No search input in
+Phase A. Every unexposed knob keeps its default.
 
 ### Controls surfaces
 
@@ -125,13 +127,28 @@ in Phase A. Every unexposed knob keeps its default.
   `ControlRow` primitives, `SegmentedControl`, and Hugeicons. Floats
   bottom-right over the layer in Explore.
 - **`NebulaAppearanceSection`** — Settings → *Knowledge Nebula*: the
-  `Explore | Focus` `SegmentedControl` plus **Focus blur** (0–24 px backdrop
-  blur) and **Focus tint** (0–100 % matte `--background` fill, a `color-mix` so
-  the blur survives at zero tint), next to the editor and notification sections.
-  Default **Focus** ("Engine First, Face Second"), remembered in a cookie so the
-  default is itself a knob.
+  `Explore | Focus` `SegmentedControl`, then four sliders — **Focus blur**
+  (0–24 px) and **Focus tint** (0–100 % matte `--background` fill, a
+  `color-mix` so the blur survives at zero tint) for the scrim, and **Panel
+  blur** / **Panel opacity** for the frosted shell panels. Next to the editor
+  and notification sections. Default **Focus** ("Engine First, Face Second"),
+  remembered in a cookie so the default is itself a knob.
 - `SegmentedControl` gained a `disabledValues` prop — a general, one-line
   addition — so the 3D segment can be shown-but-inert without a no-op handler.
+
+### Frosted shell panels
+
+`panelBlur` / `panelOpacity` let the nebula show through the vault, editor and
+chat panels in Focus. Rather than edit every panel's animated markup, two
+drop-in utility classes — `.sy-frosted-panel` (for `bg-panel`) and
+`.sy-frosted-bg` (for `bg-background`) — replace the solid-fill class on each
+panel's surface. They read `--sy-panel-opacity` (a `color-mix` toward
+transparent) always, and `--sy-panel-blur` only under `[data-nebula-frost="on"]`
+— both set on the shell root from the knobs. At the defaults
+(`panelOpacity` 1, `panelBlur` 0 → attr `off`) each class resolves to exactly
+its old solid token with **no backdrop layer allocated**, so there is no cost
+or visual change until the knob is touched. `ChatPanel`, which had no background
+of its own, gains `.sy-frosted-bg` — solid `--background` at the defaults.
 
 ### `/nebula` route
 
@@ -149,9 +166,15 @@ shared hooks.
   fully usable, but a left-open panel is covered, not tucked away. The real
   collapse-and-restore is Phase B with the 3D renderer, to keep this shell edit
   minimal.
+- A clicked node's selection (and the 1-hop highlight it drives) is kept across
+  `Explore ⇄ Focus` — the selection only *changes* while the layer is
+  interactive, so a Focus trip and back leaves the graph framed exactly as it
+  was.
+- The folder legend has an on/off knob (`legend`, in the dock); it only renders
+  in Explore either way.
 - three.js is not in the shell bundle at all until Phase B. The 2D renderer
   chunk loads on idle after first paint.
-- One more cookie family (`sympose:nebula.*`, 19 keys). Cookies, not
+- One more cookie family (`sympose:nebula.*`, 24 keys). Cookies, not
   `localStorage`, per the standing convention.
 - `useEffectiveTheme` moving out of `theme-toggle.tsx` is a pure extraction;
   the toggle's behaviour is unchanged.

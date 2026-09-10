@@ -50,14 +50,16 @@ function AmbientNebula({
   const nebulaRef = React.useRef<KnowledgeNebulaHandle>(null)
   const [selectedNodeId, setSelectedNodeId] = React.useState<string | null>(null)
 
+  // The selection (and the highlight it drives) is kept across Explore ⇄ Focus
+  // — it only *changes* while interactive, but a Focus trip and back leaves it
+  // exactly as it was.
   const { highlightedNodeIds, hiddenNodeIds } = useNebulaFilter(graph, {
     query: "",
     showTags: prefs.tags,
     showAttachments: prefs.attachments,
     existingOnly: prefs.existingOnly,
     showOrphans: prefs.orphans,
-    // A selection only narrows the view while the layer is interactive.
-    selectedNodeId: explore ? selectedNodeId : null,
+    selectedNodeId,
   })
 
   const folders = foldersInGraph(graph)
@@ -142,7 +144,7 @@ function AmbientNebula({
           {source === "live" ? "live vault" : "bundled sample"} · {graph.nodes.length} nodes
         </div>
 
-        {folders.length > 0 && (
+        {prefs.legend && folders.length > 0 && (
           <div className="pointer-events-none absolute top-4 left-4 flex max-w-[40vw] flex-wrap gap-x-3 gap-y-1">
             {folders.map((f) => (
               <span

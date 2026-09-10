@@ -380,14 +380,15 @@ function MarkdownPanel({
       }
       {...props}
     >
-      {/* the working surface — a raised `bg-panel` card on the stage; on phone
-          it drops to the plain background the chat also sits on */}
+      {/* the working surface — a raised panel card on the stage (frosted over
+          the ambient nebula, ADR-088); on phone it drops to the plain
+          background the chat also sits on */}
       <div
         className={cn(
           "flex h-full w-full flex-col overflow-hidden",
           phone
             ? "text-foreground"
-            : "rounded-lg bg-panel text-panel-foreground"
+            : "rounded-lg sy-frosted-panel text-panel-foreground"
         )}
       >
         {note.status === "empty" && (

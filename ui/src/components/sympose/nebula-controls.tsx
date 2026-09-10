@@ -123,6 +123,7 @@ function NebulaControls({
       <ControlSection title="Toggles" defaultOpen>
         <ToggleRow label="Orphans" field="orphans" prefs={prefs} setPref={setPref} />
         <ToggleRow label="Tags" field="tags" prefs={prefs} setPref={setPref} />
+        <ToggleRow label="Legend" field="legend" prefs={prefs} setPref={setPref} />
         <ControlRow label="Renderer">
           <SegmentedControl
             size="sm"

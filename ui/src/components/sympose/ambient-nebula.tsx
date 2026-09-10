@@ -68,8 +68,11 @@ function AmbientNebula({
       data-slot="ambient-nebula"
       data-interaction={prefs.interaction}
       className={cn(
-        "fixed inset-0 z-0",
-        !explore && "pointer-events-none"
+        "fixed inset-0",
+        // Focus: behind the shell (`z-0`) and inert. Explore: above the stage
+        // panels (`z-20`) and live — the menu rail (`z-30`) stays on top so you
+        // can still navigate / flip back to Focus from Settings.
+        explore ? "z-20" : "z-0 pointer-events-none"
       )}
     >
       <KnowledgeNebula2D
@@ -100,6 +103,17 @@ function AmbientNebula({
           setSelectedNodeId(null)
           nebulaRef.current?.zoomToFit(600, 48)
         }}
+      />
+
+      {/* Focus: a matte, lightly blurred scrim drops the graph to a hint
+          behind the panels — the renderer's own dimming is not enough to keep
+          it out of the way. Fades out entirely in Explore. */}
+      <div
+        aria-hidden
+        className={cn(
+          "absolute inset-0 bg-background/80 backdrop-blur-md transition-opacity duration-300",
+          explore ? "pointer-events-none opacity-0" : "opacity-100"
+        )}
       />
 
       {/* Explore-only chrome: data-source badge, folder legend, control dock. */}

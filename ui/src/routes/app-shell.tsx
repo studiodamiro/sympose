@@ -588,7 +588,7 @@ export function AppShell() {
 
       {isPhone && (
         <TopBar
-          className="relative z-10"
+          className="relative z-30"
           chatOpen={chatOpen}
           onToggleChat={toggleChat}
           menuOpen={menuShown}
@@ -601,13 +601,16 @@ export function AppShell() {
       )}
 
       {/* menu + stage row — overflow-hidden clips the menu (and the panels)
-          while they are parked off to the inline-start. `relative z-10` lifts
-          the whole chrome cluster above the `z-0` ambient nebula. */}
-      <div className="relative z-10 flex min-h-0 min-w-0 flex-1 overflow-hidden">
+          while they are parked off to the inline-start. No stacking context of
+          its own, so `MainMenu`'s `z-30` outranks the ambient nebula (`z-20` in
+          Explore) at the root level. */}
+      <div className="relative flex min-h-0 min-w-0 flex-1 overflow-hidden">
         <MainMenu
           items={menuItems}
-          // above the stage so the content panel tucks *behind* it on hide
-          className="z-20"
+          // above the stage so the content panel tucks *behind* it on hide,
+          // and above the ambient nebula's Explore layer (`z-20`) so the rail
+          // stays usable while the graph is forward
+          className="relative z-30"
           open={menuOpen}
           hideChrome={isPhone}
           activeId={contentOpen ? resolvedActive : undefined}

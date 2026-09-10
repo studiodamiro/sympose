@@ -21,6 +21,7 @@ export {
   type MainMenuItem,
 } from "./main-menu"
 export { MarkdownPanel } from "./markdown-panel"
+export { NotificationsSection } from "./notifications-section"
 export { LatencyReadout, MetaText } from "./meta-text"
 export { ModelChip } from "./model-chip"
 export {

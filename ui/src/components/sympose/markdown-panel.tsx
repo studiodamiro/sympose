@@ -1,7 +1,7 @@
 import * as React from "react"
 import { Stylo, splitFrontmatter, type ToolbarConfig } from "@damiro/stylo"
 import { languages as CODE_LANGUAGES } from "@codemirror/language-data"
-import { toast } from "sonner"
+import { notify } from "@/lib/notify"
 import "@damiro/stylo/styles.css"
 import "@damiro/stylo/katex.css"
 import { HugeiconsIcon } from "@hugeicons/react"
@@ -306,9 +306,9 @@ function MarkdownPanel({
       savingRef.current = false
       if (result.ok) {
         savedTextRef.current = text
-        if (!silent) toast.success("Note saved")
+        if (!silent) notify.success("Note saved")
       } else {
-        toast.error(result.error)
+        notify.error(result.error)
       }
     },
     [path, persona, frontmatter, body]

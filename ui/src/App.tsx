@@ -2,6 +2,8 @@ import { lazy, Suspense } from "react"
 import { createBrowserRouter, RouterProvider } from "react-router-dom"
 
 import { Toaster } from "@/components/ui/sonner"
+import { ConfirmHost } from "@/lib/confirm"
+import { useNotificationPreferences } from "@/lib/use-notification-preferences"
 import { RootLayout } from "@/routes/root-layout"
 import { ComponentsGallery } from "@/routes/components-gallery"
 import { MenuShowcase } from "@/routes/menu-showcase"
@@ -39,10 +41,12 @@ const router = createBrowserRouter([
 ])
 
 export function App() {
+  const [notify] = useNotificationPreferences()
   return (
     <>
       <RouterProvider router={router} />
-      <Toaster />
+      <Toaster position={notify.position} />
+      <ConfirmHost />
     </>
   )
 }

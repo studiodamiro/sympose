@@ -1,8 +1,6 @@
 import * as React from "react"
 import { HugeiconsIcon } from "@hugeicons/react"
 import { Delete02Icon, DeletePutBackIcon } from "@hugeicons/core-free-icons"
-import { toast } from "sonner"
-
 import { cn } from "@/lib/utils"
 import {
   Empty,
@@ -11,7 +9,8 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty"
-import { ConfirmDialog } from "@/components/sympose/confirm-dialog"
+import { confirm } from "@/lib/confirm"
+import { notify } from "@/lib/notify"
 import {
   emptyTrash,
   fetchTrash,
@@ -59,10 +58,6 @@ function TrashList({
 }) {
   const [items, setItems] = React.useState<TrashedNote[] | null>(null)
   const [busy, setBusy] = React.useState<string | null>(null)
-  const [pendingPurge, setPendingPurge] = React.useState<TrashedNote | null>(
-    null
-  )
-  const [pendingEmpty, setPendingEmpty] = React.useState(false)
   const [localKey, setLocalKey] = React.useState(0)
 
   React.useEffect(() => {
@@ -82,13 +77,51 @@ function TrashList({
     const res = await restoreTrashNote(row.trash_path, persona)
     setBusy(null)
     if (res.ok) {
-      toast.success(res.detail)
+      notify.success(res.detail)
       onRestored?.(row.original_path)
       reload()
     } else {
-      toast.error(res.error)
+      notify.error(res.error)
     }
   }
+
+  // Permanent — always confirmed through the dialog (`permanent: true`),
+  // regardless of the "Delete confirmation" preference.
+  const purge = (row: TrashedNote) =>
+    confirm({
+      message: `Delete “${splitPath(row.original_path).name}” forever?`,
+      description: "This removes the file from disk. It cannot be undone.",
+      confirmLabel: "Delete forever",
+      permanent: true,
+      onConfirm: async () => {
+        const res = await purgeTrashNote(row.trash_path, persona)
+        if (res.ok) {
+          notify.success(res.detail)
+          reload()
+        } else {
+          notify.error(res.error)
+        }
+      },
+    })
+
+  const empty = (count: number) =>
+    confirm({
+      message: "Empty the bin?",
+      description: `Permanently deletes ${count} note${
+        count === 1 ? "" : "s"
+      } from disk. This cannot be undone.`,
+      confirmLabel: "Empty bin",
+      permanent: true,
+      onConfirm: async () => {
+        const res = await emptyTrash(persona)
+        if (res.ok) {
+          notify.success(res.detail)
+          reload()
+        } else {
+          notify.error(res.error)
+        }
+      },
+    })
 
   if (items === null) {
     return (
@@ -120,7 +153,7 @@ function TrashList({
         </span>
         <button
           type="button"
-          onClick={() => setPendingEmpty(true)}
+          onClick={() => empty(items.length)}
           className="text-xs text-fg-muted transition-colors hover:text-destructive"
         >
           Empty bin
@@ -156,7 +189,7 @@ function TrashList({
             <button
               type="button"
               disabled={rowBusy}
-              onClick={() => setPendingPurge(row)}
+              onClick={() => purge(row)}
               aria-label={`Delete ${name} permanently`}
               className="grid size-7 shrink-0 place-items-center rounded-md text-fg-muted opacity-0 transition-opacity group-hover/row:opacity-100 hover:bg-destructive/10 hover:text-destructive focus-visible:opacity-100 disabled:opacity-50"
             >
@@ -165,47 +198,6 @@ function TrashList({
           </div>
         )
       })}
-
-      <ConfirmDialog
-        open={pendingPurge !== null}
-        onOpenChange={(o) => !o && setPendingPurge(null)}
-        title={
-          pendingPurge
-            ? `Delete “${splitPath(pendingPurge.original_path).name}” forever?`
-            : ""
-        }
-        description="This removes the file from disk. It cannot be undone."
-        confirmLabel="Delete forever"
-        onConfirm={async () => {
-          if (!pendingPurge) return
-          const res = await purgeTrashNote(pendingPurge.trash_path, persona)
-          if (res.ok) {
-            toast.success(res.detail)
-            reload()
-          } else {
-            toast.error(res.error)
-          }
-        }}
-      />
-
-      <ConfirmDialog
-        open={pendingEmpty}
-        onOpenChange={setPendingEmpty}
-        title="Empty the bin?"
-        description={`Permanently deletes ${items.length} note${
-          items.length === 1 ? "" : "s"
-        } from disk. This cannot be undone.`}
-        confirmLabel="Empty bin"
-        onConfirm={async () => {
-          const res = await emptyTrash(persona)
-          if (res.ok) {
-            toast.success(res.detail)
-            reload()
-          } else {
-            toast.error(res.error)
-          }
-        }}
-      />
     </div>
   )
 }

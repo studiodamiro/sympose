@@ -6,8 +6,6 @@ import {
   MoreHorizontalIcon,
   NoteAddIcon,
 } from "@hugeicons/core-free-icons"
-import { toast } from "sonner"
-
 import { cn } from "@/lib/utils"
 import {
   DropdownMenu,
@@ -25,7 +23,8 @@ import {
   deleteVaultNote,
   renameVaultNote,
 } from "@/lib/vault-note-api"
-import { ConfirmDialog } from "@/components/sympose/confirm-dialog"
+import { confirm } from "@/lib/confirm"
+import { notify } from "@/lib/notify"
 import type { VaultNode } from "@/components/sympose/vault-tree"
 
 /**
@@ -37,8 +36,9 @@ import type { VaultNode } from "@/components/sympose/vault-tree"
  *     on the row, opening a pointer-anchored context menu
  *
  * Both carry the same rows — **note**: Rename (an inline field overlaid on the
- * row) and Delete (modal confirm → moved to `.trash/`, recoverable from the
- * Bin, ADR-085); **folder**: New note here (`Folder/Untitled`,
+ * row) and Delete (asks first via `confirm()` per the Notifications preference,
+ * then moved to `.trash/`, recoverable from the Bin — ADR-085 / ADR-087);
+ * **folder**: New note here (`Folder/Untitled`,
  * auto-numbered). This component owns the API calls and the rename field; the
  * row's own visual content is passed as `children`.
  */
@@ -74,7 +74,6 @@ function VaultRowMenu({
   // closed — see `enterRenameAfterClose`.
   const [pendingRename, setPendingRename] = React.useState(false)
   const [busy, setBusy] = React.useState(false)
-  const [deleteOpen, setDeleteOpen] = React.useState(false)
 
   // `autoFocus` on the inline field is unreliable here: it mounts on the same
   // tick the menu closes, and Base UI's modal focus restoration (plus the
@@ -124,9 +123,9 @@ function VaultRowMenu({
     if (res.ok) {
       setRenaming(null)
       onRenamed(node.path, res.path)
-      toast.success(res.detail)
+      notify.success(res.detail)
     } else {
-      toast.error(res.error)
+      notify.error(res.error)
     }
   }
 
@@ -134,9 +133,9 @@ function VaultRowMenu({
     const res = await deleteVaultNote(node.path, persona)
     if (res.ok) {
       onDeleted(node.path)
-      toast.success(res.detail)
+      notify.success(res.detail)
     } else {
-      toast.error(res.error)
+      notify.error(res.error)
     }
   }
 
@@ -147,15 +146,15 @@ function VaultRowMenu({
       const res = await createVaultNote(`${node.path}/${name}`, persona)
       if (res.ok) {
         onCreated(`${node.path}/${name}.md`)
-        toast.success(`Created ${name}`)
+        notify.success(`Created ${name}`)
         return
       }
       if (!res.error.toLowerCase().includes("already exists")) {
-        toast.error(res.error)
+        notify.error(res.error)
         return
       }
     }
-    toast.error("Couldn't find a free “Untitled” name")
+    notify.error("Couldn't find a free “Untitled” name")
   }
 
   // One row list, rendered into both the `⋯` dropdown and the context menu —
@@ -168,7 +167,14 @@ function VaultRowMenu({
       </DropdownMenuItem>
       <DropdownMenuItem
         variant="destructive"
-        onClick={() => setDeleteOpen(true)}
+        onClick={() =>
+          confirm({
+            message: `Move “${stem}” to the bin?`,
+            description: "You can restore it from the vault bin later.",
+            confirmLabel: "Move to bin",
+            onConfirm: runDelete,
+          })
+        }
       >
         <HugeiconsIcon icon={Delete02Icon} />
         Delete
@@ -232,15 +238,6 @@ function VaultRowMenu({
       </ContextMenuTrigger>
 
       <ContextMenuContent>{items}</ContextMenuContent>
-
-      <ConfirmDialog
-        open={deleteOpen}
-        onOpenChange={setDeleteOpen}
-        title={`Move “${stem}” to the bin?`}
-        description="You can restore it from the vault bin later."
-        confirmLabel="Move to bin"
-        onConfirm={runDelete}
-      />
     </ContextMenu>
   )
 }

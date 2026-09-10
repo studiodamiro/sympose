@@ -1,7 +1,7 @@
 import * as React from "react"
 import { Link } from "react-router-dom"
 import { HugeiconsIcon } from "@hugeicons/react"
-import { toast } from "sonner"
+import { notify } from "@/lib/notify"
 import {
   Add01Icon,
   File01Icon,
@@ -23,6 +23,7 @@ import { useTransientFlag } from "@/lib/use-transient-flag"
 import { usePanels } from "@/lib/use-panels"
 import { useActivePersona } from "@/lib/use-active-persona"
 import { useEditorPreferences } from "@/lib/use-editor-preferences"
+import { useNotificationPreferences } from "@/lib/use-notification-preferences"
 import {
   fetchPersonas,
   resolvePersonaVisuals,
@@ -41,6 +42,7 @@ import {
   ContentPanel,
   EditorPreferencesSection,
   MainMenu,
+  NotificationsSection,
   MarkdownPanel,
   MENU_ACCOUNT_ID,
   MENU_SETTINGS_ID,
@@ -257,6 +259,7 @@ export function AppShell() {
   // once those land.
   const [activePersona, setActivePersona] = useActivePersona()
   const [editorPrefs, setEditorPref] = useEditorPreferences()
+  const [notifyPrefs, setNotifyPref] = useNotificationPreferences()
   const [personas, setPersonas] = React.useState<LivePersona[]>([])
   React.useEffect(() => {
     let alive = true
@@ -353,14 +356,14 @@ export function AppShell() {
     const result = await createVaultNote(target, activePersona)
     setCreatingNote(false)
     if (!result.ok) {
-      toast.error(result.error)
+      notify.error(result.error)
       return
     }
     setNewNoteName(null)
     setVaultRefreshKey((k) => k + 1)
     setSelectedNote(`${target}.md`)
     panels.open("editor")
-    toast.success(`Created ${name}`)
+    notify.success(`Created ${name}`)
   }
 
   // The main-menu account row wears the active persona's name, icon and accent.
@@ -404,6 +407,7 @@ export function AppShell() {
           grows to fill the space.
         </p>
         <EditorPreferencesSection prefs={editorPrefs} setPref={setEditorPref} />
+        <NotificationsSection prefs={notifyPrefs} setPref={setNotifyPref} />
         {/* Footer — pinned to the panel's bottom edge. Read-only Slack daemon
             status (ADR-082) on the left, the compact light/dark switch on the
             right. Negative margins cancel the scroll surface's whole inset

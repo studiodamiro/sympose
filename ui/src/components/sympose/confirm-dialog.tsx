@@ -13,12 +13,13 @@ import {
 
 /**
  * A controlled yes/no confirm modal for irreversible-ish actions — moving a
- * note to the bin, deleting it for good, emptying the bin (ADR-084 / ADR-085).
- * Replaces the earlier sonner-toast confirm, whose action button was a single
- * misclick away from deleting.
+ * note to the bin, deleting it for good, emptying the bin. This is the
+ * `dialog` form of `confirm()` (`lib/confirm`) and the only form the permanent
+ * actions ever use; `<ConfirmHost>` owns `open` and feeds it the pending
+ * request (ADR-087).
  *
- * The parent owns `open`; `onConfirm` may be async, and the dialog stays open
- * with the confirm button disabled until it settles, then closes itself.
+ * `onConfirm` may be async — the dialog stays open with the confirm button
+ * disabled until it settles, then closes itself.
  */
 function ConfirmDialog({
   open,

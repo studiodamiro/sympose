@@ -5,21 +5,21 @@ import {
   Edit01Icon,
   MoreHorizontalIcon,
 } from "@hugeicons/core-free-icons"
-import { toast } from "sonner"
-
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { ConfirmDialog } from "@/components/sympose/confirm-dialog"
+import { confirm } from "@/lib/confirm"
+import { notify } from "@/lib/notify"
 import { deleteVaultNote, renameVaultNote } from "@/lib/vault-note-api"
 
 /**
  * The `⋯` menu on the editor toolbar — Rename / Delete for the open note
  * (ADR-084). Rename swaps the button for an inline field (Enter commits, Esc /
- * blur cancels); Delete asks for confirmation through a modal (ADR-085). Owns
+ * blur cancels); Delete asks first via `confirm()` (dialog / inline / none, per
+ * the Notifications preference — ADR-087). Owns
  * the API calls itself; the parent is only told the note moved so it can
  * repoint `selectedNote` and refresh the tree.
  */
@@ -47,7 +47,6 @@ function NoteActionsMenu({
   // `onOpenChangeComplete` handler below.
   const [pendingRename, setPendingRename] = React.useState(false)
   const [busy, setBusy] = React.useState(false)
-  const [deleteOpen, setDeleteOpen] = React.useState(false)
 
   // `autoFocus` on the inline field is unreliable here: it mounts on the same
   // tick the menu closes, and Base UI's modal focus restoration (plus the
@@ -86,9 +85,9 @@ function NoteActionsMenu({
     if (res.ok) {
       setRenaming(null)
       onRenamed(res.path)
-      toast.success(res.detail)
+      notify.success(res.detail)
     } else {
-      toast.error(res.error)
+      notify.error(res.error)
     }
   }
 
@@ -96,9 +95,9 @@ function NoteActionsMenu({
     const res = await deleteVaultNote(path, persona)
     if (res.ok) {
       onDeleted()
-      toast.success(res.detail)
+      notify.success(res.detail)
     } else {
-      toast.error(res.error)
+      notify.error(res.error)
     }
   }
 
@@ -154,21 +153,20 @@ function NoteActionsMenu({
           </DropdownMenuItem>
           <DropdownMenuItem
             variant="destructive"
-            onClick={() => setDeleteOpen(true)}
+            onClick={() =>
+              confirm({
+                message: `Move “${stem}” to the bin?`,
+                description: "You can restore it from the vault bin later.",
+                confirmLabel: "Move to bin",
+                onConfirm: runDelete,
+              })
+            }
           >
             <HugeiconsIcon icon={Delete02Icon} />
             Delete
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
-      <ConfirmDialog
-        open={deleteOpen}
-        onOpenChange={setDeleteOpen}
-        title={`Move “${stem}” to the bin?`}
-        description="You can restore it from the vault bin later."
-        confirmLabel="Move to bin"
-        onConfirm={runDelete}
-      />
     </>
   )
 }

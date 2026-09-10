@@ -36,8 +36,8 @@ import type { VaultNode } from "@/components/sympose/vault-tree"
  *   - a right-click (fine pointer) or ~450ms long-press (touch / pen) anywhere
  *     on the row, opening a pointer-anchored context menu
  *
- * Both carry the same rows — **note**: Rename… (an inline field overlaid on the
- * row) and Delete… (modal confirm → moved to `.trash/`, recoverable from the
+ * Both carry the same rows — **note**: Rename (an inline field overlaid on the
+ * row) and Delete (modal confirm → moved to `.trash/`, recoverable from the
  * Bin, ADR-085); **folder**: New note here (`Folder/Untitled`,
  * auto-numbered). This component owns the API calls and the rename field; the
  * row's own visual content is passed as `children`.
@@ -164,14 +164,14 @@ function VaultRowMenu({
     <>
       <DropdownMenuItem onClick={() => setPendingRename(true)}>
         <HugeiconsIcon icon={Edit01Icon} />
-        Rename…
+        Rename
       </DropdownMenuItem>
       <DropdownMenuItem
         variant="destructive"
         onClick={() => setDeleteOpen(true)}
       >
         <HugeiconsIcon icon={Delete02Icon} />
-        Delete…
+        Delete
       </DropdownMenuItem>
     </>
   ) : (

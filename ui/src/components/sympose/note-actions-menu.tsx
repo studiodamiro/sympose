@@ -150,14 +150,14 @@ function NoteActionsMenu({
         <DropdownMenuContent align="end">
           <DropdownMenuItem onClick={() => setPendingRename(true)}>
             <HugeiconsIcon icon={Edit01Icon} />
-            Rename…
+            Rename
           </DropdownMenuItem>
           <DropdownMenuItem
             variant="destructive"
             onClick={() => setDeleteOpen(true)}
           >
             <HugeiconsIcon icon={Delete02Icon} />
-            Delete…
+            Delete
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>

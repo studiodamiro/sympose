@@ -7,65 +7,9 @@ import {
 } from "@/components/sympose/knowledge-nebula"
 import type { NebulaMode } from "@/components/sympose/knowledge-nebula-shared"
 import { getCookie, setCookie } from "@/lib/cookies"
-import {
-  FOLDER_COLORS,
-  FOLDER_COLORS_LIGHT,
-  foldersInGraph,
-  type NebulaGraph,
-} from "@/lib/nebula-graph"
-import rawGraph from "@/lib/mock-nebula.json"
-
-// Master graph with all notes and tag hubs pre-indexed for zero-reset stable
-// rendering. Runs on the live `GET /api/vault/graph` feed, or the bundled
-// `mock-nebula.json` when the backend isn't reachable (offline dev).
-function buildMasterGraph(raw: { nodes: any[]; links: any[] }): NebulaGraph {
-  const rawNodes = raw.nodes as any[]
-  const rawLinks = raw.links as any[]
-
-  const tagMap = new Map<string, number>()
-  rawNodes.forEach((n) => {
-    if (n.tags) {
-      n.tags.forEach((t: string) => {
-        const clean = t.trim()
-        if (clean) tagMap.set(clean, (tagMap.get(clean) || 0) + 1)
-      })
-    }
-  })
-
-  const tagNodes: typeof rawNodes = []
-  const tagLinks: typeof rawLinks = []
-
-  tagMap.forEach((count, t) => {
-    tagNodes.push({
-      id: `tag:${t}`,
-      label: `#${t}`,
-      folder: "Tags",
-      tags: [t],
-      isTag: true,
-      val: Math.min(8, 2.5 + count * 0.4),
-      exists: true,
-    })
-  })
-
-  rawNodes.forEach((n) => {
-    if (n.tags) {
-      n.tags.forEach((t: string) => {
-        const clean = t.trim()
-        if (clean && tagMap.has(clean)) {
-          tagLinks.push({
-            source: n.id,
-            target: `tag:${clean}`,
-          })
-        }
-      })
-    }
-  })
-
-  return {
-    nodes: [...rawNodes, ...tagNodes],
-    links: [...rawLinks, ...tagLinks],
-  }
-}
+import { FOLDER_COLORS, FOLDER_COLORS_LIGHT, foldersInGraph } from "@/lib/nebula-graph"
+import { useNebulaFilter } from "@/lib/nebula-filter"
+import { useNebulaGraph } from "@/lib/use-nebula-graph"
 
 // Helper toggle component matching Obsidian pink pill switches. Declared at
 // module scope so it keeps a stable identity across renders (a nested component
@@ -101,37 +45,10 @@ function ToggleSwitch({
 export function NebulaShowcase() {
   const nebulaRef = React.useRef<KnowledgeNebulaHandle>(null)
 
-  // Live vault graph from GET /api/vault/graph; the bundled mock is the
-  // first paint and the offline fallback. `graphSource` tells which one is
-  // on screen (surfaced as a corner badge + a console line).
-  const [graphSource, setGraphSource] = React.useState<"sample" | "live">("sample")
-  const [masterGraph, setMasterGraph] = React.useState<NebulaGraph>(() =>
-    buildMasterGraph(rawGraph as { nodes: any[]; links: any[] })
-  )
-  React.useEffect(() => {
-    let cancelled = false
-    fetch("/api/vault/graph")
-      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
-      .then((data: NebulaGraph) => {
-        if (cancelled) return
-        if (data?.nodes?.length) {
-          setMasterGraph(buildMasterGraph(data))
-          setGraphSource("live")
-          console.info(
-            `[nebula] live vault · ${data.nodes.length} notes, ${data.links?.length ?? 0} links from /api/vault/graph`
-          )
-        } else {
-          console.info("[nebula] /api/vault/graph returned no nodes — showing the bundled sample")
-        }
-      })
-      .catch((err) => {
-        if (!cancelled)
-          console.info(`[nebula] /api/vault/graph unreachable (${err}) — showing the bundled sample`)
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [])
+  // Live vault graph from GET /api/vault/graph; the bundled mock is the first
+  // paint and the offline fallback. `graphSource` tells which one is on screen
+  // (surfaced as a corner badge). Shared with the in-shell ambient layer.
+  const { graph: masterGraph, source: graphSource } = useNebulaGraph()
 
   // Theme & Dock state
   const [theme, setTheme] = React.useState<"dark" | "light">("dark")
@@ -200,88 +117,19 @@ export function NebulaShowcase() {
     nebulaRef.current?.zoomToFit()
   }
 
-  // Calculate highlighted and hidden nodes without resetting the 3D graph stage
-  const { highlightedNodeIds, hiddenNodeIds, activeCount } = React.useMemo(() => {
-    const query = searchQuery.trim().toLowerCase()
-    const hidden = new Set<string>()
-    let highlighted = new Set<string>()
-
-    const connectedNodeIds = new Set<string>()
-    masterGraph.links.forEach((l) => {
-      const src = typeof l.source === "string" ? l.source : (l.source as any).id
-      const tgt = typeof l.target === "string" ? l.target : (l.target as any).id
-      const isTagLink = src.startsWith("tag:") || tgt.startsWith("tag:")
-      if (!isTagLink || showTags) {
-        connectedNodeIds.add(src)
-        connectedNodeIds.add(tgt)
-      }
-    })
-
-    masterGraph.nodes.forEach((n) => {
-      // 1. Tag node visibility
-      if (n.isTag && !showTags) {
-        hidden.add(n.id)
-        return
-      }
-
-      // 2. Attachments filter
-      if (!showAttachments && n.id.match(/\.(png|jpg|jpeg|gif|svg|pdf|mp4|webm)$/i)) {
-        hidden.add(n.id)
-        return
-      }
-
-      // 3. Existing files filter
-      if (existingOnly && n.exists === false) {
-        hidden.add(n.id)
-        return
-      }
-
-      // 4. Search query match — computed before the orphan check so a matching
-      // disconnected note can still be highlighted / framed.
-      const matchesQuery =
-        !query ||
-        n.id.toLowerCase().includes(query) ||
-        n.label.toLowerCase().includes(query) ||
-        n.folder.toLowerCase().includes(query) ||
-        (n.tags?.some((t) => t.toLowerCase().includes(query)) ?? false)
-
-      // 5. Orphan check: if showOrphans is false and node has no connections,
-      // fade it — unless an active search query matches it.
-      const isConnected = connectedNodeIds.has(n.id)
-      const isOrphan = !isConnected && !n.isTag
-      if (!showOrphans && isOrphan && !(query && matchesQuery)) {
-        return // Dim orphan node
-      }
-
-      // 6. Highlight everything that matches the query (or all, when no query)
-      if (matchesQuery) {
-        highlighted.add(n.id)
-      }
-    })
-
-    // If a node is selected, focus on selected node + its 1-hop connected neighbors
-    if (selectedNodeId) {
-      const neighborIds = new Set<string>([selectedNodeId])
-      masterGraph.links.forEach((l) => {
-        const src = typeof l.source === "string" ? l.source : (l.source as any).id
-        const tgt = typeof l.target === "string" ? l.target : (l.target as any).id
-        if (src === selectedNodeId) neighborIds.add(tgt)
-        if (tgt === selectedNodeId) neighborIds.add(src)
-      })
-
-      const focused = new Set<string>()
-      highlighted.forEach((id) => {
-        if (neighborIds.has(id)) focused.add(id)
-      })
-      highlighted = focused
+  // Highlighted / hidden node sets — computed without resetting the graph
+  // stage. Shared with the in-shell ambient layer (`nebula-filter.ts`).
+  const { highlightedNodeIds, hiddenNodeIds, activeCount } = useNebulaFilter(
+    masterGraph,
+    {
+      query: searchQuery,
+      showTags,
+      showAttachments,
+      existingOnly,
+      showOrphans,
+      selectedNodeId,
     }
-
-    return {
-      highlightedNodeIds: highlighted,
-      hiddenNodeIds: hidden,
-      activeCount: highlighted.size,
-    }
-  }, [searchQuery, showTags, showAttachments, showOrphans, existingOnly, selectedNodeId, masterGraph])
+  )
 
   // Dynamically update camera zoom distance in real-time as the slider moves
   const isFirstMount = React.useRef(true)

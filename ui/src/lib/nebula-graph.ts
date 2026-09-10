@@ -106,3 +106,52 @@ export function foldersInGraph(graph: NebulaGraph): string[] {
   for (const n of graph.nodes) if (n.folder) seen.add(n.folder)
   return Object.keys(FOLDER_COLORS).filter((f) => seen.has(f))
 }
+
+/**
+ * Fold a raw `{ nodes, links }` feed — from `GET /api/vault/graph` or the
+ * bundled `mock-nebula.json` — into the master graph the renderers consume:
+ * every distinct frontmatter tag becomes a `tag:<name>` hub node in the `Tags`
+ * folder (sized by how many notes carry it), and each tagged note gains a link
+ * to its hubs. Pre-indexing the hubs once here keeps the `Tags` filter a pure
+ * show/hide with no graph reset. Idempotent on an already-folded graph — a
+ * node whose id starts `tag:` is skipped as a source.
+ */
+export function buildMasterGraph(raw: NebulaGraph): NebulaGraph {
+  const tagCount = new Map<string, number>()
+  for (const n of raw.nodes) {
+    if (n.id.startsWith("tag:")) continue
+    for (const t of n.tags ?? []) {
+      const clean = t.trim()
+      if (clean) tagCount.set(clean, (tagCount.get(clean) ?? 0) + 1)
+    }
+  }
+
+  const tagNodes: NebulaNode[] = []
+  for (const [t, count] of tagCount) {
+    tagNodes.push({
+      id: `tag:${t}`,
+      label: `#${t}`,
+      folder: "Tags",
+      tags: [t],
+      isTag: true,
+      val: Math.min(8, 2.5 + count * 0.4),
+      exists: true,
+    })
+  }
+
+  const tagLinks: NebulaLink[] = []
+  for (const n of raw.nodes) {
+    if (n.id.startsWith("tag:")) continue
+    for (const t of n.tags ?? []) {
+      const clean = t.trim()
+      if (clean && tagCount.has(clean)) {
+        tagLinks.push({ source: n.id, target: `tag:${clean}` })
+      }
+    }
+  }
+
+  return {
+    nodes: [...raw.nodes, ...tagNodes],
+    links: [...raw.links, ...tagLinks],
+  }
+}

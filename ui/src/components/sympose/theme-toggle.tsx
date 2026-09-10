@@ -1,9 +1,9 @@
-import * as React from "react"
 import { HugeiconsIcon } from "@hugeicons/react"
 import { Moon02Icon, Sun03Icon } from "@hugeicons/core-free-icons"
 
 import { cn } from "@/lib/utils"
 import { useTheme } from "@/components/theme-provider"
+import { useEffectiveTheme } from "@/lib/use-effective-theme"
 
 /**
  * Compact light/dark switch for the Settings footer — pill-height to match the
@@ -12,32 +12,10 @@ import { useTheme } from "@/components/theme-provider"
  * choice is replaced). The full three-way `light / dark / system` control still
  * lives in the dev-harness header.
  *
- * The effective theme is read from the `dark` / `light` class the
- * `ThemeProvider` writes on `<html>`, so `system` resolves correctly and an OS
- * appearance change keeps the label honest without a context re-render.
+ * The effective theme (via `useEffectiveTheme`) is read from the `dark` /
+ * `light` class the `ThemeProvider` writes on `<html>`, so `system` resolves
+ * correctly and an OS appearance change keeps the label honest.
  */
-function useEffectiveTheme(): "dark" | "light" {
-  const read = React.useCallback(
-    () =>
-      document.documentElement.classList.contains("dark") ? "dark" : "light",
-    []
-  )
-  const [effective, setEffective] = React.useState<"dark" | "light">(read)
-
-  React.useEffect(() => {
-    const sync = () => setEffective(read())
-    sync()
-    const observer = new MutationObserver(sync)
-    observer.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ["class"],
-    })
-    return () => observer.disconnect()
-  }, [read])
-
-  return effective
-}
-
 function ThemeToggle({ className }: { className?: string }) {
   const { setTheme } = useTheme()
   const effective = useEffectiveTheme()

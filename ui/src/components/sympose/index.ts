@@ -21,6 +21,10 @@ export {
   type MainMenuItem,
 } from "./main-menu"
 export { MarkdownPanel } from "./markdown-panel"
+// `AmbientNebula` is intentionally NOT re-exported here — it pulls in
+// `react-force-graph`. The app shell lazy-imports it directly from
+// "@/components/sympose/ambient-nebula" so it stays off the TTFT hot path.
+export { NebulaAppearanceSection } from "./nebula-appearance-section"
 export { NotificationsSection } from "./notifications-section"
 export { LatencyReadout, MetaText } from "./meta-text"
 export { ModelChip } from "./model-chip"

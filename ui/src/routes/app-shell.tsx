@@ -24,6 +24,7 @@ import { usePanels } from "@/lib/use-panels"
 import { useActivePersona } from "@/lib/use-active-persona"
 import { useEditorPreferences } from "@/lib/use-editor-preferences"
 import { useNotificationPreferences } from "@/lib/use-notification-preferences"
+import { useNebulaPreferences } from "@/lib/use-nebula-preferences"
 import {
   fetchPersonas,
   resolvePersonaVisuals,
@@ -47,6 +48,7 @@ import {
   MENU_ACCOUNT_ID,
   MENU_SETTINGS_ID,
   MENU_TRASH_ID,
+  NebulaAppearanceSection,
   SlackStatusPill,
   ThemeToggle,
   TopBar,
@@ -55,6 +57,14 @@ import {
   type MainMenuItem,
   type VaultNode,
 } from "@/components/sympose"
+
+// Lazy — pulls in `react-force-graph` / `d3-force`. Mounted only after first
+// paint (see the idle gate below) so it never delays the shell's TTFT.
+const AmbientNebula = React.lazy(() =>
+  import("@/components/sympose/ambient-nebula").then((m) => ({
+    default: m.AmbientNebula,
+  }))
+)
 
 /** Curated name → icon map, so known folders keep their glyph when the menu is
  *  driven by the live vault instead of the static `VAULT_FOLDERS` list. */
@@ -260,6 +270,22 @@ export function AppShell() {
   const [activePersona, setActivePersona] = useActivePersona()
   const [editorPrefs, setEditorPref] = useEditorPreferences()
   const [notifyPrefs, setNotifyPref] = useNotificationPreferences()
+  const [nebulaPrefs, setNebulaPref] = useNebulaPreferences()
+
+  // The ambient Knowledge Nebula (Module A) sits behind the whole shell. Its
+  // renderer chunk is deferred until the browser is idle after first paint so
+  // `react-force-graph` never competes with the shell's TTFT.
+  const [nebulaReady, setNebulaReady] = React.useState(false)
+  React.useEffect(() => {
+    const hasIdle = typeof window.requestIdleCallback === "function"
+    const handle = hasIdle
+      ? window.requestIdleCallback(() => setNebulaReady(true), { timeout: 2000 })
+      : window.setTimeout(() => setNebulaReady(true), 400)
+    return () => {
+      if (hasIdle) window.cancelIdleCallback(handle as number)
+      else window.clearTimeout(handle as number)
+    }
+  }, [])
   const [personas, setPersonas] = React.useState<LivePersona[]>([])
   React.useEffect(() => {
     let alive = true
@@ -408,6 +434,7 @@ export function AppShell() {
         </p>
         <EditorPreferencesSection prefs={editorPrefs} setPref={setEditorPref} />
         <NotificationsSection prefs={notifyPrefs} setPref={setNotifyPref} />
+        <NebulaAppearanceSection prefs={nebulaPrefs} setPref={setNebulaPref} />
         {/* Footer — pinned to the panel's bottom edge. Read-only Slack daemon
             status (ADR-082) on the left, the compact light/dark switch on the
             right. Negative margins cancel the scroll surface's whole inset
@@ -481,7 +508,12 @@ export function AppShell() {
                 nodes={panelNodes}
                 storageKey="sympose:vault.expanded"
                 selectedPath={selectedNote}
-                onSelect={(node) => setSelectedNote(node.path)}
+                onSelect={(node) => {
+                  // Picking a note always brings the editor forward — same as
+                  // creating one (`onCreated`) or following a wikilink.
+                  setSelectedNote(node.path)
+                  panels.open("editor")
+                }}
                 persona={activePersona}
                 onRenamed={(oldPath, newPath) => {
                   setVaultRefreshKey((k) => k + 1)
@@ -546,8 +578,17 @@ export function AppShell() {
         isPhone && "flex-col"
       )}
     >
+      {/* Module A — the persistent ambient vault graph, behind every panel.
+          `fixed inset-0 z-0`; the shell chrome sits at `z-20`+. */}
+      {nebulaReady && (
+        <React.Suspense fallback={null}>
+          <AmbientNebula prefs={nebulaPrefs} setPref={setNebulaPref} />
+        </React.Suspense>
+      )}
+
       {isPhone && (
         <TopBar
+          className="relative z-10"
           chatOpen={chatOpen}
           onToggleChat={toggleChat}
           menuOpen={menuShown}
@@ -560,8 +601,9 @@ export function AppShell() {
       )}
 
       {/* menu + stage row — overflow-hidden clips the menu (and the panels)
-          while they are parked off to the inline-start */}
-      <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
+          while they are parked off to the inline-start. `relative z-10` lifts
+          the whole chrome cluster above the `z-0` ambient nebula. */}
+      <div className="relative z-10 flex min-h-0 min-w-0 flex-1 overflow-hidden">
         <MainMenu
           items={menuItems}
           // above the stage so the content panel tucks *behind* it on hide

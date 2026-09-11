@@ -25,7 +25,13 @@ one in [`docs/wiki/index.md`](./wiki/index.md) are kept in sync per the
 
 | ADR | Title | Status | Date | Source |
 | --- | ----- | ------ | ---- | ------ |
-| ADR-088 | Ambient Knowledge Nebula in the App Shell (Phase A) | Accepted | 2026-09-11 | [2026-09-11_adr-088-ambient-knowledge-nebula-in-app-shell.md](./journal/2026-09/2026-09-11_adr-088-ambient-knowledge-nebula-in-app-shell.md) |
+| ADR-094 | Settings Panel Density Cleanup | Accepted | 2026-09-11 | [2026-09-11_adr-094-settings-panel-density-cleanup.md](./journal/2026-09/2026-09-11_adr-094-settings-panel-density-cleanup.md) |
+| ADR-093 | Stage Action Group Order Swap & Explore Slide-Out | Accepted | 2026-09-11 | [2026-09-11_adr-093-stage-action-group-swap-and-explore-slide-out.md](./journal/2026-09/2026-09-11_adr-093-stage-action-group-swap-and-explore-slide-out.md) |
+| ADR-092 | Vault & Editor UX Batch: Pin/Unpin Notes, Hidden File Extensions, ContentPanel Footer Slot | Accepted | 2026-09-11 | [2026-09-11_adr-092-vault-editor-ux-batch-pin-notes-hide-extensions-footer-slot.md](./journal/2026-09/2026-09-11_adr-092-vault-editor-ux-batch-pin-notes-hide-extensions-footer-slot.md) |
+| ADR-091 | Nebula Dock Knobs Surfaced Inline in Settings + Dock Visibility Toggle (amends ADR-088/ADR-090) | Accepted | 2026-09-11 | [2026-09-11_adr-091-nebula-dock-inline-in-settings-and-dock-toggle.md](./journal/2026-09/2026-09-11_adr-091-nebula-dock-inline-in-settings-and-dock-toggle.md) |
+| ADR-090 | Explore Auto-Collapses the Stage Panels (amends ADR-088) | Accepted | 2026-09-11 | [2026-09-11_adr-090-explore-auto-collapses-stage-panels.md](./journal/2026-09/2026-09-11_adr-090-explore-auto-collapses-stage-panels.md) |
+| ADR-089 | Drop the Frosted-Panel Blur Knob (amends ADR-088) | Accepted | 2026-09-11 | [2026-09-11_adr-089-drop-frosted-panel-blur.md](./journal/2026-09/2026-09-11_adr-089-drop-frosted-panel-blur.md) |
+| ADR-088 | Ambient Knowledge Nebula in the App Shell (Phase A) | Accepted (amended by ADR-089, ADR-090, ADR-091) | 2026-09-11 | [2026-09-11_adr-088-ambient-knowledge-nebula-in-app-shell.md](./journal/2026-09/2026-09-11_adr-088-ambient-knowledge-nebula-in-app-shell.md) |
 | ADR-087 | Notification & Confirmation Preferences | Accepted | 2026-09-11 | [2026-09-11_adr-087-notification-and-confirmation-preferences.md](./journal/2026-09/2026-09-11_adr-087-notification-and-confirmation-preferences.md) |
 | ADR-086 | Vault Tree Context Menu & Trash in the Main Menu | Accepted | 2026-09-11 | [2026-09-11_adr-086-vault-tree-context-menu-and-trash-in-main-menu.md](./journal/2026-09/2026-09-11_adr-086-vault-tree-context-menu-and-trash-in-main-menu.md) |
 | ADR-085 | Note Recovery: the Vault Trash View | Accepted | 2026-09-10 | [2026-09-10_adr-085-note-recovery-trash-view.md](./journal/2026-09/2026-09-10_adr-085-note-recovery-trash-view.md) |
@@ -125,6 +131,12 @@ one in [`docs/wiki/index.md`](./wiki/index.md) are kept in sync per the
 
 | Date | Entry |
 | ---- | ----- |
+| 2026-09-11 | [ADR-094 — Settings Panel Density Cleanup](./journal/2026-09/2026-09-11_adr-094-settings-panel-density-cleanup.md) |
+| 2026-09-11 | [ADR-093 — Stage Action Group Order Swap & Explore Slide-Out](./journal/2026-09/2026-09-11_adr-093-stage-action-group-swap-and-explore-slide-out.md) |
+| 2026-09-11 | [ADR-092 — Vault & Editor UX Batch: Pin/Unpin Notes, Hidden File Extensions, ContentPanel Footer Slot](./journal/2026-09/2026-09-11_adr-092-vault-editor-ux-batch-pin-notes-hide-extensions-footer-slot.md) |
+| 2026-09-11 | [ADR-091 — Nebula Dock Knobs Surfaced Inline in Settings + Dock Visibility Toggle (amends ADR-088/ADR-090)](./journal/2026-09/2026-09-11_adr-091-nebula-dock-inline-in-settings-and-dock-toggle.md) |
+| 2026-09-11 | [ADR-090 — Explore Auto-Collapses the Stage Panels (amends ADR-088)](./journal/2026-09/2026-09-11_adr-090-explore-auto-collapses-stage-panels.md) |
+| 2026-09-11 | [ADR-089 — Drop the Frosted-Panel Blur Knob (amends ADR-088)](./journal/2026-09/2026-09-11_adr-089-drop-frosted-panel-blur.md) |
 | 2026-09-11 | [ADR-088 — Ambient Knowledge Nebula in the App Shell (Phase A)](./journal/2026-09/2026-09-11_adr-088-ambient-knowledge-nebula-in-app-shell.md) |
 | 2026-09-11 | [ADR-087 — Notification & Confirmation Preferences](./journal/2026-09/2026-09-11_adr-087-notification-and-confirmation-preferences.md) |
 | 2026-09-11 | [ADR-086 — Vault Tree Context Menu & Trash in the Main Menu](./journal/2026-09/2026-09-11_adr-086-vault-tree-context-menu-and-trash-in-main-menu.md) |

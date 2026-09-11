@@ -12,7 +12,15 @@ tags:
 
 # ADR-088 — Ambient Knowledge Nebula in the App Shell (Phase A)
 
-- **Status:** Accepted — implemented 2026-09-11 (Phase A).
+- **Status:** Accepted — implemented 2026-09-11 (Phase A). The `panelBlur`
+  knob described below was dropped in
+  [ADR-089](./2026-09-11_adr-089-drop-frosted-panel-blur.md); `panelOpacity`
+  and the rest of this ADR still stand. The "doesn't auto-collapse open panels
+  on entering Explore" gap named in Consequences below was closed in
+  [ADR-090](./2026-09-11_adr-090-explore-auto-collapses-stage-panels.md). The
+  floating dock's knobs were also surfaced inline in Settings, with a toggle
+  to hide the dock itself, in
+  [ADR-091](./2026-09-11_adr-091-nebula-dock-inline-in-settings-and-dock-toggle.md).
 - **Date:** 2026-09-11
 - **Deciders:** damiro (Lead Architect); Grace / Claude (Sonnet 5) (Engineering Partner)
 - Promotes the Knowledge Nebula (Module A) from the standalone `/nebula`
@@ -173,6 +181,10 @@ root carries a tri-state `data-nebula-frost` that gates only that class:
 - **`blur`** (`panelBlur` > 0) — adds `backdrop-filter: blur(...) saturate(1.3)`
   on top of the same continuous fill.
 
+  > Dropped in [ADR-089](./2026-09-11_adr-089-drop-frosted-panel-blur.md) —
+  > `data-nebula-frost` is now `off` / `tint` only, opacity being the sole
+  > knob left on this surface.
+
 The editor is a special case, and the first attempt at it targeted the wrong
 element: stylo's opaque surface isn't `.cm-editor` / `.cm-scroller` (they carry
 no background in this build) — it's stylo's own root, the `.stylo` class
@@ -218,6 +230,10 @@ shared hooks.
   reference specifies — that's Phase B, with the 3D renderer, to keep this
   shell edit minimal — so seeing the graph while a panel is open still means
   closing it yourself.
+
+  > Closed in [ADR-090](./2026-09-11_adr-090-explore-auto-collapses-stage-panels.md)
+  > — entering Explore now closes the open stage panels itself; Focus restores
+  > them.
 - A clicked node's selection (and the 1-hop highlight it drives) is kept across
   `Explore ⇄ Focus` — the selection only *changes* while the layer is
   interactive, so a Focus trip and back leaves the graph framed exactly as it
@@ -258,6 +274,8 @@ shared hooks.
   reference, but it tangles with `usePanels`, the breakpoint caps, and
   stash/restore — deferred to Phase B rather than bloating a 690-line
   `app-shell.tsx` in the same pass that introduces the layer.
+
+  > Built in [ADR-090](./2026-09-11_adr-090-explore-auto-collapses-stage-panels.md).
 
 ## B.4 index updates
 

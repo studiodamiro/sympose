@@ -100,7 +100,13 @@ list and is kept in sync per the
 
 | ADR | Title | Status | Date |
 | --- | ----- | ------ | ---- |
-| [ADR-088](../journal/2026-09/2026-09-11_adr-088-ambient-knowledge-nebula-in-app-shell.md) | Ambient Knowledge Nebula in the App Shell (Phase A) | Accepted | 2026-09-11 |
+| [ADR-094](../journal/2026-09/2026-09-11_adr-094-settings-panel-density-cleanup.md) | Settings Panel Density Cleanup | Accepted | 2026-09-11 |
+| [ADR-093](../journal/2026-09/2026-09-11_adr-093-stage-action-group-swap-and-explore-slide-out.md) | Stage Action Group Order Swap & Explore Slide-Out | Accepted | 2026-09-11 |
+| [ADR-092](../journal/2026-09/2026-09-11_adr-092-vault-editor-ux-batch-pin-notes-hide-extensions-footer-slot.md) | Vault & Editor UX Batch: Pin/Unpin Notes, Hidden File Extensions, ContentPanel Footer Slot | Accepted | 2026-09-11 |
+| [ADR-091](../journal/2026-09/2026-09-11_adr-091-nebula-dock-inline-in-settings-and-dock-toggle.md) | Nebula Dock Knobs Surfaced Inline in Settings + Dock Visibility Toggle (amends ADR-088/ADR-090) | Accepted | 2026-09-11 |
+| [ADR-090](../journal/2026-09/2026-09-11_adr-090-explore-auto-collapses-stage-panels.md) | Explore Auto-Collapses the Stage Panels (amends ADR-088) | Accepted | 2026-09-11 |
+| [ADR-089](../journal/2026-09/2026-09-11_adr-089-drop-frosted-panel-blur.md) | Drop the Frosted-Panel Blur Knob (amends ADR-088) | Accepted | 2026-09-11 |
+| [ADR-088](../journal/2026-09/2026-09-11_adr-088-ambient-knowledge-nebula-in-app-shell.md) | Ambient Knowledge Nebula in the App Shell (Phase A) | Accepted (amended by ADR-089, ADR-090, ADR-091) | 2026-09-11 |
 | [ADR-087](../journal/2026-09/2026-09-11_adr-087-notification-and-confirmation-preferences.md) | Notification & Confirmation Preferences | Accepted | 2026-09-11 |
 | [ADR-086](../journal/2026-09/2026-09-11_adr-086-vault-tree-context-menu-and-trash-in-main-menu.md) | Vault Tree Context Menu & Trash in the Main Menu | Accepted | 2026-09-11 |
 | [ADR-085](../journal/2026-09/2026-09-10_adr-085-note-recovery-trash-view.md) | Note Recovery: the Vault Trash View | Accepted | 2026-09-10 |

@@ -1,5 +1,10 @@
 import * as React from "react"
-import { Stylo, splitFrontmatter, type ToolbarConfig } from "@damiro/stylo"
+import {
+  Stylo,
+  splitFrontmatter,
+  type ToolbarConfig,
+  type WikiLinkSource,
+} from "@damiro/stylo"
 import { languages as CODE_LANGUAGES } from "@codemirror/language-data"
 import { notify } from "@/lib/notify"
 import "@damiro/stylo/styles.css"
@@ -57,6 +62,11 @@ interface MarkdownPanelProps extends React.ComponentProps<"div"> {
   persona?: string
   /** Fires when the reader clicks a `[[wikilink]]` in the canvas. */
   onWikiLinkClick?: (target: string) => void
+  /** Supplies `[[wikilink]]` autocomplete candidates (stylo `>=0.7.0`) — omit
+   *  to leave the feature off. Read once, at mount, per stylo's own contract;
+   *  the caller is responsible for a stable function identity that reads live
+   *  data off a ref rather than being rebuilt on every vault-tree refetch. */
+  wikiLinkSource?: WikiLinkSource
   /** The open note was renamed (ADR-084) — value is its new vault-relative path. */
   onRenamed?: (newPath: string) => void
   /** The open note was moved to trash (ADR-084). */
@@ -191,6 +201,7 @@ function MarkdownPanel({
   path,
   persona = "samantha",
   onWikiLinkClick,
+  wikiLinkSource,
   onRenamed,
   onDeleted,
   isPinned,
@@ -443,6 +454,7 @@ function MarkdownPanel({
               onChange={setBody}
               onSave={() => void saveNote()}
               onWikiLinkClick={onWikiLinkClick}
+              wikiLinkSource={wikiLinkSource}
               mode={surface}
               inPlace={{ reveal, selectionUI }}
               toolbar={{

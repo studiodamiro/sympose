@@ -33,6 +33,7 @@ import {
 import { fetchVaultTree } from "@/lib/vault-tree-api"
 import { createVaultNote } from "@/lib/vault-note-api"
 import { findNoteByWikilink } from "@/lib/find-note-by-wikilink"
+import { matchWikilinkTargets } from "@/lib/vault-wikilink-completions"
 import { VAULT_FOLDERS } from "@/lib/vault-folders"
 import {
   ActionBadge,
@@ -376,6 +377,18 @@ export function AppShell() {
       panels.open("editor")
     }
   }
+
+  // stylo's `wikiLinkSource` (>=0.7.0) is read once, at mount — so the
+  // function identity handed to `<Stylo>` must stay stable across a tree
+  // refetch (new persona, new note, ADR-083 create) rather than being rebuilt
+  // every render. A ref carries the live tree; the callback itself never
+  // changes.
+  const vaultTreeRef = React.useRef(vaultTree)
+  vaultTreeRef.current = vaultTree
+  const wikiLinkSource = React.useCallback(
+    (query: string) => matchWikilinkTargets(vaultTreeRef.current, query),
+    []
+  )
 
   // `active` holds the user's last explicit pick; a persisted folder id that no
   // longer exists (e.g. after switching to a persona with a narrower sandbox)
@@ -726,6 +739,7 @@ export function AppShell() {
             path={selectedNote}
             persona={activePersona}
             onWikiLinkClick={openWikilink}
+            wikiLinkSource={wikiLinkSource}
             onRenamed={(newPath) => {
               setSelectedNote(newPath)
               setVaultRefreshKey((k) => k + 1)

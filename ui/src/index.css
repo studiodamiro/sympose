@@ -207,6 +207,18 @@
   --stylo-link: var(--entity);
   --stylo-ring: var(--ring);
   --stylo-radius: var(--radius-md);
+  /* stylo's own default is 0.9375rem (15px); this panel's `text-sm` wrapper
+     is 14px, and every in-place heading is sized in `em` off this one value —
+     so leaving stylo's default in place doesn't just make body text a pixel
+     larger, it scales every heading up with it. Token added in stylo 0.5.0;
+     before that this needed a plain `!important` reach into `.cm-editor`. */
+  --stylo-font-size: 0.875rem;
+  /* stylo's own default is a hard-coded system stack; this bridges body prose
+     to the app's own sans face. Headings get their own override further down
+     (`--font-heading`, no per-construct token exists for that split). Token
+     added in stylo 0.6.0; before that this needed an `!important` reach into
+     `.cm-content`. */
+  --stylo-font-family: var(--font-sans);
 
   /* Fenced-code syntax colors — stylo ships its own default palette
      (`tokens.css`), a set of stock, fully-saturated hex hues with no relation
@@ -231,16 +243,11 @@
   --stylo-syntax-invalid: var(--destructive);
 }
 
-/* stylo hard-codes a system font stack on `.cm-content` (no `--stylo-font*`
-   token exists to bridge instead), which otherwise wins over the app's own
-   `font-sans` inherited from `html`. Headings get the app's serif display
-   face, matching every other heading in Sympose (`font-heading`, e.g. the
-   vault/settings page titles in `<AppShell>`) instead of the canvas's own
-   fallback stack. `!important` because CodeMirror's `EditorView.theme`
-   compiles to a selector this specific already. */
-[data-slot="markdown-panel"] .cm-content {
-  font-family: var(--font-sans) !important;
-}
+/* Body prose already carries `--font-sans` via `--stylo-font-family` above.
+   Headings get the app's serif display face instead, matching every other
+   heading in Sympose (`font-heading`, e.g. the vault/settings page titles in
+   `<AppShell>`) — no per-construct token exists to do this through the public
+   contract, so this stays an `!important` reach into `.cm-inplace-h*`. */
 [data-slot="markdown-panel"] .cm-inplace-h1,
 [data-slot="markdown-panel"] .cm-inplace-h2,
 [data-slot="markdown-panel"] .cm-inplace-h3,
@@ -261,16 +268,6 @@
 [data-slot="markdown-panel"] .cm-inplace-h4,
 [data-slot="markdown-panel"] .cm-inplace-h5 {
   color: var(--fg-strong) !important;
-}
-
-/* stylo's own base theme sets `.cm-editor`'s font-size directly (`0.9375rem`,
-   15px) — a plain-CSS declaration on the element itself, so the `text-sm`
-   (14px) this panel is wrapped in never reaches it by inheritance. Every
-   in-place heading is sized in `em` off this one value, so leaving it alone
-   doesn't just make body text a pixel larger than the rest of the app — it
-   scales every heading up with it. */
-[data-slot="markdown-panel"] .cm-editor {
-  font-size: 0.875rem !important;
 }
 
 /* stylo's own `.cm-content` gutter (`0.75rem` on every side) is narrower than
@@ -376,18 +373,6 @@
     width: 1.15rem;
     height: 1.15rem;
   }
-}
-
-/* stylo runs two independent floating affordances that can legitimately be
-   on screen at once and don't know about each other: the persistent
-   selection-formatting bar (`inPlace.selectionUI: "bar"`) and the right-click
-   menu — right-clicking a selection while the bar mode is on opens the menu
-   directly on top of the still-showing bar. `.cm-inplace-menu` is the menu's
-   own (visibility-toggling, `hidden`-attributed) wrapper, present for both
-   the right-click menu and the bar's own link/wikilink field popup — either
-   one open is reason enough to step the bar aside until it closes. */
-[data-slot="markdown-panel"] .cm-editor:has(.cm-inplace-menu:not([hidden])) .cm-inplace-selbar {
-  display: none !important;
 }
 
 /* The focus ring CodeMirror draws around the whole editing surface —

@@ -145,30 +145,38 @@ always opaque-free so the blur renders — and a **tint layer** — a solid
 `bg-background` card at `opacity: focusTint`, a clean `0` (clear) → `1` (fully
 covered). Both clear in Explore.
 
-### Frosted shell panels
+### Frosted shell panels — scoped to content + editor
 
-`panelBlur` / `panelOpacity` let the nebula show through the vault, editor and
-chat panels in Focus. Rather than edit every panel's animated markup, two
-drop-in utility classes — `.sy-frosted-panel` (for `bg-panel`) and
-`.sy-frosted-bg` (for `bg-background`) — replace the solid-fill class on each
-panel's surface (vault content, editor card, chat, and the menu rail). The
+`panelBlur` / `panelOpacity` let the nebula show through the **vault content
+and editor panels only** — deliberately not the menu rail or chat, which stay
+plain `bg-background`. One drop-in utility class, `.sy-frosted-panel` (for
+`bg-panel`), replaces the solid-fill class on those two panels' surfaces. The
 shell root carries a tri-state `data-nebula-frost`:
 
-- **`off`** (default, `panelOpacity` 1 & `panelBlur` 0) — each class resolves
-  to exactly its old solid token, no backdrop layer, no visual change.
+- **`off`** (default, `panelOpacity` 1 & `panelBlur` 0) — resolves to exactly
+  the old solid `--panel`, no backdrop layer, no visual change.
 - **`tint`** (`panelOpacity` < 1) — the fill goes translucent via
   `--sy-panel-opacity`; still no backdrop layer.
-- **`blur`** (`panelBlur` > 0) — adds `backdrop-filter` and caps the fill at
-  82 % so the blur is visible even with the opacity knob at 100 % (a fully
-  opaque panel has no backdrop to show).
+- **`blur`** (`panelBlur` > 0) — adds `backdrop-filter: blur(...) saturate(1.3)`
+  and caps the fill at 60 % so the blur reads clearly even with the opacity
+  knob at 100 %.
 
 The editor is a special case: stylo paints its own opaque `--stylo-bg`
 (`= --panel`) over the frosted div, so under `tint` / `blur` the `.cm-editor`
-/ `.cm-scroller` background is forced transparent and the `.sy-frosted-panel`
+/ `.cm-scroller` background is forced transparent and `.sy-frosted-panel`
 behind it does the tinting. stylo's floating menus set their background
-explicitly (the shared frosted-menu rule) and are untouched. `ChatPanel`, which
-had no background of its own, gains `.sy-frosted-bg` — solid `--background` at
-the defaults.
+explicitly (the shared frosted-menu rule) and are untouched.
+
+**Known limit:** `backdrop-filter` reads the actual composited pixels behind
+the panel — which is the canvas *after* the (full-viewport) Focus blur/tint
+layers have already been applied. A high `focusTint` leaves little for panel
+blur to reveal, regardless of the panel's own knobs; the two aren't truly
+independent. Genuinely excluding panels from the scrim would need per-panel
+geometry tracking (a `ResizeObserver`-driven mask on the tint layer) — real,
+buildable, but a materially bigger, continuously-running piece of work, and in
+tension with the project's hot-path discipline if done naively (tracking panel
+rects through their open/close transitions). Not attempted here; flag it if
+true independence is worth that cost.
 
 ### `/nebula` route
 

@@ -53,9 +53,10 @@ function ChatPanel({
   return (
     <div
       data-slot="chat-panel"
-      // frosted surface so the chat reads over the ambient nebula (ADR-088);
-      // resolves to a solid `--background` at the defaults
-      className={cn("sy-frosted-bg flex h-full min-h-0 flex-col", className)}
+      // Solid `--background` — deliberately plain (ADR-088): the panel-frost
+      // knobs (`panelBlur` / `panelOpacity`) are scoped to the content and
+      // editor panels only, not chat.
+      className={cn("bg-background flex h-full min-h-0 flex-col", className)}
       style={{ "--chat-measure": measure, ...style } as React.CSSProperties}
       {...props}
     >

@@ -139,7 +139,7 @@ function NebulaAppearanceSection({
         max={1}
         step={0.05}
         format={(v) => `${Math.round(v * 100)}%`}
-        hint="Let the nebula show through the vault, editor and chat panels. Below 100% the panels turn translucent; blur frosts what shows through."
+        hint="Let the nebula show through the vault and editor panels (not chat). Below 100% they turn translucent; blur frosts what shows through — limited by how much Focus tint already hides."
         prefs={prefs}
         setPref={setPref}
       />

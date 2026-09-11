@@ -577,7 +577,8 @@ export function AppShell() {
         "flex h-svh w-full overflow-hidden bg-background text-foreground",
         isPhone && "flex-col"
       )}
-      // Feeds the `.sy-frosted-*` panel surfaces (ADR-088). `off` (the default:
+      // Feeds `.sy-frosted-panel` — the content and editor panels only,
+      // ADR-088. `off` (the default:
       // opacity 1, blur 0) → solid tokens, no backdrop layer. `tint` → the
       // opacity knob alone. `blur` → opacity + a real backdrop blur.
       data-nebula-frost={

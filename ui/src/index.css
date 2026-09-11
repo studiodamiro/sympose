@@ -426,46 +426,48 @@
 *:hover::-webkit-scrollbar-thumb {
   background: var(--border);
 }
-/* Frosted panel surfaces — the shell panels sitting over the ambient Knowledge
-   Nebula (ADR-088). `.sy-frosted-panel` / `.sy-frosted-bg` are drop-in swaps
-   for `bg-panel` / `bg-background`: at the defaults (`--sy-panel-opacity: 1`,
-   `data-nebula-frost` off) they resolve to exactly the solid token and no
-   backdrop layer is allocated. The Settings → Knowledge Nebula knobs set
-   `--sy-panel-blur` / `--sy-panel-opacity` on the shell root and flip
-   `data-nebula-frost` to `on`, which arms the backdrop blur. */
+/* Frosted panel surface — the vault/content panel and the editor card sitting
+   over the ambient Knowledge Nebula (ADR-088). Deliberately scoped to those
+   two only, not the menu rail or chat, which stay plain `bg-background` /
+   `bg-panel`. `.sy-frosted-panel` is a drop-in swap for `bg-panel`: at the
+   defaults (`--sy-panel-opacity: 1`, `data-nebula-frost` off) it resolves to
+   exactly the solid token and no backdrop layer is allocated. The Settings →
+   Knowledge Nebula knobs set `--sy-panel-blur` / `--sy-panel-opacity` on the
+   shell root and flip `data-nebula-frost` to `tint` / `blur`.
+
+   Caveat: what a frosted panel reveals is whatever the Focus scrim already
+   left of the graph — `backdrop-filter` reads the actual composited pixels
+   behind the panel, which is the canvas *after* `focusBlur` / `focusTint` have
+   already been applied (both are full-viewport, panels included). So a high
+   Focus tint leaves little for panel blur to show regardless of its own
+   settings; genuinely excluding panels from the scrim would need per-panel
+   geometry tracking (a `ResizeObserver`-driven mask), not attempted here —
+   flag it if you want that built. The 60% cap below is tuned so the blur
+   reads clearly even against a heavily tinted backdrop. */
 .sy-frosted-panel {
-  --sy-frost-base: var(--panel);
+  background-color: var(--panel);
 }
-.sy-frosted-bg {
-  --sy-frost-base: var(--background);
-}
-.sy-frosted-panel,
-.sy-frosted-bg {
+[data-nebula-frost="tint"] .sy-frosted-panel {
   background-color: color-mix(
     in srgb,
-    var(--sy-frost-base) calc(var(--sy-panel-opacity, 1) * 100%),
+    var(--panel) calc(var(--sy-panel-opacity, 1) * 100%),
     transparent
   );
 }
-/* Blur armed (`data-nebula-frost="blur"`): add the backdrop blur, and cap the
-   fill opacity so the blur is actually visible even with the opacity knob at
-   100% — a fully opaque panel has no backdrop to show. The knob still takes it
-   below the cap. `"tint"` (opacity < 1, no blur) leaves the base rule alone
-   and allocates no backdrop layer. */
-[data-nebula-frost="blur"] :is(.sy-frosted-panel, .sy-frosted-bg) {
+[data-nebula-frost="blur"] .sy-frosted-panel {
   background-color: color-mix(
     in srgb,
-    var(--sy-frost-base) min(calc(var(--sy-panel-opacity, 1) * 100%), 82%),
+    var(--panel) min(calc(var(--sy-panel-opacity, 1) * 100%), 60%),
     transparent
   );
-  backdrop-filter: blur(var(--sy-panel-blur, 0px));
-  -webkit-backdrop-filter: blur(var(--sy-panel-blur, 0px));
+  backdrop-filter: blur(var(--sy-panel-blur, 0px)) saturate(1.3);
+  -webkit-backdrop-filter: blur(var(--sy-panel-blur, 0px)) saturate(1.3);
 }
 /* The editor panel's stylo canvas paints its own opaque `--stylo-bg`
    (`= --panel`) over the frosted surface, so neither the panel tint nor the
    blur ever showed through the editor. Whenever frost is engaged at all, drop
-   the canvas to transparent and let the `.sy-frosted-panel` behind it tint /
-   blur. stylo's floating menus set their own explicit background (the shared
+   the canvas to transparent and let `.sy-frosted-panel` behind it tint / blur.
+   stylo's floating menus set their own explicit background (the shared
    frosted-menu rule below), so they are unaffected. */
 :is([data-nebula-frost="tint"], [data-nebula-frost="blur"])
   [data-slot="markdown-panel"] :is(.cm-editor, .cm-scroller) {

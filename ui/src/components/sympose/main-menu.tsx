@@ -206,7 +206,11 @@ function MainMenu({
       data-dragging={dragging || undefined}
       aria-label="Main menu"
       className={cn(
-        "group/menu relative flex h-full flex-col overflow-x-hidden bg-background text-foreground",
+        // No background of its own (ADR-088) — the ambient nebula shows
+        // straight through the rail, dimmed/blurred by whatever Focus state
+        // it's already in. Only the content and editor panels get a fill,
+        // gated by the panelBlur / panelOpacity knobs.
+        "group/menu relative flex h-full flex-col overflow-x-hidden text-foreground",
         // width tween for resize; margin+opacity tween for the phone show/hide
         // reveal (parked one width to the inline-start when closed)
         "transition-[width,margin,opacity] duration-200 ease-out data-dragging:transition-none data-dragging:select-none",

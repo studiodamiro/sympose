@@ -148,10 +148,13 @@ covered). Both clear in Explore.
 ### Frosted shell panels — scoped to content + editor
 
 `panelBlur` / `panelOpacity` let the nebula show through the **vault content
-and editor panels only** — deliberately not the menu rail or chat, which stay
-plain `bg-background`. One drop-in utility class, `.sy-frosted-panel` (for
-`bg-panel`), replaces the solid-fill class on those two panels' surfaces. The
-shell root carries a tri-state `data-nebula-frost`:
+and editor panels only** — the only two with a fill to knob. `MainMenu` and
+`ChatPanel` carry **no background of their own at all**: the nebula shows
+straight through the rail and the chat surface, at whatever the global Focus
+state already leaves visible — not gated by, or affected by, the panel-frost
+knobs. One drop-in utility class, `.sy-frosted-panel` (for `bg-panel`),
+replaces the solid-fill class on the content and editor surfaces. The shell
+root carries a tri-state `data-nebula-frost` that gates only that class:
 
 - **`off`** (default, `panelOpacity` 1 & `panelBlur` 0) — resolves to exactly
   the old solid `--panel`, no backdrop layer, no visual change.
@@ -189,6 +192,10 @@ shared hooks.
   keeps the shell visually close to before — an 80 %-tint, 12 px-blur scrim over
   the graph, both dialable from Settings — and Explore brings it forward,
   interactive, with the dock.
+- `MainMenu` and `ChatPanel` having no background of their own means they now
+  show a faint hint of the (Focus-scrimmed) graph through them even at every
+  default — a real, deliberate change from the pre-ADR-088 shell, where both
+  were always solid regardless of what sat behind them.
 - Phase A Explore raises the layer *over* the panels rather than collapsing
   them to the edges as the design reference specifies — the graph and dock are
   fully usable, but a left-open panel is covered, not tucked away. The real

@@ -53,10 +53,11 @@ function ChatPanel({
   return (
     <div
       data-slot="chat-panel"
-      // Solid `--background` — deliberately plain (ADR-088): the panel-frost
-      // knobs (`panelBlur` / `panelOpacity`) are scoped to the content and
-      // editor panels only, not chat.
-      className={cn("bg-background flex h-full min-h-0 flex-col", className)}
+      // No background of its own (ADR-088) — the ambient nebula shows
+      // straight through, same as the menu rail. The panel-frost knobs
+      // (`panelBlur` / `panelOpacity`) are scoped to the content and editor
+      // panels only, which are the only two with a fill to knob.
+      className={cn("flex h-full min-h-0 flex-col", className)}
       style={{ "--chat-measure": measure, ...style } as React.CSSProperties}
       {...props}
     >

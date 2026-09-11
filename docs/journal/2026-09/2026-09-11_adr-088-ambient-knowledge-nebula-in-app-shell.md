@@ -53,18 +53,27 @@ collapse to the edges in Explore" behaviour are **Phase B**.
 
 `AppShell` gains one hook (`useNebulaPreferences`), an idle gate
 (`requestIdleCallback`, `setTimeout` fallback), and a lazy `<AmbientNebula>`
-mounted `fixed inset-0` as the first child. The menu+stage row keeps no
-stacking context of its own; `MainMenu` moves to `relative z-30` and the phone
-`TopBar` to `z-30` so both outrank the layer. Everything else about the shell
-is untouched. The root keeps `bg-background` — it is the backdrop the
-transparent graph canvas composites onto; opaque panels (`bg-panel` /
-`bg-background`) float over the nebula exactly as the §5 diagram shows.
+mounted `fixed inset-0 z-0` as the first child — **the literal bottom of the
+stack, unconditionally, in both Focus and Explore.** It never climbs above the
+shell; `MainMenu` stays at its pre-existing `z-20` (unrelated to the nebula —
+so the content panel tucks behind it on hide) and the phone `TopBar` just needs
+`relative` to paint above the fixed layer via DOM order, no z-index required.
+The root keeps `bg-background` — the backdrop the transparent graph canvas
+composites onto; opaque panels float over the nebula exactly as the §5
+diagram shows.
 
-The layer's own `z` is the Explore/Focus switch: `z-0` (behind everything,
-`pointer-events: none`) in Focus, `z-20` (above the stage panels, live) in
-Explore — with `MainMenu`'s `z-30` still on top so the rail stays usable and
-Focus is one click away in Settings. Phase A Explore does not yet collapse the
-panels to the edges (Phase B); the raised layer simply covers them.
+Explore's interactivity comes from the **stage giving up pointer events**, not
+from the nebula rising in front of it: the stage wrapper (content + editor +
+chat's container) is unconditionally `pointer-events-none`, and each of its
+three children (`ContentPanel`, `MarkdownPanel`, the chat slot, plus
+`ChatActionGroup`) explicitly reclaims `pointer-events-auto` for itself, both
+open and closed. The effect is mode-independent and, incidentally, nicer than
+the original z-raise: an **open** panel is always on top, visible and
+clickable, in Explore or Focus alike; only the *empty* stretches of stage —
+which is normally all of it, once you close what you had open to see the
+graph — are click-through to the nebula beneath. Phase A still doesn't
+auto-collapse open panels to the edges on entering Explore (Phase B); you
+close them yourself to see through.
 
 ### `<AmbientNebula>` — the layer
 
@@ -159,16 +168,21 @@ root carries a tri-state `data-nebula-frost` that gates only that class:
 - **`off`** (default, `panelOpacity` 1 & `panelBlur` 0) — resolves to exactly
   the old solid `--panel`, no backdrop layer, no visual change.
 - **`tint`** (`panelOpacity` < 1) — the fill goes translucent via
-  `--sy-panel-opacity`; still no backdrop layer.
+  `--sy-panel-opacity`, continuously (`color-mix`, no floor, no snap); still no
+  backdrop layer.
 - **`blur`** (`panelBlur` > 0) — adds `backdrop-filter: blur(...) saturate(1.3)`
-  and caps the fill at 60 % so the blur reads clearly even with the opacity
-  knob at 100 %.
+  on top of the same continuous fill.
 
-The editor is a special case: stylo paints its own opaque `--stylo-bg`
-(`= --panel`) over the frosted div, so under `tint` / `blur` the `.cm-editor`
-/ `.cm-scroller` background is forced transparent and `.sy-frosted-panel`
-behind it does the tinting. stylo's floating menus set their background
-explicitly (the shared frosted-menu rule) and are untouched.
+The editor is a special case, and the first attempt at it targeted the wrong
+element: stylo's opaque surface isn't `.cm-editor` / `.cm-scroller` (they carry
+no background in this build) — it's stylo's own root, the `.stylo` class
+(pinned to `--panel` a few rules above), which paints `background:
+var(--stylo-bg)` on the *same* node the frontmatter card and the whole editing
+surface sit inside. Under `tint` / `blur`, `.stylo`'s background is forced
+transparent and `.sy-frosted-panel` (its parent card) does the tinting /
+blurring instead — reaching the frontmatter card too, since it lives on that
+same surface. stylo's floating menus set their background explicitly (the
+shared frosted-menu rule) and are untouched.
 
 **Known limit:** `backdrop-filter` reads the actual composited pixels behind
 the panel — which is the canvas *after* the (full-viewport) Focus blur/tint
@@ -196,11 +210,14 @@ shared hooks.
   show a faint hint of the (Focus-scrimmed) graph through them even at every
   default — a real, deliberate change from the pre-ADR-088 shell, where both
   were always solid regardless of what sat behind them.
-- Phase A Explore raises the layer *over* the panels rather than collapsing
-  them to the edges as the design reference specifies — the graph and dock are
-  fully usable, but a left-open panel is covered, not tucked away. The real
-  collapse-and-restore is Phase B with the 3D renderer, to keep this shell edit
-  minimal.
+- The nebula never rises above the shell — not even in Explore. Interactivity
+  instead comes from the stage giving up pointer events wherever nothing is
+  open, so an **open** panel stays on top (visible and clickable) regardless of
+  mode, and only empty stage is click-through. Phase A still doesn't
+  auto-collapse open panels to the edges on entering Explore as the design
+  reference specifies — that's Phase B, with the 3D renderer, to keep this
+  shell edit minimal — so seeing the graph while a panel is open still means
+  closing it yourself.
 - A clicked node's selection (and the 1-hop highlight it drives) is kept across
   `Explore ⇄ Focus` — the selection only *changes* while the layer is
   interactive, so a Focus trip and back leaves the graph framed exactly as it

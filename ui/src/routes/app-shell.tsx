@@ -595,8 +595,11 @@ export function AppShell() {
         } as React.CSSProperties
       }
     >
-      {/* Module A — the persistent ambient vault graph, behind every panel.
-          `fixed inset-0 z-0`; the shell chrome sits at `z-20`+. */}
+      {/* Module A — the persistent ambient vault graph. Always `fixed inset-0
+          z-0`, the literal bottom of the stack in both Focus and Explore —
+          the stage below gives up pointer events instead (see its
+          `pointer-events-none`), rather than this layer ever climbing above
+          the chrome. */}
       {nebulaReady && (
         <React.Suspense fallback={null}>
           <AmbientNebula prefs={nebulaPrefs} setPref={setNebulaPref} />
@@ -605,7 +608,9 @@ export function AppShell() {
 
       {isPhone && (
         <TopBar
-          className="relative z-30"
+          // `relative` (any positioned value) is enough to paint above the
+          // fixed z-0 nebula, via DOM order — no z-index needed.
+          className="relative"
           chatOpen={chatOpen}
           onToggleChat={toggleChat}
           menuOpen={menuShown}
@@ -618,16 +623,12 @@ export function AppShell() {
       )}
 
       {/* menu + stage row — overflow-hidden clips the menu (and the panels)
-          while they are parked off to the inline-start. No stacking context of
-          its own, so `MainMenu`'s `z-30` outranks the ambient nebula (`z-20` in
-          Explore) at the root level. */}
+          while they are parked off to the inline-start. */}
       <div className="relative flex min-h-0 min-w-0 flex-1 overflow-hidden">
         <MainMenu
           items={menuItems}
-          // above the stage so the content panel tucks *behind* it on hide,
-          // and above the ambient nebula's Explore layer (`z-20`) so the rail
-          // stays usable while the graph is forward
-          className="relative z-30"
+          // above the stage so the content panel tucks *behind* it on hide
+          className="z-20"
           open={menuOpen}
           hideChrome={isPhone}
           activeId={contentOpen ? resolvedActive : undefined}
@@ -653,11 +654,15 @@ export function AppShell() {
 
         {/* the stage — content | editor | chat, in fixed order; overflow-hidden
             clips a panel while it is parked off to the left. `relative` anchors
-            the action group at the top-right corner. */}
-        <div className="relative flex min-w-0 flex-1 overflow-hidden">
+            the action group at the top-right corner. `pointer-events-none` so
+            an empty stretch of stage (nothing open) doesn't sit as a dead
+            hit-target above the always-bottom ambient nebula — each of its
+            three children claims `pointer-events-auto` back explicitly, both
+            open and closed, so ordinary interaction is unaffected. */}
+        <div className="relative flex min-w-0 flex-1 overflow-hidden pointer-events-none">
           {!isPhone && (
             <ChatActionGroup
-              className="absolute top-4 right-3 z-30"
+              className="pointer-events-auto absolute top-4 right-3 z-30"
               chatOpen={chatOpen}
               onToggleChat={toggleChat}
             />
@@ -725,7 +730,7 @@ export function AppShell() {
                 ? "transition-[max-width,opacity,translate]"
                 : "transition-[opacity,translate]",
               chatOpen
-                ? "translate-y-0 opacity-100"
+                ? "pointer-events-auto translate-y-0 opacity-100"
                 : "pointer-events-none translate-y-2 opacity-0"
             )}
             style={{

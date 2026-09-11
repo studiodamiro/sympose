@@ -357,7 +357,10 @@ function MarkdownPanel({
               fillToggling && "transition-[margin,opacity,max-width]"
             ),
         phone && !open && "-translate-x-3",
-        open ? "opacity-100" : "pointer-events-none opacity-0",
+        // explicit both ways — the stage it sits in is `pointer-events-none`
+        // so the ambient nebula (always the bottom of the stack) can be
+        // clicked through any *other* empty stretch of it (ADR-088).
+        open ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0",
         className
       )}
       style={

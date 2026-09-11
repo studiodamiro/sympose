@@ -70,11 +70,12 @@ function AmbientNebula({
       data-slot="ambient-nebula"
       data-interaction={prefs.interaction}
       className={cn(
-        "fixed inset-0",
-        // Focus: behind the shell (`z-0`) and inert. Explore: above the stage
-        // panels (`z-20`) and live — the menu rail (`z-30`) stays on top so you
-        // can still navigate / flip back to Focus from Settings.
-        explore ? "z-20" : "z-0 pointer-events-none"
+        // Always the bottom of the stack — never rises above the shell, in
+        // either mode. Explore interactivity comes from the stage giving up
+        // pointer events (see the stage `pointer-events-none` in app-shell),
+        // not from this layer climbing in front of it.
+        "fixed inset-0 z-0",
+        !explore && "pointer-events-none"
       )}
     >
       <KnowledgeNebula2D

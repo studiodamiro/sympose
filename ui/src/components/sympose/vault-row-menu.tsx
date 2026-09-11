@@ -5,6 +5,8 @@ import {
   Edit01Icon,
   MoreHorizontalIcon,
   NoteAddIcon,
+  PinIcon,
+  PinOffIcon,
 } from "@hugeicons/core-free-icons"
 import { cn } from "@/lib/utils"
 import {
@@ -35,12 +37,13 @@ import type { VaultNode } from "@/components/sympose/vault-tree"
  *   - a right-click (fine pointer) or ~450ms long-press (touch / pen) anywhere
  *     on the row, opening a pointer-anchored context menu
  *
- * Both carry the same rows — **note**: Rename (an inline field overlaid on the
- * row) and Delete (asks first via `confirm()` per the Notifications preference,
- * then moved to `.trash/`, recoverable from the Bin — ADR-085 / ADR-087);
- * **folder**: New note here (`Folder/Untitled`,
- * auto-numbered). This component owns the API calls and the rename field; the
- * row's own visual content is passed as `children`.
+ * Both carry the same rows — **note**: Pin / Unpin (local-only for now — prep
+ * work ahead of a Pinned/Recent list, no vault write, no round-trip), Rename
+ * (an inline field overlaid on the row) and Delete (asks first via
+ * `confirm()` per the Notifications preference, then moved to `.trash/`,
+ * recoverable from the Bin — ADR-085 / ADR-087); **folder**: New note here
+ * (`Folder/Untitled`, auto-numbered). This component owns the API calls and
+ * the rename field; the row's own visual content is passed as `children`.
  */
 function VaultRowMenu({
   node,
@@ -51,6 +54,8 @@ function VaultRowMenu({
   onRenamed,
   onDeleted,
   onCreated,
+  pinned = false,
+  onTogglePin,
 }: {
   node: VaultNode
   persona: string
@@ -66,6 +71,11 @@ function VaultRowMenu({
   onDeleted: (path: string) => void
   /** A new note was created (from a folder row): its vault-relative path. */
   onCreated: (path: string) => void
+  /** Is this note currently pinned. */
+  pinned?: boolean
+  /** Toggle this note's pinned state. Omit to hide the Pin/Unpin row entirely
+   *  (e.g. the showcase's bare-tree demo, which wires no persona either). */
+  onTogglePin?: (path: string) => void
 }) {
   const isNote = node.type === "note"
   const stem = node.name.replace(/\.md$/i, "")
@@ -161,6 +171,12 @@ function VaultRowMenu({
   // `ContextMenu.Item` is `Menu.Item`, so the same parts serve both.
   const items = isNote ? (
     <>
+      {onTogglePin && (
+        <DropdownMenuItem onClick={() => onTogglePin(node.path)}>
+          <HugeiconsIcon icon={pinned ? PinOffIcon : PinIcon} />
+          {pinned ? "Unpin note" : "Pin note"}
+        </DropdownMenuItem>
+      )}
       <DropdownMenuItem onClick={() => setPendingRename(true)}>
         <HugeiconsIcon icon={Edit01Icon} />
         Rename

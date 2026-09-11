@@ -4,6 +4,8 @@ import {
   Delete02Icon,
   Edit01Icon,
   MoreHorizontalIcon,
+  PinIcon,
+  PinOffIcon,
 } from "@hugeicons/core-free-icons"
 import {
   DropdownMenu,
@@ -16,8 +18,9 @@ import { notify } from "@/lib/notify"
 import { deleteVaultNote, renameVaultNote } from "@/lib/vault-note-api"
 
 /**
- * The `⋯` menu on the editor toolbar — Rename / Delete for the open note
- * (ADR-084). Rename swaps the button for an inline field (Enter commits, Esc /
+ * The `⋯` menu on the editor toolbar — Pin/Unpin (local-only prep, same as
+ * the vault-tree row menu), Rename / Delete for the open note (ADR-084).
+ * Rename swaps the button for an inline field (Enter commits, Esc /
  * blur cancels); Delete asks first via `confirm()` (dialog / inline / none, per
  * the Notifications preference — ADR-087). Owns
  * the API calls itself; the parent is only told the note moved so it can
@@ -28,6 +31,8 @@ function NoteActionsMenu({
   persona,
   onRenamed,
   onDeleted,
+  pinned = false,
+  onTogglePin,
 }: {
   /** Vault-relative path of the open note. */
   path: string
@@ -36,6 +41,10 @@ function NoteActionsMenu({
   onRenamed: (newPath: string) => void
   /** Called after the note is moved to trash. */
   onDeleted: () => void
+  /** Is the open note currently pinned. */
+  pinned?: boolean
+  /** Toggle the open note's pinned state. Omit to hide the row. */
+  onTogglePin?: (path: string) => void
 }) {
   const stem = React.useMemo(() => {
     const base = path.split("/").pop() ?? path
@@ -147,6 +156,12 @@ function NoteActionsMenu({
           <HugeiconsIcon icon={MoreHorizontalIcon} className="size-4" />
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
+          {onTogglePin && (
+            <DropdownMenuItem onClick={() => onTogglePin(path)}>
+              <HugeiconsIcon icon={pinned ? PinOffIcon : PinIcon} />
+              {pinned ? "Unpin note" : "Pin note"}
+            </DropdownMenuItem>
+          )}
           <DropdownMenuItem onClick={() => setPendingRename(true)}>
             <HugeiconsIcon icon={Edit01Icon} />
             Rename

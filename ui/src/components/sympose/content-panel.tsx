@@ -65,6 +65,13 @@ interface ContentPanelProps extends React.ComponentProps<"div"> {
    * should come back exactly where it was left.
    */
   scrollKey?: string
+  /**
+   * Pinned below the scrolling surface — a sibling, not scrolled content, the
+   * same way `<MarkdownPanel>`'s own "Links" row stays put under the editor.
+   * Settings uses it for the Slack status / theme row so it's always in
+   * reach instead of scrolling away under a tall settings list.
+   */
+  footer?: React.ReactNode
 }
 
 function stageWidth(el: HTMLElement | null): number {
@@ -81,6 +88,7 @@ function ContentPanel({
   plain = false,
   fill = false,
   scrollKey,
+  footer,
   children,
   style,
   ...props
@@ -182,12 +190,15 @@ function ContentPanel({
       className={cn(
         // z-20: the top of the stage's panel stack (menu is a separate
         // sibling), so the editor parks *behind* it and slides out from its
-        // right edge.
-        "group/panel z-20 min-w-0 data-dragging:select-none",
+        // right edge. `flex flex-col` so an optional `footer` sits as a
+        // `shrink-0` sibling below the scrolling surface instead of inside
+        // it — same relationship `<MarkdownPanel>` keeps with its own
+        // "Links" row.
+        "group/panel z-20 flex min-w-0 flex-col data-dragging:select-none",
         phone
           ? // phone: one surface at a time, so the panel is an absolute layer
             // that crossfades + slides a touch from the left on reveal
-            "absolute inset-0 flex flex-col transition-[opacity,translate] duration-300 ease-in-out"
+            "absolute inset-0 transition-[opacity,translate] duration-300 ease-in-out"
           : // `ease-in-out`, not `ease-out` — matches `<MarkdownPanel>` and the
             // chat slot's own reveal transitions. The odd one out was most
             // noticeable on hide: the same curve run in reverse looks
@@ -221,7 +232,7 @@ function ContentPanel({
         ref={scrollRef}
         onScroll={handleScroll}
         className={cn(
-          "flex h-full w-full flex-col gap-4 overflow-y-auto p-6",
+          "flex w-full flex-1 min-h-0 flex-col gap-4 overflow-y-auto p-6",
           // plain phone pages (Settings / Agent) sit on the same background as
           // chat and the editor — no fill, no rounding
           phone && plain
@@ -235,14 +246,37 @@ function ContentPanel({
               // meets the icon rail) is rounded, and not for a plain page
               !plain && "rounded-tl-lg"
             : cn(
-                "rounded-tl-lg rounded-tr-lg rounded-br-lg",
-                flushBottomLeft ? "rounded-bl-none" : "rounded-bl-lg"
+                "rounded-tl-lg rounded-tr-lg",
+                // A `footer` takes over the bottom edge below — its own
+                // corners round instead, so this surface stays square there.
+                footer ? "rounded-br-none" : "rounded-br-lg",
+                footer || flushBottomLeft ? "rounded-bl-none" : "rounded-bl-lg"
               ),
           contentClassName
         )}
       >
         {children}
       </div>
+
+      {footer && (
+        <div
+          className={cn(
+            "shrink-0 border-t border-border",
+            phone && plain
+              ? "text-foreground"
+              : "sy-frosted-panel text-panel-foreground",
+            phone
+              ? "px-4 py-3"
+              : cn(
+                  "px-8 py-3",
+                  "rounded-br-lg",
+                  flushBottomLeft ? "rounded-bl-none" : "rounded-bl-lg"
+                )
+          )}
+        >
+          {footer}
+        </div>
+      )}
 
       {!phone && (
         <div

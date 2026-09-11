@@ -7,9 +7,10 @@ import {
   Folder01Icon,
   FolderOpenIcon,
   Note01Icon,
+  PinIcon,
 } from "@hugeicons/core-free-icons"
 
-import { cn } from "@/lib/utils"
+import { cn, stripMdExtension } from "@/lib/utils"
 import { getCookie, setCookie } from "@/lib/cookies"
 import { VaultRowMenu } from "@/components/sympose/vault-row-menu"
 
@@ -56,6 +57,11 @@ interface RowActions {
   onDeleted?: (path: string) => void
   /** A new note was created from a folder row. */
   onCreated?: (path: string) => void
+  /** Is this note path pinned — feeds the row's "Pin note" / "Unpin note"
+   *  menu item and its badge (prep work, ADR pending: no Pinned list yet). */
+  isPinned?: (path: string) => boolean
+  /** Toggle a note path's pinned state. */
+  onTogglePin?: (path: string) => void
 }
 
 interface VaultTreeProps
@@ -67,6 +73,9 @@ interface VaultTreeProps
   /** Cookie key to persist the expanded folder paths under. */
   storageKey?: string
   onSelect?: (node: VaultNode) => void
+  /** Hide the trailing `.md` on note labels (Settings > Markdown editor >
+   *  File extensions). Default shown, matching the raw vault filename. */
+  hideExtension?: boolean
 }
 
 function VaultTree({
@@ -80,6 +89,9 @@ function VaultTree({
   onRenamed,
   onDeleted,
   onCreated,
+  isPinned,
+  onTogglePin,
+  hideExtension = false,
   ...props
 }: VaultTreeProps) {
   const [expanded, setExpanded] = React.useState<Set<string>>(() => {
@@ -105,7 +117,14 @@ function VaultTree({
   }, [])
 
   const visible = React.useMemo(() => filterVaultTree(nodes), [nodes])
-  const actions: RowActions = { persona, onRenamed, onDeleted, onCreated }
+  const actions: RowActions = {
+    persona,
+    onRenamed,
+    onDeleted,
+    onCreated,
+    isPinned,
+    onTogglePin,
+  }
 
   return (
     <div
@@ -124,6 +143,7 @@ function VaultTree({
           selectedPath={selectedPath}
           onSelect={onSelect}
           actions={actions}
+          hideExtension={hideExtension}
         />
       ))}
     </div>
@@ -144,6 +164,7 @@ function VaultTreeRow({
   selectedPath,
   onSelect,
   actions,
+  hideExtension,
 }: {
   node: VaultNode
   depth: number
@@ -152,10 +173,12 @@ function VaultTreeRow({
   selectedPath?: string
   onSelect?: (node: VaultNode) => void
   actions: RowActions
+  hideExtension: boolean
 }) {
   const isOpen = expanded.has(node.path)
   const isSelected = selectedPath === node.path
   const basePad = depth * 14
+  const pinned = node.type === "note" && !!actions.isPinned?.(node.path)
 
   // Row actions (`⋯` button + right-click / long-press context menu) need the
   // full callback set; the showcases pass a bare tree and get plain rows.
@@ -166,7 +189,9 @@ function VaultTreeRow({
     !!actions.onCreated
 
   // Wrap the row's `<button>` in its action host, or a plain `group/row` line
-  // when actions aren't wired.
+  // when actions aren't wired. Pinning is independent of the rest of the
+  // menu — it needs no `persona` or API round-trip — so it's offered
+  // whenever `onTogglePin` is wired, not gated behind `menuReady`.
   const line = (rowButton: React.ReactNode, pad: number) =>
     menuReady ? (
       <VaultRowMenu
@@ -176,6 +201,8 @@ function VaultTreeRow({
         onRenamed={actions.onRenamed!}
         onDeleted={actions.onDeleted!}
         onCreated={actions.onCreated!}
+        pinned={pinned}
+        onTogglePin={actions.onTogglePin}
       >
         {rowButton}
       </VaultRowMenu>
@@ -197,7 +224,7 @@ function VaultTreeRow({
             onClick={() => onToggle(node.path)}
             style={{ paddingLeft: `${basePad}px` }}
             className={cn(
-              "flex min-w-0 flex-1 items-center gap-1.5 py-1 pr-8 text-left text-muted-foreground transition-colors hover:bg-accent hover:text-foreground",
+              "flex min-w-0 flex-1 items-center gap-1.5 py-1 pr-8 text-left text-muted-foreground transition-colors hover:text-foreground",
               "focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
             )}
           >
@@ -224,6 +251,7 @@ function VaultTreeRow({
               selectedPath={selectedPath}
               onSelect={onSelect}
               actions={actions}
+              hideExtension={hideExtension}
             />
           ))}
       </div>
@@ -244,15 +272,24 @@ function VaultTreeRow({
             "flex min-w-0 flex-1 items-center gap-1.5 py-1 pr-8 text-left transition-colors",
             "focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none",
             isSelected
-              ? "bg-accent text-entity"
-              : "text-entity/85 hover:bg-accent hover:text-entity"
+              ? "text-entity"
+              : "text-entity/85 hover:text-entity"
           )}
         >
           <HugeiconsIcon
             icon={node.name.endsWith(".md") ? Note01Icon : File01Icon}
             className="size-3.5 shrink-0 text-fg-muted"
           />
-          <span className="truncate">{node.name}</span>
+          <span className="truncate">
+            {hideExtension ? stripMdExtension(node.name) : node.name}
+          </span>
+          {pinned && (
+            <HugeiconsIcon
+              icon={PinIcon}
+              aria-label="Pinned"
+              className="size-3 shrink-0 text-fg-muted"
+            />
+          )}
         </button>,
         basePad + (depth > 0 ? 20 : 0)
       )}

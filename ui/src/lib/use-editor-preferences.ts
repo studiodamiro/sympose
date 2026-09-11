@@ -7,6 +7,7 @@ export type EditorReveal = "caret" | "never"
 export type EditorSelectionUI = "menu" | "bar"
 export type EditorFocusOutline = "on" | "off"
 export type EditorAutosave = "on" | "off"
+export type EditorHideExtension = "on" | "off"
 
 export interface EditorPreferences {
   surface: EditorSurface
@@ -19,6 +20,9 @@ export interface EditorPreferences {
    * button and `⌘/Ctrl-S`.
    */
   autosave: EditorAutosave
+  /** Hide the trailing `.md` on note labels in the vault tree and main menu.
+   *  `"on"` (default) matches Obsidian's own convention. */
+  hideExtension: EditorHideExtension
 }
 
 const COOKIES = {
@@ -27,6 +31,7 @@ const COOKIES = {
   selectionUI: "sympose:editor.selection_ui",
   focusOutline: "sympose:editor.focus_outline",
   autosave: "sympose:editor.autosave",
+  hideExtension: "sympose:editor.hide_extension",
 } as const
 
 const DEFAULTS: EditorPreferences = {
@@ -35,6 +40,7 @@ const DEFAULTS: EditorPreferences = {
   selectionUI: "menu",
   focusOutline: "off",
   autosave: "off",
+  hideExtension: "on",
 }
 
 /**
@@ -58,6 +64,9 @@ export function useEditorPreferences(): readonly [
       DEFAULTS.focusOutline,
     autosave:
       (getCookie(COOKIES.autosave) as EditorAutosave) || DEFAULTS.autosave,
+    hideExtension:
+      (getCookie(COOKIES.hideExtension) as EditorHideExtension) ||
+      DEFAULTS.hideExtension,
   }))
 
   const set = React.useCallback(

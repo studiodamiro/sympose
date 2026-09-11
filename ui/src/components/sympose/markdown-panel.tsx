@@ -61,6 +61,11 @@ interface MarkdownPanelProps extends React.ComponentProps<"div"> {
   onRenamed?: (newPath: string) => void
   /** The open note was moved to trash (ADR-084). */
   onDeleted?: () => void
+  /** Is the open note pinned — feeds the toolbar `⋯` menu's Pin/Unpin row,
+   *  the same local-only prep state the vault-tree row menu toggles. */
+  isPinned?: (path: string) => boolean
+  /** Toggle the open note's pinned state. */
+  onTogglePin?: (path: string) => void
   /** Editing surface/decoration preferences — Settings > Markdown editor. */
   preferences: EditorPreferences
   /**
@@ -188,6 +193,8 @@ function MarkdownPanel({
   onWikiLinkClick,
   onRenamed,
   onDeleted,
+  isPinned,
+  onTogglePin,
   preferences,
   open = true,
   fill = false,
@@ -454,6 +461,8 @@ function MarkdownPanel({
                             persona={persona}
                             onRenamed={(next) => onRenamed?.(next)}
                             onDeleted={() => onDeleted?.()}
+                            pinned={!!isPinned?.(path)}
+                            onTogglePin={onTogglePin}
                           />
                         </div>
                       )}

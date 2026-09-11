@@ -110,6 +110,16 @@ function EditorPreferencesSection({
           { value: "on", label: "On" },
         ]}
       />
+      <PrefToggle
+        field="hideExtension"
+        label="File extensions"
+        value={prefs.hideExtension}
+        onChange={setPref}
+        options={[
+          { value: "on", label: "Hidden" },
+          { value: "off", label: "Shown" },
+        ]}
+      />
     </ControlSection>
   )
 }

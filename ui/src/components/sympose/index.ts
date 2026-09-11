@@ -26,7 +26,7 @@ export {
   MENU_TRASH_ID,
   type MainMenuItem,
 } from "./main-menu"
-export { MarkdownPanel } from "./markdown-panel"
+export { MarkdownPanel, TOOLBAR_ICONS } from "./markdown-panel"
 // `AmbientNebula` is intentionally NOT re-exported here — it pulls in
 // `react-force-graph`. The app shell lazy-imports it directly from
 // "@/components/sympose/ambient-nebula" so it stays off the TTFT hot path.

@@ -1,5 +1,9 @@
+import { StyloToolbarSettings } from "@damiro/stylo/toolbar-settings"
+import type { ToolbarItem } from "@damiro/stylo"
+
 import { ControlSection, ControlRow } from "@/components/sympose/control-section"
 import { SegmentedControl } from "@/components/sympose/segmented-control"
+import { TOOLBAR_ICONS } from "@/components/sympose/markdown-panel"
 import type { EditorPreferences } from "@/lib/use-editor-preferences"
 
 /** A `SegmentedControl` bound to one `EditorPreferences` field. */
@@ -40,17 +44,40 @@ function PrefToggle<K extends keyof EditorPreferences>({
  * Takes `prefs`/`setPref` from the app shell's single `useEditorPreferences()`
  * call, the same way `activePersona` is threaded down — two independent hook
  * instances would each hold their own copy of the cookie‑seeded state and
- * never see each other's writes.
+ * never see each other's writes. `toolbarItems`/`onToolbarItemsChange` are
+ * threaded the same way from the shell's `useToolbarItems()`.
+ *
+ * `<StyloToolbarSettings>` offers every built-in command, including the ones
+ * `markdown-panel.tsx` deliberately left out of the shipped default
+ * (`table`/`link`/`wikilink`/`hr`/`frontmatter`/`math`/`undo`/`redo`) — since
+ * this is a personal tool, the customizer should let you put any of them back
+ * rather than holding a subset in reserve. Its own "Reset to default" button
+ * resets to stylo's upstream default set, not sympose's — an accepted quirk
+ * of the upstream component, not overridable via props.
+ *
+ * Nested in its own collapsed-by-default `ControlSection` (two long columns
+ * of buttons is a lot to scroll past for anyone who just wants Autosave).
+ * The `data-slot="toolbar-settings"` wrapper carries no chrome of its own —
+ * it's a CSS hook, not a card: unlike `<Stylo>` itself, this component never
+ * sits inside a `.stylo`-classed element, so its `var(--stylo-bg)` /
+ * `var(--stylo-border)` / etc. have no source at all here. `index.css` scopes
+ * real values to that selector so the two columns it renders ("On the bar" /
+ * "Available") pick up Sympose's palette for their own built-in card
+ * treatment, instead of an outer card stacked on top of theirs.
  */
 function EditorPreferencesSection({
   prefs,
   setPref,
+  toolbarItems,
+  onToolbarItemsChange,
 }: {
   prefs: EditorPreferences
   setPref: <K extends keyof EditorPreferences>(
     field: K,
     value: EditorPreferences[K]
   ) => void
+  toolbarItems: ToolbarItem[]
+  onToolbarItemsChange: (next: ToolbarItem[]) => void
 }) {
   const inPlace = prefs.surface === "in-place"
 
@@ -120,6 +147,20 @@ function EditorPreferencesSection({
           { value: "off", label: "Shown" },
         ]}
       />
+      <ControlSection title="Toolbar buttons">
+        {/* No card of its own here — stylo already renders "On the bar" /
+            "Available" as two bordered, solid-fill boxes side by side
+            (`._col_18hcd_17` in its own CSS module); a second wrapping card
+            around both just doubled up the chrome. `data-slot` is still
+            needed as a hook for the `--stylo-*` variable scope below. */}
+        <div data-slot="toolbar-settings">
+          <StyloToolbarSettings
+            value={toolbarItems}
+            onChange={onToolbarItemsChange}
+            icons={TOOLBAR_ICONS}
+          />
+        </div>
+      </ControlSection>
     </ControlSection>
   )
 }

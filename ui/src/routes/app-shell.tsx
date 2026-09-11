@@ -22,6 +22,7 @@ import { useTransientFlag } from "@/lib/use-transient-flag"
 import { usePanels, type StagePanel } from "@/lib/use-panels"
 import { useActivePersona } from "@/lib/use-active-persona"
 import { useEditorPreferences } from "@/lib/use-editor-preferences"
+import { useToolbarItems } from "@/lib/use-toolbar-items"
 import { usePinnedNotes } from "@/lib/use-pinned-notes"
 import { useNotificationPreferences } from "@/lib/use-notification-preferences"
 import { useNebulaPreferences } from "@/lib/use-nebula-preferences"
@@ -273,6 +274,7 @@ export function AppShell() {
   // once those land.
   const [activePersona, setActivePersona] = useActivePersona()
   const [editorPrefs, setEditorPref] = useEditorPreferences()
+  const [toolbarItems, setToolbarItems] = useToolbarItems()
   const { isPinned, togglePin } = usePinnedNotes()
   const [notifyPrefs, setNotifyPref] = useNotificationPreferences()
   const [nebulaPrefs, setNebulaPref] = useNebulaPreferences()
@@ -466,7 +468,12 @@ export function AppShell() {
           </h1>
           <CollapseAllButton />
         </div>
-        <EditorPreferencesSection prefs={editorPrefs} setPref={setEditorPref} />
+        <EditorPreferencesSection
+          prefs={editorPrefs}
+          setPref={setEditorPref}
+          toolbarItems={toolbarItems}
+          onToolbarItemsChange={setToolbarItems}
+        />
         <NotificationsSection prefs={notifyPrefs} setPref={setNotifyPref} />
         <NebulaAppearanceSection prefs={nebulaPrefs} setPref={setNebulaPref} />
       </ControlSectionsProvider>
@@ -751,6 +758,7 @@ export function AppShell() {
             isPinned={isPinned}
             onTogglePin={togglePin}
             preferences={editorPrefs}
+            toolbarItems={toolbarItems}
             open={editorOpen}
             fill={editorFill}
             phone={isPhone}

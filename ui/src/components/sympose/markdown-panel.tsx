@@ -2,7 +2,7 @@ import * as React from "react"
 import {
   Stylo,
   splitFrontmatter,
-  type ToolbarConfig,
+  type ToolbarItem,
   type WikiLinkSource,
 } from "@damiro/stylo"
 import { languages as CODE_LANGUAGES } from "@codemirror/language-data"
@@ -11,17 +11,31 @@ import "@damiro/stylo/styles.css"
 import "@damiro/stylo/katex.css"
 import { HugeiconsIcon } from "@hugeicons/react"
 import {
+  CodeIcon,
   FloppyDiskIcon,
   Heading01Icon,
   Heading02Icon,
+  Heading03Icon,
   LeftToRightListBulletIcon,
   LeftToRightListNumberIcon,
+  LinkIcon,
+  ListTodoIcon,
+  MathIcon,
+  ParagraphIcon,
+  PropertyEditIcon,
   QuoteDownIcon,
+  RedoIcon,
+  Search01Icon,
+  SecondBracketIcon,
+  SeparatorHorizontalIcon,
+  SigmaIcon,
   SourceCodeIcon,
+  TableIcon,
   TextBoldIcon,
   TextItalicIcon,
   TextStrikethroughIcon,
   TextUnderlineIcon,
+  UndoIcon,
 } from "@hugeicons/core-free-icons"
 
 import { cn } from "@/lib/utils"
@@ -78,6 +92,9 @@ interface MarkdownPanelProps extends React.ComponentProps<"div"> {
   onTogglePin?: (path: string) => void
   /** Editing surface/decoration preferences — Settings > Markdown editor. */
   preferences: EditorPreferences
+  /** The toolbar's button set — Settings > Markdown editor >
+   *  `<StyloToolbarSettings>`. */
+  toolbarItems: ToolbarItem[]
   /**
    * Revealed when true (default), collapsed when false. The panel stays mounted
    * either way and transitions its width / opacity / offset, so it fades and
@@ -98,46 +115,64 @@ interface MarkdownPanelProps extends React.ComponentProps<"div"> {
   phone?: boolean
 }
 
-/** stylo's default toolbar minus `undo`/`redo`/`link`/`wikilink`/`hr`/`frontmatter`/
- *  `table`/`math` — the same command set the old mock's inert buttons implied,
- *  plus `underline` (opt-in upstream) and `save` (disabled without `onSave`). */
-const TOOLBAR_ITEMS: ToolbarConfig = {
-  items: [
-    "h1",
-    "h2",
-    "|",
-    "bold",
-    "italic",
-    "underline",
-    "strike",
-    "|",
-    "bulletList",
-    "orderedList",
-    "|",
-    "codeBlock",
-    "quote",
-    "|",
-    "save",
-  ],
-}
-
+/** One Hugeicons glyph per stylo built-in — the full `ToolbarCommandId` set,
+ *  not just sympose's own curated default, since `<StyloToolbarSettings>`
+ *  lets any user add any of them from "Available" (Settings > Markdown
+ *  editor). Leaving one out isn't a bug — stylo's `DEFAULT_ICONS` falls back
+ *  cleanly — but it renders as a visibly different (stylo's own default)
+ *  icon style sitting next to these, which is the inconsistency this map
+ *  exists to avoid. */
 const TOOLBAR_ICONS = {
+  undo: <HugeiconsIcon icon={UndoIcon} className="size-4" />,
+  redo: <HugeiconsIcon icon={RedoIcon} className="size-4" />,
+  save: <HugeiconsIcon icon={FloppyDiskIcon} className="size-4" />,
+  search: <HugeiconsIcon icon={Search01Icon} className="size-4" />,
   h1: <HugeiconsIcon icon={Heading01Icon} className="size-4" />,
   h2: <HugeiconsIcon icon={Heading02Icon} className="size-4" />,
+  h3: <HugeiconsIcon icon={Heading03Icon} className="size-4" />,
+  body: <HugeiconsIcon icon={ParagraphIcon} className="size-4" />,
   bold: <HugeiconsIcon icon={TextBoldIcon} className="size-4" />,
   italic: <HugeiconsIcon icon={TextItalicIcon} className="size-4" />,
-  underline: <HugeiconsIcon icon={TextUnderlineIcon} className="size-4" />,
   strike: <HugeiconsIcon icon={TextStrikethroughIcon} className="size-4" />,
+  underline: <HugeiconsIcon icon={TextUnderlineIcon} className="size-4" />,
+  code: <HugeiconsIcon icon={CodeIcon} className="size-4" />,
+  codeBlock: <HugeiconsIcon icon={SourceCodeIcon} className="size-4" />,
+  link: <HugeiconsIcon icon={LinkIcon} className="size-4" />,
+  wikilink: <HugeiconsIcon icon={SecondBracketIcon} className="size-4" />,
+  quote: <HugeiconsIcon icon={QuoteDownIcon} className="size-4" />,
   bulletList: (
     <HugeiconsIcon icon={LeftToRightListBulletIcon} className="size-4" />
   ),
   orderedList: (
     <HugeiconsIcon icon={LeftToRightListNumberIcon} className="size-4" />
   ),
-  codeBlock: <HugeiconsIcon icon={SourceCodeIcon} className="size-4" />,
-  quote: <HugeiconsIcon icon={QuoteDownIcon} className="size-4" />,
-  save: <HugeiconsIcon icon={FloppyDiskIcon} className="size-4" />,
+  task: <HugeiconsIcon icon={ListTodoIcon} className="size-4" />,
+  hr: <HugeiconsIcon icon={SeparatorHorizontalIcon} className="size-4" />,
+  frontmatter: <HugeiconsIcon icon={PropertyEditIcon} className="size-4" />,
+  table: <HugeiconsIcon icon={TableIcon} className="size-4" />,
+  math: <HugeiconsIcon icon={MathIcon} className="size-4" />,
+  mathBlock: <HugeiconsIcon icon={SigmaIcon} className="size-4" />,
 } as const
+
+const SAFE_LINK_SCHEMES = new Set(["http:", "https:", "mailto:"])
+
+/** Opens a plain Markdown `[text](url)` link — stylo hands over the raw
+ *  `href` and does no navigation of its own (`onWikiLinkClick`/`wikiLinkSource`
+ *  above are the separate `[[wikilink]]` path). Restricted to http(s)/mailto:
+ *  a note is vault content, not always authored by the current user, so a
+ *  `javascript:`/`data:` URI shouldn't get a free ride into `window.open`.
+ *  Anything else (including a relative path to another vault file) is a
+ *  silent no-op for now, same as before this was wired up. */
+function openMarkdownLink(href: string) {
+  let url: URL
+  try {
+    url = new URL(href, window.location.href)
+  } catch {
+    return
+  }
+  if (!SAFE_LINK_SCHEMES.has(url.protocol)) return
+  window.open(url.href, "_blank", "noopener,noreferrer")
+}
 
 type NoteLoadState =
   | { status: "empty" }
@@ -207,6 +242,7 @@ function MarkdownPanel({
   isPinned,
   onTogglePin,
   preferences,
+  toolbarItems,
   open = true,
   fill = false,
   phone = false,
@@ -455,10 +491,11 @@ function MarkdownPanel({
               onSave={() => void saveNote()}
               onWikiLinkClick={onWikiLinkClick}
               wikiLinkSource={wikiLinkSource}
+              onLinkClick={openMarkdownLink}
               mode={surface}
               inPlace={{ reveal, selectionUI }}
               toolbar={{
-                ...TOOLBAR_ITEMS,
+                items: toolbarItems,
                 render: (bar) => (
                   <>
                     {/* stylo's toolbar row, with the note-actions `⋯` overlaid
@@ -551,4 +588,4 @@ function MarkdownPanel({
   )
 }
 
-export { MarkdownPanel }
+export { MarkdownPanel, TOOLBAR_ICONS }

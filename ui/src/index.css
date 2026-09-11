@@ -18,7 +18,13 @@
     --secondary: oklch(0.967 0.001 286.375);
     --secondary-foreground: oklch(0.21 0.006 285.885);
     --muted: oklch(0.967 0.001 286.375);
-    --muted-foreground: oklch(0.552 0.016 285.938);
+    /* Darkened from shadcn's stock 0.552 — against `--panel` (0.967, the
+       editor and every raised surface's background) that read as 4.39:1,
+       just under WCAG AA's 4.5:1 for normal text. 0.53 clears it with margin
+       (4.81:1) app-wide, not just in the editor, since every other
+       muted-foreground spot (chat body text, timestamps) sits on the same
+       kind of surface. */
+    --muted-foreground: oklch(0.53 0.016 285.938);
     --accent: oklch(0.967 0.001 286.375);
     --accent-foreground: oklch(0.21 0.006 285.885);
     --destructive: oklch(0.577 0.245 27.325);
@@ -241,6 +247,45 @@
   --stylo-syntax-property: var(--stylo-text);
   --stylo-syntax-tag: var(--brand);
   --stylo-syntax-invalid: var(--destructive);
+
+  /* Callout accents — same treatment as the syntax colors above: stylo's own
+     default is stock saturated hex (`#3b82f6` blue, `#22c55e` green, `#f59e0b`
+     amber, `#ef4444` red, `#a855f7` purple) with no relation to Sympose's
+     palette. Mapped onto the existing semantic accents rather than new colors,
+     so a theme preset swap (once presets exist) carries callouts along for
+     free, exactly like the syntax colors already do. `--danger` doubles as
+     `warn`'s neighbor `danger` 1:1 (the token is literally named for this);
+     `--entity`'s violet — already "file paths, [[wikilinks]], note titles" —
+     happens to match Obsidian's own purple `example` callout too. */
+  --stylo-callout-note: var(--brand);
+  --stylo-callout-tip: var(--ok);
+  --stylo-callout-warn: var(--chip-foreground);
+  --stylo-callout-danger: var(--danger);
+  --stylo-callout-example: var(--entity);
+}
+
+/* `<StyloToolbarSettings>` (Settings > Markdown editor > Toolbar buttons)
+   reads the same `--stylo-*` custom properties as `<Stylo>` above, but never
+   sits inside a `.stylo`-classed element itself — it's a standalone entry
+   point meant to be dropped anywhere a host wants a toolbar customizer, not
+   necessarily next to the editor. Left unscoped, every one of its `var(--stylo-*)`
+   reads was empty: `background`/`border-color` silently fell back to their
+   CSS-initial values (transparent, currentcolor) and `color` fell back to
+   whatever ambient text color it happened to inherit from Settings — never
+   Sympose's palette, never a considered choice. `--stylo-bg: var(--background)`
+   is deliberate, not `--panel`: there's no separate wrapping card here, so
+   this *is* the fill for the two "On the bar" / "Available" boxes stylo
+   renders on its own (`._col_18hcd_17`), same choice `<FrontmatterCard>`
+   makes for its own raised block against the panel underneath it. */
+[data-slot="toolbar-settings"] {
+  --stylo-bg: var(--background);
+  --stylo-surface-floating: var(--popover);
+  --stylo-text: var(--foreground);
+  --stylo-text-muted: var(--fg-muted);
+  --stylo-border: var(--border);
+  --stylo-accent: var(--brand);
+  --stylo-ring: var(--ring);
+  --stylo-radius: var(--radius-md);
 }
 
 /* Body prose already carries `--font-sans` via `--stylo-font-family` above.

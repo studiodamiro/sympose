@@ -1,5 +1,4 @@
 import * as React from "react"
-import { Link } from "react-router-dom"
 import { HugeiconsIcon } from "@hugeicons/react"
 import { notify } from "@/lib/notify"
 import {
@@ -10,7 +9,7 @@ import {
   ThumbsUpIcon,
 } from "@hugeicons/core-free-icons"
 
-import { cn } from "@/lib/utils"
+import { cn, stripMdExtension } from "@/lib/utils"
 import {
   getCookie,
   getCookieBool,
@@ -20,9 +19,10 @@ import {
 import { useBreakpoint } from "@/lib/use-breakpoint"
 import { useFillWidth } from "@/lib/use-fill-width"
 import { useTransientFlag } from "@/lib/use-transient-flag"
-import { usePanels } from "@/lib/use-panels"
+import { usePanels, type StagePanel } from "@/lib/use-panels"
 import { useActivePersona } from "@/lib/use-active-persona"
 import { useEditorPreferences } from "@/lib/use-editor-preferences"
+import { usePinnedNotes } from "@/lib/use-pinned-notes"
 import { useNotificationPreferences } from "@/lib/use-notification-preferences"
 import { useNebulaPreferences } from "@/lib/use-nebula-preferences"
 import {
@@ -40,7 +40,9 @@ import {
   ChatActionGroup,
   ChatMessage,
   ChatPanel,
+  CollapseAllButton,
   ContentPanel,
+  ControlSectionsProvider,
   EditorPreferencesSection,
   MainMenu,
   NotificationsSection,
@@ -49,6 +51,7 @@ import {
   MENU_SETTINGS_ID,
   MENU_TRASH_ID,
   NebulaAppearanceSection,
+  NebulaModeToggle,
   SlackStatusPill,
   ThemeToggle,
   TopBar,
@@ -269,8 +272,35 @@ export function AppShell() {
   // once those land.
   const [activePersona, setActivePersona] = useActivePersona()
   const [editorPrefs, setEditorPref] = useEditorPreferences()
+  const { isPinned, togglePin } = usePinnedNotes()
   const [notifyPrefs, setNotifyPref] = useNotificationPreferences()
   const [nebulaPrefs, setNebulaPref] = useNebulaPreferences()
+  const explore = nebulaPrefs.interaction === "explore"
+
+  // Explore auto-collapses the three stage panels — content, editor, chat —
+  // so the whole canvas is click-through to the nebula underneath (ADR-088's
+  // deferred Phase B item, landed in ADR-090); the trip back to Focus reopens
+  // exactly what was showing before, oldest-first, the same order `usePanels`
+  // itself keeps. A ref (not a `panels` dependency) reads the live panel
+  // handle so this effect only fires on an actual mode change, not on every
+  // panel-order write `usePanels` makes.
+  const panelsRef = React.useRef(panels)
+  panelsRef.current = panels
+  const stashedPanels = React.useRef<StagePanel[] | null>(null)
+  const prevInteraction = React.useRef(nebulaPrefs.interaction)
+  React.useEffect(() => {
+    const was = prevInteraction.current
+    prevInteraction.current = nebulaPrefs.interaction
+    if (was === nebulaPrefs.interaction) return
+    if (nebulaPrefs.interaction === "explore") {
+      stashedPanels.current = panelsRef.current.visible
+      for (const p of panelsRef.current.visible) panelsRef.current.close(p)
+    } else {
+      const stash = stashedPanels.current
+      stashedPanels.current = null
+      stash?.forEach((p) => panelsRef.current.open(p))
+    }
+  }, [nebulaPrefs.interaction])
 
   // The ambient Knowledge Nebula (Module A) sits behind the whole shell. Its
   // renderer chunk is deferred until the browser is idle after first paint so
@@ -326,7 +356,10 @@ export function AppShell() {
   // name is known. The two footer sentinels (Settings, Agent) stay separate.
   const menuItems: MainMenuItem[] = vaultTree.map((node) => ({
     id: node.path,
-    label: node.name,
+    label:
+      editorPrefs.hideExtension === "on"
+        ? stripMdExtension(node.name)
+        : node.name,
     icon: menuIconFor(node),
   }))
   const noteIds = new Set(
@@ -413,45 +446,17 @@ export function AppShell() {
         phone={isPhone}
       />
     ) : active === MENU_SETTINGS_ID ? (
-      <>
+      <ControlSectionsProvider>
         <div className="flex items-center justify-between gap-4">
           <h1 className="font-heading text-2xl font-semibold text-fg-strong">
             {activeLabel}
           </h1>
-          <Link
-            to="/"
-            className="shrink-0 text-xs text-muted-foreground transition-colors hover:text-foreground"
-          >
-            ← back to demos
-          </Link>
+          <CollapseAllButton />
         </div>
-        <p className="max-w-2xl text-sm leading-relaxed text-muted-foreground">
-          {activeLabel} section. Every menu row toggles this panel; click the
-          active row again to slide it away. The editor and chat toggle the same
-          way. On a tablet only two of the three may be open at once — opening a
-          third closes whichever you touched longest ago, and the rightmost one
-          grows to fill the space.
-        </p>
         <EditorPreferencesSection prefs={editorPrefs} setPref={setEditorPref} />
         <NotificationsSection prefs={notifyPrefs} setPref={setNotifyPref} />
         <NebulaAppearanceSection prefs={nebulaPrefs} setPref={setNebulaPref} />
-        {/* Footer — pinned to the panel's bottom edge. Read-only Slack daemon
-            status (ADR-082) on the left, the compact light/dark switch on the
-            right. Negative margins cancel the scroll surface's whole inset
-            (`p-8` desktop, `px-4 py-6` phone) so the `border-t` runs edge to
-            edge like the editor panel's `Links` divider; the gutter is then
-            re-applied as the footer's own padding, and `py-3` lands the row on
-            the same line as `Links` (12px above the card edge). */}
-        <div
-          className={cn(
-            "mt-auto flex items-center justify-between gap-4 border-t border-border py-3",
-            isPhone ? "-mx-4 -mb-6 px-4" : "-mx-8 -mb-8 px-8"
-          )}
-        >
-          <SlackStatusPill />
-          <ThemeToggle />
-        </div>
-      </>
+      </ControlSectionsProvider>
     ) : (
       <div className="flex flex-col gap-2">
         <div className="flex items-center justify-between gap-2">
@@ -528,6 +533,9 @@ export function AppShell() {
                   setSelectedNote(path)
                   panels.open("editor")
                 }}
+                isPinned={isPinned}
+                onTogglePin={togglePin}
+                hideExtension={editorPrefs.hideExtension === "on"}
               />
             )}
           </>
@@ -578,19 +586,11 @@ export function AppShell() {
         isPhone && "flex-col"
       )}
       // Feeds `.sy-frosted-panel` — the content and editor panels only,
-      // ADR-088. `off` (the default:
-      // opacity 1, blur 0) → solid tokens, no backdrop layer. `tint` → the
-      // opacity knob alone. `blur` → opacity + a real backdrop blur.
-      data-nebula-frost={
-        nebulaPrefs.panelBlur > 0
-          ? "blur"
-          : nebulaPrefs.panelOpacity < 1
-            ? "tint"
-            : "off"
-      }
+      // ADR-088 (blur dropped, ADR-089). `off` (the default: opacity 1) →
+      // solid tokens. `tint` → the opacity knob alone.
+      data-nebula-frost={nebulaPrefs.panelOpacity < 1 ? "tint" : "off"}
       style={
         {
-          "--sy-panel-blur": `${nebulaPrefs.panelBlur}px`,
           "--sy-panel-opacity": String(nebulaPrefs.panelOpacity),
         } as React.CSSProperties
       }
@@ -623,8 +623,14 @@ export function AppShell() {
       )}
 
       {/* menu + stage row — overflow-hidden clips the menu (and the panels)
-          while they are parked off to the inline-start. */}
-      <div className="relative flex min-h-0 min-w-0 flex-1 overflow-hidden">
+          while they are parked off to the inline-start. `pointer-events-none`
+          so this row doesn't sit as a dead hit-target above the nebula in
+          Explore once its own children (the menu, the stage) have nothing
+          reclaiming a given point — mirrors the same pattern the stage div
+          already uses one level down; without it, this row's own box (not
+          the panels inside it) is what elementFromPoint hits at a closed
+          panel's location, and the click never reaches the nebula. */}
+      <div className="relative flex min-h-0 min-w-0 flex-1 overflow-hidden pointer-events-none">
         <MainMenu
           items={menuItems}
           // above the stage so the content panel tucks *behind* it on hide
@@ -661,11 +667,24 @@ export function AppShell() {
             open and closed, so ordinary interaction is unaffected. */}
         <div className="relative flex min-w-0 flex-1 overflow-hidden pointer-events-none">
           {!isPhone && (
-            <ChatActionGroup
-              className="pointer-events-auto absolute top-4 right-3 z-30"
-              chatOpen={chatOpen}
-              onToggleChat={toggleChat}
-            />
+            <div className="pointer-events-auto absolute top-4 right-3 z-30 flex items-center gap-2">
+              <ChatActionGroup
+                chatOpen={chatOpen}
+                onToggleChat={toggleChat}
+                className={cn(
+                  "transition-[opacity,translate] duration-300 ease-in-out",
+                  explore
+                    ? "pointer-events-none translate-x-4 opacity-0"
+                    : "translate-x-0 opacity-100"
+                )}
+              />
+              <NebulaModeToggle
+                explore={explore}
+                onToggle={() =>
+                  setNebulaPref("interaction", explore ? "focus" : "explore")
+                }
+              />
+            </div>
           )}
 
           <ContentPanel
@@ -685,6 +704,19 @@ export function AppShell() {
             flushBottomLeft={
               !isPhone && contentOpen && active === MENU_ACCOUNT_ID
             }
+            footer={
+              // Read-only Slack daemon status (ADR-082) on the left, the
+              // compact light/dark switch on the right — pinned below the
+              // scroll surface (not inside it) so a tall Settings list can't
+              // scroll it out of reach, the same way the editor panel's own
+              // "Links" row stays put under the note body.
+              active === MENU_SETTINGS_ID ? (
+                <div className="flex items-center justify-between gap-4">
+                  <SlackStatusPill />
+                  <ThemeToggle />
+                </div>
+              ) : undefined
+            }
           >
             {contentBody}
           </ContentPanel>
@@ -702,6 +734,8 @@ export function AppShell() {
               setSelectedNote(undefined)
               setVaultRefreshKey((k) => k + 1)
             }}
+            isPinned={isPinned}
+            onTogglePin={togglePin}
             preferences={editorPrefs}
             open={editorOpen}
             fill={editorFill}

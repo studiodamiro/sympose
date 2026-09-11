@@ -6,7 +6,13 @@ export { ChatActionGroup, ChatPanel } from "./chat-panel"
 export { ConfirmDialog } from "./confirm-dialog"
 export { ContentPanel } from "./content-panel"
 export { Composer } from "./composer"
-export { ControlRow, ControlSection } from "./control-section"
+export {
+  ControlRow,
+  ControlSection,
+  ControlSectionsProvider,
+  useCollapseAll,
+  CollapseAllButton,
+} from "./control-section"
 export { EditorPreferencesSection } from "./editor-preferences-section"
 export { EntityPath } from "./entity-path"
 export { FrontmatterCard } from "./frontmatter-card"
@@ -25,6 +31,7 @@ export { MarkdownPanel } from "./markdown-panel"
 // `react-force-graph`. The app shell lazy-imports it directly from
 // "@/components/sympose/ambient-nebula" so it stays off the TTFT hot path.
 export { NebulaAppearanceSection } from "./nebula-appearance-section"
+export { NebulaModeToggle } from "./nebula-mode-toggle"
 export { NotificationsSection } from "./notifications-section"
 export { LatencyReadout, MetaText } from "./meta-text"
 export { ModelChip } from "./model-chip"

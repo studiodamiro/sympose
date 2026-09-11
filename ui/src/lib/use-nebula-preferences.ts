@@ -18,6 +18,11 @@ export interface NebulaPreferences {
 
   /** Show the folder-colour legend in Explore. */
   legend: boolean
+  /** Show the floating control dock in Explore. Default `true`; now that
+   *  every dock knob is also reachable from Settings → Knowledge Nebula
+   *  (`layout="inline"`), this lets an unobstructed Explore view be the
+   *  common case instead of the dock always covering a corner of it. */
+  dock: boolean
 
   // Filters
   tags: boolean
@@ -44,13 +49,9 @@ export interface NebulaPreferences {
    */
   focusBlur: number
   focusTint: number
-  /**
-   * The shell panels over the nebula in Focus.
-   *   `panelBlur` — backdrop-blur radius in px behind each panel (`0` = off,
-   *   no backdrop layer allocated).
-   *   `panelOpacity` — panel fill opacity (`1` = the usual solid surface).
-   */
-  panelBlur: number
+  /** The shell panels over the nebula in Focus — fill opacity (`1` = the usual
+   *  solid surface); no backdrop blur (ADR-089 dropped it, opacity alone reads
+   *  clearly and the blur read as visual noise against the Focus scrim). */
   panelOpacity: number
 
   // Forces
@@ -79,6 +80,7 @@ const SPEC: {
   interaction: { cookie: "sympose:nebula.interaction", kind: "enum", default: "focus" },
   mode: { cookie: "sympose:nebula.mode", kind: "enum", default: "2d" },
   legend: { cookie: "sympose:nebula.legend", kind: "bool", default: true },
+  dock: { cookie: "sympose:nebula.dock", kind: "bool", default: true },
   tags: { cookie: "sympose:nebula.tags", kind: "bool", default: true },
   attachments: { cookie: "sympose:nebula.attachments", kind: "bool", default: false },
   existingOnly: { cookie: "sympose:nebula.existing_only", kind: "bool", default: false },
@@ -94,7 +96,6 @@ const SPEC: {
   clickZoomDistance: { cookie: "sympose:nebula.click_zoom_distance", kind: "num", default: 60 },
   focusBlur: { cookie: "sympose:nebula.focus_blur", kind: "num", default: 12 },
   focusTint: { cookie: "sympose:nebula.focus_tint", kind: "num", default: 0.8 },
-  panelBlur: { cookie: "sympose:nebula.panel_blur", kind: "num", default: 0 },
   panelOpacity: { cookie: "sympose:nebula.panel_opacity", kind: "num", default: 1 },
   centerForce: { cookie: "sympose:nebula.center_force", kind: "num", default: 0.52 },
   repelForce: { cookie: "sympose:nebula.repel_force", kind: "num", default: 13.89 },

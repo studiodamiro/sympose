@@ -134,16 +134,6 @@ function AmbientNebula({
           explore ? "opacity-100" : "pointer-events-none opacity-0"
         )}
       >
-        <div className="pointer-events-none absolute bottom-4 left-4 flex items-center gap-1.5 rounded-full border border-border bg-card/90 px-2.5 py-1 font-mono text-[11px] text-muted-foreground backdrop-blur-sm">
-          <span
-            className={cn(
-              "size-1.5 rounded-full",
-              source === "live" ? "bg-ok" : "bg-fg-muted"
-            )}
-          />
-          {source === "live" ? "live vault" : "bundled sample"} · {graph.nodes.length} nodes
-        </div>
-
         {prefs.legend && folders.length > 0 && (
           <div className="pointer-events-none absolute top-4 left-4 flex max-w-[40vw] flex-wrap gap-x-3 gap-y-1">
             {folders.map((f) => (
@@ -161,11 +151,29 @@ function AmbientNebula({
           </div>
         )}
 
-        <NebulaControls
-          prefs={prefs}
-          setPref={setPref}
-          className="pointer-events-auto absolute right-4 bottom-4 max-h-[80vh] overflow-y-auto"
-        />
+        {/* Bottom-right cluster — the data-source badge stacked above the
+            dock (moved off bottom-left, where it collided with the menu
+            rail's account row) rather than absolutely positioned on its own,
+            so the two can never overlap regardless of the dock's height. */}
+        <div className="pointer-events-none absolute right-4 bottom-4 flex flex-col items-end gap-2">
+          <div className="flex items-center gap-1.5 rounded-full border border-border bg-card/90 px-2.5 py-1 font-mono text-[11px] text-muted-foreground backdrop-blur-sm">
+            <span
+              className={cn(
+                "size-1.5 rounded-full",
+                source === "live" ? "bg-ok" : "bg-fg-muted"
+              )}
+            />
+            {source === "live" ? "live vault" : "bundled sample"} · {graph.nodes.length} nodes
+          </div>
+
+          {prefs.dock && (
+            <NebulaControls
+              prefs={prefs}
+              setPref={setPref}
+              className="pointer-events-auto max-h-[80vh] overflow-y-auto"
+            />
+          )}
+        </div>
       </div>
     </div>
   )

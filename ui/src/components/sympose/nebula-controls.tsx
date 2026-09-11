@@ -4,9 +4,7 @@ import {
   ControlSection,
 } from "@/components/sympose/control-section"
 import { SegmentedControl } from "@/components/sympose/segmented-control"
-import type {
-  NebulaPreferences,
-} from "@/lib/use-nebula-preferences"
+import type { NebulaPreferences } from "@/lib/use-nebula-preferences"
 
 type SetPref = <K extends keyof NebulaPreferences>(
   key: K,
@@ -45,7 +43,17 @@ function ToggleRow({
   )
 }
 
-/** A numeric knob as a native range input with a live readout. */
+/**
+ * A numeric knob as a native range input with a live readout. Two layouts:
+ *
+ *   `"stacked"` (default) — label/value on their own row, a full-width
+ *   track below. What the floating dock uses (`w-64`, narrow enough that an
+ *   inline track would be cramped).
+ *   `"inline"` — one `ControlRow` line, label and value folded into a
+ *   single string with the track to its right, matching every other Settings
+ *   row (toggles, segmented controls) instead of standing out as the only
+ *   two-line control in the list.
+ */
 function SliderRow({
   label,
   field,
@@ -53,6 +61,8 @@ function SliderRow({
   max,
   step,
   format,
+  hint,
+  layout = "stacked",
   prefs,
   setPref,
 }: {
@@ -66,28 +76,46 @@ function SliderRow({
   max: number
   step: number
   format?: (v: number) => string
+  hint?: string
+  layout?: "stacked" | "inline"
   prefs: NebulaPreferences
   setPref: SetPref
 }) {
   const value = prefs[field]
+  const readout = format ? format(value) : String(value)
+  const track = (
+    <input
+      type="range"
+      aria-label={label}
+      min={min}
+      max={max}
+      step={step}
+      value={value}
+      onChange={(e) => setPref(field, Number(e.target.value))}
+      className={cn(
+        "h-1.5 cursor-pointer appearance-none rounded-full bg-border accent-primary",
+        layout === "inline" ? "w-32 sm:w-40" : "w-full"
+      )}
+    />
+  )
+
+  if (layout === "inline") {
+    return (
+      <div className="flex flex-col gap-1">
+        <ControlRow label={`${label}, ${readout}`}>{track}</ControlRow>
+        {hint && <p className="text-xs text-fg-muted">{hint}</p>}
+      </div>
+    )
+  }
+
   return (
     <div className="flex flex-col gap-1.5">
       <div className="flex items-center justify-between text-sm">
         <span className="text-muted-foreground">{label}</span>
-        <span className="tabular-nums text-fg-muted">
-          {format ? format(value) : value}
-        </span>
+        <span className="text-fg-muted tabular-nums">{readout}</span>
       </div>
-      <input
-        type="range"
-        aria-label={label}
-        min={min}
-        max={max}
-        step={step}
-        value={value}
-        onChange={(e) => setPref(field, Number(e.target.value))}
-        className="h-1.5 w-full cursor-pointer appearance-none rounded-full bg-border accent-primary"
-      />
+      {track}
+      {hint && <p className="text-xs text-fg-muted">{hint}</p>}
     </div>
   )
 }
@@ -107,10 +135,14 @@ function NebulaControls({
   prefs,
   setPref,
   className,
+  layout = "stacked",
 }: {
   prefs: NebulaPreferences
   setPref: SetPref
   className?: string
+  /** Slider row layout — see `SliderRow`. `NebulaAppearanceSection` (Settings)
+   *  passes `"inline"`; the floating dock keeps the default. */
+  layout?: "stacked" | "inline"
 }) {
   return (
     <div
@@ -121,9 +153,19 @@ function NebulaControls({
       )}
     >
       <ControlSection title="Toggles" defaultOpen>
-        <ToggleRow label="Orphans" field="orphans" prefs={prefs} setPref={setPref} />
+        <ToggleRow
+          label="Orphans"
+          field="orphans"
+          prefs={prefs}
+          setPref={setPref}
+        />
         <ToggleRow label="Tags" field="tags" prefs={prefs} setPref={setPref} />
-        <ToggleRow label="Legend" field="legend" prefs={prefs} setPref={setPref} />
+        <ToggleRow
+          label="Legend"
+          field="legend"
+          prefs={prefs}
+          setPref={setPref}
+        />
         <ControlRow label="Renderer">
           <SegmentedControl
             size="sm"
@@ -137,11 +179,18 @@ function NebulaControls({
             ]}
           />
         </ControlRow>
-        <p className="text-xs text-fg-muted">3D renderer lands in a later build.</p>
+        <p className="text-xs text-fg-muted">
+          3D renderer lands in a later build.
+        </p>
       </ControlSection>
 
       <ControlSection title="Display" defaultOpen>
-        <ToggleRow label="Labels" field="labels" prefs={prefs} setPref={setPref} />
+        <ToggleRow
+          label="Labels"
+          field="labels"
+          prefs={prefs}
+          setPref={setPref}
+        />
         <SliderRow
           label="Node size"
           field="nodeRelSize"
@@ -151,6 +200,7 @@ function NebulaControls({
           format={(v) => (v / 2.4).toFixed(2)}
           prefs={prefs}
           setPref={setPref}
+          layout={layout}
         />
         <SliderRow
           label="Link thickness"
@@ -161,6 +211,7 @@ function NebulaControls({
           format={(v) => v.toFixed(2)}
           prefs={prefs}
           setPref={setPref}
+          layout={layout}
         />
       </ControlSection>
 
@@ -174,6 +225,7 @@ function NebulaControls({
           format={(v) => v.toFixed(2)}
           prefs={prefs}
           setPref={setPref}
+          layout={layout}
         />
         <SliderRow
           label="Repel force"
@@ -184,6 +236,7 @@ function NebulaControls({
           format={(v) => v.toFixed(2)}
           prefs={prefs}
           setPref={setPref}
+          layout={layout}
         />
         <SliderRow
           label="Link force"
@@ -194,6 +247,7 @@ function NebulaControls({
           format={(v) => v.toFixed(2)}
           prefs={prefs}
           setPref={setPref}
+          layout={layout}
         />
         <SliderRow
           label="Link distance"
@@ -204,10 +258,11 @@ function NebulaControls({
           format={(v) => String(Math.round(v))}
           prefs={prefs}
           setPref={setPref}
+          layout={layout}
         />
       </ControlSection>
     </div>
   )
 }
 
-export { NebulaControls }
+export { NebulaControls, SliderRow as NebulaSliderRow }

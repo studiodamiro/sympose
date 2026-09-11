@@ -209,12 +209,16 @@ function MainMenu({
         // No background of its own (ADR-088) — the ambient nebula shows
         // straight through the rail, dimmed/blurred by whatever Focus state
         // it's already in. Only the content and editor panels get a fill,
-        // gated by the panelBlur / panelOpacity knobs.
+        // gated by the panelOpacity knob.
         "group/menu relative flex h-full flex-col overflow-x-hidden text-foreground",
         // width tween for resize; margin+opacity tween for the phone show/hide
         // reveal (parked one width to the inline-start when closed)
         "transition-[width,margin,opacity] duration-200 ease-out data-dragging:transition-none data-dragging:select-none",
         "*:ps-(--menu-pad)",
+        // The row this sits in is `pointer-events-none` (ADR-090) so it isn't
+        // a dead hit-target over the nebula in Explore; the rail reclaims it
+        // explicitly here, same as the stage panels reclaim theirs.
+        "pointer-events-auto",
         !open && "pointer-events-none opacity-0",
         className
       )}

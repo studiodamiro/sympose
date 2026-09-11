@@ -427,23 +427,15 @@
   background: var(--border);
 }
 /* Frosted panel surface — the vault/content panel and the editor card sitting
-   over the ambient Knowledge Nebula (ADR-088). Deliberately scoped to those
-   two only, not the menu rail or chat, which carry no background of their own
-   at all. `.sy-frosted-panel` is a drop-in swap for `bg-panel`: the fill is
-   `--sy-panel-opacity` continuously, `0` (clear) → `1` (the old solid
-   `--panel`, byte-identical at the default) — no snap, no floor. The Settings
-   → Knowledge Nebula knobs set `--sy-panel-blur` / `--sy-panel-opacity` on the
-   shell root and flip `data-nebula-frost` to `tint` (opacity < 1, no backdrop
-   layer) or `blur` (`panelBlur` > 0, adds the filter).
-
-   Caveat: what a frosted panel reveals is whatever the Focus scrim already
-   left of the graph — `backdrop-filter` reads the actual composited pixels
-   behind the panel, which is the canvas *after* `focusBlur` / `focusTint` have
-   already been applied (both are full-viewport, panels included). So a high
-   Focus tint leaves little for panel blur to show regardless of its own
-   settings; genuinely excluding panels from the scrim would need per-panel
-   geometry tracking (a `ResizeObserver`-driven mask), not attempted here —
-   flag it if you want that built. */
+   over the ambient Knowledge Nebula (ADR-088; blur dropped, ADR-089 —
+   opacity alone reads clearly without a backdrop-filter compositing cost).
+   Deliberately scoped to those two only, not the menu rail or chat, which
+   carry no background of their own at all. `.sy-frosted-panel` is a drop-in
+   swap for `bg-panel`: the fill is `--sy-panel-opacity` continuously, `0`
+   (clear) → `1` (the old solid `--panel`, byte-identical at the default) — no
+   snap, no floor. The Settings → Knowledge Nebula "Panel opacity" knob sets
+   `--sy-panel-opacity` on the shell root and flips `data-nebula-frost` to
+   `tint` (opacity < 1) or `off` (opacity 1, the default). */
 .sy-frosted-panel {
   background-color: color-mix(
     in srgb,
@@ -451,19 +443,45 @@
     transparent
   );
 }
-[data-nebula-frost="blur"] .sy-frosted-panel {
-  backdrop-filter: blur(var(--sy-panel-blur, 0px)) saturate(1.3);
-  -webkit-backdrop-filter: blur(var(--sy-panel-blur, 0px)) saturate(1.3);
-}
-/* The editor's real opaque surface is stylo's own root (`.stylo`, its
-   `_root_*` CSS-module class paints `background: var(--stylo-bg)`, which this
-   file already pins to `--panel`) — NOT `.cm-editor` / `.cm-scroller`, which
-   carry no background of their own in stylo's build. Whenever frost is
-   engaged at all, drop `.stylo` to transparent and let `.sy-frosted-panel`
-   (its parent card) do the tinting/blurring instead. stylo's floating menus
+/* stylo's own root (`.stylo`, its `_root_*` CSS-module class paints
+   `background: var(--stylo-bg)`, which this file already pins to `--panel`)
+   is one opaque surface to drop under frost — but `.cm-editor` and the
+   formatting toolbar (`[role="toolbar"]` — stylo's own accessibility
+   contract, stabler than its hashed CSS-module class name) turned out to be
+   two more, independent ones: `.cm-editor`'s background comes from
+   CodeMirror's own base theme, injected via `EditorView.theme()` rather than
+   a class-module rule, and the toolbar sets `background: var(--stylo-bg)`
+   directly on itself rather than inheriting `.stylo`'s. Neither picked up
+   `.stylo`'s transparency, so both stayed opaque underneath it — the
+   editor's actual text area and its toolbar never showed the frosted nebula
+   through them even with `.stylo` cleared. `.cm-scroller` / `.cm-content`
+   genuinely carry no background of their own and need no override. Whenever
+   frost is engaged at all, drop all three to transparent and let
+   `.sy-frosted-panel` (their parent card) do the tinting instead. The
+   per-line code-fence tint (`.cm-inplace-mono`, a much lighter ~35% wash) is
+   deliberate — it survives frost the same way inline `code` shading does in
+   the rendered preview, so code still reads as code. stylo's floating menus
    set their own explicit background (the shared frosted-menu rule below), so
    they are unaffected. */
-:is([data-nebula-frost="tint"], [data-nebula-frost="blur"])
-  [data-slot="markdown-panel"] .stylo {
+[data-nebula-frost="tint"] [data-slot="markdown-panel"] .stylo,
+[data-nebula-frost="tint"] [data-slot="markdown-panel"] .cm-editor,
+[data-nebula-frost="tint"] [data-slot="markdown-panel"] [role="toolbar"] {
+  background: transparent !important;
+}
+
+/* The Knowledge Nebula's node-hover tooltip is `force-graph`'s bundled
+   `float-tooltip` package, not a component of ours — `createNodeTooltip()`
+   (knowledge-nebula-shared.ts) only supplies the HTML that lands *inside*
+   its wrapper. That wrapper injects its own always-dark default (a 3-5px
+   pad on `rgba(0,0,0,0.6)`, from `float-tooltip`'s own stylesheet), so our
+   inner div — theme-correct bg/fg/border, sized to its own content — sat
+   inset a few px inside that dark halo. Invisible in dark mode (the two
+   dark backgrounds read as one), but in light mode the halo showed as a
+   thick, off-palette grey/black border no `border` value on our own div
+   could reach, since it belonged to a different element. Neutralized here
+   instead of hunting a `float-tooltip` option for it — the package exposes
+   none; it always injects this one bundled rule. */
+.float-tooltip-kap {
+  padding: 0 !important;
   background: transparent !important;
 }

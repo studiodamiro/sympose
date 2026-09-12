@@ -135,6 +135,21 @@ Every mockup must be legible in both without re-picking colors by hand.
 - **Borders:** 1px solid `--border`; slightly dimmer `--border-subtle` for internal rules.
 - **Elevation:** minimal. Panels sit on the background by fill + border. Reserve a single
   soft shadow tier only for true overlays (theme drawer, command palette, modals).
+- **Raised-surface hierarchy has two real steps, not one.** `--panel` is the working-surface
+  fill (toolbars, the editor canvas, side panels) — one step above the page's own
+  `--background`. In dark mode it happens to land at the *exact same* shade as the generic
+  `<Card>` component's own fill, `--card` — a coincidence, not a rule, but it means a card
+  drawn with `<Card>`'s default fill *inside* an already-`--panel` surface (the frontmatter
+  card docked in the markdown editor, say) is invisible against it. `--muted` (a further,
+  genuine step lighter) is the right fill whenever a component needs to read as its own
+  raised block sitting on top of another `--panel` surface, not just anywhere `<Card>` is
+  used on the page background — check what it's actually sitting on before defaulting to
+  `--card`.
+- **A shared "panel opacity" knob dims every raised surface inside the editor together**
+  (Settings → Knowledge Nebula), so the toolbar, canvas, and the frontmatter card fade in
+  step rather than one staying stubbornly opaque while the others go see-through toward the
+  ambient nebula behind them. Any new raised surface added inside the editor should hook
+  into that same knob (fading proportionally, never a hard on/off) rather than ignoring it.
 
 ### 3.5 Iconography
 

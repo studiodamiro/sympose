@@ -296,7 +296,8 @@ function MarkdownPanel({
   // never sees it, so editing a pill never touches CodeMirror's undo history.
   const [frontmatter, setFrontmatter] = React.useState<string | null>(null)
   const [body, setBody] = React.useState("")
-  const { surface, reveal, selectionUI, focusOutline, autosave } = preferences
+  const { surface, reveal, selectionUI, tableEditing, focusOutline, autosave } =
+    preferences
 
   // The note text as last persisted (in `joinNote` form, so the dirty check
   // compares like with like). A save-in-flight guard keeps a slow write or a
@@ -312,6 +313,31 @@ function MarkdownPanel({
   // the original YAML block byte-for-byte (see `joinNote`).
   const originalPrefixRef = React.useRef<string | null>(null)
   const frontmatterEditedRef = React.useRef(false)
+
+  // stylo's `canvasHeader` (>=0.11.0) is read once, at mount — same contract
+  // as `inPlace`/`wikiLinkSource` (see `wikiLinkSource` prop doc above). The
+  // function identity handed to `<Stylo>` has to survive `frontmatter`/
+  // `onWikiLinkClick`/`phone` changing without a remount, so it reads them
+  // off a ref kept current every render instead of closing over them directly.
+  const frontmatterCardStateRef = React.useRef({ frontmatter, onWikiLinkClick, phone })
+  frontmatterCardStateRef.current = { frontmatter, onWikiLinkClick, phone }
+  const canvasHeader = React.useCallback(() => {
+    const { frontmatter, onWikiLinkClick, phone } = frontmatterCardStateRef.current
+    if (frontmatter === null) return null
+    return (
+      <FrontmatterCard
+        raw={frontmatter}
+        onChange={(raw) => {
+          // A real card edit — from here on the block is re-serialised on
+          // save rather than kept verbatim.
+          frontmatterEditedRef.current = true
+          setFrontmatter(raw)
+        }}
+        onLinkClick={onWikiLinkClick}
+        className={cn("mt-2", phone ? "px-2" : "px-4 sm:px-6")}
+      />
+    )
+  }, [])
 
   React.useEffect(() => {
     if (!path) return
@@ -472,20 +498,22 @@ function MarkdownPanel({
           // scroll internally instead of the toolbar scrolling away with it).
           // The key remounts on a note switch (so CodeMirror's undo history and
           // selection never leak from one note into another) and on a surface/
-          // reveal/selectionUI change from Settings — `inPlace` config and mode
-          // are both applied-at-mount, per stylo's own documented contract.
+          // reveal/selectionUI/tableEditing change from Settings — `inPlace`
+          // config and mode are both applied-at-mount, per stylo's own
+          // documented contract.
           //
           // Full panel width, no reading-column cap — the frontmatter card
-          // shares it. The frontmatter card itself rides `toolbar.render`
-          // (below) instead of sitting before `<Stylo>`, so it lands *between*
-          // the toolbar and the canvas: the toolbar stays the panel's very
-          // first row, flush with the stage's floating action group.
+          // shares it. The frontmatter card rides `canvasHeader` (stylo
+          // >=0.11.0), which docks it *inside* the editing surface, under
+          // CodeMirror's own find/replace panel and above the document body
+          // — the toolbar row (with the note-actions `⋯`) stays a separate,
+          // non-scrolling sibling above the whole canvas.
           <div
             data-focus-outline={focusOutline}
             className="flex min-h-0 w-full flex-1 flex-col text-sm leading-relaxed"
           >
             <Stylo
-              key={`${path}:${surface}:${reveal}:${selectionUI}`}
+              key={`${path}:${surface}:${reveal}:${selectionUI}:${tableEditing}`}
               value={body}
               onChange={setBody}
               onSave={() => void saveNote()}
@@ -493,51 +521,29 @@ function MarkdownPanel({
               wikiLinkSource={wikiLinkSource}
               onLinkClick={openMarkdownLink}
               mode={surface}
-              inPlace={{ reveal, selectionUI }}
+              inPlace={{ reveal, selectionUI, table: tableEditing }}
+              canvasHeader={canvasHeader}
               toolbar={{
                 items: toolbarItems,
                 render: (bar) => (
-                  <>
-                    {/* stylo's toolbar row, with the note-actions `⋯` overlaid
-                        at its right edge (the built-in items are left-aligned,
-                        so that space is free). Only shown once a note is open. */}
-                    <div className="relative">
-                      {bar}
-                      {path && (
-                        <div className="absolute inset-y-0 right-1.5 flex items-center">
-                          <NoteActionsMenu
-                            path={path}
-                            persona={persona}
-                            onRenamed={(next) => onRenamed?.(next)}
-                            onDeleted={() => onDeleted?.()}
-                            pinned={!!isPinned?.(path)}
-                            onTogglePin={onTogglePin}
-                          />
-                        </div>
-                      )}
-                    </div>
-                    {frontmatter !== null && (
-                      <FrontmatterCard
-                        raw={frontmatter}
-                        onChange={(raw) => {
-                          // A real card edit — from here on the block is
-                          // re-serialised on save rather than kept verbatim.
-                          frontmatterEditedRef.current = true
-                          setFrontmatter(raw)
-                        }}
-                        onLinkClick={onWikiLinkClick}
-                        // `mt-2` — the card's own left/right `mx-2` (see
-                        // frontmatter-card.tsx), applied to the top too, so the
-                        // toolbar-to-card gap matches the card's own side
-                        // margins instead of sitting flush underneath it.
-                        // Horizontal *content* padding is the established
-                        // gutter (`px-6 sm:px-8`/`px-4` on phone) minus that
-                        // same `mx-2`, so the labels still land on the note
-                        // body's own left edge rather than double-counting it.
-                        className={cn("mt-2", phone ? "px-2" : "px-4 sm:px-6")}
-                      />
+                  // stylo's toolbar row, with the note-actions `⋯` overlaid
+                  // at its right edge (the built-in items are left-aligned,
+                  // so that space is free). Only shown once a note is open.
+                  <div className="relative">
+                    {bar}
+                    {path && (
+                      <div className="absolute inset-y-0 right-1.5 flex items-center">
+                        <NoteActionsMenu
+                          path={path}
+                          persona={persona}
+                          onRenamed={(next) => onRenamed?.(next)}
+                          onDeleted={() => onDeleted?.()}
+                          pinned={!!isPinned?.(path)}
+                          onTogglePin={onTogglePin}
+                        />
+                      </div>
                     )}
-                  </>
+                  </div>
                 ),
               }}
               icons={TOOLBAR_ICONS}

@@ -5,6 +5,7 @@ import { getCookie, setCookie } from "@/lib/cookies"
 export type EditorSurface = "in-place" | "source"
 export type EditorReveal = "caret" | "never"
 export type EditorSelectionUI = "menu" | "bar"
+export type EditorTableEditing = "source" | "cells"
 export type EditorFocusOutline = "on" | "off"
 export type EditorAutosave = "on" | "off"
 export type EditorHideExtension = "on" | "off"
@@ -13,6 +14,11 @@ export interface EditorPreferences {
   surface: EditorSurface
   reveal: EditorReveal
   selectionUI: EditorSelectionUI
+  /** How the in-place canvas edits a table (stylo's `TableEditing`).
+   *  `"source"` (default) reveals the aligned pipe source under the caret;
+   *  `"cells"` edits the rendered table in place. Only meaningful when
+   *  `surface` is `"in-place"`. */
+  tableEditing: EditorTableEditing
   focusOutline: EditorFocusOutline
   /**
    * Persist body/frontmatter edits to the vault automatically, a beat after
@@ -29,6 +35,7 @@ const COOKIES = {
   surface: "sympose:editor.surface",
   reveal: "sympose:editor.reveal",
   selectionUI: "sympose:editor.selection_ui",
+  tableEditing: "sympose:editor.table_editing",
   focusOutline: "sympose:editor.focus_outline",
   autosave: "sympose:editor.autosave",
   hideExtension: "sympose:editor.hide_extension",
@@ -38,6 +45,7 @@ const DEFAULTS: EditorPreferences = {
   surface: "in-place",
   reveal: "caret",
   selectionUI: "menu",
+  tableEditing: "source",
   focusOutline: "off",
   autosave: "off",
   hideExtension: "on",
@@ -59,6 +67,9 @@ export function useEditorPreferences(): readonly [
     selectionUI:
       (getCookie(COOKIES.selectionUI) as EditorSelectionUI) ||
       DEFAULTS.selectionUI,
+    tableEditing:
+      (getCookie(COOKIES.tableEditing) as EditorTableEditing) ||
+      DEFAULTS.tableEditing,
     focusOutline:
       (getCookie(COOKIES.focusOutline) as EditorFocusOutline) ||
       DEFAULTS.focusOutline,

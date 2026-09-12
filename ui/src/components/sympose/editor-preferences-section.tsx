@@ -115,6 +115,16 @@ function EditorPreferencesSection({
               { value: "bar", label: "Floating bar" },
             ]}
           />
+          <PrefToggle
+            field="tableEditing"
+            label="Table editing"
+            value={prefs.tableEditing}
+            onChange={setPref}
+            options={[
+              { value: "source", label: "Source" },
+              { value: "cells", label: "Cells" },
+            ]}
+          />
         </>
       )}
       <PrefToggle

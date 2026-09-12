@@ -211,6 +211,16 @@
   --stylo-border: var(--border);
   --stylo-accent: var(--brand);
   --stylo-link: var(--entity);
+  /* stylo's own defaults derive these from `--stylo-border` too
+     (`color-mix(in srgb, var(--stylo-border) 30%, transparent)` for the header,
+     transparent for the stripe), so they already tracked the bridge above
+     indirectly — made explicit here so a table doesn't silently drift if a
+     future stylo version hardcodes its own default instead. `--muted` (the
+     same recessed fill Settings rows and chips use) reads as a more
+     deliberate "app surface" than a border-derived grey tint. */
+  --stylo-table-border: var(--stylo-border);
+  --stylo-table-header-bg: var(--muted);
+  --stylo-table-stripe-bg: transparent;
   --stylo-ring: var(--ring);
   --stylo-radius: var(--radius-md);
   /* stylo's own default is 0.9375rem (15px); this panel's `text-sm` wrapper
@@ -272,13 +282,19 @@
    reads was empty: `background`/`border-color` silently fell back to their
    CSS-initial values (transparent, currentcolor) and `color` fell back to
    whatever ambient text color it happened to inherit from Settings — never
-   Sympose's palette, never a considered choice. `--stylo-bg: var(--background)`
-   is deliberate, not `--panel`: there's no separate wrapping card here, so
+   Sympose's palette, never a considered choice. `--stylo-bg: var(--muted)` —
+   the same fill `.sy-frontmatter-panel` uses for the frontmatter card's own
+   raised block — is deliberate: there's no separate wrapping card here, so
    this *is* the fill for the two "On the bar" / "Available" boxes stylo
-   renders on its own (`._col_18hcd_17`), same choice `<FrontmatterCard>`
-   makes for its own raised block against the panel underneath it. */
+   renders on its own (`._col_18hcd_17`), and it reads as the same kind of
+   raised block against the Settings page's `--background` that the
+   frontmatter card is against the editor's `--panel` — one shared "nested
+   block" language across both contexts instead of one recessed and one
+   raised for no reason a user would notice. No panel-opacity knob here
+   unlike the editor's version: Settings has no ambient nebula behind it for
+   a fade to reveal. */
 [data-slot="toolbar-settings"] {
-  --stylo-bg: var(--background);
+  --stylo-bg: var(--muted);
   --stylo-surface-floating: var(--popover);
   --stylo-text: var(--foreground);
   --stylo-text-muted: var(--fg-muted);
@@ -286,6 +302,44 @@
   --stylo-accent: var(--brand);
   --stylo-ring: var(--ring);
   --stylo-radius: var(--radius-md);
+}
+/* `<StyloToolbarSettings>`'s own CSS module sets font-size directly on its
+   command-label spans (0.8125rem) and "Add"/"×" text buttons (0.75rem) — no
+   `--stylo-font-*` token reads either, unlike the CodeMirror-side theme, so
+   the `--stylo-*` scope above can't reach them. Targeted structurally
+   (`li` → label `span` / action `button`), not by the CSS module's own
+   hashed class names (`_label_18hcd_121` etc.) — those are stable within
+   one stylo build but re-hash on every version bump, exactly the kind of
+   brittle coupling this file otherwise avoids. Matched to the search
+   panel's own button size (`.stylo-search-button`, 0.625rem) so both of
+   stylo's text-button surfaces in the app read at one consistent scale. */
+[data-slot="toolbar-settings"] li span,
+[data-slot="toolbar-settings"] li button {
+  font-size: 0.625rem !important;
+}
+/* The "Available" column's "Add" button is plain text with no icon slot —
+   `<StyloToolbarSettings>` doesn't expose one for it (unlike "On the bar"'s
+   "Remove", already icon-only: a bare `✕` in a 22×22px square). Collapsed
+   the text visually and painted a `+` in its place instead, sized to match
+   that same 22×22px footprint, so both columns end up with one consistent
+   icon-only action rather than a word on one side and a glyph on the
+   other. The accessible name is untouched — it already comes from the
+   button's own `aria-label="Add {label} to the bar"`, not its text content,
+   so a screen reader reads the same thing before and after. Targeted by
+   the "Available" section's position (`<StyloToolbarSettings>` always
+   renders "On the bar" first, "Available" second) since both button roles
+   share the same CSS-module shape otherwise — no hashed class name needed
+   here either. */
+[data-slot="toolbar-settings"] section:nth-of-type(2) li button {
+  width: 22px !important;
+  height: 22px !important;
+  padding: 0 !important;
+  font-size: 0 !important;
+}
+[data-slot="toolbar-settings"] section:nth-of-type(2) li button::before {
+  content: "+";
+  font-size: 0.875rem;
+  line-height: 1;
 }
 
 /* Body prose already carries `--font-sans` via `--stylo-font-family` above.
@@ -335,6 +389,123 @@
 [data-slot="markdown-panel"][data-phone] .cm-content {
   padding-left: 1rem !important;
   padding-right: 1rem !important;
+}
+
+/* stylo's find/replace panel (0.10.x) is a flat, single-row flex line —
+   `nowrap` + `overflow-x: auto` — so a narrow editor column scrolls instead
+   of showing every control. The panel's DOM has no group wrappers (find,
+   replace, and the three checkboxes are flat siblings), so wrapping can
+   only happen per element here, not per logical group. Forcing a break
+   exactly at a group boundary (`flex-basis: 100%` on the Replace field or
+   the first checkbox) was tried and reverted: with no zero-width "break"
+   element to carry that forced line by itself, the boundary element claims
+   the *entire* row alone and pushes its own siblings down an extra row —
+   worse fragmentation at real narrow widths than the plain per-element wrap
+   below. A real fix needs an actual break element between groups, which
+   means restructuring stylo's DOM — out of scope here.
+
+   `--h` is bumped to 36px — the main toolbar's own total row height (28px
+   `.toolbarButton` + its 4px top/bottom padding, see stylo's
+   `stylo.module.css`) — so the panel reads as one more toolbar-height row
+   instead of a visually shorter strip glued underneath it. `height: auto`
+   (deliberately *not* `!important`) rests at that same 36px in the common
+   single-row case (28px fields/buttons below + this rule's own 4px
+   vertical padding), winning over stylo's own fixed `height: var(--h)` on
+   plain cascade specificity — but a live CSS *animation* (stylo's own
+   open/close slide, still wired to this `--h`) outranks any normal-origin
+   author rule, `!important` or not, while it's actually running. That
+   split is what lets the slide play for the common case without
+   permanently pinning a wrapped row's height: the animation drives
+   `height` for its 0.16s, then hands off to this rule's `auto` once it's
+   done, sized correctly whether that's one row or two. */
+[data-slot="markdown-panel"] .stylo-search-panel {
+  --h: 36px;
+  flex-wrap: wrap !important;
+  height: auto;
+  padding: 4px 6px !important;
+  overflow: hidden !important;
+  row-gap: 2px !important;
+}
+/* Fields and buttons capped at 28px — `.toolbarButton`'s own height and
+   border-radius formula — so the row reads as one more piece of toolbar
+   chrome. Font size and padding trimmed a step below the toolbar's own
+   buttons (which carry icons, not words): "next"/"previous"/"replace all"
+   are real text, and matching the icon buttons' own 0.75rem/8px made the
+   row visibly heavier than the toolbar above it and more prone to
+   wrapping to a second line in a narrow pane — a wrapped row still isn't
+   clipped (see `height: auto` above) but no longer sits at the single
+   toolbar-height row this is meant to match. */
+[data-slot="markdown-panel"] .stylo-search-field,
+[data-slot="markdown-panel"] .stylo-search-button {
+  height: 28px !important;
+  box-sizing: border-box !important;
+}
+[data-slot="markdown-panel"] .stylo-search-field {
+  min-width: 48px !important;
+  font-size: 0.6875rem !important;
+}
+/* stylo squares this field's corners itself (`theme.ts`) to read as
+   attached to the Replace/Replace-all buttons via its own `border-left`
+   divider — but next to the Find field's rounded ones, in isolation it just
+   looks like an unrounded default rather than a deliberate group edge. The
+   `border-left` divider alone already carries that grouping. */
+[data-slot="markdown-panel"] .stylo-search-field.stylo-search-replace {
+  border-radius: calc(var(--stylo-radius) - 3px) !important;
+}
+[data-slot="markdown-panel"] .stylo-search-button {
+  padding: 0 6px !important;
+  font-size: 0.625rem !important;
+}
+[data-slot="markdown-panel"] .stylo-search-check {
+  font-size: 0.5625rem !important;
+  gap: 2px !important;
+}
+/* The checkboxes' group boundary gets the same visual separator stylo
+   already gives the Replace field's own boundary (a `border-left` in its
+   `theme.ts`), so a wrap that happens to land near there still reads as a
+   group edge rather than an arbitrary cut. */
+[data-slot="markdown-panel"] .stylo-search-check:first-of-type {
+  margin-left: 4px !important;
+  padding-left: 6px !important;
+  border-left: 1px solid var(--stylo-border) !important;
+}
+/* stylo pins this to the row's far right via `margin-left: auto` — which
+   collapses to 0 the moment the row is tight on space (the checkboxes
+   wrapped onto their own line, say), butting the × straight up against
+   "by word" with no visible gap at all. A fixed gap wins over "pinned to
+   the far edge" here: it never collapses, at the cost of the button no
+   longer sitting flush against the panel's right edge in the roomier
+   single-row case. */
+[data-slot="markdown-panel"] .stylo-search-close {
+  margin-left: 12px !important;
+}
+/* `@codemirror/view`'s own baseTheme (not stylo's `--stylo-*` theme) puts a
+   hardcoded light-mode `1px solid #ddd` under `.cm-panels-top` regardless
+   of stylo's dark palette — on Sympose's dark surface it reads as a stray
+   line under the canvas header (the frontmatter card, ADR-080), which
+   already carries its own visual boundary. */
+[data-slot="markdown-panel"] .cm-panels.cm-panels-top {
+  border-bottom: none !important;
+}
+
+/* stylo's in-place table (both the `"source"` and `"cells"` table-editing
+   modes decorate through this same markup) sits inside a `.cm-inplace-table-wrap`
+   widget container that stylo ships as `display: inline-block` with no
+   explicit width — meant to shrink-wrap the table so the row/column "add"
+   gizmo buttons hug its actual edges. That auto-sized wrapper is what a plain
+   `width: 100%` on the `<table>` itself resolves against, so it was a no-op:
+   100% of a shrink-to-fit box is still shrink-to-fit. Forcing the wrapper to
+   a full-width block first, then filling it, is what actually stretches the
+   table across the pane; the gizmo buttons still track the table's real edges
+   via `getBoundingClientRect()` at runtime, not CSS, so this doesn't disturb
+   them. `!important`: stylo injects both rules as a CodeMirror
+   `EditorView.theme()` stylesheet whose insertion order we can't rely on. */
+[data-slot="markdown-panel"] .cm-inplace-table-wrap {
+  display: block !important;
+  width: 100% !important;
+}
+[data-slot="markdown-panel"] .cm-inplace-table {
+  width: 100% !important;
 }
 
 /* ONE frosted surface for every menu in the app — the Sympose dropdowns and
@@ -473,17 +644,34 @@
     transparent
   );
 }
+/* Same knob, different base color — the frontmatter card (`frontmatter-
+   card.tsx`) sits *inside* an already-`.sy-frosted-panel` surface (the
+   editor card) at the exact same `--panel` shade the editor and stylo's
+   toolbar paint themselves, so filling from `--panel` here (tried first)
+   made the card disappear into them rather than read as its own surface —
+   the same collision `<Card>`'s own `bg-card` has in dark mode, where
+   `--card` and `--panel` are byte-identical. `--muted` is one real step
+   lighter, so this card is legible at the knob's default (1) and still
+   answers the same Settings → Knowledge Nebula "Panel opacity" dial as
+   every other frosted surface, fading with it rather than being the one
+   surface that ignores it. */
+.sy-frontmatter-panel {
+  background-color: color-mix(
+    in srgb,
+    var(--muted) calc(var(--sy-panel-opacity, 1) * 100%),
+    transparent
+  );
+}
 /* stylo's own root (`.stylo`, its `_root_*` CSS-module class paints
    `background: var(--stylo-bg)`, which this file already pins to `--panel`)
-   is one opaque surface to drop under frost — but `.cm-editor` and the
+   is one opaque surface to drop under frost — but `.cm-editor`, the
    formatting toolbar (`[role="toolbar"]` — stylo's own accessibility
-   contract, stabler than its hashed CSS-module class name) turned out to be
-   two more, independent ones: `.cm-editor`'s background comes from
-   CodeMirror's own base theme, injected via `EditorView.theme()` rather than
-   a class-module rule, and the toolbar sets `background: var(--stylo-bg)`
-   directly on itself rather than inheriting `.stylo`'s. Neither picked up
-   `.stylo`'s transparency, so both stayed opaque underneath it — the
-   editor's actual text area and its toolbar never showed the frosted nebula
+   contract, stabler than its hashed CSS-module class name), and the
+   find/replace panel (`.cm-panels.cm-panels-top`, styled by stylo's own
+   `theme.ts`) turned out to be three more, independent ones: each paints its
+   own background directly rather than inheriting `.stylo`'s, so none of them
+   picked up `.stylo`'s transparency on their own — the editor's actual text
+   area, its toolbar, and the search panel never showed the frosted nebula
    through them even with `.stylo` cleared. `.cm-scroller` / `.cm-content`
    genuinely carry no background of their own and need no override. Whenever
    frost is engaged at all, drop all three to transparent and let
@@ -492,10 +680,15 @@
    deliberate — it survives frost the same way inline `code` shading does in
    the rendered preview, so code still reads as code. stylo's floating menus
    set their own explicit background (the shared frosted-menu rule below), so
-   they are unaffected. */
+   they are unaffected. The frontmatter card (Sympose's own component) is
+   deliberately *not* in this list — it uses `.sy-frosted-panel` directly
+   (see `frontmatter-card.tsx`) rather than dropping to fully transparent, so
+   it keeps its own tint as an inset, rounded card instead of vanishing into
+   an outline with nothing inside it under frost. */
 [data-nebula-frost="tint"] [data-slot="markdown-panel"] .stylo,
 [data-nebula-frost="tint"] [data-slot="markdown-panel"] .cm-editor,
-[data-nebula-frost="tint"] [data-slot="markdown-panel"] [role="toolbar"] {
+[data-nebula-frost="tint"] [data-slot="markdown-panel"] [role="toolbar"],
+[data-nebula-frost="tint"] [data-slot="markdown-panel"] .cm-panels.cm-panels-top {
   background: transparent !important;
 }
 

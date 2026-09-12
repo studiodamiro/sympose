@@ -222,6 +222,7 @@ function FrontmatterCard({
 
   return (
     <dl
+      data-slot="frontmatter-card"
       className={cn(
         // `mx-2` is the same thin gap the stage already uses between distinct
         // panels (`<ContentPanel>`'s and `<MarkdownPanel>`'s own `pe-2`), so
@@ -229,16 +230,25 @@ function FrontmatterCard({
         // full-bleed. `rounded-lg` follows from that — once the sides aren't
         // flush, square corners would look unfinished. The caller still
         // supplies the horizontal *content* gutter (`px-6 sm:px-8`, same as
-        // the note body) inside that margin. `bg-background` marks it off
-        // from the canvas as its own shaded section; `border-b` closes it off
-        // below.
+        // the note body) inside that margin. `sy-frontmatter-panel`
+        // (index.css) fills from `--muted` — one step lighter than `--panel`
+        // (the shade stylo's own toolbar/canvas paint themselves via
+        // `--stylo-bg`, and also what `<Card>`'s own `bg-card` resolves to
+        // in dark mode — both tried first and both made the card disappear
+        // into its surroundings rather than read as its own surface) — so
+        // it stays visibly distinct at the Knowledge Nebula panel-opacity
+        // knob's default (1). Unlike a flat `bg-muted`, it still answers
+        // that same knob: `color-mix`'d against `--sy-panel-opacity`, same
+        // formula as `.sy-frosted-panel`, so dialing panel opacity down
+        // fades this card too instead of leaving it the one surface that
+        // ignores the setting. `border-b` closes it off below.
         // `items-center`, not `items-start` — a plain text value and a row of
         // pills (their own `py-0.5` chrome makes that row taller) don't share
         // a height, so aligning both to the row's *top* left the label sitting
         // above a scalar value's true center and above a pill row's actual
         // content by different amounts each time. Centering both against
         // whichever is taller needs no per-row-type padding to compensate.
-        "mx-2 shrink-0 grid grid-cols-[max-content_1fr] items-center gap-x-4 gap-y-2 rounded-lg border-b border-border bg-background py-4 font-mono text-xs",
+        "mx-2 shrink-0 grid grid-cols-[max-content_1fr] items-center gap-x-4 gap-y-2 rounded-lg border-b border-border sy-frontmatter-panel py-4 font-mono text-xs",
         className
       )}
     >

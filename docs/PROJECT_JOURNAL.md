@@ -25,9 +25,11 @@ one in [`docs/wiki/index.md`](./wiki/index.md) are kept in sync per the
 
 | ADR | Title | Status | Date | Source |
 | --- | ----- | ------ | ---- | ------ |
+| ADR-099 | Vault Folder Delete: Empty Unlinks, Non-Empty Goes to the Bin | Accepted | 2026-09-12 | [2026-09-12_adr-099-vault-folder-delete-to-bin.md](./journal/2026-09/2026-09-12_adr-099-vault-folder-delete-to-bin.md) |
+| ADR-098 | Vault Tree Shows Empty Folders on Disk (amends ADR-095) | Accepted | 2026-09-12 | [2026-09-12_adr-098-vault-tree-shows-empty-folders.md](./journal/2026-09/2026-09-12_adr-098-vault-tree-shows-empty-folders.md) |
 | ADR-097 | Content-Panel Note Selection Drives the Ambient Nebula Focus (amends ADR-088) | Accepted | 2026-09-12 | [2026-09-12_adr-097-content-panel-selection-drives-ambient-nebula-focus.md](./journal/2026-09/2026-09-12_adr-097-content-panel-selection-drives-ambient-nebula-focus.md) |
 | ADR-096 | Patch force-graph / three-render-objects Pointer-Drag Detection & Hover Freshness | Accepted | 2026-09-12 | [2026-09-12_adr-096-patch-force-graph-pointer-drag-detection.md](./journal/2026-09/2026-09-12_adr-096-patch-force-graph-pointer-drag-detection.md) |
-| ADR-095 | Content Panel Toolbar: Folder Creation & Visit History | Accepted | 2026-09-12 | [2026-09-12_adr-095-content-panel-toolbar-folder-creation-and-visit-history.md](./journal/2026-09/2026-09-12_adr-095-content-panel-toolbar-folder-creation-and-visit-history.md) |
+| ADR-095 | Content Panel Toolbar: Folder Creation & Visit History | Accepted (amended by ADR-098) | 2026-09-12 | [2026-09-12_adr-095-content-panel-toolbar-folder-creation-and-visit-history.md](./journal/2026-09/2026-09-12_adr-095-content-panel-toolbar-folder-creation-and-visit-history.md) |
 | ADR-094 | Settings Panel Density Cleanup | Accepted | 2026-09-11 | [2026-09-11_adr-094-settings-panel-density-cleanup.md](./journal/2026-09/2026-09-11_adr-094-settings-panel-density-cleanup.md) |
 | ADR-093 | Stage Action Group Order Swap & Explore Slide-Out | Accepted | 2026-09-11 | [2026-09-11_adr-093-stage-action-group-swap-and-explore-slide-out.md](./journal/2026-09/2026-09-11_adr-093-stage-action-group-swap-and-explore-slide-out.md) |
 | ADR-092 | Vault & Editor UX Batch: Pin/Unpin Notes, Hidden File Extensions, ContentPanel Footer Slot | Accepted | 2026-09-11 | [2026-09-11_adr-092-vault-editor-ux-batch-pin-notes-hide-extensions-footer-slot.md](./journal/2026-09/2026-09-11_adr-092-vault-editor-ux-batch-pin-notes-hide-extensions-footer-slot.md) |

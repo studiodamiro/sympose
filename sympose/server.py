@@ -223,6 +223,24 @@ def create_app(engine: Any, workspace_dir: Optional[str] = None) -> FastAPI:
             raise HTTPException(status_code=500, detail=result)
         return {"path": body.path, "detail": result}
 
+    @app.delete("/api/vault/folder")
+    def delete_folder(
+        path: str = Query(..., description="Vault-relative path of the folder to delete"),
+        persona: Optional[str] = Query("samantha"),
+    ) -> Dict[str, Any]:
+        """Delete a vault folder (ADR-099): an empty one is removed outright,
+        a non-empty one moves to `<vault>/.trash/` like a note (ADR-084). 404
+        if it doesn't exist, 403 if it resolves outside the persona's sandbox."""
+        profile = engine.pm.get_profile(persona) or engine.pm.get_profile("samantha")
+        result = VaultManager.delete_folder(profile, path)
+        if result == VaultManager.NOTE_NOT_FOUND:
+            raise HTTPException(status_code=404, detail=f"Folder `{path}` not found in allowed vault folders.")
+        if result == VaultManager.NOTE_DENIED:
+            raise HTTPException(status_code=403, detail=f"Path `{path}` is outside the assigned sandbox.")
+        if result.startswith("Error:"):
+            raise HTTPException(status_code=500, detail=result)
+        return {"path": path, "detail": result}
+
     @app.patch("/api/vault/note")
     def rename_note(body: NoteRename) -> Dict[str, Any]:
         """Rename a note and rewrite the `[[wikilinks]]` that pointed at it

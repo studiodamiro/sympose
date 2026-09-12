@@ -672,7 +672,16 @@ export function AppShell() {
                 }}
                 onDeleted={(path) => {
                   setVaultRefreshKey((k) => k + 1)
-                  if (selectedNote === path) setSelectedNote(undefined)
+                  // `path` is a note's own path for a note-row delete, or a
+                  // folder's path when a whole folder (ADR-099) went to the
+                  // bin — either way, close the editor if it was showing
+                  // something that just moved.
+                  if (
+                    selectedNote === path ||
+                    selectedNote?.startsWith(`${path}/`)
+                  ) {
+                    setSelectedNote(undefined)
+                  }
                 }}
                 onCreated={(path) => {
                   setVaultRefreshKey((k) => k + 1)

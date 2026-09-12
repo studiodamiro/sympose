@@ -54,6 +54,35 @@ def test_prefix_matches_on_a_path_boundary_not_a_substring():
     assert [n["name"] for n in tree] == ["Projects"]
 
 
+def test_real_folders_merge_in_empty_directories():
+    # ADR-098: an on-disk folder with no notes still shows up, merged
+    # alongside note-derived folders rather than replacing them.
+    tree = build_tree(NODES, [""], real_folders=["Projects/Creator Studio/Drafts", "Empty"])
+    names = [n["name"] for n in tree]
+    assert names == ["Empty", "Projects", "Recipes", "top-level.md"]
+
+    empty = tree[0]
+    assert empty["type"] == "folder" and empty["children"] == []
+
+    studio = tree[1]["children"][0]
+    child_names = [c["name"] for c in studio["children"]]
+    assert child_names == ["Drafts", "Pitch.md", "Procedures.md"]
+    drafts = studio["children"][0]
+    assert drafts["type"] == "folder" and drafts["children"] == []
+
+
+def test_real_folders_respect_persona_prefix_scoping():
+    tree = build_tree(NODES, ["Projects"], real_folders=["Projects/Empty", "Recipes/Empty"])
+    names = _all_paths(tree)
+    assert "Projects/Empty" in names
+    assert "Recipes/Empty" not in names
+
+
+def test_real_folders_already_present_from_a_note_are_not_duplicated():
+    tree = build_tree(NODES, [""], real_folders=["Projects"])
+    assert [n["name"] for n in tree] == ["Projects", "Recipes", "top-level.md"]
+
+
 def _all_paths(tree):
     out = []
     for n in tree:

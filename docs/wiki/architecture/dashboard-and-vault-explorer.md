@@ -1,7 +1,7 @@
 ---
 title: "Sympose Web Dashboard, Standalone Vault Explorer & 2D/3D Knowledge Nebula Specification"
 created: 2026-08-27
-updated: 2026-09-01
+updated: 2026-09-13
 type: wiki-architecture
 parent: architecture/overview
 tags:
@@ -45,10 +45,10 @@ tags:
 
 ### Core Tenets
 1. **Flat High-Craft Aesthetics (Anti-AI Cliché)**: Rejects gratuitous purple neon glows and heavy glassmorphism. Defaults to clean flat geometry, Swiss/editorial typography, crisp 1px borders, and high WCAG text contrast.
-2. **Dual-Mode 2D Vector & 3D Spatial Canvas**: A persistent background visualizer that seamlessly switches between a 2D top-down planar graph and a 3D WebGL orbit space.
-3. **Two Fluid Interaction States**:
-   * **Explore Mode**: The 3D/2D visualizer is 100% sharp and interactive with full orbit, pan, zoom, and node-click navigation (`pointer-events: auto`).
-   * **Focus & Chat Mode**: Workspace panels expand with matte/frosted backings while the background visualizer dims by ~75% with a gentle ambient drift (`pointer-events: none`), preventing click hijacking and visual distraction.
+2. **Dual-Mode 2D Vector & 3D Spatial Canvas**: A persistent background visualizer that switches between a 2D top-down planar graph and a 3D WebGL orbit space. **As shipped in the app shell (ADR-088, "Phase A"), this is 2D-only** — the in-shell `2D | 3D` toggle exists but is disabled, pointing at a Phase B not yet built. Full 2D/3D parity, described below in Module A, lives today only on the standalone `/nebula` showcase route.
+3. **Two Fluid Interaction States** (see Module A for the shipped ADR-088–091 specifics):
+   * **Explore Mode**: The visualizer is 100% sharp and interactive with full orbit, pan, zoom, and node-click navigation (`pointer-events: auto`), and the workspace panels auto-collapse out of its way.
+   * **Focus & Chat Mode**: The background visualizer dims via user-adjustable blur/tint scrim sliders (`pointer-events: none`) rather than a fixed amount, preventing click hijacking and visual distraction. Panels themselves are opacity-only, not frosted — the Main Menu and Chat panel are intentionally backgroundless so the nebula bleeds through.
 4. **Dynamic shadcn Theme & Style Customizer (Inspired by `ui.shadcn.com/create`)**:
    * Dropdowns for **shadcn Styles** (*Nova, Maia, Sera, New York*).
    * Dropdowns for **Icon Libraries** (*Lucide, Phosphor, Hugeicons*).
@@ -64,7 +64,14 @@ tags:
 
 ### 🌌 Module A: 2D/3D Ambient Knowledge Nebula
 
-A persistent spatial visualizer representing the organic idea web across the user's vault:
+A persistent spatial visualizer representing the organic idea web across the user's vault. It exists in two places that share the same `NebulaGraph` renderer but ship on different timelines:
+
+* **The `/nebula` showcase route** — the full-featured surface described in the rest of this module: 2D/3D parity, the complete Obsidian-style Filters/Display/Forces control set.
+* **The app-shell ambient background (ADR-088, "Phase A")** — a persistent background layer behind the main menu, content panel, editor, and chat, always mounted rather than a route you navigate to:
+  * **2D only for now** — the shell's `2D | 3D` toggle is present but disabled; 3D in the shell is Phase B, not yet built.
+  * **Two interaction states** (Core Tenet 3): **Explore** — the nebula is fully sharp and interactive, and entering it auto-collapses/stashes the open Main Menu, content, and editor panels (ADR-090) so nothing occludes it; a corner `NebulaModeToggle` is a faster way in than opening Settings. **Focus & Chat** — the nebula dims via two independent scrim sliders (blur, tint), the Main Menu and Chat panel are intentionally backgroundless so the nebula bleeds through them, and floating panels are opacity-only (ADR-089 dropped the earlier frosted-blur treatment for panels themselves).
+  * **A floating control dock** surfaces the nebula's own knobs (mode, forces, appearance) without leaving the shell; every one of those knobs is also reachable from the Settings panel (ADR-091), and the dock itself can be hidden via a Settings toggle.
+  * **Selection-driven focus (ADR-097)**: opening a note anywhere in the shell — a vault-tree click, following a `[[wikilink]]`, creating a new note — flies the ambient camera to and highlights that note's node cluster live, even while the background is dimmed in Focus mode. This supersedes the older "chat mention pulses the graph" behavior described in Module D, which is now one trigger among several rather than the only one.
 * **Dual Rendering Engine** — one `NebulaGraph` feed, one imperative handle, a
   `mode` prop swaps the renderer (remembered in the `nebula-view-mode` cookie):
   * **2D Mode**: flat Obsidian-default canvas (`react-force-graph-2d`) — folder-
@@ -113,11 +120,15 @@ An integrated appearance drawer providing instantaneous UI re-theming:
 
 ### 🌿 Module C: Standalone Vault Explorer & Markdown Editor
 
-* **Directory Tree Navigator**: Hierarchical folder tree respecting agent domain sandboxes and ignoring binary/system folders (`.obsidian`, `.git`, `Attachments`, `.trash`).
-* **Rich Markdown Reader & Live Editor**:
+* **Directory Tree Navigator**: Hierarchical folder tree respecting agent domain sandboxes and ignoring binary/system folders (`.obsidian`, `.git`, `Attachments`, `.trash`). Back/forward through the main-menu's section history (ADR-095), same semantics as a browser tab.
+* **Row actions (ADR-086)**: both a `⋯` button (hover/focus) and a real pointer-anchored right-click / long-press context menu — not a fixed-anchor dropdown — attach to every row, sharing one item list. Note rows: Pin/Unpin (ADR-092, cookie-only for now, ahead of a Pinned/Recent list), Rename, Delete. Folder rows: New note here, Delete.
+* **Inline note & folder management**: create, rename, and delete both from that row menu (ADR-084, ADR-095, ADR-099) — a rename rewrites every `[[wikilink]]` pointing at the note, and deleting either is recoverable via the vault Bin (a permanently-empty folder is the one exception: nothing to lose, so it's unlinked outright instead of round-tripping through `.trash/`).
+* **Vault Bin**: recoverable trash view (ADR-085), surfaced as its own row in the main menu (ADR-086) rather than a header icon — restore a deleted note to its original path or purge it for good.
+* **Rich Markdown Reader & Live Editor**, built on Stylo (ADR-080) — CodeMirror 6 in "in-place" live-decoration mode, editing canonical Markdown text directly with no shadow document tree, chosen over ProseMirror/Lexical specifically to protect frontmatter/wikilink/math round-trip fidelity:
   * Clean typography with GitHub-flavored markdown, syntax-highlighted code blocks, and math formulas.
-  * Clickable `[[Wikilink]]` routing (clicking `[[OAuth]]` navigates directly to `OAuth.md` or centers the 3D nebula).
-  * Dynamic YAML frontmatter inspector and tag editor.
+  * Clickable `[[Wikilink]]` routing (clicking `[[OAuth]]` navigates directly to `OAuth.md` or centers the 3D nebula), with wikilink autocomplete while typing `[[`.
+  * Dynamic YAML frontmatter inspector and tag editor, with a collapse toggle (ADR-095).
+  * Autosave (ADR-081) on a debounce, and a "hide `.md` extensions" preference (ADR-092, Obsidian convention) — both togglable from Settings.
 * **Backlink & Mention Inspector**: Dedicated side panel displaying incoming links, exact line numbers, and verbatim surrounding context lines via our In-Memory Inverted Index ([ADR-044](../../../docs/journal/2026-08/2026-08-27_backlink_lookup_engine_and_inverted_index.md)).
 * **Daily Reflections Calendar**: Interactive calendar view mapping `Daily/YYYY/mm-Month/YYYY-MM-DD.md` entries to dates for chronological reminiscence.
 
@@ -133,7 +144,17 @@ An integrated appearance drawer providing instantaneous UI re-theming:
   * `[SEARCH]` $\to$ Live web search badge displaying query and retrieved citations.
   * `[SPAWN_WORKER]` $\to$ Sub-agent task progress drawer showing tool execution logs.
   * `[REACT]` $\to$ Expressive animated emoji reactions on chat bubbles.
-* **Active Nebula Synergy**: Referencing a note in chat gently pulses the corresponding 3D node cluster in the ambient background.
+* **Active Nebula Synergy**: Referencing a note in chat is one of several triggers (alongside opening a note from the vault tree or a wikilink — see Module A's ADR-097) that fly the ambient background's camera to and highlight the corresponding node cluster.
+
+---
+
+### ⚙️ Module E: Settings & Preferences
+
+A dedicated Settings panel (ADR-094 trimmed its row density and added a collapse-all control) that has grown well past Module B's original theme drawer:
+
+* **Notifications & Confirmations (ADR-087)**: toast notification system, plus a three-way delete-confirmation style — modal dialog, inline, or none — governing every destructive vault action (note delete, folder delete, trash purge).
+* **Nebula appearance mirror (ADR-091)**: every ambient-nebula dock knob from Module A (mode, forces, appearance, scrim sliders) is also exposed here inline, plus a toggle to hide the floating dock entirely.
+* **Slack & theme footer (ADR-082)**: a read-only Slack daemon connectivity status pill, and the light/dark theme switch, pinned below the Settings scroll area so a long list can't scroll them out of reach.
 
 ---
 
@@ -147,14 +168,23 @@ The dashboard communicates with Sympose's native FastAPI gateway on `http://loca
   * Sub-5ms response time served directly from Python in-memory index.
   * Whole-vault, persona-independent — the nebula is an explorer surface.
 * **`GET /api/vault/tree?persona=<handle>`** *(shipped)*:
-  * Returns: `{ persona, tree: [{ name, path, type: "folder" | "note", children? }] }` — the ADR-078 manifest folded into a nested directory tree, folders before notes, each group sorted case-insensitively. Ghost nodes (unresolved `[[wikilinks]]`) are excluded.
-  * **Persona-scoped**: filtered to the persona's `vault_folders` via a vault-relative path-prefix match, the same sandbox every other `/api/vault/*` read honours. `samantha` (`["*"]`) sees the whole vault. Pure projection of the one whole-vault manifest — no extra walk.
+  * Returns: `{ persona, tree: [{ name, path, type: "folder" | "note", children? }] }` — the ADR-078 manifest's note nodes folded into a nested directory tree, folders before notes, each group sorted case-insensitively. Ghost nodes (unresolved `[[wikilinks]]`) are excluded.
+  * **Persona-scoped**: filtered to the persona's `vault_folders` via a vault-relative path-prefix match, the same sandbox every other `/api/vault/*` read honours. `samantha` (`["*"]`) sees the whole vault.
+  * The manifest alone only knows about notes, so an empty folder is merged in from a live, directory-only disk listing (`VaultManager._list_real_folders`, ADR-098) — otherwise a folder with nothing in it yet would be structurally invisible rather than just stale.
 * **`GET /api/vault/cloud`**:
   * Returns high-density note and tag taxonomy with reference counts for 2D bubble clouds.
 * **`GET /api/vault/note?path=<rel_path>`**:
   * Returns raw Markdown, frontmatter metadata, and forward links.
-* **`POST /api/vault/note`**:
-  * Creates or updates a note safely within sandboxed directories.
+* **`POST /api/vault/note`** *(shipped, ADR-083)* / **`PUT /api/vault/note`**:
+  * `POST` creates a new note (404-free — 409 if one already exists at that path); `PUT` overwrites an existing one (404 if it doesn't exist). Both sandboxed.
+* **`PATCH /api/vault/note`** *(shipped, ADR-084)*:
+  * Renames a note and rewrites the `[[wikilinks]]` that pointed at it.
+* **`DELETE /api/vault/note?path=<rel_path>`** *(shipped, ADR-084)*:
+  * Moves a note to `<vault>/.trash/` — recoverable, not unlinked.
+* **`POST /api/vault/folder`** *(shipped, ADR-095)* / **`DELETE /api/vault/folder?path=<rel_path>`** *(shipped, ADR-099)*:
+  * `POST` creates an empty folder (409 if something's already there). `DELETE` removes an empty folder outright, or — if it holds notes and/or subfolders — moves the whole thing to `.trash/` in one step and de-indexes every note inside individually, so the subtree drops out of search/the graph while it's in the bin.
+* **`GET /api/vault/trash?persona=<handle>`** / **`POST /api/vault/trash/restore`** / **`DELETE /api/vault/trash?path=<trash_rel_path>`** *(shipped, ADR-085)*:
+  * The Bin: list recoverable notes (newest deletion first), restore one to its original path, or purge one permanently. Works file-by-file regardless of whether a note landed in `.trash/` via a single delete or a whole-folder delete.
 * **`GET /api/vault/backlinks?note=<name>`**:
   * Queries the inverted index for all incoming references.
 
@@ -198,7 +228,7 @@ The dashboard communicates with Sympose's native FastAPI gateway on `http://loca
 ## 5. Technology Stack & Distribution Pipeline
 
 * **Frontend**: `Vite` + `React 19` + `TypeScript` + `TailwindCSS` + `shadcn/ui` in `/ui`. Nebula: `react-force-graph-2d` (canvas) and `react-force-graph-3d` (Three.js) behind a shared wrapper, with `d3-force` / `d3-force-3d` and `three-spritetext`.
-* **Build Target**: Static assets compiled to `/ui/dist/`.
+* **Build Target**: `vite build` compiles into `sympose/webui/` (ADR-079) — committed as package data and shipped with every install, not built at install time or by a CI bot commit. Vite's own default output dir, `ui/dist/`, is gitignored and unused; it isn't what ships.
 * **Runtime**: Zero Node.js runtime required for end users. Served natively by FastAPI via `sympose --web` or `sympose --dashboard`.
 
 ---
@@ -222,16 +252,24 @@ Sympose eliminates terminal friction while strictly avoiding Electron bloat (<60
 
 ---
 
-## 7. Known Gap: No Authentication Was Ever Designed for This Surface
+## 7. Dashboard Authentication (ADR-064, implemented 2026-09-04)
 
-ADR-051–053 (below) specify UI/UX and performance exclusively — no access-control question was raised anywhere in this spec, and `sympose/server.py` currently exposes every route (including `/api/config` and `/api/vault/note`) with zero authentication, bound to `0.0.0.0` by default. **[ADR-064](../../../docs/journal/2026-08/2026-08-30_dashboard_api_security_design_gap_and_auth_plan.md) documents this gap and proposes a fix** (shared-password guard + auto-generated self-signed HTTPS, both zero-manual-install); it is not yet implemented. Slack access is unaffected either way — it never routes through this server.
+ADR-051–053 (below) specified UI/UX and performance exclusively, leaving access control an open gap — flagged and closed the same day as a two-part fix, both zero-manual-install:
+
+* **Password guard (ADR-064.1)** — HTTP Basic Auth (`sympose/auth.py`), not the signed session-cookie originally sketched: a smaller mechanism sized to the single-user threat model. `DASHBOARD_PASSWORD` gates every route through one global FastAPI dependency (`/`, `/docs`, every `/api/*` route). If unset on first boot, Sympose generates one, persists it to the workspace `.env`, and logs it once — no manual setup step, but never open by default.
+* **Self-signed TLS (ADR-064.2)** — a certificate generated in-process on first boot into `<workspace>/.certs/` (gitignored) via the `cryptography` package, no external `openssl`/`mkcert` binary and no OS trust-store mutation. Falls back to plain HTTP with a warning if `cryptography` isn't installed rather than refusing to boot; `SYMPOSE_DASHBOARD_TLS=0` opts out for anyone terminating TLS externally.
+
+Slack access is unaffected either way — it never routes through this server.
 
 ## 8. Architectural Decision Records
+
+Founding decisions for this spec. Everything shipped since (note/folder CRUD, the vault Bin, the ambient nebula, Settings) is cited inline above by ADR number — the master index is `docs/PROJECT_JOURNAL.md` and `docs/wiki/index.md`, not a duplicate list here.
+
 * **[Web Dashboard UI Design Reference](../reference/ui-design-reference.md)** — design brief distilled from this spec for Claude Design.
-* **[ADR-051: Flat Architectural Web Dashboard, 2D/3D Knowledge Nebula & shadcn Theme Customizer Engine](../../../docs/journal/2026-08/2026-08-29_web_dashboard_ui_ux_and_3d_knowledge_nebula.md#adr-051-flat-architectural-web-dashboard-2d3d-knowledge-nebula--shadcn-theme-customizer-engine)**
-* **[ADR-052: In-Memory Metadata Caching & Sub-5ms Scalability Standard for Multi-Thousand Note Vaults](../../../docs/journal/2026-08/2026-08-29_web_dashboard_ui_ux_and_3d_knowledge_nebula.md#adr-052-in-memory-metadata-caching--sub-5ms-scalability-standard-for-multi-thousand-note-vaults)**
-* **[ADR-053: Cross-Platform Native Desktop Launchers & Zero-Bloat Frameless App-Mode Wrappers](../../../docs/journal/2026-08/2026-08-29_web_dashboard_ui_ux_and_3d_knowledge_nebula.md#adr-053-cross-platform-native-desktop-launchers--zero-bloat-frameless-app-mode-wrappers)**
-* **[ADR-064 (Proposed): Dashboard/API Gateway Security Design Gap & Zero-Dependency Auth Plan](../../../docs/journal/2026-08/2026-08-30_dashboard_api_security_design_gap_and_auth_plan.md)**
+* **[ADR-051: Flat Architectural Web Dashboard, 2D/3D Knowledge Nebula & shadcn Theme Customizer Engine](../../../docs/journal/2026-08/2026-08-29_adr-051-flat-web-dashboard-knowledge-nebula-theme-engine.md)**
+* **[ADR-052: In-Memory Metadata Caching & Sub-5ms Scalability Standard for Multi-Thousand Note Vaults](../../../docs/journal/2026-08/2026-08-29_adr-052-in-memory-metadata-caching-scalability.md)**
+* **[ADR-053: Cross-Platform Native Desktop Launchers & Zero-Bloat Frameless App-Mode Wrappers](../../../docs/journal/2026-08/2026-08-29_adr-053-cross-platform-native-desktop-launchers.md)**
+* **[ADR-064: Dashboard/API Gateway Auth — HTTP Basic Auth + Self-Signed TLS](../../../docs/journal/2026-08/2026-08-30_adr-064-dashboard-api-auth-plan.md)** — implemented 2026-09-04, see §7 above.
 * **[ADR-044: In-Memory Inverted Index & Deterministic Backlink Lookup Engine](../../../docs/journal/2026-08/2026-08-27_backlink_lookup_engine_and_inverted_index.md)**
 * **[ADR-011: Multi-Folder Vault Whitelisting & Sandboxing](../../../docs/journal/2026-08/2026-08-24_multi_folder_vault.md)**
 

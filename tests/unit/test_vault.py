@@ -316,6 +316,124 @@ class TestCreateFolder:
         assert result == VaultManager.NOTE_DENIED
         assert not (tmp_path / "escapee").exists()
 
+    def test_new_empty_folder_shows_up_in_the_vault_tree(self, tmp_vault_dir, monkeypatch):
+        # ADR-098 regression: creating a folder used to succeed on disk but
+        # never appear in GET /api/vault/tree, since the tree was a pure
+        # projection of the (note-only) manifest.
+        from sympose.vault import VaultManager
+        monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
+        profile = {"vault_folders": ["*"]}
+
+        result = VaultManager.create_folder(profile, "Ideas/Archive")
+        assert result.startswith("Created folder:")
+
+        tree = VaultManager.get_vault_tree(profile)
+        ideas = next(n for n in tree if n["name"] == "Ideas")
+        assert ideas["type"] == "folder"
+        archive = next(c for c in ideas["children"] if c["name"] == "Archive")
+        assert archive["type"] == "folder"
+        assert archive["children"] == []
+
+    def test_list_real_folders_ignores_dotfolders_and_configured_ignores(self, tmp_vault_dir, monkeypatch):
+        from sympose.vault import VaultManager
+        (tmp_vault_dir / "Kept").mkdir()
+        (tmp_vault_dir / ".obsidian").mkdir()
+        (tmp_vault_dir / ".hidden").mkdir()
+
+        real_folders = VaultManager._list_real_folders(str(tmp_vault_dir), [str(tmp_vault_dir)])
+
+        assert "Kept" in real_folders
+        assert not any(f.startswith(".") or ".obsidian" in f for f in real_folders)
+
+
+class TestDeleteFolder:
+    """ADR-099: an empty folder is unlinked outright, a non-empty one moves
+    as one unit to `<vault>/.trash/` and its notes are de-indexed."""
+
+    def test_empty_folder_removed_outright_not_trashed(self, tmp_vault_dir, monkeypatch):
+        from sympose.vault import VaultManager
+        (tmp_vault_dir / "Empty").mkdir()
+        monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
+
+        result = VaultManager.delete_folder({"vault_folders": ["*"]}, "Empty")
+
+        assert result == "Deleted empty folder: `Empty`"
+        assert not (tmp_vault_dir / "Empty").exists()
+        assert not (tmp_vault_dir / ".trash").exists()
+
+    def test_non_empty_folder_moves_to_trash_with_notes_intact(self, tmp_vault_dir, monkeypatch):
+        from sympose.vault import VaultManager
+        write_note(str(tmp_vault_dir / "Ideas" / "a.md"), "first")
+        write_note(str(tmp_vault_dir / "Ideas" / "Sub" / "b.md"), "second")
+        monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
+
+        result = VaultManager.delete_folder({"vault_folders": ["*"]}, "Ideas")
+
+        assert result == "Moved folder to the bin: `.trash/Ideas` (2 notes)"
+        assert not (tmp_vault_dir / "Ideas").exists()
+        assert (tmp_vault_dir / ".trash" / "Ideas" / "a.md").read_text() == "first"
+        assert (tmp_vault_dir / ".trash" / "Ideas" / "Sub" / "b.md").read_text() == "second"
+
+    def test_deleted_folder_notes_are_individually_restorable(self, tmp_vault_dir, monkeypatch):
+        from sympose.vault import VaultManager
+        write_note(str(tmp_vault_dir / "Ideas" / "a.md"), "first")
+        monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
+        profile = {"vault_folders": ["*"]}
+        VaultManager.delete_folder(profile, "Ideas")
+
+        trashed = VaultManager.list_trash(profile)
+        assert any(row["original_path"] == "Ideas/a.md" for row in trashed)
+
+        result = VaultManager.restore_from_trash(profile, "Ideas/a.md")
+        assert result == "Restored to `Ideas/a.md`"
+        assert (tmp_vault_dir / "Ideas" / "a.md").read_text() == "first"
+
+    def test_trash_name_clash_gets_suffix(self, tmp_vault_dir, monkeypatch):
+        from sympose.vault import VaultManager
+        write_note(str(tmp_vault_dir / ".trash" / "Ideas" / "old.md"), "old trash")
+        write_note(str(tmp_vault_dir / "Ideas" / "new.md"), "new")
+        monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
+
+        result = VaultManager.delete_folder({"vault_folders": ["*"]}, "Ideas")
+
+        assert result.startswith("Moved folder to the bin: `.trash/Ideas-")
+        # the pre-existing trash entry for a different, earlier deletion is untouched
+        assert (tmp_vault_dir / ".trash" / "Ideas" / "old.md").read_text() == "old trash"
+
+    def test_missing_folder_not_found(self, tmp_vault_dir, monkeypatch):
+        from sympose.vault import VaultManager
+        monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
+        result = VaultManager.delete_folder({"vault_folders": ["*"]}, "Ghost")
+        assert result == VaultManager.NOTE_NOT_FOUND
+
+    def test_a_file_path_is_not_a_folder(self, tmp_vault_dir, monkeypatch):
+        from sympose.vault import VaultManager
+        write_note(str(tmp_vault_dir / "note.md"), "hi")
+        monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
+        result = VaultManager.delete_folder({"vault_folders": ["*"]}, "note.md")
+        assert result == VaultManager.NOTE_NOT_FOUND
+
+    def test_outside_sandbox_denied(self, tmp_vault_dir, tmp_path, monkeypatch):
+        from sympose.vault import VaultManager
+        (tmp_path / "escapee").mkdir()
+        monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
+
+        result = VaultManager.delete_folder({"vault_folders": ["*"]}, "../escapee")
+
+        assert result == VaultManager.NOTE_DENIED
+        assert (tmp_path / "escapee").exists()
+
+    def test_deleted_folder_disappears_from_the_vault_tree(self, tmp_vault_dir, monkeypatch):
+        from sympose.vault import VaultManager
+        write_note(str(tmp_vault_dir / "Ideas" / "a.md"), "first")
+        monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
+        profile = {"vault_folders": ["*"]}
+
+        VaultManager.delete_folder(profile, "Ideas")
+
+        tree = VaultManager.get_vault_tree(profile)
+        assert not any(n["name"] == "Ideas" for n in tree)
+
 
 # ---------------------------------------------------------------------------
 # VaultManager.rename_note / delete_note (dashboard editor — ADR-084)

@@ -25,8 +25,9 @@ import { VaultRowMenu } from "@/components/sympose/vault-row-menu"
  * and therefore unique across folder views, so one key can back every panel.
  *
  * Pass `persona` + the `onRenamed` / `onDeleted` / `onCreated` callbacks to
- * enable per-row actions (rename / delete a note, new note in a folder —
- * ADR-084): a `⋯` button on hover / focus, or right-click on the row.
+ * enable per-row actions (rename / delete a note, new note in / delete a
+ * folder — ADR-084, ADR-099): a `⋯` button on hover / focus, or right-click
+ * on the row.
  */
 export interface VaultNode {
   name: string

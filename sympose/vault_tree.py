@@ -1,9 +1,15 @@
 """
-Pure projection of the ADR-078 manifest into a nested directory tree for the
-dashboard's vault browser (`GET /api/vault/tree`). Navigation only — no note
-bodies, same as the manifest it reads from. Persona scoping is applied here as
-a vault-relative path-prefix filter, so one whole-vault manifest still serves
-both the (unscoped) nebula graph and the (scoped) tree.
+Projection of the ADR-078 manifest — plus a live, directory-only disk listing
+(ADR-098) — into a nested directory tree for the dashboard's vault browser
+(`GET /api/vault/tree`). Navigation only — no note bodies, same as the
+manifest it reads from. Persona scoping is applied here as a vault-relative
+path-prefix filter, so one whole-vault manifest still serves both the
+(unscoped) nebula graph and the (scoped) tree.
+
+The manifest alone only knows about notes, so a folder with nothing in it yet
+is invisible to a pure manifest projection; `build_tree`'s `real_folders`
+argument folds in on-disk directories (see `VaultManager._list_real_folders`)
+so an empty folder still shows up.
 
 The client contract is `VaultNode` in `ui/src/components/sympose/vault-tree.tsx`:
 `{name, path, type: "folder" | "note", children?}` — folders before notes, each
@@ -22,10 +28,17 @@ def _within(rel_path: str, prefixes: List[str]) -> bool:
     )
 
 
-def build_tree(nodes: List[Dict[str, Any]], allowed_prefixes: List[str]) -> List[Dict[str, Any]]:
+def build_tree(
+    nodes: List[Dict[str, Any]],
+    allowed_prefixes: List[str],
+    real_folders: List[str] = (),
+) -> List[Dict[str, Any]]:
     """Fold manifest `nodes` into a nested `VaultNode` list, keeping only real
     notes (ghosts — unresolved `[[wikilink]]` targets — carry no `rel_path`)
-    whose path is inside `allowed_prefixes`."""
+    whose path is inside `allowed_prefixes`. `real_folders` (ADR-098) is a
+    live, vault-relative directory listing from disk — folded in the same way
+    so a folder with no notes in it still appears, instead of being invisible
+    because the manifest itself only ever tracks notes."""
     # folder path -> {"node": <VaultNode dict>, "children": {name -> entry}}
     roots: Dict[str, Dict[str, Any]] = {}
 
@@ -50,6 +63,15 @@ def build_tree(nodes: List[Dict[str, Any]], allowed_prefixes: List[str]) -> List
             "node": {"name": parts[-1], "path": rel, "type": "note"},
             "children": {},
         }
+
+    for rel in real_folders:
+        rel = rel.replace("\\", "/").strip("/")
+        if not rel or not _within(rel, allowed_prefixes):
+            continue
+        parts = rel.split("/")
+        container = roots
+        for depth, part in enumerate(parts):
+            container = _folder(container, part, "/".join(parts[: depth + 1]))
 
     def _emit(container: Dict[str, Any]) -> List[Dict[str, Any]]:
         folders, notes = [], []

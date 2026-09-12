@@ -100,9 +100,11 @@ list and is kept in sync per the
 
 | ADR | Title | Status | Date |
 | --- | ----- | ------ | ---- |
+| [ADR-099](../journal/2026-09/2026-09-12_adr-099-vault-folder-delete-to-bin.md) | Vault Folder Delete: Empty Unlinks, Non-Empty Goes to the Bin | Accepted | 2026-09-12 |
+| [ADR-098](../journal/2026-09/2026-09-12_adr-098-vault-tree-shows-empty-folders.md) | Vault Tree Shows Empty Folders on Disk (amends ADR-095) | Accepted | 2026-09-12 |
 | [ADR-097](../journal/2026-09/2026-09-12_adr-097-content-panel-selection-drives-ambient-nebula-focus.md) | Content-Panel Note Selection Drives the Ambient Nebula Focus (amends ADR-088) | Accepted | 2026-09-12 |
 | [ADR-096](../journal/2026-09/2026-09-12_adr-096-patch-force-graph-pointer-drag-detection.md) | Patch force-graph / three-render-objects Pointer-Drag Detection & Hover Freshness | Accepted | 2026-09-12 |
-| [ADR-095](../journal/2026-09/2026-09-12_adr-095-content-panel-toolbar-folder-creation-and-visit-history.md) | Content Panel Toolbar: Folder Creation & Visit History | Accepted | 2026-09-12 |
+| [ADR-095](../journal/2026-09/2026-09-12_adr-095-content-panel-toolbar-folder-creation-and-visit-history.md) | Content Panel Toolbar: Folder Creation & Visit History | Accepted (amended by ADR-098) | 2026-09-12 |
 | [ADR-094](../journal/2026-09/2026-09-11_adr-094-settings-panel-density-cleanup.md) | Settings Panel Density Cleanup | Accepted | 2026-09-11 |
 | [ADR-093](../journal/2026-09/2026-09-11_adr-093-stage-action-group-swap-and-explore-slide-out.md) | Stage Action Group Order Swap & Explore Slide-Out | Accepted | 2026-09-11 |
 | [ADR-092](../journal/2026-09/2026-09-11_adr-092-vault-editor-ux-batch-pin-notes-hide-extensions-footer-slot.md) | Vault & Editor UX Batch: Pin/Unpin Notes, Hidden File Extensions, ContentPanel Footer Slot | Accepted | 2026-09-11 |

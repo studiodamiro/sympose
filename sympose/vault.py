@@ -502,6 +502,28 @@ class VaultManager:
         return {"nodes": nodes, "links": links}
 
     @classmethod
+    def _list_real_folders(cls, mv: str, dirs: List[str]) -> List[str]:
+        """Vault-relative paths of every real subdirectory under `dirs` — a
+        directory-only walk (no file reads, same ignore list as
+        `_get_vault_snapshot`) so `build_tree` can show a folder that exists
+        on disk but holds no notes yet (ADR-098)."""
+        raw_ignore = config_manager.get("vault.ignore_folders") or [".obsidian", ".git", "Attachments", ".trash"]
+        ignore_dirs = {str(d).lower().strip() for d in raw_ignore}
+        seen: set = set()
+        out: List[str] = []
+        for base in dirs:
+            if not os.path.exists(base):
+                continue
+            for root, subdirs, _ in os.walk(base):
+                subdirs[:] = [d for d in subdirs if d.lower() not in ignore_dirs and not d.startswith(".")]
+                for d in subdirs:
+                    rel = os.path.relpath(os.path.join(root, d), mv).replace(os.sep, "/")
+                    if rel not in seen:
+                        seen.add(rel)
+                        out.append(rel)
+        return out
+
+    @classmethod
     def get_vault_tree(cls, profile: Dict[str, Any]) -> List[Dict[str, Any]]:
         """Nested `VaultNode` directory tree for `GET /api/vault/tree`, scoped
         to the persona's allowed folders. Reads the ADR-078 manifest (ephemeral
@@ -526,7 +548,8 @@ class VaultManager:
         manifest = cls.get_manifest()
         if manifest is None:
             manifest = vault_manifest.build(mv, cls._get_vault_snapshot(mv, [mv]))
-        return vault_tree.build_tree(manifest.get("nodes", []), prefixes)
+        real_folders = cls._list_real_folders(mv, allowed_dirs)
+        return vault_tree.build_tree(manifest.get("nodes", []), prefixes, real_folders)
 
     @classmethod
     def _search_fts(cls, mv: str, search_dirs: List[str], query_clean: str, max_results: int) -> Optional[List[Dict[str, Any]]]:
@@ -1122,6 +1145,69 @@ class VaultManager:
             return f"Created folder: `{rel_display}`"
         except Exception as e:
             return f"Error: Failed to create folder: {e}"
+
+    @classmethod
+    def delete_folder(cls, profile: Dict[str, Any], folder_name: str) -> str:
+        """Delete a vault folder (ADR-099). An *empty* folder is removed
+        outright (`os.rmdir`) — nothing to recover. A folder holding notes
+        and/or subfolders moves as one unit to `<vault>/.trash/`, the same
+        `os.rename` `delete_note` uses, then every note inside is de-indexed
+        individually — the whole subtree drops out of search/the graph while
+        it sits in the bin. `vault_trash`'s list/restore/purge need no changes
+        for this: each moved note is just another independently recoverable
+        row there, and restoring one recreates its parent folder on the way
+        back. `NOTE_NOT_FOUND` when the path isn't a real folder, `NOTE_DENIED`
+        outside the sandbox."""
+        mv, allowed_dirs = cls._get_master_vault(), cls.get_allowed_dirs(profile)
+        if not mv or not allowed_dirs:
+            return cls.NOTE_DENIED
+        clean_name = folder_name.strip().strip("\"'").strip("/\\")
+        if not clean_name:
+            return cls.NOTE_DENIED
+        target_dir = os.path.normpath(os.path.join(mv, clean_name))
+        if not any(is_safe_path(target_dir, allowed) for allowed in allowed_dirs):
+            return cls.NOTE_DENIED
+        if not os.path.isdir(target_dir):
+            return cls.NOTE_NOT_FOUND
+
+        rel_display = os.path.relpath(target_dir, mv)
+        if not os.listdir(target_dir):
+            try:
+                os.rmdir(target_dir)
+                return f"Deleted empty folder: `{rel_display}`"
+            except OSError as e:
+                return f"Error: Failed to delete folder: {e}"
+
+        dest = os.path.join(mv, vault_trash.TRASH_DIRNAME, clean_name)
+        if not is_safe_path(dest, mv):
+            return cls.NOTE_DENIED
+        try:
+            os.makedirs(os.path.dirname(dest), exist_ok=True)
+            if os.path.exists(dest):
+                dest = f"{dest}-{datetime.datetime.now().strftime('%Y%m%d%H%M%S')}"
+            os.rename(target_dir, dest)
+        except OSError as e:
+            return f"Error: Failed to delete folder: {e}"
+
+        ws = cls._workspace_dir()
+        ignore = config_manager.get("vault.ignore_folders") or []
+        note_count = 0
+        for root, _, files in os.walk(dest):
+            for fn in files:
+                if not fn.endswith((".md", ".markdown", ".txt")):
+                    continue
+                sub_rel = os.path.relpath(os.path.join(root, fn), dest)
+                orig_rel = os.path.join(clean_name, sub_rel)
+                try:
+                    vault_index.remove_note(ws, mv, orig_rel)
+                    vault_manifest.remove_note(ws, mv, orig_rel, ignore_folders=ignore)
+                except Exception:
+                    log.debug("[vault] folder-delete de-index failed for %s", orig_rel, exc_info=True)
+                note_count += 1
+        _BACKLINK_CACHE.clear()
+        plural = "s" if note_count != 1 else ""
+        dest_rel = os.path.relpath(dest, mv).replace(os.sep, "/")
+        return f"Moved folder to the bin: `{dest_rel}` ({note_count} note{plural})"
 
     @classmethod
     def _resolve_existing_note(cls, profile: Dict[str, Any], note_name: str) -> Optional[str]:

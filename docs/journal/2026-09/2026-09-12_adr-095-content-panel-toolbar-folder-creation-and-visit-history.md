@@ -12,7 +12,7 @@ tags:
 
 # ADR-095 — Content Panel Toolbar: Folder Creation & Visit History
 
-- **Status:** Accepted — implemented 2026-09-12.
+- **Status:** Accepted — implemented 2026-09-12. Amended by [ADR-098](./2026-09-12_adr-098-vault-tree-shows-empty-folders.md).
 - **Date:** 2026-09-12
 - **Deciders:** damiro (Lead Architect); Grace / Claude (Sonnet 5) (Engineering Partner)
 - Extends [ADR-083 — Editor Note Creation & Frontmatter Round-Trip
@@ -80,6 +80,10 @@ through the main-menu rail. Two gaps this ADR closes:
   is a different feature and out of scope here.
 - `create_folder` makes no attempt to seed a `.gitkeep`-equivalent or index
   entry — an empty directory is exactly that until a note lands inside it.
+  **Correction (ADR-098):** this undersold the actual gap — the dashboard's
+  vault tree is a *pure projection of the ADR-078 manifest*, which only ever
+  tracks notes, so an empty folder wasn't just unindexed, it was structurally
+  invisible in the UI even after a tree refetch. See ADR-098 for the fix.
 
 ## Alternatives rejected
 

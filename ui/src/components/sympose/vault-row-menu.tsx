@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/context-menu"
 import {
   createVaultNote,
+  deleteVaultFolder,
   deleteVaultNote,
   renameVaultNote,
 } from "@/lib/vault-note-api"
@@ -42,8 +43,12 @@ import type { VaultNode } from "@/components/sympose/vault-tree"
  * (an inline field overlaid on the row) and Delete (asks first via
  * `confirm()` per the Notifications preference, then moved to `.trash/`,
  * recoverable from the Bin — ADR-085 / ADR-087); **folder**: New note here
- * (`Folder/Untitled`, auto-numbered). This component owns the API calls and
- * the rename field; the row's own visual content is passed as `children`.
+ * (`Folder/Untitled`, auto-numbered) and Delete (ADR-099) — an empty folder
+ * goes straight away (nothing to lose), a folder with anything in it asks
+ * first via `confirm()` same as a note, then moves as one unit to `.trash/`;
+ * every note inside is still individually recoverable from the Bin. This
+ * component owns the API calls and the rename field; the row's own visual
+ * content is passed as `children`.
  */
 function VaultRowMenu({
   node,
@@ -149,6 +154,16 @@ function VaultRowMenu({
     }
   }
 
+  const runDeleteFolder = async () => {
+    const res = await deleteVaultFolder(node.path, persona)
+    if (res.ok) {
+      onDeleted(node.path)
+      notify.success(res.detail)
+    } else {
+      notify.error(res.error)
+    }
+  }
+
   const newNoteHere = async () => {
     // `node.path` is the folder; try Untitled, then Untitled 2, 3, … past clashes.
     for (let n = 1; n <= 30; n++) {
@@ -197,10 +212,33 @@ function VaultRowMenu({
       </DropdownMenuItem>
     </>
   ) : (
-    <DropdownMenuItem onClick={newNoteHere}>
-      <HugeiconsIcon icon={NoteAddIcon} />
-      New note here
-    </DropdownMenuItem>
+    <>
+      <DropdownMenuItem onClick={newNoteHere}>
+        <HugeiconsIcon icon={NoteAddIcon} />
+        New note here
+      </DropdownMenuItem>
+      <DropdownMenuItem
+        variant="destructive"
+        onClick={() => {
+          // An empty folder holds nothing to lose — skip the confirm step
+          // and delete it outright, same low-friction feel as the create
+          // side. Anything with content in it confirms first, like a note.
+          if ((node.children?.length ?? 0) === 0) {
+            void runDeleteFolder()
+            return
+          }
+          confirm({
+            message: `Delete “${node.name}” and everything inside it?`,
+            description: "Any notes inside will move to the vault bin.",
+            confirmLabel: "Delete folder",
+            onConfirm: runDeleteFolder,
+          })
+        }}
+      >
+        <HugeiconsIcon icon={Delete02Icon} />
+        Delete
+      </DropdownMenuItem>
+    </>
   )
 
   return (

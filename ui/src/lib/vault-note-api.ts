@@ -190,3 +190,35 @@ export async function deleteVaultNote(
     return { ok: false, error: `Delete failed — backend unreachable (${err})` }
   }
 }
+
+export type DeleteVaultFolderResult =
+  | { ok: true; detail: string }
+  | { ok: false; error: string }
+
+/**
+ * Client for `DELETE /api/vault/folder` — an empty folder is removed
+ * outright, a non-empty one moves to `<vault>/.trash/` note-by-note, same as
+ * `deleteVaultNote` (ADR-099). 404 if it's already gone, 403 outside the
+ * sandbox.
+ */
+export async function deleteVaultFolder(
+  path: string,
+  persona: string
+): Promise<DeleteVaultFolderResult> {
+  try {
+    const res = await fetch(
+      `/api/vault/folder?path=${encodeURIComponent(path)}&persona=${encodeURIComponent(persona)}`,
+      { method: "DELETE" }
+    )
+    if (res.ok) {
+      const body = (await res.json()) as { detail: string }
+      return { ok: true, detail: body.detail }
+    }
+    return {
+      ok: false,
+      error: (await detailOf(res)) || `Delete failed (HTTP ${res.status})`,
+    }
+  } catch (err) {
+    return { ok: false, error: `Delete failed — backend unreachable (${err})` }
+  }
+}

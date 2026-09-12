@@ -202,6 +202,52 @@ class TestVaultFolderCreate:
         assert resp.status_code == 403
 
 
+class TestVaultFolderDelete:
+    """`DELETE /api/vault/folder` maps `VaultManager.delete_folder`'s
+    sentinels onto HTTP status codes (ADR-099)."""
+
+    def _client(self, monkeypatch, delete_result):
+        from fastapi.testclient import TestClient
+        from sympose.auth import DASHBOARD_USER
+        import sympose.server as server
+
+        monkeypatch.setenv("DASHBOARD_PASSWORD", "pw")
+        monkeypatch.setattr(
+            server.VaultManager, "delete_folder",
+            classmethod(lambda cls, profile, path: delete_result),
+        )
+        engine = MagicMock()
+        engine.pm.get_profile.return_value = {"vault_folders": ["*"]}
+        engine.pm.profiles = {}
+        return TestClient(server.create_app(engine)), DASHBOARD_USER
+
+    def test_success_returns_200(self, monkeypatch):
+        client, user = self._client(
+            monkeypatch, "Moved folder to the bin: `Ideas/Archive` (2 notes)"
+        )
+        resp = client.delete(
+            "/api/vault/folder", params={"path": "Ideas/Archive"}, auth=(user, "pw")
+        )
+        assert resp.status_code == 200
+        assert resp.json()["detail"].startswith("Moved folder to the bin:")
+
+    def test_not_found_returns_404(self, monkeypatch):
+        from sympose.vault import VaultManager
+        client, user = self._client(monkeypatch, VaultManager.NOTE_NOT_FOUND)
+        resp = client.delete(
+            "/api/vault/folder", params={"path": "Ghost"}, auth=(user, "pw")
+        )
+        assert resp.status_code == 404
+
+    def test_denied_returns_403(self, monkeypatch):
+        from sympose.vault import VaultManager
+        client, user = self._client(monkeypatch, VaultManager.NOTE_DENIED)
+        resp = client.delete(
+            "/api/vault/folder", params={"path": "../evil"}, auth=(user, "pw")
+        )
+        assert resp.status_code == 403
+
+
 class TestVaultNoteRenameDelete:
     """`PATCH` / `DELETE /api/vault/note` sentinel → status-code mapping (ADR-084)."""
 

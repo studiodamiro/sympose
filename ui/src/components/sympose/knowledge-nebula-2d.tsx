@@ -258,6 +258,14 @@ const KnowledgeNebula2D = React.forwardRef<
       }
     }, [])
 
+    // ForceGraph2D only mounts once the container has a measured size (see the
+    // `w > 0 && h > 0` gate below), which happens a render or two after this
+    // component's first pass. A ref becoming non-null doesn't retrigger effects,
+    // so without `graphMounted` in the deps below, this effect would run once
+    // against `fgRef.current === undefined` and never again — leaving the graph
+    // on react-force-graph's stock default forces until a slider is touched.
+    const graphMounted = w > 0 && h > 0
+
     // Dynamic d3 force adjustments — same knob math as the 3D renderer so the
     // Forces sliders behave identically across modes.
     React.useEffect(() => {
@@ -284,7 +292,7 @@ const KnowledgeNebula2D = React.forwardRef<
         fg.d3Force("link")?.strength(linkForce)
       }
       fg.d3ReheatSimulation()
-    }, [repelForce, linkDistance, linkForce, centerForce])
+    }, [repelForce, linkDistance, linkForce, centerForce, graphMounted])
 
     // Frame the whole graph once the first layout settles, plus a safety net in
     // case the engine never reports a stop.

@@ -526,6 +526,14 @@ const KnowledgeNebula3D = React.forwardRef<
       }
     }, [])
 
+    // The 3D graph only mounts once the container has a measured size (see the
+    // `w > 0 && h > 0` gate below), which happens a render or two after this
+    // component's first pass. A ref becoming non-null doesn't retrigger effects,
+    // so without `graphMounted` in the deps below, this effect would run once
+    // against `fgRef.current === undefined` and never again — leaving the graph
+    // on three-forcegraph's stock default forces until a slider is touched.
+    const graphMounted = w > 0 && h > 0
+
     // Dynamic d3 force adjustments
     React.useEffect(() => {
       const fg = fgRef.current
@@ -551,7 +559,7 @@ const KnowledgeNebula3D = React.forwardRef<
         fg.d3Force("link")?.strength(linkForce)
       }
       fg.d3ReheatSimulation()
-    }, [repelForce, linkDistance, linkForce, centerForce])
+    }, [repelForce, linkDistance, linkForce, centerForce, graphMounted])
 
     // Pull the camera back so the first frame frames the whole cloud
     React.useEffect(() => {

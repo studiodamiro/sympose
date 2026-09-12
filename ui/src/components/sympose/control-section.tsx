@@ -6,11 +6,16 @@ import {
 } from "@hugeicons/core-free-icons"
 
 import { cn } from "@/lib/utils"
+import { getCookieBool, setCookieBool } from "@/lib/cookies"
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible"
+
+/** Cookie key for a section's open/closed state, keyed by its (unique) title. */
+const sectionCookieKey = (title: string) =>
+  `sympose:pref.section.${title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`
 
 /**
  * Broadcasts a "collapse all" pulse to every `ControlSection` beneath a
@@ -85,7 +90,17 @@ function ControlSection({
   className,
 }: ControlSectionProps) {
   const { signal: collapseSignal } = React.useContext(CollapseAllContext)
-  const [open, setOpen] = React.useState(defaultOpen)
+  const cookieKey = React.useMemo(() => sectionCookieKey(title), [title])
+  const [open, setOpen] = React.useState(() =>
+    getCookieBool(cookieKey, defaultOpen)
+  )
+  const handleOpenChange = React.useCallback(
+    (next: boolean) => {
+      setOpen(next)
+      setCookieBool(cookieKey, next)
+    },
+    [cookieKey]
+  )
   // Compares against the last *handled* signal, not "have I mounted before" —
   // a mount-flag flips under StrictMode's dev-only double effect invocation
   // (every section would read its own first real pulse as a second one and
@@ -95,13 +110,13 @@ function ControlSection({
   React.useEffect(() => {
     if (lastSignal.current === collapseSignal) return
     lastSignal.current = collapseSignal
-    setOpen(false)
-  }, [collapseSignal])
+    handleOpenChange(false)
+  }, [collapseSignal, handleOpenChange])
 
   return (
     <Collapsible
       open={open}
-      onOpenChange={setOpen}
+      onOpenChange={handleOpenChange}
       data-slot="control-section"
       className={cn("border-b border-border/60 last:border-b-0", className)}
     >

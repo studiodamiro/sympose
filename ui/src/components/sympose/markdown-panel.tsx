@@ -686,12 +686,16 @@ function MarkdownPanel({
               className={cn(
                 // Same established gutter as the frontmatter card above and
                 // every other panel (`<ChatPanel>`, `<ContentPanel>`).
-                // animate-in: plays once when the bar itself mounts (first
-                // link added / note opened with links already in it) — a
-                // re-render with the same links doesn't remount it, so it
-                // won't replay on every keystroke.
+                // `sy-note-footer`: matched by `slideExitClassName`/
+                // `slideEnterClassName`'s `scopeToCmScroller` branch (see
+                // `useSlideSwap`) so a note switch slides this bar the same
+                // horizontal direction as the canvas instead of leaving it
+                // frozen mid-transition. The plain fade-in below is only for
+                // a mount with no switch in play (first link typed into an
+                // already-open note) — a re-render with the same links
+                // doesn't remount it, so it won't replay on every keystroke.
                 "flex shrink-0 flex-wrap items-center gap-2 border-t border-border py-3",
-                "animate-in fade-in-0 slide-in-from-bottom-1 duration-thumb",
+                "sy-note-footer animate-in fade-in-0 duration-thumb",
                 phone ? "px-4" : "px-6 sm:px-8"
               )}
             >

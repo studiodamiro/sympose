@@ -85,12 +85,15 @@ export function useSlideSwap<T>(
  * `scopeToCmScroller` targets CodeMirror's own `.cm-scroller` descendant
  * instead of the element carrying these classes, for a caller (`MarkdownPanel`)
  * whose content bundles a fixed chrome row (the Stylo toolbar) alongside the
- * scrollable canvas — only the canvas should move. Each branch below is
- * spelled out as a complete literal class string (not built by interpolating
- * a scope prefix onto each utility) because Tailwind's build-time scanner
- * only generates CSS for class names it can find verbatim in the source; a
- * templated `` `[&_${scope}]:${utility}` `` never appears as one token and
- * would silently compile to no rule at all.
+ * scrollable canvas — only the canvas should move. The same scope also drives
+ * `.sy-note-footer` (the wikilink-pills bar under the canvas): unlike the
+ * toolbar it's per-note content, not fixed chrome, so it rides along with the
+ * canvas's slide rather than sitting frozen mid-transition while the note
+ * underneath it moves. Each branch below is spelled out as a complete literal
+ * class string (not built by interpolating a scope prefix onto each utility)
+ * because Tailwind's build-time scanner only generates CSS for class names it
+ * can find verbatim in the source; a templated `` `[&_${scope}]:${utility}` ``
+ * never appears as one token and would silently compile to no rule at all.
  */
 export function slideExitClassName(
   direction: SlideDirection,
@@ -98,8 +101,14 @@ export function slideExitClassName(
 ) {
   if (scopeToCmScroller) {
     return direction === "back"
-      ? "[&_.cm-scroller]:pointer-events-none [&_.cm-scroller]:animate-out [&_.cm-scroller]:fade-out-0 [&_.cm-scroller]:duration-thumb [&_.cm-scroller]:fill-mode-forwards [&_.cm-scroller]:slide-out-to-right"
-      : "[&_.cm-scroller]:pointer-events-none [&_.cm-scroller]:animate-out [&_.cm-scroller]:fade-out-0 [&_.cm-scroller]:duration-thumb [&_.cm-scroller]:fill-mode-forwards [&_.cm-scroller]:slide-out-to-left"
+      ? cn(
+          "[&_.cm-scroller]:pointer-events-none [&_.cm-scroller]:animate-out [&_.cm-scroller]:fade-out-0 [&_.cm-scroller]:duration-thumb [&_.cm-scroller]:fill-mode-forwards [&_.cm-scroller]:slide-out-to-right",
+          "[&_.sy-note-footer]:pointer-events-none [&_.sy-note-footer]:animate-out [&_.sy-note-footer]:fade-out-0 [&_.sy-note-footer]:duration-thumb [&_.sy-note-footer]:fill-mode-forwards [&_.sy-note-footer]:slide-out-to-right"
+        )
+      : cn(
+          "[&_.cm-scroller]:pointer-events-none [&_.cm-scroller]:animate-out [&_.cm-scroller]:fade-out-0 [&_.cm-scroller]:duration-thumb [&_.cm-scroller]:fill-mode-forwards [&_.cm-scroller]:slide-out-to-left",
+          "[&_.sy-note-footer]:pointer-events-none [&_.sy-note-footer]:animate-out [&_.sy-note-footer]:fade-out-0 [&_.sy-note-footer]:duration-thumb [&_.sy-note-footer]:fill-mode-forwards [&_.sy-note-footer]:slide-out-to-left"
+        )
   }
   return cn(
     "pointer-events-none animate-out fade-out-0 duration-thumb fill-mode-forwards",
@@ -113,8 +122,14 @@ export function slideEnterClassName(
 ) {
   if (scopeToCmScroller) {
     return direction === "back"
-      ? "[&_.cm-scroller]:animate-in [&_.cm-scroller]:fade-in-0 [&_.cm-scroller]:duration-thumb [&_.cm-scroller]:slide-in-from-left"
-      : "[&_.cm-scroller]:animate-in [&_.cm-scroller]:fade-in-0 [&_.cm-scroller]:duration-thumb [&_.cm-scroller]:slide-in-from-right"
+      ? cn(
+          "[&_.cm-scroller]:animate-in [&_.cm-scroller]:fade-in-0 [&_.cm-scroller]:duration-thumb [&_.cm-scroller]:slide-in-from-left",
+          "[&_.sy-note-footer]:animate-in [&_.sy-note-footer]:fade-in-0 [&_.sy-note-footer]:duration-thumb [&_.sy-note-footer]:slide-in-from-left"
+        )
+      : cn(
+          "[&_.cm-scroller]:animate-in [&_.cm-scroller]:fade-in-0 [&_.cm-scroller]:duration-thumb [&_.cm-scroller]:slide-in-from-right",
+          "[&_.sy-note-footer]:animate-in [&_.sy-note-footer]:fade-in-0 [&_.sy-note-footer]:duration-thumb [&_.sy-note-footer]:slide-in-from-right"
+        )
   }
   return cn(
     "animate-in fade-in-0 duration-thumb",

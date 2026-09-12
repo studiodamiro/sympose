@@ -421,21 +421,30 @@
    note body's left edge lines up with the frontmatter card and Links footer
    above/below it (`px-6 sm:px-8`, or `px-4` on the phone shell — the same
    `data-phone` markdown-panel.tsx already carries for this purpose) instead
-   of reading as its own margin. Vertical padding is untouched (stylo's own
-   rhythm). */
+   of reading as its own margin. Top/bottom is set to match the *effective*
+   horizontal inset (this padding plus stylo's own `.cm-line` side padding of
+   `0.75rem`, which stacks on top of it — there's no vertical equivalent), so
+   the text box reads as evenly inset on all four sides instead of tighter on
+   top/bottom. */
 [data-slot="markdown-panel"] .cm-content {
   padding-left: 1.5rem !important;
   padding-right: 1.5rem !important;
+  padding-top: 2.25rem !important;
+  padding-bottom: 2.25rem !important;
 }
 @media (min-width: 640px) {
   [data-slot="markdown-panel"] .cm-content {
     padding-left: 2rem !important;
     padding-right: 2rem !important;
+    padding-top: 2.75rem !important;
+    padding-bottom: 2.75rem !important;
   }
 }
 [data-slot="markdown-panel"][data-phone] .cm-content {
   padding-left: 1rem !important;
   padding-right: 1rem !important;
+  padding-top: 1.75rem !important;
+  padding-bottom: 1.75rem !important;
 }
 
 /* stylo's find/replace panel (0.10.x) is a flat, single-row flex line —
@@ -490,6 +499,14 @@
 [data-slot="markdown-panel"] .stylo-search-field {
   min-width: 48px !important;
   font-size: 0.6875rem !important;
+  /* stylo's own `--stylo-bg`/`--stylo-text` (panel + muted-foreground) are
+     tuned for floating chrome sitting on top of prose — inside this field
+     they read flat, blending into the toolbar row instead of standing out
+     as an actual text box the way the vault-search field (`--background` /
+     `--foreground`) does. Border stays on `--stylo-border` (already
+     `--border`, matching the vault field's own `border-border`). */
+  background: var(--background) !important;
+  color: var(--foreground) !important;
 }
 /* stylo squares this field's corners itself (`theme.ts`) to read as
    attached to the Replace/Replace-all buttons via its own `border-left`

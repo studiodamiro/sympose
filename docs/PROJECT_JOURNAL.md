@@ -25,6 +25,7 @@ one in [`docs/wiki/index.md`](./wiki/index.md) are kept in sync per the
 
 | ADR | Title | Status | Date | Source |
 | --- | ----- | ------ | ---- | ------ |
+| ADR-104 | Directional Slide for Content/Editor Panel Navigation | Accepted | 2026-09-13 | [2026-09-13_adr-104-directional-panel-slide-navigation.md](./journal/2026-09/2026-09-13_adr-104-directional-panel-slide-navigation.md) |
 | ADR-103 | Vault-Tree Row Exit Animation on Delete | Accepted | 2026-09-13 | [2026-09-13_adr-103-vault-tree-exit-animation.md](./journal/2026-09/2026-09-13_adr-103-vault-tree-exit-animation.md) |
 | ADR-102 | `thumb` Motion Tier: Editor/Vault Entrances Match the Scrollbar (amends ADR-101) | Accepted | 2026-09-13 | [2026-09-13_adr-102-thumb-motion-tier.md](./journal/2026-09/2026-09-13_adr-102-thumb-motion-tier.md) |
 | ADR-101 | Motion Tier Tokens (`snappy` / `mode`) | Accepted (amended by ADR-102) | 2026-09-13 | [2026-09-13_adr-101-motion-tier-tokens.md](./journal/2026-09/2026-09-13_adr-101-motion-tier-tokens.md) |

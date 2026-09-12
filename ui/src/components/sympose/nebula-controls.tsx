@@ -252,7 +252,7 @@ function NebulaControls({
         <SliderRow
           label="Link distance"
           field="linkDistance"
-          min={50}
+          min={0}
           max={800}
           step={10}
           format={(v) => String(Math.round(v))}

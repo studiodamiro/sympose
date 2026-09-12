@@ -595,7 +595,7 @@ export function NebulaShowcase() {
                       </div>
                       <input
                         type="range"
-                        min="50"
+                        min="0"
                         max="800"
                         step="10"
                         value={linkDistance}

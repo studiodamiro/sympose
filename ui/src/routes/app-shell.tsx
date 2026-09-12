@@ -35,6 +35,7 @@ import { useToolbarItems } from "@/lib/use-toolbar-items"
 import { usePinnedNotes } from "@/lib/use-pinned-notes"
 import { useNotificationPreferences } from "@/lib/use-notification-preferences"
 import { useNebulaPreferences } from "@/lib/use-nebula-preferences"
+import { useNebulaGraph } from "@/lib/use-nebula-graph"
 import {
   fetchPersonas,
   resolvePersonaVisuals,
@@ -44,6 +45,7 @@ import { fetchVaultTree } from "@/lib/vault-tree-api"
 import { createVaultNote, createVaultFolder } from "@/lib/vault-note-api"
 import { findNoteByWikilink } from "@/lib/find-note-by-wikilink"
 import { matchWikilinkTargets } from "@/lib/vault-wikilink-completions"
+import { matchTagTargets } from "@/lib/vault-tag-completions"
 import { VAULT_FOLDERS } from "@/lib/vault-folders"
 import {
   ActionBadge,
@@ -335,6 +337,11 @@ export function AppShell() {
   const { isPinned, togglePin } = usePinnedNotes()
   const [notifyPrefs, setNotifyPref] = useNotificationPreferences()
   const [nebulaPrefs, setNebulaPref] = useNebulaPreferences()
+  // Lifted here (not called inside `<AmbientNebula>`) so the one fetch also
+  // backs `tagSource` below — the ambient layer and the editor's `#tag`
+  // autocomplete share the same master graph instead of each hitting
+  // `GET /api/vault/graph` on its own.
+  const { graph: nebulaGraph, source: nebulaGraphSource } = useNebulaGraph()
   const explore = nebulaPrefs.interaction === "explore"
 
   // Explore auto-collapses the three stage panels — content, editor, chat —
@@ -459,6 +466,17 @@ export function AppShell() {
   vaultTreeRef.current = vaultTree
   const wikiLinkSource = React.useCallback(
     (query: string) => matchWikilinkTargets(vaultTreeRef.current, query),
+    []
+  )
+
+  // stylo's `tagSource` (>=0.12.0) is the same read-once-at-mount contract as
+  // `wikiLinkSource` above — a ref carries the live graph, the callback never
+  // changes. Candidates come from `buildMasterGraph`'s pre-indexed tag hubs
+  // (`nebula-graph.ts`), not a separate client-side vault scan.
+  const nebulaGraphRef = React.useRef(nebulaGraph)
+  nebulaGraphRef.current = nebulaGraph
+  const tagSource = React.useCallback(
+    (query: string) => matchTagTargets(nebulaGraphRef.current, query),
     []
   )
 
@@ -786,6 +804,8 @@ export function AppShell() {
       {nebulaReady && (
         <React.Suspense fallback={null}>
           <AmbientNebula
+            graph={nebulaGraph}
+            source={nebulaGraphSource}
             prefs={nebulaPrefs}
             setPref={setNebulaPref}
             activeNoteId={activeNoteId}
@@ -935,6 +955,7 @@ export function AppShell() {
             persona={activePersona}
             onWikiLinkClick={openWikilink}
             wikiLinkSource={wikiLinkSource}
+            tagSource={tagSource}
             onRenamed={(newPath) => {
               setSelectedNote(newPath)
               setVaultRefreshKey((k) => k + 1)

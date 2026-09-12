@@ -8,7 +8,8 @@ import {
   foldersInGraph,
 } from "@/lib/nebula-graph"
 import { useNebulaFilter } from "@/lib/nebula-filter"
-import { useNebulaGraph } from "@/lib/use-nebula-graph"
+import type { NebulaGraph } from "@/lib/nebula-graph"
+import type { NebulaGraphSource } from "@/lib/use-nebula-graph"
 import type { NebulaPreferences } from "@/lib/use-nebula-preferences"
 import { NebulaControls } from "@/components/sympose/nebula-controls"
 import { KnowledgeNebula2D } from "@/components/sympose/knowledge-nebula-2d"
@@ -36,10 +37,16 @@ type SetPref = <K extends keyof NebulaPreferences>(
  * sits on the TTFT hot path.
  */
 function AmbientNebula({
+  graph,
+  source,
   prefs,
   setPref,
   activeNoteId,
 }: {
+  /** The master graph — lifted to the app shell (see `useNebulaGraph`) so the
+   *  same fetch also backs the editor's `#tag` autocomplete. */
+  graph: NebulaGraph
+  source: NebulaGraphSource
   prefs: NebulaPreferences
   setPref: SetPref
   /** The note currently open in the content panel (bare filename stem, same
@@ -52,7 +59,6 @@ function AmbientNebula({
   const isLight = theme === "light"
   const explore = prefs.interaction === "explore"
 
-  const { graph, source } = useNebulaGraph()
   const nebulaRef = React.useRef<KnowledgeNebulaHandle>(null)
   const [selectedNodeId, setSelectedNodeId] = React.useState<string | null>(null)
 

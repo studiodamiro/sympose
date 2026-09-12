@@ -2,6 +2,7 @@ import * as React from "react"
 import {
   Stylo,
   splitFrontmatter,
+  type TagSource,
   type ToolbarItem,
   type WikiLinkSource,
 } from "@damiro/stylo"
@@ -49,6 +50,8 @@ import {
 } from "@/lib/use-slide-swap"
 import { fetchVaultNote, saveVaultNote } from "@/lib/vault-note-api"
 import { extractWikilinks } from "@/lib/extract-wikilinks"
+import { extractInlineTags } from "@/lib/extract-inline-tags"
+import { parseFrontmatter, serializeFrontmatter } from "@/lib/frontmatter"
 import type { EditorPreferences } from "@/lib/use-editor-preferences"
 import { FrontmatterCard } from "@/components/sympose/frontmatter-card"
 import { NoteActionsMenu } from "@/components/sympose/note-actions-menu"
@@ -92,6 +95,10 @@ interface MarkdownPanelProps extends React.ComponentProps<"div"> {
    *  the caller is responsible for a stable function identity that reads live
    *  data off a ref rather than being rebuilt on every vault-tree refetch. */
   wikiLinkSource?: WikiLinkSource
+  /** Supplies `#tag` autocomplete candidates (stylo `>=0.12.0`) — same
+   *  read-once-at-mount contract as `wikiLinkSource` above; omit to leave the
+   *  feature off. */
+  tagSource?: TagSource
   /** The open note was renamed (ADR-084) — value is its new vault-relative path. */
   onRenamed?: (newPath: string) => void
   /** The open note was moved to trash (ADR-084). */
@@ -237,6 +244,37 @@ function joinNote(
 }
 
 /**
+ * Additive-only sync on save: any `#tag` found in the body that isn't
+ * already in the frontmatter `tags:` list (case-insensitively) gets
+ * appended, lowercased — the reverse never happens, so deleting a `#tag`
+ * from the body leaves frontmatter untouched. `null`/unparseable frontmatter
+ * (no `---` block, or something `parseFrontmatter` can't round-trip) is left
+ * alone, same fallback `<FrontmatterCard>` itself uses.
+ */
+function syncInlineTags(
+  frontmatter: string | null,
+  body: string
+): { frontmatter: string | null; changed: boolean } {
+  if (frontmatter === null) return { frontmatter, changed: false }
+  const data = parseFrontmatter(frontmatter)
+  if (data === null) return { frontmatter, changed: false }
+
+  const existing = Array.isArray(data.tags)
+    ? data.tags
+    : data.tags != null
+      ? [data.tags]
+      : []
+  const existingLower = new Set(existing.map((t) => String(t).toLowerCase()))
+  const additions = extractInlineTags(body).filter((t) => !existingLower.has(t))
+  if (additions.length === 0) return { frontmatter, changed: false }
+
+  return {
+    frontmatter: serializeFrontmatter({ ...data, tags: [...existing, ...additions] }),
+    changed: true,
+  }
+}
+
+/**
  * Live width of an ancestor `levels` up from `ref`. `<ContentPanel>` reads its
  * parent once on mount because that parent is the viewport-wide shell row; this
  * panel's parent is a derived flex child that only settles a frame after
@@ -268,6 +306,7 @@ function MarkdownPanel({
   persona = "samantha",
   onWikiLinkClick,
   wikiLinkSource,
+  tagSource,
   onRenamed,
   onDeleted,
   isPinned,
@@ -434,21 +473,51 @@ function MarkdownPanel({
   }, [path, persona])
 
   // Persist the current frontmatter + body to the vault. Shared by the toolbar
-  // `save` button, `⌘/Ctrl-S` (both via stylo's `onSave`), and the autosave
-  // timer. No-ops when there is nothing to save or a write is already running;
-  // `silent` keeps autosave from toasting on every idle pause.
+  // `save` button, `⌘/Ctrl-S` (both via stylo's `onSave`), autosave, and the
+  // leave-note flush below. `silent` keeps autosave (and the flush) from
+  // toasting on every idle pause / note switch. `syncTags` is separate from
+  // `silent` — it defaults to "explicit save" (`!silent`) but the flush
+  // overrides it back on, since leaving a note silently is still a
+  // deliberate-enough moment to finalize its tags (see the flush effect below
+  // for why autosave itself must stay excluded).
   const saveNote = React.useCallback(
-    async ({ silent = false }: { silent?: boolean } = {}) => {
-      if (!path || savingRef.current || loadedPathRef.current !== path) return
+    async ({
+      silent = false,
+      syncTags = !silent,
+    }: { silent?: boolean; syncTags?: boolean } = {}) => {
+      // Targets `loadedPathRef.current` — the note `body`/`frontmatter`
+      // state actually holds — rather than the `path` prop directly. On a
+      // note switch `path` moves to the next note a frame before its fetch
+      // resolves; targeting `path` there would write the *old* body onto
+      // the *new* note. `loadedPathRef` only updates once a fetch actually
+      // lands, so during that gap it still correctly names the note this
+      // state belongs to — which is exactly what the leave-note flush below
+      // needs to call this mid-switch without racing it.
+      const targetPath = loadedPathRef.current
+      if (!targetPath || savingRef.current) return
+
+      // Autosave's 1.5s debounce fires on any typing pause, including
+      // mid-word inside a tag the user hasn't finished typing yet (`#cs` on
+      // the way to `#css`); syncing there would permanently bake in the
+      // half-typed fragment, since the merge is additive-only and never
+      // removes a tag once added.
+      const synced = syncTags
+        ? syncInlineTags(frontmatter, body)
+        : { frontmatter, changed: false }
+      if (synced.changed) {
+        frontmatterEditedRef.current = true
+        setFrontmatter(synced.frontmatter)
+      }
+
       const text = joinNote(
-        frontmatter,
+        synced.frontmatter,
         body,
         originalPrefixRef.current,
         frontmatterEditedRef.current
       )
       if (text === savedTextRef.current) return
       savingRef.current = true
-      const result = await saveVaultNote(path, text, persona)
+      const result = await saveVaultNote(targetPath, text, persona)
       savingRef.current = false
       if (result.ok) {
         savedTextRef.current = text
@@ -462,8 +531,33 @@ function MarkdownPanel({
         notify.error(result.error)
       }
     },
-    [path, persona, frontmatter, body]
+    [persona, frontmatter, body]
   )
+
+  // `saveNote` gets a new identity on every keystroke (it closes over
+  // `frontmatter`/`body`) — the leave-note flush below needs to call
+  // whichever version is current *without* re-running its own effect on
+  // every edit, so it reads through this ref (updated every render, a plain
+  // assignment — cheap) instead of taking `saveNote` as a dependency.
+  const saveNoteRef = React.useRef(saveNote)
+  saveNoteRef.current = saveNote
+
+  // Flush a save when leaving this note — switching to another one, or the
+  // panel unmounting entirely (a full route change away from `/shell`) — so
+  // an edit isn't lost just because autosave is off (its default) and the
+  // save button never got hit. `path` is the only dependency, so the
+  // cleanup fires exactly on a switch or an unmount, never on every
+  // keystroke; by the time it runs, `saveNoteRef.current` already targets
+  // `loadedPathRef.current` (see above), which still names the *leaving*
+  // note during the gap before the next note's fetch resolves. Silent (no
+  // toast — a background flush, not something the user asked for) but still
+  // syncs tags: unlike autosave's blind timer, leaving the note is a real
+  // "I'm done with this one" signal, not a mid-word coincidence.
+  React.useEffect(() => {
+    return () => {
+      void saveNoteRef.current({ silent: true, syncTags: true })
+    }
+  }, [path])
 
   // Autosave — a trailing debounce on every body/frontmatter change. Off by
   // default (Settings › Markdown editor); the explicit save paths stay live
@@ -535,6 +629,7 @@ function MarkdownPanel({
             onSave={() => void saveNote()}
             onWikiLinkClick={onWikiLinkClick}
             wikiLinkSource={wikiLinkSource}
+            tagSource={tagSource}
             onLinkClick={openMarkdownLink}
             mode={surface}
             inPlace={{ reveal, selectionUI, table: tableEditing }}

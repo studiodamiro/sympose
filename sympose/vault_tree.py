@@ -12,8 +12,13 @@ argument folds in on-disk directories (see `VaultManager._list_real_folders`)
 so an empty folder still shows up.
 
 The client contract is `VaultNode` in `ui/src/components/sympose/vault-tree.tsx`:
-`{name, path, type: "folder" | "note", children?}` — folders before notes, each
-group sorted case-insensitively.
+`{name, path, type: "folder" | "note", children?, tags?, links?}` — folders
+before notes, each group sorted case-insensitively. `tags` (frontmatter tags,
+no leading `#`) and `links` (wikilink neighbours — both outgoing targets and
+incoming backlinks, by stem) ride along on note nodes only, straight from the
+manifest that's already being read for this call — no extra vault read, no
+separate endpoint — so the dashboard's vault search can match on them
+client-side.
 """
 
 from typing import Any, Dict, List
@@ -28,10 +33,25 @@ def _within(rel_path: str, prefixes: List[str]) -> bool:
     )
 
 
+def _link_neighbours(links: List[Dict[str, Any]]) -> Dict[str, List[str]]:
+    """Manifest `links` (`{source, target}`, by stem id) folded into a
+    per-stem neighbour list — both directions, so a note's entry covers the
+    notes it links out to and the notes that link back to it."""
+    out: Dict[str, set] = {}
+    for l in links:
+        s, t = l.get("source"), l.get("target")
+        if not s or not t:
+            continue
+        out.setdefault(s, set()).add(t)
+        out.setdefault(t, set()).add(s)
+    return {k: sorted(v) for k, v in out.items()}
+
+
 def build_tree(
     nodes: List[Dict[str, Any]],
     allowed_prefixes: List[str],
     real_folders: List[str] = (),
+    links: List[Dict[str, Any]] = (),
 ) -> List[Dict[str, Any]]:
     """Fold manifest `nodes` into a nested `VaultNode` list, keeping only real
     notes (ghosts — unresolved `[[wikilink]]` targets — carry no `rel_path`)
@@ -39,6 +59,7 @@ def build_tree(
     live, vault-relative directory listing from disk — folded in the same way
     so a folder with no notes in it still appears, instead of being invisible
     because the manifest itself only ever tracks notes."""
+    neighbours = _link_neighbours(list(links))
     # folder path -> {"node": <VaultNode dict>, "children": {name -> entry}}
     roots: Dict[str, Dict[str, Any]] = {}
 
@@ -60,7 +81,10 @@ def build_tree(
         for depth, part in enumerate(parts[:-1]):
             container = _folder(container, part, "/".join(parts[: depth + 1]))
         container[parts[-1]] = {
-            "node": {"name": parts[-1], "path": rel, "type": "note"},
+            "node": {
+                "name": parts[-1], "path": rel, "type": "note",
+                "tags": n.get("tags", []), "links": neighbours.get(n.get("id", ""), []),
+            },
             "children": {},
         }
 

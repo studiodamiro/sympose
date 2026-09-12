@@ -66,6 +66,47 @@ class TestEnsureFreshAndQuery:
         assert "Grace/roadmap.md" in rel_paths
         assert "Anais/journal.md" not in rel_paths
 
+    def test_filename_match_classified_as_title(self, tmp_path):
+        ws, vault = str(tmp_path / "ws"), str(tmp_path / "vault")
+        os.makedirs(vault)
+        vault_index.ensure_fresh(ws, vault, lambda: [_entry("Roadmap.md", "Roadmap.md", "Roadmap", "unrelated body")])
+        results = vault_index.query(ws, vault, "roadmap", [vault], 10)
+        assert results[0]["match_type"] == "title"
+
+    def test_tag_only_match_classified_as_tag_with_matched_tag_snippet(self, tmp_path):
+        ws, vault = str(tmp_path / "ws"), str(tmp_path / "vault")
+        os.makedirs(vault)
+        vault_index.ensure_fresh(
+            ws, vault, lambda: [_entry("a.md", "a.md", "A", "unrelated body text", tags=["urgent"])]
+        )
+        results = vault_index.query(ws, vault, "urgent", [vault], 10)
+        assert results[0]["match_type"] == "tag"
+        assert results[0]["snippet"] == "#urgent"
+        assert results[0]["tags"] == ["urgent"]
+
+    def test_folder_name_in_rel_path_does_not_cause_a_body_match_to_be_mislabelled_title(self, tmp_path):
+        """A note under `Quotes/` whose only real hit is in its *body* used to
+        be mislabelled `title`, because the old classifier checked the whole
+        `rel_path` (which includes the ancestor folder name) rather than just
+        the file's own name."""
+        ws, vault = str(tmp_path / "ws"), str(tmp_path / "vault")
+        os.makedirs(vault)
+        vault_index.ensure_fresh(
+            ws, vault,
+            lambda: [_entry("Quotes/a.md", "a.md", "A", "this note has a quote in it", tags=["misc"])],
+        )
+        results = vault_index.query(ws, vault, "quote", [vault], 10)
+        assert results[0]["match_type"] == "content"
+
+    def test_body_only_match_classified_as_content(self, tmp_path):
+        ws, vault = str(tmp_path / "ws"), str(tmp_path / "vault")
+        os.makedirs(vault)
+        vault_index.ensure_fresh(
+            ws, vault, lambda: [_entry("a.md", "a.md", "A", "the kayaking trip was great", tags=["misc"])]
+        )
+        results = vault_index.query(ws, vault, "kayaking", [vault], 10)
+        assert results[0]["match_type"] == "content"
+
     def test_second_call_without_drift_skips_rebuild(self, tmp_path, monkeypatch):
         ws, vault = str(tmp_path / "ws"), str(tmp_path / "vault")
         os.makedirs(vault)
@@ -153,6 +194,18 @@ class TestVaultManagerSqliteFtsWiring:
         results = VaultManager.search_structured(profile, "kayaking")
         assert any("log.md" in r["rel_path"] for r in results)
 
+    def test_tag_match_reports_real_tags_and_tag_snippet(self, fts_workspace):
+        vault, ws = fts_workspace
+        (vault / "note.md").write_text("---\ntags: [urgent]\n---\nNothing relevant in the body.")
+
+        from sympose.vault import VaultManager
+        profile = {"handle": "test-fts-tag", "vault_folder": "", "vault_folders": ["*"]}
+        results = VaultManager.search_structured(profile, "urgent")
+        hit = next(r for r in results if r["rel_path"] == "note.md")
+        assert hit["match_type"] == "tag"
+        assert hit["snippet"] == "#urgent"
+        assert hit["tags"] == ["urgent"]
+
     def test_direct_mode_still_used_by_default_config(self, tmp_path, monkeypatch):
         """Sanity check the fixture itself: without the sqlite_fts override,
         search_structured never touches vault_index at all."""
@@ -173,6 +226,62 @@ class TestVaultManagerSqliteFtsWiring:
             results = VaultManager.search_structured(profile, "hello world")
             assert any("note.md" in r["rel_path"] for r in results)
             assert not os.path.isdir(ws / ".vault_index")
+        finally:
+            config_manager.config_path = orig_config_path
+            config_manager.set("vault.search_mode", orig_search_mode)
+
+    def test_direct_mode_classifies_a_tag_only_match_as_tag(self, tmp_path, monkeypatch):
+        """A note whose only hit is its frontmatter tag (not its filename or
+        prose body) should be labelled `tag`, not lumped in with `content`."""
+        vault, ws = tmp_path / "vault3", tmp_path / "ws3"
+        vault.mkdir()
+        ws.mkdir()
+        monkeypatch.setenv("MASTER_VAULT_PATH", str(vault))
+        (vault / "note.md").write_text("---\ntags: [urgent]\n---\nNothing relevant in the body.")
+
+        from sympose.config import config_manager
+        orig_config_path = config_manager.config_path
+        orig_search_mode = config_manager.get("vault.search_mode")
+        config_manager.config_path = str(ws / "config.yaml")
+        config_manager.set("vault.search_mode", "direct")
+        try:
+            from sympose.vault import VaultManager
+            profile = {"handle": "test-direct-tag", "vault_folder": "", "vault_folders": ["*"]}
+            results = VaultManager.search_structured(profile, "urgent")
+            hit = next(r for r in results if r["rel_path"] == "note.md")
+            assert hit["match_type"] == "tag"
+            assert hit["snippet"] == "#urgent"
+        finally:
+            config_manager.config_path = orig_config_path
+            config_manager.set("vault.search_mode", orig_search_mode)
+
+    def test_direct_mode_a_folder_name_match_does_not_flood_every_note_in_it(self, tmp_path, monkeypatch):
+        """A note whose only textual relation to the query is living inside a
+        folder whose name happens to contain it (e.g. `Quotes/` for "quote")
+        must not be returned at all — the old `rel_path`-based title check
+        matched every note in the folder regardless of its own content,
+        capping out `max_results` on folder-name coincidences and hiding
+        real matches elsewhere in the vault."""
+        vault, ws = tmp_path / "vault4", tmp_path / "ws4"
+        vault.mkdir()
+        ws.mkdir()
+        (vault / "Quotes").mkdir()
+        (vault / "Quotes" / "unrelated.md").write_text("Nothing about the search term here.")
+        (vault / "elsewhere.md").write_text("---\ntags: [quote]\n---\nA real tag match.")
+        monkeypatch.setenv("MASTER_VAULT_PATH", str(vault))
+
+        from sympose.config import config_manager
+        orig_config_path = config_manager.config_path
+        orig_search_mode = config_manager.get("vault.search_mode")
+        config_manager.config_path = str(ws / "config.yaml")
+        config_manager.set("vault.search_mode", "direct")
+        try:
+            from sympose.vault import VaultManager
+            profile = {"handle": "test-direct-folder", "vault_folder": "", "vault_folders": ["*"]}
+            results = VaultManager.search_structured(profile, "quote")
+            rel_paths = [r["rel_path"] for r in results]
+            assert "Quotes/unrelated.md" not in rel_paths
+            assert "elsewhere.md" in rel_paths
         finally:
             config_manager.config_path = orig_config_path
             config_manager.set("vault.search_mode", orig_search_mode)

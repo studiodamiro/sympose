@@ -100,6 +100,7 @@ list and is kept in sync per the
 
 | ADR | Title | Status | Date |
 | --- | ----- | ------ | ---- |
+| [ADR-105](../journal/2026-09/2026-09-13_adr-105-vault-search-field.md) | Vault Search Field: Instant Client Filter, Backend Content Tier, Folder-Scoped Results | Accepted | 2026-09-13 |
 | [ADR-104](../journal/2026-09/2026-09-13_adr-104-directional-panel-slide-navigation.md) | Directional Slide for Content/Editor Panel Navigation | Accepted | 2026-09-13 |
 | [ADR-103](../journal/2026-09/2026-09-13_adr-103-vault-tree-exit-animation.md) | Vault-Tree Row Exit Animation on Delete | Accepted | 2026-09-13 |
 | [ADR-102](../journal/2026-09/2026-09-13_adr-102-thumb-motion-tier.md) | `thumb` Motion Tier: Editor/Vault Entrances Match the Scrollbar (amends ADR-101) | Accepted | 2026-09-13 |

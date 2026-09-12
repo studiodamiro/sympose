@@ -170,8 +170,12 @@ def ensure_fresh(workspace_dir: str, mv: str, snapshot_provider: Callable[[], Li
 
 def query(workspace_dir: str, mv: str, query_text: str, scope_dirs: List[str], max_results: int) -> Optional[List[Dict[str, Any]]]:
     """BM25-ranked full-text search, prefix-matched per query token, title
-    weighted above body. Returns None if the index isn't usable (caller falls
-    back to `direct`); returns [] for zero matches."""
+    weighted above body. Each hit is classified `title` / `tag` / `content`
+    by where the raw query substring actually lands (file name + path, tags,
+    else body) — the same three-way split `direct` mode uses — so the caller
+    doesn't have to guess a match's origin from a body-only snippet. Returns
+    None if the index isn't usable (caller falls back to `direct`); returns
+    [] for zero matches."""
     conn = _connect(index_path(workspace_dir, mv))
     if conn is None:
         return None
@@ -181,6 +185,7 @@ def query(workspace_dir: str, mv: str, query_text: str, scope_dirs: List[str], m
         conn.close()
         return []
     match_expr = " ".join(f"{t}*" for t in tokens)
+    q = query_text.lower().strip()
 
     rel_prefixes = [os.path.relpath(d, mv) for d in scope_dirs]
     full_vault_access = any(p in (".", "") for p in rel_prefixes)
@@ -188,7 +193,7 @@ def query(workspace_dir: str, mv: str, query_text: str, scope_dirs: List[str], m
     try:
         rows = conn.execute(
             # Column weights: rel_path(unindexed, 0), file_name, title, body, tags
-            "SELECT rel_path, file_name, title, snippet(notes, 3, '', '', ' … ', 10) "
+            "SELECT rel_path, file_name, title, tags, snippet(notes, 3, '', '', ' … ', 10) "
             "FROM notes WHERE notes MATCH ? ORDER BY bm25(notes, 0.0, 2.0, 5.0, 1.0, 1.5) LIMIT ?",
             (match_expr, max_results * 4),
         ).fetchall()
@@ -199,16 +204,29 @@ def query(workspace_dir: str, mv: str, query_text: str, scope_dirs: List[str], m
         conn.close()
 
     results: List[Dict[str, Any]] = []
-    for rel_path, file_name, title, snip in rows:
+    for rel_path, file_name, title, tags, body_snip in rows:
         if not full_vault_access and not any(
             rel_path == p or rel_path.startswith(p.rstrip("/") + "/") for p in rel_prefixes
         ):
             continue
+        tag_list = tags.split() if tags else []
+        matched_tags = [t for t in tag_list if q and q in t.lower()]
+        # `file_name` only, not `rel_path` — same reasoning as the `direct`
+        # classifier: a query matching an ancestor folder's name shouldn't
+        # count every note under it as a "title" match.
+        if q and q in file_name.lower():
+            match_type, snippet = "title", "Exact title match"
+        elif matched_tags:
+            match_type, snippet = "tag", " ".join(f"#{t}" for t in matched_tags)
+        else:
+            match_type, snippet = "content", (body_snip or "").strip() or "Match found"
         results.append({
             "file_name": file_name,
             "rel_path": rel_path,
             "title": title,
-            "snippet": (snip or "").strip() or "Match found",
+            "match_type": match_type,
+            "snippet": snippet,
+            "tags": tag_list,
         })
         if len(results) >= max_results:
             break

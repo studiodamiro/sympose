@@ -34,6 +34,11 @@ def test_vault_tree_endpoint_registered():
     assert any(getattr(r, "path", "") == "/api/vault/tree" for r in app.routes)
 
 
+def test_vault_search_endpoint_registered():
+    app = _app()
+    assert any(getattr(r, "path", "") == "/api/vault/search" for r in app.routes)
+
+
 def test_vault_note_write_endpoint_registered():
     app = _app()
     put_routes = [

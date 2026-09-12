@@ -549,7 +549,9 @@ class VaultManager:
         if manifest is None:
             manifest = vault_manifest.build(mv, cls._get_vault_snapshot(mv, [mv]))
         real_folders = cls._list_real_folders(mv, allowed_dirs)
-        return vault_tree.build_tree(manifest.get("nodes", []), prefixes, real_folders)
+        return vault_tree.build_tree(
+            manifest.get("nodes", []), prefixes, real_folders, manifest.get("links", [])
+        )
 
     @classmethod
     def _search_fts(cls, mv: str, search_dirs: List[str], query_clean: str, max_results: int) -> Optional[List[Dict[str, Any]]]:
@@ -566,8 +568,8 @@ class VaultManager:
         for idx, r in enumerate(rows, start=1):
             results.append({
                 "file_name": r["file_name"], "rel_path": r["rel_path"], "abs_path": os.path.join(mv, r["rel_path"]),
-                "match_type": "content", "line_no": 1, "snippet": r["snippet"], "title": r["title"],
-                "tags": [], "meta": {}, "index": idx,
+                "match_type": r["match_type"], "line_no": 1, "snippet": r["snippet"], "title": r["title"],
+                "tags": r["tags"], "meta": {}, "index": idx,
             })
         return results
 
@@ -595,6 +597,7 @@ class VaultManager:
             # through to `direct` below rather than return an empty result.
 
         title_matches: List[Dict[str, Any]] = []
+        tag_matches: List[Dict[str, Any]] = []
         content_matches: List[Dict[str, Any]] = []
 
         try:
@@ -608,7 +611,14 @@ class VaultManager:
                 elif not isinstance(tags, list):
                     tags = []
 
-                is_title_match = (query_clean in file.lower() or query_clean in rel_path.lower())
+                # Filename only, not the whole `rel_path` — the old
+                # rel_path-inclusive check meant a query matching an ancestor
+                # *folder* name (e.g. "quote" -> "Quotes/") classified every
+                # note in that folder as a "title" match, flooding the
+                # `max_results` cap with folder-name coincidences and hiding
+                # genuine tag/content hits elsewhere in the vault.
+                is_title_match = query_clean in file.lower()
+                matched_tags = [t for t in tags if query_clean in str(t).lower()]
 
                 if is_title_match:
                     fl = next((line.strip("# \t\r") for line in body.splitlines() if line.strip() and not line.startswith("---") and ":" not in line), "")
@@ -622,6 +632,22 @@ class VaultManager:
                         "match_type": "title",
                         "line_no": 1,
                         "snippet": clean_fl or "Exact title match",
+                        "title": meta.get("title") or meta.get("name") or os.path.splitext(file)[0],
+                        "tags": tags,
+                        "meta": meta,
+                    })
+                # Checked ahead of the raw full-content substring test below so
+                # a note tagged `#urgent` classifies as a deliberate tag match
+                # rather than an incidental content hit that merely happens to
+                # contain the tag's literal text in its frontmatter block.
+                elif matched_tags:
+                    tag_matches.append({
+                        "file_name": file,
+                        "rel_path": rel_path,
+                        "abs_path": entry["abs_path"],
+                        "match_type": "tag",
+                        "line_no": 1,
+                        "snippet": " ".join(f"#{t}" for t in matched_tags),
                         "title": meta.get("title") or meta.get("name") or os.path.splitext(file)[0],
                         "tags": tags,
                         "meta": meta,
@@ -652,12 +678,12 @@ class VaultManager:
                         "meta": meta,
                     })
 
-                if len(title_matches) + len(content_matches) >= max_results * 2:
+                if len(title_matches) + len(tag_matches) + len(content_matches) >= max_results * 2:
                     break
         except Exception:
             pass
 
-        all_results = (title_matches + content_matches)[:max_results]
+        all_results = (title_matches + tag_matches + content_matches)[:max_results]
         for idx, res in enumerate(all_results, start=1):
             res["index"] = idx
 

@@ -169,11 +169,11 @@ function TrashList({
             className="group/row flex items-center gap-2 rounded-md py-1 pr-1"
           >
             <div className="flex min-w-0 flex-1 flex-col">
-              <span className="truncate font-mono text-xs">
+              <span className="truncate font-mono text-sm">
                 {dir ? <span className="text-fg-muted">{dir}</span> : null}
                 {name}
               </span>
-              <span className="text-[11px] text-fg-muted">
+              <span className="text-xs text-fg-muted">
                 deleted {ago(row.deleted_at)}
               </span>
             </div>

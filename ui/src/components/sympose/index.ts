@@ -45,6 +45,7 @@ export {
 export { PersonaPill } from "./persona-pill"
 export { PresetCard, type ThemePreset } from "./preset-card"
 export { QuietToggle } from "./quiet-toggle"
+export { SearchPreferencesSection } from "./search-preferences-section"
 export {
   SegmentedControl,
   type SegmentedControlOption,
@@ -55,5 +56,14 @@ export { StatusTag } from "./status-tag"
 export { ThemeToggle } from "./theme-toggle"
 export { TopBar } from "./top-bar"
 export { TrashList } from "./trash-list"
-export { filterVaultTree, VaultTree, type VaultNode } from "./vault-tree"
+export { VaultContentSearch } from "./vault-content-search"
+export {
+  filterVaultTree,
+  filterTreeByQuery,
+  flatSearchTree,
+  collectFolderPaths,
+  VaultTree,
+  type VaultNode,
+  type FlatVaultMatch,
+} from "./vault-tree"
 export { WikiLink } from "./wiki-link"

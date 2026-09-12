@@ -83,6 +83,22 @@ def test_real_folders_already_present_from_a_note_are_not_duplicated():
     assert [n["name"] for n in tree] == ["Projects", "Recipes", "top-level.md"]
 
 
+def test_links_attach_as_wikilink_neighbours_both_directions():
+    links = [{"source": "Pitch", "target": "Roadmap"}, {"source": "Idea", "target": "Pitch"}]
+    tree = build_tree(NODES, [""], links=links)
+    projects = tree[0]
+    studio = projects["children"][0]
+    pitch = next(c for c in studio["children"] if c["name"] == "Pitch.md")
+    # Pitch links out to Roadmap and is linked in from Idea.
+    assert pitch["links"] == ["Idea", "Roadmap"]
+
+    roadmap = projects["children"][1]
+    assert roadmap["links"] == ["Pitch"]
+
+    grocery = tree[1]["children"][0]
+    assert grocery["links"] == []
+
+
 def _all_paths(tree):
     out = []
     for n in tree:

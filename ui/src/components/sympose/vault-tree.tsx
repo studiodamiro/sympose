@@ -36,6 +36,11 @@ export interface VaultNode {
   path: string
   type: "folder" | "note"
   children?: VaultNode[]
+  /** Frontmatter tags, without the leading `#` — notes only. */
+  tags?: string[]
+  /** Wikilink neighbours (outgoing targets and incoming backlinks, by
+   *  stem) — notes only. */
+  links?: string[]
 }
 
 const IGNORED = new Set([".obsidian", ".git", "Attachments", ".trash"])
@@ -53,6 +58,102 @@ export function filterVaultTree(nodes: VaultNode[]): VaultNode[] {
         ? { ...node, children: filterVaultTree(node.children) }
         : node
     )
+}
+
+/**
+ * Client-side vault search (round-trip-frugal — filters the tree already in
+ * memory, no backend query). A node matches on its full vault-relative
+ * `path` — so a query matching an ancestor folder's name surfaces everything
+ * under it, not just a leaf whose own filename happens to contain it — or,
+ * for a note, on any of its frontmatter tags or wikilink neighbours (both
+ * outgoing links and incoming backlinks). A folder matching by its own path
+ * keeps its whole subtree as-is; otherwise only its matching descendants
+ * survive. Case-insensitive substring match throughout.
+ */
+export function filterTreeByQuery(
+  nodes: VaultNode[],
+  query: string
+): VaultNode[] {
+  const q = query.trim().toLowerCase()
+  if (!q) return nodes
+  const walk = (list: VaultNode[]): VaultNode[] =>
+    list.reduce<VaultNode[]>((acc, node) => {
+      const selfMatch =
+        node.path.toLowerCase().includes(q) ||
+        (node.tags?.some((t) => t.toLowerCase().includes(q)) ?? false) ||
+        (node.links?.some((l) => l.toLowerCase().includes(q)) ?? false)
+      if (node.type === "folder") {
+        const children = selfMatch ? (node.children ?? []) : walk(node.children ?? [])
+        if (selfMatch || children.length > 0) {
+          acc.push({ ...node, children })
+        }
+      } else if (selfMatch) {
+        acc.push(node)
+      }
+      return acc
+    }, [])
+  return walk(nodes)
+}
+
+/** Every folder path in a tree, depth-first — used to seed `defaultExpanded`
+ *  so a search result's matching folders open regardless of their normal
+ *  collapsed state, without touching the persisted expanded-folders cookie. */
+export function collectFolderPaths(nodes: VaultNode[]): string[] {
+  return nodes.flatMap((node) =>
+    node.type === "folder"
+      ? [node.path, ...collectFolderPaths(node.children ?? [])]
+      : []
+  )
+}
+
+export interface FlatVaultMatch {
+  node: VaultNode
+  reason: "tag" | "link" | "path"
+  /** The matched tag, wikilink target, or — for a plain path match — the
+   *  ancestor folder whose name matched (undefined when the note's own path
+   *  matched directly, since its own path is already shown as the row). */
+  detail?: string
+}
+
+/**
+ * `filterTreeByQuery`'s flat counterpart: no folder rows, no nesting — every
+ * matching note as its own entry, tagged with *why* it matched, so a caller
+ * can render a plain list (pathname + a one-line reason) instead of a
+ * collapsible tree. A note under a folder that matches by name (e.g.
+ * "quote" -> "Quotes/") is included with `reason: "path"` even though the
+ * note itself has no tag/link/filename hit — same recall as
+ * `filterTreeByQuery`'s whole-subtree-on-folder-match behavior, just
+ * flattened for display.
+ */
+export function flatSearchTree(
+  nodes: VaultNode[],
+  query: string
+): FlatVaultMatch[] {
+  const q = query.trim().toLowerCase()
+  if (!q) return []
+  const out: FlatVaultMatch[] = []
+  const walk = (list: VaultNode[], matchedFolder?: string) => {
+    for (const node of list) {
+      if (node.type === "folder") {
+        const selfMatch = node.path.toLowerCase().includes(q)
+        walk(node.children ?? [], selfMatch ? node.name : matchedFolder)
+        continue
+      }
+      const matchedTag = node.tags?.find((t) => t.toLowerCase().includes(q))
+      const matchedLink = node.links?.find((l) => l.toLowerCase().includes(q))
+      if (matchedTag) {
+        out.push({ node, reason: "tag", detail: matchedTag })
+      } else if (matchedLink) {
+        out.push({ node, reason: "link", detail: matchedLink })
+      } else if (node.path.toLowerCase().includes(q)) {
+        out.push({ node, reason: "path" })
+      } else if (matchedFolder) {
+        out.push({ node, reason: "path", detail: matchedFolder })
+      }
+    }
+  }
+  walk(nodes)
+  return out
 }
 
 interface RowActions {

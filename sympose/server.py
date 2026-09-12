@@ -168,6 +168,20 @@ def create_app(engine: Any, workspace_dir: Optional[str] = None) -> FastAPI:
         profile = engine.pm.get_profile(persona) or engine.pm.get_profile("samantha")
         return {"persona": persona, "tree": VaultManager.get_vault_tree(profile)}
 
+    @app.get("/api/vault/search")
+    def search_vault(
+        q: str = Query(..., min_length=1, description="Search query"),
+        persona: Optional[str] = Query("samantha", description="Persona handle for sandbox scoping"),
+    ) -> Dict[str, Any]:
+        """Full-text vault search (ADR-057 structured results — title + content
+        matches with snippets) for the dashboard search field's content tier,
+        behind the tree's instant client-side name/tag/link filter. Whole-vault
+        within the persona's sandbox, not scoped to whatever folder the panel
+        currently has open — a content hit can live anywhere. Same engine as
+        the CLI/Slack `/vault` command (`VaultManager.search_structured`)."""
+        profile = engine.pm.get_profile(persona) or engine.pm.get_profile("samantha")
+        return {"query": q, "results": VaultManager.search_structured(profile, q)}
+
     @app.get("/api/vault/note")
     def read_note(
         path: str = Query(..., description="Relative path of note"),

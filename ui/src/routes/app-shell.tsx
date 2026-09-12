@@ -5,10 +5,12 @@ import {
   Add01Icon,
   ArrowLeft01Icon,
   ArrowRight01Icon,
+  Cancel01Icon,
   File01Icon,
   Folder01Icon,
   FolderAddIcon,
   Note01Icon,
+  Search01Icon,
   ThumbsUpIcon,
 } from "@hugeicons/core-free-icons"
 
@@ -35,6 +37,7 @@ import { useToolbarItems } from "@/lib/use-toolbar-items"
 import { usePinnedNotes } from "@/lib/use-pinned-notes"
 import { useNotificationPreferences } from "@/lib/use-notification-preferences"
 import { useNebulaPreferences } from "@/lib/use-nebula-preferences"
+import { useSearchPreferences } from "@/lib/use-search-preferences"
 import { useNebulaGraph } from "@/lib/use-nebula-graph"
 import {
   fetchPersonas,
@@ -65,11 +68,16 @@ import {
   MENU_TRASH_ID,
   NebulaAppearanceSection,
   NebulaModeToggle,
+  SearchPreferencesSection,
   SlackStatusPill,
   ThemeToggle,
   TopBar,
   TrashList,
+  VaultContentSearch,
   VaultTree,
+  collectFolderPaths,
+  filterTreeByQuery,
+  flatSearchTree,
   type MainMenuItem,
   type VaultNode,
 } from "@/components/sympose"
@@ -103,6 +111,7 @@ const SECTION_LABELS: Record<string, string> = {
 const AUTO_COLLAPSE_COOKIE = "sympose:pref.autoCollapseMenu"
 const SECTION_COOKIE = "sympose:shell.section"
 const RAIL_COOKIE = "sympose:shell.rail"
+const NOTE_COOKIE = "sympose:shell.note"
 
 /**
  * `<MainMenu>` mounted as the real app shell — full viewport height, no demo
@@ -337,6 +346,7 @@ export function AppShell() {
   const { isPinned, togglePin } = usePinnedNotes()
   const [notifyPrefs, setNotifyPref] = useNotificationPreferences()
   const [nebulaPrefs, setNebulaPref] = useNebulaPreferences()
+  const [searchPrefs, setSearchPref] = useSearchPreferences()
   // Lifted here (not called inside `<AmbientNebula>`) so the one fetch also
   // backs `tagSource` below — the ambient layer and the editor's `#tag`
   // autocomplete share the same master graph instead of each hitting
@@ -398,7 +408,14 @@ export function AppShell() {
   // re-fetched whenever the active persona changes so the sandbox follows the
   // switcher. Every folder row opens the same panel: the whole scoped tree.
   const [vaultTree, setVaultTree] = React.useState<VaultNode[]>([])
-  const [selectedNote, setSelectedNote] = React.useState<string>()
+  // Persisted across a refresh so the editor reopens on the same note instead
+  // of coming back empty — same cookie convention as `active` (SECTION_COOKIE).
+  const [selectedNote, setSelectedNote] = React.useState<string | undefined>(
+    () => getCookie(NOTE_COOKIE) || undefined
+  )
+  React.useEffect(() => {
+    setCookie(NOTE_COOKIE, selectedNote ?? "")
+  }, [selectedNote])
   // Nebula node ids are the bare filename stem (`vault_manifest_build._stem`
   // on the backend), not the full vault-relative path — so whichever note
   // becomes active in the content panel can drive the ambient nebula's
@@ -414,6 +431,12 @@ export function AppShell() {
   )
   const [createName, setCreateName] = React.useState("")
   const [creating, setCreating] = React.useState(false)
+  // Filters `panelNodes` client-side (name/path substring match) rather than
+  // round-tripping to the backend — round-trip frugality, and the tree is
+  // already fetched. Only scoped to the vault-folder listing, not Bin /
+  // Settings / Agent, which the same toolbar field sits above but don't read
+  // it.
+  const [vaultSearch, setVaultSearch] = React.useState("")
   const closeCreate = () => {
     setPendingCreate(null)
     setCreateName("")
@@ -502,7 +525,63 @@ export function AppShell() {
         ? [activeNode]
         : []
 
+  // Two tiers, kept visually separate rather than flattened together: matches
+  // inside the folder currently in view, then — since `panelNodes` alone
+  // can't see a sibling like "Quotes" while browsing "Code" — matches
+  // anywhere else in the vault. `vaultTree` is already in memory, so the
+  // second tier costs nothing extra. Browsing (no query) shows just the
+  // folder in view via `panelNodes`, unfiltered.
+  const vaultSearchQuery = vaultSearch.trim()
+  const searchedPanelNodes = vaultSearchQuery
+    ? filterTreeByQuery(panelNodes, vaultSearchQuery)
+    : panelNodes
+  const beyondFolderMatches =
+    vaultSearchQuery && searchPrefs.beyondFolder
+      ? flatSearchTree(
+          vaultTree.filter((n) => n.path !== resolvedActive),
+          vaultSearchQuery
+        )
+      : []
+  // Only gates the "this folder is empty" message — while searching, an
+  // empty *current* folder shouldn't hide vault-wide matches found elsewhere.
+  const panelEmpty = !vaultSearchQuery && panelNodes.length === 0
+
   const activeLabel = SECTION_LABELS[resolvedActive] ?? resolvedActive
+
+  // Shared row callbacks for both `<VaultTree>` instances below (the folder
+  // in view, and the "beyond {activeLabel}" tier) — identical behavior
+  // either way, just spread onto each with its own `nodes`/`key`.
+  const vaultTreeActions = {
+    selectedPath: selectedNote,
+    onSelect: (node: VaultNode) => {
+      // Picking a note always brings the editor forward — same as creating
+      // one (`onCreated`) or following a wikilink.
+      setSelectedNote(node.path)
+      panels.open("editor")
+    },
+    persona: activePersona,
+    onRenamed: (oldPath: string, newPath: string) => {
+      setVaultRefreshKey((k) => k + 1)
+      if (selectedNote === oldPath) setSelectedNote(newPath)
+    },
+    onDeleted: (path: string) => {
+      setVaultRefreshKey((k) => k + 1)
+      // `path` is a note's own path for a note-row delete, or a folder's
+      // path when a whole folder (ADR-099) went to the bin — either way,
+      // close the editor if it was showing something that just moved.
+      if (selectedNote === path || selectedNote?.startsWith(`${path}/`)) {
+        setSelectedNote(undefined)
+      }
+    },
+    onCreated: (path: string) => {
+      setVaultRefreshKey((k) => k + 1)
+      setSelectedNote(path)
+      panels.open("editor")
+    },
+    isPinned,
+    onTogglePin: togglePin,
+    hideExtension: editorPrefs.hideExtension === "on",
+  }
 
   // Create a note or folder in the folder currently in view (or the vault
   // root when a root note is the active surface). A new note opens in the
@@ -575,6 +654,38 @@ export function AppShell() {
         >
           <HugeiconsIcon icon={ArrowRight01Icon} className="size-4" />
         </button>
+      </div>
+      <div className="flex min-w-0 flex-1 items-center justify-center px-1">
+        <div className="relative w-full max-w-56">
+          {vaultSearch ? (
+            <button
+              type="button"
+              onClick={() => setVaultSearch("")}
+              aria-label="Clear search"
+              className="absolute left-1.5 top-1/2 grid size-3.5 -translate-y-1/2 place-items-center rounded-full text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
+            >
+              <HugeiconsIcon icon={Cancel01Icon} className="size-3" />
+            </button>
+          ) : (
+            <HugeiconsIcon
+              icon={Search01Icon}
+              className="pointer-events-none absolute left-1.5 top-1/2 size-3 -translate-y-1/2 text-muted-foreground"
+            />
+          )}
+          <input
+            type="text"
+            value={vaultSearch}
+            onChange={(e) => setVaultSearch(e.target.value)}
+            placeholder="Search vault…"
+            aria-label="Search vault"
+            // Sized off stylo's own `.stylo-search-field` (the find/replace
+            // input this was modeled on): `radius-md - 3px`, not the toolbar's
+            // plain `rounded-md`, and its 11px `font-size` (sympose's own
+            // override of stylo's field, see index.css) — matching `text-sm`
+            // here read visibly larger and rounder than that reference field.
+            className="h-7 w-full rounded-[calc(var(--radius-md)-3px)] border border-border bg-background pl-6 pr-2 text-[0.6875rem] outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+          />
+        </div>
       </div>
       {!isSentinel && (
         <div className="flex items-center gap-0.5">
@@ -666,6 +777,7 @@ export function AppShell() {
         />
         <NotificationsSection prefs={notifyPrefs} setPref={setNotifyPref} />
         <NebulaAppearanceSection prefs={nebulaPrefs} setPref={setNebulaPref} />
+        <SearchPreferencesSection prefs={searchPrefs} setPref={setSearchPref} />
       </ControlSectionsProvider>
     ) : (
       <div className="flex flex-col gap-2">
@@ -685,46 +797,49 @@ export function AppShell() {
                 No notes in scope — check that the dashboard API is reachable
                 and the persona has vault folders.
               </p>
-            ) : panelNodes.length === 0 ? (
-              <p className="text-sm text-fg-muted">This folder is empty.</p>
             ) : (
-              <VaultTree
-                nodes={panelNodes}
-                storageKey="sympose:vault.expanded"
-                selectedPath={selectedNote}
-                onSelect={(node) => {
-                  // Picking a note always brings the editor forward — same as
-                  // creating one (`onCreated`) or following a wikilink.
-                  setSelectedNote(node.path)
-                  panels.open("editor")
-                }}
-                persona={activePersona}
-                onRenamed={(oldPath, newPath) => {
-                  setVaultRefreshKey((k) => k + 1)
-                  if (selectedNote === oldPath) setSelectedNote(newPath)
-                }}
-                onDeleted={(path) => {
-                  setVaultRefreshKey((k) => k + 1)
-                  // `path` is a note's own path for a note-row delete, or a
-                  // folder's path when a whole folder (ADR-099) went to the
-                  // bin — either way, close the editor if it was showing
-                  // something that just moved.
-                  if (
-                    selectedNote === path ||
-                    selectedNote?.startsWith(`${path}/`)
-                  ) {
-                    setSelectedNote(undefined)
-                  }
-                }}
-                onCreated={(path) => {
-                  setVaultRefreshKey((k) => k + 1)
-                  setSelectedNote(path)
-                  panels.open("editor")
-                }}
-                isPinned={isPinned}
-                onTogglePin={togglePin}
-                hideExtension={editorPrefs.hideExtension === "on"}
-              />
+              <>
+                {panelEmpty ? (
+                  <p className="text-sm text-fg-muted">
+                    This folder is empty.
+                  </p>
+                ) : searchedPanelNodes.length === 0 ? (
+                  <p className="text-sm text-fg-muted">
+                    No matches for "{vaultSearchQuery}" in {activeLabel}.
+                  </p>
+                ) : (
+                  <VaultTree
+                    // Remounts between browsing and searching so a search's
+                    // matching folders start expanded (`defaultExpanded`, a
+                    // one-time seed) without disturbing the persisted
+                    // expanded-folders cookie used the rest of the time.
+                    key={vaultSearchQuery ? "search" : "browse"}
+                    nodes={searchedPanelNodes}
+                    defaultExpanded={
+                      vaultSearchQuery
+                        ? collectFolderPaths(searchedPanelNodes)
+                        : []
+                    }
+                    storageKey={
+                      vaultSearchQuery ? undefined : "sympose:vault.expanded"
+                    }
+                    {...vaultTreeActions}
+                  />
+                )}
+                {searchPrefs.beyondFolder && (
+                  <VaultContentSearch
+                    persona={activePersona}
+                    query={vaultSearch}
+                    folderLabel={activeLabel}
+                    instantMatches={beyondFolderMatches}
+                    resultsPerPage={searchPrefs.resultsPerPage}
+                    onSelect={(path) => {
+                      setSelectedNote(path)
+                      panels.open("editor")
+                    }}
+                  />
+                )}
+              </>
             )}
           </>
         )}

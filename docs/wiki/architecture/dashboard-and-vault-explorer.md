@@ -122,6 +122,7 @@ An integrated appearance drawer providing instantaneous UI re-theming:
 
 * **Directory Tree Navigator**: Hierarchical folder tree respecting agent domain sandboxes and ignoring binary/system folders (`.obsidian`, `.git`, `Attachments`, `.trash`). Back/forward through the main-menu's section history (ADR-095), same semantics as a browser tab.
 * **Directional panel-content slide (ADR-104)**: switching the content panel's folder/section, or the editor's open note, slides the body sideways — left on forward navigation, right on back — instead of an instant swap; exit finishes fully before enter starts, never a cross-fade. Scoped to CodeMirror's own scroll viewport in the editor so Stylo's toolbar never moves.
+* **Vault search (ADR-105)**: the toolbar's search field runs two tiers — an instant, client-side match on path (so a query matching a folder's name surfaces everything under it), tags, and wikilinks, scoped to whichever folder is currently open; and a debounced `GET /api/vault/search` call covering the rest of the vault, merging in anything the instant pass can't see (note-body content) or missed, de-duplicated by path and captioned "N matches beyond {folder}." No nested tree for that second list — flat rows, pathname plus a one-line reason (`#tag`, `↔ wikilink target`, or a content snippet). Togglable and paginated from Settings → Search (below).
 * **Row actions (ADR-086)**: both a `⋯` button (hover/focus) and a real pointer-anchored right-click / long-press context menu — not a fixed-anchor dropdown — attach to every row, sharing one item list. Note rows: Pin/Unpin (ADR-092, cookie-only for now, ahead of a Pinned/Recent list), Rename, Delete. Folder rows: New note here, Delete.
 * **Inline note & folder management**: create, rename, and delete both from that row menu (ADR-084, ADR-095, ADR-099) — a rename rewrites every `[[wikilink]]` pointing at the note, and deleting either is recoverable via the vault Bin (a permanently-empty folder is the one exception: nothing to lose, so it's unlinked outright instead of round-tripping through `.trash/`).
 * **Vault Bin**: recoverable trash view (ADR-085), surfaced as its own row in the main menu (ADR-086) rather than a header icon — restore a deleted note to its original path or purge it for good.
@@ -156,6 +157,7 @@ A dedicated Settings panel (ADR-094 trimmed its row density and added a collapse
 
 * **Notifications & Confirmations (ADR-087)**: toast notification system, plus a three-way delete-confirmation style — modal dialog, inline, or none — governing every destructive vault action (note delete, folder delete, trash purge).
 * **Nebula appearance mirror (ADR-091)**: every ambient-nebula dock knob from Module A (mode, forces, appearance, scrim sliders) is also exposed here inline, plus a toggle to hide the floating dock entirely.
+* **Search (ADR-105)**: an on/off toggle for whether the vault search field looks beyond the folder currently open at all, and a 10/25/50 (default 10) results-per-page knob for that merged results list.
 * **Slack & theme footer (ADR-082)**: a read-only Slack daemon connectivity status pill, and the light/dark theme switch, pinned below the Settings scroll area so a long list can't scroll them out of reach.
 
 ---
@@ -170,9 +172,12 @@ The dashboard communicates with Sympose's native FastAPI gateway on `http://loca
   * Sub-5ms response time served directly from Python in-memory index.
   * Whole-vault, persona-independent — the nebula is an explorer surface.
 * **`GET /api/vault/tree?persona=<handle>`** *(shipped)*:
-  * Returns: `{ persona, tree: [{ name, path, type: "folder" | "note", children? }] }` — the ADR-078 manifest's note nodes folded into a nested directory tree, folders before notes, each group sorted case-insensitively. Ghost nodes (unresolved `[[wikilinks]]`) are excluded.
+  * Returns: `{ persona, tree: [{ name, path, type: "folder" | "note", children?, tags?, links? }] }` — the ADR-078 manifest's note nodes folded into a nested directory tree, folders before notes, each group sorted case-insensitively. Ghost nodes (unresolved `[[wikilinks]]`) are excluded. `tags` (frontmatter tags) and `links` (wikilink neighbours, both directions, by stem — ADR-105) ride along on note nodes for free, straight from the manifest already being read for this call.
   * **Persona-scoped**: filtered to the persona's `vault_folders` via a vault-relative path-prefix match, the same sandbox every other `/api/vault/*` read honours. `samantha` (`["*"]`) sees the whole vault.
   * The manifest alone only knows about notes, so an empty folder is merged in from a live, directory-only disk listing (`VaultManager._list_real_folders`, ADR-098) — otherwise a folder with nothing in it yet would be structurally invisible rather than just stale.
+* **`GET /api/vault/search?q=<query>&persona=<handle>`** *(shipped, ADR-105)*:
+  * Returns: `{ query, results: [{ file_name, rel_path, match_type: "title" | "tag" | "content", line_no, snippet, title, tags }] }` — wraps `VaultManager.search_structured()` (ADR-003, ADR-057), the same dual-tier (`direct` / `sqlite_fts`) engine the CLI/Slack `/vault` command uses. Persona-scoped like every other vault read; whole-vault within that sandbox, not limited to whatever folder the dashboard panel currently has open.
+  * The dashboard's search field debounces this 300ms behind an instant client-side pass over the already-fetched tree (path/tags/links) — this endpoint only covers what that pass structurally can't: note-body content.
 * **`GET /api/vault/cloud`**:
   * Returns high-density note and tag taxonomy with reference counts for 2D bubble clouds.
 * **`GET /api/vault/note?path=<rel_path>`**:

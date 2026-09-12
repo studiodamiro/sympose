@@ -1,0 +1,21 @@
+diff --git a/node_modules/three-render-objects/dist/three-render-objects.mjs b/node_modules/three-render-objects/dist/three-render-objects.mjs
+index 3374b7a..6c38200 100644
+--- a/node_modules/three-render-objects/dist/three-render-objects.mjs
++++ b/node_modules/three-render-objects/dist/three-render-objects.mjs
+@@ -524,9 +524,14 @@ var threeRenderObjects = Kapsule({
+ 
+         // detect point drag
+         !state.isPointerDragging && ev.type === 'pointermove' && (ev.pressure > 0 || state.isPointerPressed) // ev.pressure always 0 on Safari, so we used the isPointerPressed tracker
+-        && (ev.pointerType === 'mouse' || ev.movementX === undefined || [ev.movementX, ev.movementY].some(function (m) {
++        // sympose patch (see ui/patches/three-render-objects+*.patch): upstream
++        // short-circuited this whole check to true for any mouse pointermove
++        // regardless of distance, so ordinary hand tremor between mousedown/mouseup
++        // during a real click was misread as a drag and silently swallowed the
++        // click. Movement magnitude now gates mouse the same as touch/pen.
++        && (ev.movementX === undefined || [ev.movementX, ev.movementY].some(function (m) {
+           return Math.abs(m) > 1;
+-        })) // relax drag trigger sensitivity on non-mouse (touch/pen) events
++        }))
+         && (state.isPointerDragging = true);
+         if (state.enablePointerInteraction) {
+           // update the pointer pos

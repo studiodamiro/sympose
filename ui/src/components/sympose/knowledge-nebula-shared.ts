@@ -264,3 +264,55 @@ export function nodeRenderVal(
   const base = Math.max(1.5, node.val ?? 1)
   return isHighlight ? base : base * 0.5
 }
+
+/**
+ * Time constant (ms) for `stepHighlightT`'s exponential ease — roughly the
+ * time to close two-thirds of the remaining distance to the target each tick.
+ * ~90ms settles a highlight/dim transition in about a quarter second.
+ */
+export const HIGHLIGHT_EASE_HALF_LIFE_MS = 90
+
+/**
+ * Advances a node's `__highlightT` (0 = fully dimmed, 1 = fully highlighted)
+ * toward `target` by one frame of exponential ease, so a selection change
+ * fades instead of snapping. Exponential (vs. a fixed-duration tween) means a
+ * target that changes mid-flight — e.g. clicking a different node before the
+ * last transition settles — curves smoothly from wherever the value already
+ * is, rather than resetting. Returns `true` if still short of the target, so
+ * the caller's animation loop knows whether to keep ticking this node.
+ */
+export function stepHighlightT(node: any, target: number, dtMs: number): boolean {
+  const current = node.__highlightT ?? 1
+  const diff = target - current
+  if (Math.abs(diff) < 0.003) {
+    node.__highlightT = target
+    return false
+  }
+  node.__highlightT = current + diff * (1 - Math.exp(-dtMs / HIGHLIGHT_EASE_HALF_LIFE_MS))
+  return true
+}
+
+/**
+ * Eases a node's rendered colour between its dimmed grey and its full folder
+ * colour, at progress `t` (0 = fully dimmed, 1 = fully highlighted — see
+ * {@link stepHighlightT}). `dimmedRgb`/`dimmedAlpha` are the renderer's
+ * existing flat dim colour, kept as the `t=0` endpoint so steady-state
+ * dimmed/highlighted looks exactly as it did before this eased in-between.
+ */
+export function lerpNodeColor(
+  t: number,
+  fullColorHex: string,
+  dimmedRgb: readonly [number, number, number],
+  dimmedAlpha: number
+): string {
+  const c = clamp(t, 0, 1)
+  const [dr, dg, db] = dimmedRgb
+  const fr = parseInt(fullColorHex.slice(1, 3), 16)
+  const fg = parseInt(fullColorHex.slice(3, 5), 16)
+  const fb = parseInt(fullColorHex.slice(5, 7), 16)
+  const r = Math.round(dr + (fr - dr) * c)
+  const g = Math.round(dg + (fg - dg) * c)
+  const b = Math.round(db + (fb - db) * c)
+  const a = dimmedAlpha + (1 - dimmedAlpha) * c
+  return `rgba(${r},${g},${b},${a.toFixed(3)})`
+}

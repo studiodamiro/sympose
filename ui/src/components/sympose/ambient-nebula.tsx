@@ -98,10 +98,7 @@ function AmbientNebula({
         repelForce={prefs.repelForce}
         linkForce={prefs.linkForce}
         linkDistance={prefs.linkDistance}
-        onNodeClick={(n) => {
-          setSelectedNodeId(n.id)
-          nebulaRef.current?.focusNode(n.id, prefs.clickZoomDistance, 150)
-        }}
+        onNodeClick={(n) => setSelectedNodeId(n.id)}
         onBackgroundClick={() => {
           setSelectedNodeId(null)
           nebulaRef.current?.zoomToFit(600, 48)

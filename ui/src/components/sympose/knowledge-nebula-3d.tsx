@@ -14,8 +14,10 @@ import {
 import {
   clamp,
   createNodeTooltip,
+  lerpNodeColor,
   nebulaNodeColor,
   nodeRenderVal,
+  stepHighlightT,
   useElementSize,
   type KnowledgeNebulaHandle,
   type KnowledgeNebulaProps,
@@ -36,6 +38,11 @@ const LABEL_FADE_FAR = 260
  * instead of settling.
  */
 const BIRTH_REHEAT_INTERVAL_MS = 300
+/** Flat colour a dimmed (non-highlighted) node eases toward/from — `t=0` endpoint of `lerpNodeColor`. */
+const DIMMED_RGB_LIGHT = [148, 163, 184] as const
+const DIMMED_RGB_DARK = [100, 116, 139] as const
+const DIMMED_ALPHA_LIGHT = 0.18
+const DIMMED_ALPHA_DARK = 0.15
 
 /**
  * Knowledge Nebula — 3D variant (wiki spec §2, ADR-051/052). A force-directed
@@ -78,6 +85,7 @@ const KnowledgeNebula3D = React.forwardRef<
     const containerRef = React.useRef<HTMLDivElement>(null)
     const fgRef = React.useRef<ForceGraphMethods | undefined>(undefined)
     const animFrameRef = React.useRef<number | null>(null)
+    const flightRafRef = React.useRef<number | null>(null)
     const { w, h } = useElementSize(containerRef)
     const live = interactive ?? !dimmed
 
@@ -88,6 +96,7 @@ const KnowledgeNebula3D = React.forwardRef<
       const cloned = structuredClone(graph) as NebulaGraph
       cloned.nodes.forEach((n: any) => {
         n.__scale = 1.0
+        n.__highlightT = 1
       })
       return cloned
     }, [graph])
@@ -143,10 +152,24 @@ const KnowledgeNebula3D = React.forwardRef<
     }, [isLight])
 
     // Fade labels by camera distance every frame (three.js is already looping).
+    // Piggybacks the highlight/dim colour-transition step on the same loop —
+    // three.js re-evaluates `nodeColor` every frame regardless (it diffs the
+    // result against each node's current material each render), so easing
+    // `__highlightT` here is free: no second loop, no extra redraw cost.
     React.useEffect(() => {
       let raf = 0
+      let last = performance.now()
       const tick = () => {
         raf = requestAnimationFrame(tick)
+        const now = performance.now()
+        const dt = now - last
+        last = now
+        const hiForColor = highlightedIdsRef.current
+        nodeById.forEach((node) => {
+          const target = !hiForColor || hiForColor.has(node.id) ? 1 : 0
+          stepHighlightT(node, target, dt)
+        })
+
         const fg = fgRef.current
         if (!fg) return
         const cam = fg.camera() as any
@@ -285,6 +308,76 @@ const KnowledgeNebula3D = React.forwardRef<
       }
     }
 
+    // Drives camera position AND the orbit-controls look-at target from a
+    // single rAF loop on one shared clock. `fg.cameraPosition(pos, lookAt,
+    // duration)` looks like it would do this, but the underlying 3d-force-graph
+    // library runs them as two *independent* tweens — position over the full
+    // duration, look-at over just the first third of it — so the pivot point
+    // arrives and sits still while the camera keeps gliding in behind it. That
+    // mismatch is what read as a "clunky" click-zoom; syncing both here is the
+    // fix.
+    const flyCameraTo = React.useCallback(
+      (
+        cameraPos: { x: number; y: number; z: number },
+        lookAt: { x: number; y: number; z: number },
+        duration: number
+      ) => {
+        const fg = fgRef.current
+        const cam = fg?.camera() as any
+        const controls = fg?.controls() as any
+        if (!cam || !controls?.target) return
+
+        if (flightRafRef.current) {
+          cancelAnimationFrame(flightRafRef.current)
+          flightRafRef.current = null
+        }
+
+        const startPos = { x: cam.position.x, y: cam.position.y, z: cam.position.z }
+        const startLookAt = { x: controls.target.x, y: controls.target.y, z: controls.target.z }
+        const startTime = performance.now()
+        const easeOutQuad = (t: number) => t * (2 - t)
+
+        // Ambient auto-rotate (see the effect below) nudges controls.target's
+        // azimuth on its own rAF loop independent of enableRotate — left
+        // running, it fights this flight the same way the library's own
+        // mismatched tweens did. Pause it and restore whatever it was after.
+        const wasAutoRotating = controls.autoRotate
+        controls.autoRotate = false
+        controls.enableZoom = false
+        controls.enableRotate = false
+        controls.enablePan = false
+
+        const tick = () => {
+          const t = duration <= 0 ? 1 : Math.min(1, (performance.now() - startTime) / duration)
+          const eased = easeOutQuad(t)
+
+          cam.position.set(
+            startPos.x + (cameraPos.x - startPos.x) * eased,
+            startPos.y + (cameraPos.y - startPos.y) * eased,
+            startPos.z + (cameraPos.z - startPos.z) * eased
+          )
+          controls.target.set(
+            startLookAt.x + (lookAt.x - startLookAt.x) * eased,
+            startLookAt.y + (lookAt.y - startLookAt.y) * eased,
+            startLookAt.z + (lookAt.z - startLookAt.z) * eased
+          )
+          controls.update()
+
+          if (t < 1) {
+            flightRafRef.current = requestAnimationFrame(tick)
+          } else {
+            controls.enableZoom = true
+            controls.enableRotate = true
+            controls.enablePan = true
+            controls.autoRotate = wasAutoRotating
+            flightRafRef.current = null
+          }
+        }
+        tick()
+      },
+      []
+    )
+
     React.useImperativeHandle(ref, () => ({
       zoomToFit: (duration = 600, padding = 48) => {
         const fg = fgRef.current
@@ -309,21 +402,7 @@ const KnowledgeNebula3D = React.forwardRef<
         if (!liveNode) return
 
         const framing = getClusterFraming(liveNode, distance ?? clickZoomDistance)
-        fg.cameraPosition(
-          framing.cameraPos,
-          framing.lookAt,
-          duration
-        )
-        setTimeout(() => {
-          const controls = fg.controls() as any
-          if (controls) {
-            controls.target.set(framing.lookAt.x, framing.lookAt.y, framing.lookAt.z)
-            controls.enableZoom = true
-            controls.enableRotate = true
-            controls.enablePan = true
-            controls.update()
-          }
-        }, duration + 60)
+        flyCameraTo(framing.cameraPos, framing.lookAt, duration)
       },
       fitNodes: (nodeIds: string[] | Set<string>, duration = 800, padding = 40) => {
         const fg = fgRef.current
@@ -358,7 +437,7 @@ const KnowledgeNebula3D = React.forwardRef<
         const targetDistance = Math.max(50, maxRadius * 2.2 + padding)
         const dir = getViewDirection()
 
-        fg.cameraPosition(
+        flyCameraTo(
           {
             x: cx + dir.x * targetDistance,
             y: cy + dir.y * targetDistance,
@@ -367,17 +446,6 @@ const KnowledgeNebula3D = React.forwardRef<
           { x: cx, y: cy, z: cz },
           duration
         )
-
-        setTimeout(() => {
-          const controls = fg.controls() as any
-          if (controls) {
-            controls.target.set(cx, cy, cz)
-            controls.enableZoom = true
-            controls.enableRotate = true
-            controls.enablePan = true
-            controls.update()
-          }
-        }, duration + 60)
       },
       animateBirth: (noteDelayMs = 25) => {
         const fg = fgRef.current
@@ -450,6 +518,10 @@ const KnowledgeNebula3D = React.forwardRef<
         if (animFrameRef.current) {
           cancelAnimationFrame(animFrameRef.current)
           animFrameRef.current = null
+        }
+        if (flightRafRef.current) {
+          cancelAnimationFrame(flightRafRef.current)
+          flightRafRef.current = null
         }
       }
     }, [])
@@ -549,19 +621,7 @@ const KnowledgeNebula3D = React.forwardRef<
       const n = node as any
       const framing = getClusterFraming(n, clickZoomDistance)
 
-      fg.cameraPosition(
-        framing.cameraPos,
-        framing.lookAt,
-        800
-      )
-      setTimeout(() => {
-        const controls = fg.controls() as any
-        if (controls) {
-          controls.target.set(framing.lookAt.x, framing.lookAt.y, framing.lookAt.z)
-          controls.enableZoom = true
-          controls.update()
-        }
-      }, 860)
+      flyCameraTo(framing.cameraPos, framing.lookAt, 800)
       onNodeClick?.(n as NebulaNode)
     }
 
@@ -624,11 +684,14 @@ const KnowledgeNebula3D = React.forwardRef<
             nodeOpacity={0.95}
             nodeVal={(n: NodeObject) => nodeRenderVal(n, highlightedNodeIds)}
             nodeColor={(n: NodeObject) => {
-              const node = n as NebulaNode
-              if (highlightedNodeIds && !highlightedNodeIds.has(node.id)) {
-                return isLight ? "rgba(148,163,184,0.18)" : "rgba(100,116,139,0.15)"
-              }
-              return nebulaNodeColor(node, isLight, nodeSeparation, nodeVividness)
+              const node = n as any
+              const t = node.__highlightT ?? 1
+              const dimmedRgb = isLight ? DIMMED_RGB_LIGHT : DIMMED_RGB_DARK
+              const dimmedAlpha = isLight ? DIMMED_ALPHA_LIGHT : DIMMED_ALPHA_DARK
+              if (t <= 0) return `rgba(${dimmedRgb.join(",")},${dimmedAlpha})`
+              const full = nebulaNodeColor(node, isLight, nodeSeparation, nodeVividness)
+              if (t >= 1) return full
+              return lerpNodeColor(t, full, dimmedRgb, dimmedAlpha)
             }}
             nodeLabel={tooltipFn}
             nodeThreeObjectExtend={true}

@@ -7,8 +7,10 @@ import { type NebulaGraph, type NebulaNode } from "@/lib/nebula-graph"
 import {
   clamp,
   createNodeTooltip,
+  lerpNodeColor,
   nebulaNodeColor,
   nodeRenderVal,
+  stepHighlightT,
   useElementSize,
   type KnowledgeNebulaHandle,
   type KnowledgeNebulaProps,
@@ -40,6 +42,11 @@ const LABEL_FADE_END = 3.4
  * between reheats.
  */
 const BIRTH_REHEAT_INTERVAL_MS = 300
+/** Flat colour a dimmed (non-highlighted) node eases toward/from — `t=0` endpoint of `lerpNodeColor`. */
+const DIMMED_RGB_LIGHT = [148, 163, 184] as const
+const DIMMED_RGB_DARK = [100, 116, 139] as const
+const DIMMED_ALPHA_LIGHT = 0.22
+const DIMMED_ALPHA_DARK = 0.18
 
 const KnowledgeNebula2D = React.forwardRef<
   KnowledgeNebulaHandle,
@@ -85,9 +92,61 @@ const KnowledgeNebula2D = React.forwardRef<
       const cloned = structuredClone(graph) as NebulaGraph
       cloned.nodes.forEach((n: any) => {
         n.__scale = 1.0
+        n.__highlightT = 1
       })
       return cloned
     }, [graph])
+
+    // --- Eased highlight/dim colour transition ------------------------------
+    // The canvas renderer pauses its own redraw loop once idle (see
+    // `autoPauseRedraw` below) to stay cheap at rest, so animating a node
+    // property alone wouldn't paint anything after the sim has settled. This
+    // effect flips that pause off only while a transition is actually running,
+    // and back on the instant it settles — bounded, self-terminating cost
+    // instead of a permanent extra redraw loop.
+    const highlightedIdsRef = React.useRef(highlightedNodeIds)
+    highlightedIdsRef.current = highlightedNodeIds
+    const colorRafRef = React.useRef<number | null>(null)
+    const [colorAnimating, setColorAnimating] = React.useState(false)
+
+    const ensureColorTransitionLoop = React.useCallback(() => {
+      if (colorRafRef.current !== null) return
+      setColorAnimating(true)
+      let last = performance.now()
+      const tick = () => {
+        const now = performance.now()
+        const dt = now - last
+        last = now
+        const hi = highlightedIdsRef.current
+        let stillActive = false
+        ;(data.nodes as any[]).forEach((n) => {
+          const target = !hi || hi.has(n.id) ? 1 : 0
+          if (stepHighlightT(n, target, dt)) stillActive = true
+        })
+        if (stillActive) {
+          colorRafRef.current = requestAnimationFrame(tick)
+        } else {
+          colorRafRef.current = null
+          setColorAnimating(false)
+        }
+      }
+      colorRafRef.current = requestAnimationFrame(tick)
+    }, [data])
+
+    React.useEffect(() => {
+      ensureColorTransitionLoop()
+    }, [highlightedNodeIds, ensureColorTransitionLoop])
+
+    React.useEffect(() => {
+      return () => {
+        if (colorRafRef.current) cancelAnimationFrame(colorRafRef.current)
+        // Reset so a StrictMode dev remount (mount -> cleanup -> mount) doesn't
+        // leave this pointing at an already-cancelled frame forever — without
+        // this, ensureColorTransitionLoop's guard sees a stale non-null ref and
+        // silently refuses to ever schedule another frame.
+        colorRafRef.current = null
+      }
+    }, [])
 
     // Centroid + zoom factor that frames a node together with its 1-hop cluster.
     const getClusterFraming = (nodeId: string, knobDist = clickZoomDistance) => {
@@ -315,6 +374,7 @@ const KnowledgeNebula2D = React.forwardRef<
             backgroundColor="rgba(0,0,0,0)"
             minZoom={MIN_ZOOM}
             maxZoom={MAX_ZOOM}
+            autoPauseRedraw={!colorAnimating}
             cooldownTicks={200}
             onEngineStop={fitWhole}
             nodeRelSize={nodeRelSize}
@@ -325,10 +385,13 @@ const KnowledgeNebula2D = React.forwardRef<
               return n.__birthed !== false
             }}
             nodeColor={(n: any) => {
-              if (isDimmed(n.id)) {
-                return isLight ? "rgba(148,163,184,0.22)" : "rgba(100,116,139,0.18)"
-              }
-              return nebulaNodeColor(n, isLight, nodeSeparation, nodeVividness)
+              const t = n.__highlightT ?? 1
+              const dimmedRgb = isLight ? DIMMED_RGB_LIGHT : DIMMED_RGB_DARK
+              const dimmedAlpha = isLight ? DIMMED_ALPHA_LIGHT : DIMMED_ALPHA_DARK
+              if (t <= 0) return `rgba(${dimmedRgb.join(",")},${dimmedAlpha})`
+              const full = nebulaNodeColor(n, isLight, nodeSeparation, nodeVividness)
+              if (t >= 1) return full
+              return lerpNodeColor(t, full, dimmedRgb, dimmedAlpha)
             }}
             nodeCanvasObjectMode={() => "after"}
             nodeCanvasObject={paintNodeLabel}

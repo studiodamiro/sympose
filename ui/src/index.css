@@ -605,7 +605,10 @@
    Applied globally (not just the editor's `.cm-scroller`) so every scroll
    container — the vault tree, chat transcript, settings, the editing
    surface — reads as one consistent scrollbar rather than the editor's
-   custom one next to the browser's stock ones everywhere else. */
+   custom one next to the browser's stock ones everywhere else. Native
+   `::-webkit-scrollbar-thumb`/`scrollbar-color` changes don't actually
+   animate in Chromium, so this snaps instantly; that's still fine for these
+   plain browser scrollbars. */
 * {
   scrollbar-width: thin;
   scrollbar-color: transparent transparent;
@@ -626,6 +629,21 @@
 }
 *:hover::-webkit-scrollbar-thumb {
   background: var(--border);
+}
+/* Two scroll surfaces get a hand-drawn thumb instead of the rule above
+   (`<ScrollThumb>` in scroll-thumb.tsx, mounted in markdown-panel.tsx and
+   content-panel.tsx) so the hover fade is a real, animatable DOM opacity
+   transition — stylo's own `.cm-scroller` (`dist/styles.css`,
+   `._root_*_1 .cm-scroller`, always-visible and unanimated regardless of the
+   rule above) and `<ContentPanel>`'s scroll surface (the vault view,
+   Settings, the Agent page). Both native scrollbars are hidden outright. */
+[data-slot="markdown-panel"] .cm-scroller,
+[data-slot="content-panel-scroll"] {
+  scrollbar-width: none !important;
+}
+[data-slot="markdown-panel"] .cm-scroller::-webkit-scrollbar,
+[data-slot="content-panel-scroll"]::-webkit-scrollbar {
+  display: none !important;
 }
 /* Frosted panel surface — the vault/content panel and the editor card sitting
    over the ambient Knowledge Nebula (ADR-088; blur dropped, ADR-089 —

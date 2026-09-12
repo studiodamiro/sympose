@@ -3,6 +3,12 @@ import * as React from "react"
 import { cn } from "@/lib/utils"
 import { getCookieNumber, setCookie } from "@/lib/cookies"
 import { useResizable } from "@/lib/use-resizable"
+import { ScrollThumb } from "@/components/sympose/scroll-thumb"
+
+// Module-level, not inline: a stable reference so `<ScrollThumb>`'s effect
+// doesn't tear down and rebind every render.
+const getContentPanelScroller = (el: HTMLElement) =>
+  el.querySelector<HTMLElement>('[data-slot="content-panel-scroll"]')
 
 /**
  * The content panel that docks flush against `<MainMenu>` (see the design
@@ -105,6 +111,7 @@ function ContentPanel({
   ...props
 }: ContentPanelProps) {
   const wrapRef = React.useRef<HTMLDivElement>(null)
+  const scrollWrapRef = React.useRef<HTMLDivElement>(null)
 
   // Persist / restore the inner scroll offset (see `scrollKey`).
   const scrollRef = React.useRef<HTMLDivElement>(null)
@@ -255,11 +262,17 @@ function ContentPanel({
         </div>
       )}
 
+      {/* Non-scrolling positioning ancestor for `<ScrollThumb>` — it holds
+          the frosted background + rounded corners (so they clip the actual
+          scrolling content via `overflow-hidden`, same as when this div did
+          the scrolling itself) while the real scroll surface below is an
+          `inset-0` layer inside it. A thumb sibling can't be pinned in place
+          against a scrolling ancestor's own scroll, only against a
+          non-scrolling one. */}
       <div
-        ref={scrollRef}
-        onScroll={handleScroll}
+        ref={scrollWrapRef}
         className={cn(
-          "flex w-full flex-1 min-h-0 flex-col gap-4 overflow-y-auto p-6",
+          "group/scroll-thumb relative w-full flex-1 min-h-0 overflow-hidden",
           // plain phone pages (Settings / Agent) sit on the same background as
           // chat and the editor — no fill, no rounding
           phone && plain
@@ -279,11 +292,24 @@ function ContentPanel({
                 // corners round instead, so this surface stays square there.
                 footer ? "rounded-br-none" : "rounded-br-lg",
                 footer || flushBottomLeft ? "rounded-bl-none" : "rounded-bl-lg"
-              ),
-          contentClassName
+              )
         )}
       >
-        {children}
+        <div
+          ref={scrollRef}
+          data-slot="content-panel-scroll"
+          onScroll={handleScroll}
+          className={cn(
+            "absolute inset-0 flex flex-col gap-4 overflow-y-auto p-6",
+            contentClassName
+          )}
+        >
+          {children}
+        </div>
+        <ScrollThumb
+          containerRef={scrollWrapRef}
+          getScroller={getContentPanelScroller}
+        />
       </div>
 
       {footer && (

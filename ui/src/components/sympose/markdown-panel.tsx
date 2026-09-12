@@ -47,6 +47,12 @@ import { extractWikilinks } from "@/lib/extract-wikilinks"
 import type { EditorPreferences } from "@/lib/use-editor-preferences"
 import { FrontmatterCard } from "@/components/sympose/frontmatter-card"
 import { NoteActionsMenu } from "@/components/sympose/note-actions-menu"
+import { ScrollThumb } from "@/components/sympose/scroll-thumb"
+
+// Module-level, not inline: a stable reference so `<ScrollThumb>`'s effect
+// (MutationObserver + ResizeObserver + scroll listener) doesn't tear down and
+// rebind on every keystroke, which re-renders this component.
+const getCmScroller = (el: HTMLElement) => el.querySelector<HTMLElement>(".cm-scroller")
 
 /**
  * The markdown editor / reader — the middle stage panel, between `<ContentPanel>`
@@ -270,6 +276,7 @@ function MarkdownPanel({
   ...props
 }: MarkdownPanelProps) {
   const wrapRef = React.useRef<HTMLDivElement>(null)
+  const editorScrollRef = React.useRef<HTMLDivElement>(null)
   const stageW = useAncestorWidth(wrapRef, 1)
   const shellW = useAncestorWidth(wrapRef, 2)
   // Space actually free to the editor's right — what it grows to when filling,
@@ -563,8 +570,9 @@ function MarkdownPanel({
           // — the toolbar row (with the note-actions `⋯`) stays a separate,
           // non-scrolling sibling above the whole canvas.
           <div
+            ref={editorScrollRef}
             data-focus-outline={focusOutline}
-            className="flex min-h-0 w-full flex-1 flex-col text-sm leading-relaxed"
+            className="group/scroll-thumb relative flex min-h-0 w-full flex-1 flex-col text-sm leading-relaxed"
           >
             <Stylo
               key={`${path}:${surface}:${reveal}:${selectionUI}:${tableEditing}`}
@@ -623,6 +631,7 @@ function MarkdownPanel({
               placeholder="Start writing…"
               className="h-full min-h-0 flex-1"
             />
+            <ScrollThumb containerRef={editorScrollRef} getScroller={getCmScroller} />
             {links.length > 0 && (
               <div
                 className={cn(

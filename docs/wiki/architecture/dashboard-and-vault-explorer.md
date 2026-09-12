@@ -129,6 +129,7 @@ An integrated appearance drawer providing instantaneous UI re-theming:
   * Clickable `[[Wikilink]]` routing (clicking `[[OAuth]]` navigates directly to `OAuth.md` or centers the 3D nebula), with wikilink autocomplete while typing `[[`.
   * Dynamic YAML frontmatter inspector and tag editor, with a collapse toggle (ADR-095).
   * Autosave (ADR-081) on a debounce, and a "hide `.md` extensions" preference (ADR-092, Obsidian convention) — both togglable from Settings.
+* **Animated scrollbar (ADR-100)**: every scroll surface — the editor, the vault tree, Settings, the Agent page — shares one hand-drawn thumb (`<ScrollThumb>`) instead of the browser's native one, since native scrollbar pseudo-elements don't actually animate in Chromium. It fades in on hover, drags to scroll, and pages on a track click; wheel/trackpad scrolling itself stays native and instant by design.
 * **Backlink & Mention Inspector**: Dedicated side panel displaying incoming links, exact line numbers, and verbatim surrounding context lines via our In-Memory Inverted Index ([ADR-044](../../../docs/journal/2026-08/2026-08-27_backlink_lookup_engine_and_inverted_index.md)).
 * **Daily Reflections Calendar**: Interactive calendar view mapping `Daily/YYYY/mm-Month/YYYY-MM-DD.md` entries to dates for chronological reminiscence.
 

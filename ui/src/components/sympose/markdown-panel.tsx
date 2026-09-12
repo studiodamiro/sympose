@@ -42,6 +42,11 @@ import { getCookieBool, setCookieBool } from "@/lib/cookies"
 import { useResizable } from "@/lib/use-resizable"
 import { useFillWidth } from "@/lib/use-fill-width"
 import { useTransientFlag } from "@/lib/use-transient-flag"
+import {
+  useSlideSwap,
+  slideEnterClassName,
+  slideExitClassName,
+} from "@/lib/use-slide-swap"
 import { fetchVaultNote, saveVaultNote } from "@/lib/vault-note-api"
 import { extractWikilinks } from "@/lib/extract-wikilinks"
 import type { EditorPreferences } from "@/lib/use-editor-preferences"
@@ -476,6 +481,169 @@ function MarkdownPanel({
     [note]
   )
 
+  // Sideways slide keyed on the open note — there's no back/forward concept
+  // for the editor (unlike the content panel), so every note switch (a
+  // wikilink, a vault-tree pick, a new note) reads as "forward": it's always
+  // pushing a new destination. Sequential rather than a crossfade: the
+  // outgoing note finishes sliding out before the incoming one starts
+  // sliding in (see `useSlideSwap`).
+  const noteBody = (
+    <>
+      {note.status === "empty" && (
+        <div className="grid flex-1 place-items-center px-6 text-center text-sm text-fg-muted">
+          Select a note to open it here.
+        </div>
+      )}
+
+      {note.status === "loading" && (
+        <div className="grid flex-1 place-items-center px-6 text-center text-sm text-fg-muted">
+          Loading…
+        </div>
+      )}
+
+      {note.status === "error" && (
+        <div className="grid flex-1 place-items-center px-6 text-center text-sm text-fg-muted">
+          Couldn't load this note.
+        </div>
+      )}
+
+      {note.status === "ready" && (
+        // stylo owns its own toolbar + scrolling canvas as one bounded flex
+        // column (`min-h-0` here is what lets its `flex: 1 1 auto` surface
+        // scroll internally instead of the toolbar scrolling away with it).
+        // The key remounts on a note switch (so CodeMirror's undo history and
+        // selection never leak from one note into another) and on a surface/
+        // reveal/selectionUI/tableEditing change from Settings — `inPlace`
+        // config and mode are both applied-at-mount, per stylo's own
+        // documented contract.
+        //
+        // Full panel width, no reading-column cap — the frontmatter card
+        // shares it. The frontmatter card rides `canvasHeader` (stylo
+        // >=0.11.0), which docks it *inside* the editing surface, under
+        // CodeMirror's own find/replace panel and above the document body
+        // — the toolbar row (with the note-actions `⋯`) stays a separate,
+        // non-scrolling sibling above the whole canvas.
+        <div
+          ref={editorScrollRef}
+          data-focus-outline={focusOutline}
+          className="group/scroll-thumb relative flex min-h-0 w-full flex-1 flex-col text-sm leading-relaxed"
+        >
+          <Stylo
+            key={`${path}:${surface}:${reveal}:${selectionUI}:${tableEditing}`}
+            value={body}
+            onChange={setBody}
+            onSave={() => void saveNote()}
+            onWikiLinkClick={onWikiLinkClick}
+            wikiLinkSource={wikiLinkSource}
+            onLinkClick={openMarkdownLink}
+            mode={surface}
+            inPlace={{ reveal, selectionUI, table: tableEditing }}
+            canvasHeader={canvasHeader}
+            toolbar={{
+              items: toolbarItems,
+              render: (bar) => (
+                // stylo's toolbar row, with the note-actions `⋯` overlaid
+                // at its right edge (the built-in items are left-aligned,
+                // so that space is free). Only shown once a note is open.
+                <div className="relative">
+                  {bar}
+                  {path && (
+                    <div className="absolute inset-y-0 right-1.5 flex items-center gap-0.5">
+                      {frontmatter !== null && (
+                        <button
+                          type="button"
+                          aria-label={
+                            frontmatterVisible
+                              ? "Hide frontmatter"
+                              : "Show frontmatter"
+                          }
+                          aria-pressed={frontmatterVisible}
+                          onClick={() => setFrontmatterVisible((v) => !v)}
+                          className={cn(
+                            "grid size-7 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground",
+                            frontmatterVisible && "bg-accent text-foreground"
+                          )}
+                        >
+                          {TOOLBAR_ICONS.frontmatter}
+                        </button>
+                      )}
+                      <NoteActionsMenu
+                        path={path}
+                        persona={persona}
+                        onRenamed={(next) => onRenamed?.(next)}
+                        onDeleted={() => onDeleted?.()}
+                        pinned={!!isPinned?.(path)}
+                        onTogglePin={onTogglePin}
+                      />
+                    </div>
+                  )}
+                </div>
+              ),
+            }}
+            icons={TOOLBAR_ICONS}
+            codeLanguages={CODE_LANGUAGES}
+            placeholder="Start writing…"
+            className="h-full min-h-0 flex-1"
+          />
+          <ScrollThumb containerRef={editorScrollRef} getScroller={getCmScroller} />
+          {links.length > 0 && (
+            <div
+              className={cn(
+                // Same established gutter as the frontmatter card above and
+                // every other panel (`<ChatPanel>`, `<ContentPanel>`).
+                // animate-in: plays once when the bar itself mounts (first
+                // link added / note opened with links already in it) — a
+                // re-render with the same links doesn't remount it, so it
+                // won't replay on every keystroke.
+                "flex shrink-0 flex-wrap items-center gap-2 border-t border-border py-3",
+                "animate-in fade-in-0 slide-in-from-bottom-1 duration-thumb",
+                phone ? "px-4" : "px-6 sm:px-8"
+              )}
+            >
+              <span className="font-mono text-xs text-fg-muted uppercase">
+                Links
+              </span>
+              {links.map((target) => (
+                <button
+                  key={target}
+                  type="button"
+                  onClick={() => onWikiLinkClick?.(target)}
+                  // Keyed on `target`, so only a genuinely new pill mounts
+                  // (and animates in) — existing ones just re-render.
+                  className="animate-in fade-in-0 zoom-in-95 rounded-full border border-border bg-background px-2.5 py-1 text-xs text-muted-foreground transition-colors duration-thumb hover:text-foreground"
+                >
+                  {target}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </>
+  )
+  // `hasToolbar` rides frozen alongside the note it describes — an exiting
+  // "ready" note must still know to scope its slide-out to `.cm-scroller`
+  // once the live `note.status` has already moved past it.
+  const {
+    displayKey: noteDisplayKey,
+    displayPayload: notePayload,
+    exitDirection: noteExitDirection,
+    enterDirection: noteEnterDirection,
+    onExitComplete: onNoteExitComplete,
+  } = useSlideSwap(
+    path ?? "__empty__",
+    { node: noteBody, hasToolbar: note.status === "ready" },
+    "forward"
+  )
+  // Stylo bundles its own toolbar and the CodeMirror canvas into one mounted
+  // tree (`toolbar`/`inplace` panes under one shared root — see its
+  // stylesheet), so sliding the whole ready-state block would drag the
+  // toolbar along with the document. `.cm-scroller` is CodeMirror's own
+  // stable, public scroll-viewport class (already relied on for
+  // `<ScrollThumb>` above) — scoping the slide to it keeps the toolbar
+  // planted while just the document surface moves.
+  const noteSlideScope = notePayload.hasToolbar
+
   return (
     <div
       ref={wrapRef}
@@ -540,136 +708,19 @@ function MarkdownPanel({
             : "rounded-lg sy-frosted-panel text-panel-foreground"
         )}
       >
-        {note.status === "empty" && (
-          <div className="grid flex-1 place-items-center px-6 text-center text-sm text-fg-muted">
-            Select a note to open it here.
-          </div>
-        )}
-
-        {note.status === "loading" && (
-          <div className="grid flex-1 place-items-center px-6 text-center text-sm text-fg-muted">
-            Loading…
-          </div>
-        )}
-
-        {note.status === "error" && (
-          <div className="grid flex-1 place-items-center px-6 text-center text-sm text-fg-muted">
-            Couldn't load this note.
-          </div>
-        )}
-
-        {note.status === "ready" && (
-          // stylo owns its own toolbar + scrolling canvas as one bounded flex
-          // column (`min-h-0` here is what lets its `flex: 1 1 auto` surface
-          // scroll internally instead of the toolbar scrolling away with it).
-          // The key remounts on a note switch (so CodeMirror's undo history and
-          // selection never leak from one note into another) and on a surface/
-          // reveal/selectionUI/tableEditing change from Settings — `inPlace`
-          // config and mode are both applied-at-mount, per stylo's own
-          // documented contract.
-          //
-          // Full panel width, no reading-column cap — the frontmatter card
-          // shares it. The frontmatter card rides `canvasHeader` (stylo
-          // >=0.11.0), which docks it *inside* the editing surface, under
-          // CodeMirror's own find/replace panel and above the document body
-          // — the toolbar row (with the note-actions `⋯`) stays a separate,
-          // non-scrolling sibling above the whole canvas.
-          <div
-            ref={editorScrollRef}
-            data-focus-outline={focusOutline}
-            className="group/scroll-thumb relative flex min-h-0 w-full flex-1 flex-col text-sm leading-relaxed"
-          >
-            <Stylo
-              key={`${path}:${surface}:${reveal}:${selectionUI}:${tableEditing}`}
-              value={body}
-              onChange={setBody}
-              onSave={() => void saveNote()}
-              onWikiLinkClick={onWikiLinkClick}
-              wikiLinkSource={wikiLinkSource}
-              onLinkClick={openMarkdownLink}
-              mode={surface}
-              inPlace={{ reveal, selectionUI, table: tableEditing }}
-              canvasHeader={canvasHeader}
-              toolbar={{
-                items: toolbarItems,
-                render: (bar) => (
-                  // stylo's toolbar row, with the note-actions `⋯` overlaid
-                  // at its right edge (the built-in items are left-aligned,
-                  // so that space is free). Only shown once a note is open.
-                  <div className="relative">
-                    {bar}
-                    {path && (
-                      <div className="absolute inset-y-0 right-1.5 flex items-center gap-0.5">
-                        {frontmatter !== null && (
-                          <button
-                            type="button"
-                            aria-label={
-                              frontmatterVisible
-                                ? "Hide frontmatter"
-                                : "Show frontmatter"
-                            }
-                            aria-pressed={frontmatterVisible}
-                            onClick={() => setFrontmatterVisible((v) => !v)}
-                            className={cn(
-                              "grid size-7 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground",
-                              frontmatterVisible && "bg-accent text-foreground"
-                            )}
-                          >
-                            {TOOLBAR_ICONS.frontmatter}
-                          </button>
-                        )}
-                        <NoteActionsMenu
-                          path={path}
-                          persona={persona}
-                          onRenamed={(next) => onRenamed?.(next)}
-                          onDeleted={() => onDeleted?.()}
-                          pinned={!!isPinned?.(path)}
-                          onTogglePin={onTogglePin}
-                        />
-                      </div>
-                    )}
-                  </div>
-                ),
-              }}
-              icons={TOOLBAR_ICONS}
-              codeLanguages={CODE_LANGUAGES}
-              placeholder="Start writing…"
-              className="h-full min-h-0 flex-1"
-            />
-            <ScrollThumb containerRef={editorScrollRef} getScroller={getCmScroller} />
-            {links.length > 0 && (
-              <div
-                className={cn(
-                  // Same established gutter as the frontmatter card above and
-                  // every other panel (`<ChatPanel>`, `<ContentPanel>`).
-                  // animate-in: plays once when the bar itself mounts (first
-                  // link added / note opened with links already in it) — a
-                  // re-render with the same links doesn't remount it, so it
-                  // won't replay on every keystroke.
-                  "flex shrink-0 flex-wrap items-center gap-2 border-t border-border py-3",
-                  "animate-in fade-in-0 slide-in-from-bottom-1 duration-thumb",
-                  phone ? "px-4" : "px-6 sm:px-8"
-                )}
-              >
-                <span className="font-mono text-xs text-fg-muted uppercase">
-                  Links
-                </span>
-                {links.map((target) => (
-                  <button
-                    key={target}
-                    type="button"
-                    onClick={() => onWikiLinkClick?.(target)}
-                    // Keyed on `target`, so only a genuinely new pill mounts
-                    // (and animates in) — existing ones just re-render.
-                    className="animate-in fade-in-0 zoom-in-95 rounded-full border border-border bg-background px-2.5 py-1 text-xs text-muted-foreground transition-colors duration-thumb hover:text-foreground"
-                  >
-                    {target}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
+        <div
+          key={noteDisplayKey}
+          className={cn(
+            "flex h-full w-full flex-col",
+            noteExitDirection
+              ? slideExitClassName(noteExitDirection, noteSlideScope)
+              : noteEnterDirection &&
+                  slideEnterClassName(noteEnterDirection, noteSlideScope)
+          )}
+          onAnimationEnd={noteExitDirection ? onNoteExitComplete : undefined}
+        >
+          {notePayload.node}
+        </div>
       </div>
 
       {/* right-edge resize handle — mirrors <ContentPanel>; gone when filling

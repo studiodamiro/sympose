@@ -23,6 +23,12 @@ import { useBreakpoint } from "@/lib/use-breakpoint"
 import { useFillWidth } from "@/lib/use-fill-width"
 import { useTransientFlag } from "@/lib/use-transient-flag"
 import { usePanels, type StagePanel } from "@/lib/use-panels"
+import {
+  useSlideSwap,
+  slideEnterClassName,
+  slideExitClassName,
+  type SlideDirection,
+} from "@/lib/use-slide-swap"
 import { useActivePersona } from "@/lib/use-active-persona"
 import { useEditorPreferences } from "@/lib/use-editor-preferences"
 import { useToolbarItems } from "@/lib/use-toolbar-items"
@@ -150,9 +156,16 @@ export function AppShell() {
   }, [active])
   const canGoBack = historyIndex.current > 0
   const canGoForward = historyIndex.current < historyStack.current.length - 1
+  // Which way the content panel's body should slide on the next `active`
+  // change — set right alongside whatever triggered it (a back/forward click,
+  // or any other pick, which reads as "forward": it's pushing a new
+  // destination, same as browser navigation).
+  const [contentDirection, setContentDirection] =
+    React.useState<SlideDirection>("forward")
   const goBack = () => {
     if (!canGoBack) return
     navigatingHistory.current = true
+    setContentDirection("back")
     historyIndex.current -= 1
     setActive(historyStack.current[historyIndex.current])
     setHistoryTick((t) => t + 1)
@@ -160,6 +173,7 @@ export function AppShell() {
   const goForward = () => {
     if (!canGoForward) return
     navigatingHistory.current = true
+    setContentDirection("forward")
     historyIndex.current += 1
     setActive(historyStack.current[historyIndex.current])
     setHistoryTick((t) => t + 1)
@@ -230,6 +244,7 @@ export function AppShell() {
     if (id === resolvedActive && panels.isOpen("content")) {
       panels.close("content")
     } else {
+      setContentDirection("forward")
       setActive(id)
       panels.open("content")
     }
@@ -698,6 +713,19 @@ export function AppShell() {
       </div>
     )
 
+  // Sideways slide keyed on the surface actually shown — back/forward-aware
+  // (`contentDirection`, set alongside whatever triggered the `active`
+  // change above), sequential rather than a crossfade: the outgoing surface
+  // finishes its own slide-out before the incoming one starts sliding in
+  // (see `useSlideSwap`).
+  const {
+    displayKey: contentDisplayKey,
+    displayPayload: contentDisplayNode,
+    exitDirection: contentExitDirection,
+    enterDirection: contentEnterDirection,
+    onExitComplete: onContentExitComplete,
+  } = useSlideSwap(resolvedActive, contentBody, contentDirection)
+
   const chatMessages = (
     <>
       <ChatMessage role="user" reaction={<HugeiconsIcon icon={ThumbsUpIcon} />}>
@@ -884,7 +912,21 @@ export function AppShell() {
               ) : undefined
             }
           >
-            {contentBody}
+            <div
+              key={contentDisplayKey}
+              className={cn(
+                "flex flex-col gap-4",
+                contentExitDirection
+                  ? slideExitClassName(contentExitDirection)
+                  : contentEnterDirection &&
+                      slideEnterClassName(contentEnterDirection)
+              )}
+              onAnimationEnd={
+                contentExitDirection ? onContentExitComplete : undefined
+              }
+            >
+              {contentDisplayNode}
+            </div>
           </ContentPanel>
 
           <MarkdownPanel

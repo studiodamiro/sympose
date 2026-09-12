@@ -155,7 +155,7 @@ function NoteActionsMenu({
         >
           <HugeiconsIcon icon={MoreHorizontalIcon} className="size-4" />
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
+        <DropdownMenuContent align="end" className="duration-thumb ease-snappy">
           {onTogglePin && (
             <DropdownMenuItem onClick={() => onTogglePin(path)}>
               <HugeiconsIcon icon={pinned ? PinOffIcon : PinIcon} />

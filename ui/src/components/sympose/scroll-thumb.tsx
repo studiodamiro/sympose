@@ -139,7 +139,10 @@ export function ScrollThumb({
         onPointerMove={onThumbPointerMove}
         onPointerUp={onThumbPointerUp}
         onPointerCancel={onThumbPointerUp}
-        className="absolute inset-x-0.5 touch-none rounded-full bg-border opacity-0 transition-opacity duration-300 ease-out group-hover/scroll-thumb:opacity-100 data-dragging:opacity-100"
+        // duration-thumb/ease-snappy (ADR-102): this hover-fade is the
+        // canonical timing every other editor/vault entrance now matches —
+        // named `thumb` after this component, not the other way around.
+        className="absolute inset-x-0.5 touch-none rounded-full bg-border opacity-0 transition-opacity duration-thumb ease-snappy group-hover/scroll-thumb:opacity-100 data-dragging:opacity-100"
       />
     </div>
   )

@@ -552,7 +552,7 @@ export function AppShell() {
               // the whole toolbar row taller by its own natural line-height
               // even while invisibly zero-width. Fixing the wrapper's height
               // to match the buttons keeps the row at their 28px regardless.
-              "h-7 overflow-hidden rounded-md transition-[width] duration-150 ease-out",
+              "h-7 overflow-hidden rounded-md transition-[width] duration-snappy ease-snappy",
               pendingCreate ? "w-40" : "w-0"
             )}
           >
@@ -837,7 +837,7 @@ export function AppShell() {
                 chatOpen={chatOpen}
                 onToggleChat={toggleChat}
                 className={cn(
-                  "transition-[opacity,translate] duration-300 ease-in-out",
+                  "transition-[opacity,translate] duration-mode ease-mode",
                   explore
                     ? "pointer-events-none translate-x-4 opacity-0"
                     : "translate-x-0 opacity-100"
@@ -927,7 +927,7 @@ export function AppShell() {
             ref={chatSlotRef}
             data-state={chatOpen ? "open" : "closed"}
             className={cn(
-              "relative z-0 min-w-0 overflow-hidden duration-300 ease-in-out",
+              "relative z-0 min-w-0 overflow-hidden duration-mode ease-mode",
               chatToggling
                 ? "transition-[max-width,opacity,translate]"
                 : "transition-[opacity,translate]",

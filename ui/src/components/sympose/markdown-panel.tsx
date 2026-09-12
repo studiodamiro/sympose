@@ -379,7 +379,7 @@ function MarkdownPanel({
       // clips it; the outer grid is what animates.
       <div
         className={cn(
-          "grid transition-[grid-template-rows] duration-300 ease-in-out",
+          "grid transition-[grid-template-rows] duration-mode ease-mode",
           frontmatterVisible ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
         )}
       >
@@ -447,6 +447,11 @@ function MarkdownPanel({
       savingRef.current = false
       if (result.ok) {
         savedTextRef.current = text
+        // Refresh `note.content` from the just-written text so the wikilink
+        // footer (derived from `note`, not the live buffer) picks up any
+        // `[[links]]` added since the last load — without rescanning on
+        // every keystroke.
+        setFetch({ status: "ready", content: text })
         if (!silent) notify.success("Note saved")
       } else {
         notify.error(result.error)
@@ -489,9 +494,9 @@ function MarkdownPanel({
         phone
           ? // phone: one surface at a time — an absolute layer that crossfades
             // and slides a touch from the left on reveal
-            "absolute inset-0 flex flex-col transition-[opacity,translate] duration-300 ease-in-out"
+            "absolute inset-0 flex flex-col transition-[opacity,translate] duration-mode ease-mode"
           : cn(
-              "relative shrink-0 py-2 pe-2 transition-[margin,opacity] duration-300 ease-in-out data-dragging:transition-none",
+              "relative shrink-0 py-2 pe-2 transition-[margin,opacity] duration-mode ease-mode data-dragging:transition-none",
               // max-width only transitioned while `fill` flips — otherwise it
               // follows the live measurement so the editor glides with a
               // neighbour's slide rather than lagging it
@@ -637,7 +642,12 @@ function MarkdownPanel({
                 className={cn(
                   // Same established gutter as the frontmatter card above and
                   // every other panel (`<ChatPanel>`, `<ContentPanel>`).
+                  // animate-in: plays once when the bar itself mounts (first
+                  // link added / note opened with links already in it) — a
+                  // re-render with the same links doesn't remount it, so it
+                  // won't replay on every keystroke.
                   "flex shrink-0 flex-wrap items-center gap-2 border-t border-border py-3",
+                  "animate-in fade-in-0 slide-in-from-bottom-1 duration-thumb",
                   phone ? "px-4" : "px-6 sm:px-8"
                 )}
               >
@@ -649,7 +659,9 @@ function MarkdownPanel({
                     key={target}
                     type="button"
                     onClick={() => onWikiLinkClick?.(target)}
-                    className="rounded-full border border-border bg-background px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
+                    // Keyed on `target`, so only a genuinely new pill mounts
+                    // (and animates in) — existing ones just re-render.
+                    className="animate-in fade-in-0 zoom-in-95 rounded-full border border-border bg-background px-2.5 py-1 text-xs text-muted-foreground transition-colors duration-thumb hover:text-foreground"
                   >
                     {target}
                   </button>

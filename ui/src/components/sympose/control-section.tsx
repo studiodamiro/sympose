@@ -120,7 +120,7 @@ function ControlSection({
           className="size-4 text-fg-muted transition-transform group-data-panel-open/control:rotate-180"
         />
       </CollapsibleTrigger>
-      <CollapsibleContent className="h-(--collapsible-panel-height) overflow-hidden transition-[height] duration-150 ease-out data-ending-style:h-0 data-starting-style:h-0">
+      <CollapsibleContent className="h-(--collapsible-panel-height) overflow-hidden transition-[height] duration-snappy ease-snappy data-ending-style:h-0 data-starting-style:h-0">
         <div className="flex flex-col gap-3 pt-1 pb-3">{children}</div>
       </CollapsibleContent>
     </Collapsible>

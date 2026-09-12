@@ -55,7 +55,10 @@ function WikiLink({
       >
         [[{text}]]
       </HoverCardTrigger>
-      <HoverCardContent className="w-64 text-xs" side="top">
+      <HoverCardContent
+        className="w-64 text-xs duration-thumb ease-snappy"
+        side="top"
+      >
         <div className="flex items-center gap-1.5 font-mono text-entity">
           <HugeiconsIcon icon={Note01Icon} className="size-3.5" />
           {target}

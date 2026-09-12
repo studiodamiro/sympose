@@ -167,6 +167,36 @@
     --radius-2xl: calc(var(--radius) * 1.8);
     --radius-3xl: calc(var(--radius) * 2.2);
     --radius-4xl: calc(var(--radius) * 2.6);
+
+    /* Motion tiers (ADR-101/102), easing half — `--ease-*` is a real
+       Tailwind v4 theme namespace, so this generates `ease-snappy` /
+       `ease-mode` directly. `--duration-*` is not a themeable namespace
+       (unlike `--color-*`/`--radius-*` above), so the duration half of each
+       tier is defined as an explicit `@utility` below instead. `thumb`
+       (ADR-102) reuses the same `ease-out` curve as `snappy` — only its
+       duration differs — so it has no separate `--ease-thumb`. */
+    --ease-snappy: cubic-bezier(0, 0, 0.2, 1);      /* ease-out */
+    --ease-mode: cubic-bezier(0.4, 0, 0.2, 1);      /* ease-in-out */
+}
+
+/* Motion tiers (ADR-101/102), duration half. `snappy` is small collapse/width
+   toggles (the frontmatter `⋯` row's rename field, control-section
+   accordions); `mode` is panel-/layout-level reveals (panel open-close, the
+   chat slot, phone crossfades) — already hand-synced across those call sites
+   via comments before this existed as a token. `thumb` (ADR-102) is anything
+   appearing/disappearing as a discrete item within the editor or vault —
+   pills, vault-tree rows, the note-actions/vault-row menus, the wikilink
+   hover-card — deliberately matched to `<ScrollThumb>`'s own hover-fade
+   (ADR-100) rather than getting its own independently-tuned number; Settings
+   and the Agent panel keep their own popovers/menus at the shadcn defaults. */
+@utility duration-snappy {
+    transition-duration: 150ms;
+}
+@utility duration-thumb {
+    transition-duration: 300ms;
+}
+@utility duration-mode {
+    transition-duration: 350ms;
 }
 
 @layer base {

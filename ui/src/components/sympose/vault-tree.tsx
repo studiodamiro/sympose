@@ -218,7 +218,14 @@ function VaultTreeRow({
         ? FolderOpenIcon
         : Folder01Icon
     return (
-      <div role="treeitem" aria-expanded={isOpen}>
+      // Keyed on `node.path` by the parent map, so this only mounts (and
+      // animates in) for a genuinely new folder — an existing row re-renders
+      // in place on every vault refresh without replaying the entrance.
+      <div
+        role="treeitem"
+        aria-expanded={isOpen}
+        className="animate-in fade-in-0 slide-in-from-left-1 duration-thumb"
+      >
         {line(
           <button
             type="button"
@@ -260,7 +267,14 @@ function VaultTreeRow({
   }
 
   return (
-    <div role="treeitem" aria-selected={isSelected}>
+    // Keyed on `node.path` by the parent map, so this only mounts (and
+    // animates in) for a genuinely new note — an existing row re-renders in
+    // place on every vault refresh without replaying the entrance.
+    <div
+      role="treeitem"
+      aria-selected={isSelected}
+      className="animate-in fade-in-0 slide-in-from-left-1 duration-thumb"
+    >
       {line(
         <button
           type="button"

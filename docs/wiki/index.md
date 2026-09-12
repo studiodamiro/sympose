@@ -100,6 +100,8 @@ list and is kept in sync per the
 
 | ADR | Title | Status | Date |
 | --- | ----- | ------ | ---- |
+| [ADR-102](../journal/2026-09/2026-09-13_adr-102-thumb-motion-tier.md) | `thumb` Motion Tier: Editor/Vault Entrances Match the Scrollbar (amends ADR-101) | Accepted | 2026-09-13 |
+| [ADR-101](../journal/2026-09/2026-09-13_adr-101-motion-tier-tokens.md) | Motion Tier Tokens (`snappy` / `mode`) | Accepted (amended by ADR-102) | 2026-09-13 |
 | [ADR-100](../journal/2026-09/2026-09-13_adr-100-animated-hand-drawn-scrollbar-thumb.md) | Animated Hand-Drawn Scrollbar Thumb | Accepted | 2026-09-13 |
 | [ADR-099](../journal/2026-09/2026-09-12_adr-099-vault-folder-delete-to-bin.md) | Vault Folder Delete: Empty Unlinks, Non-Empty Goes to the Bin | Accepted | 2026-09-12 |
 | [ADR-098](../journal/2026-09/2026-09-12_adr-098-vault-tree-shows-empty-folders.md) | Vault Tree Shows Empty Folders on Disk (amends ADR-095) | Accepted | 2026-09-12 |

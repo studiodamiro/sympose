@@ -287,11 +287,15 @@ function VaultRowMenu({
           >
             <HugeiconsIcon icon={MoreHorizontalIcon} className="size-3.5" />
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">{items}</DropdownMenuContent>
+          <DropdownMenuContent align="end" className="duration-thumb ease-snappy">
+            {items}
+          </DropdownMenuContent>
         </DropdownMenu>
       </ContextMenuTrigger>
 
-      <ContextMenuContent>{items}</ContextMenuContent>
+      <ContextMenuContent className="duration-thumb ease-snappy">
+        {items}
+      </ContextMenuContent>
     </ContextMenu>
   )
 }

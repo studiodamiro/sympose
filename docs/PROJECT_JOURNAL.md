@@ -25,6 +25,8 @@ one in [`docs/wiki/index.md`](./wiki/index.md) are kept in sync per the
 
 | ADR | Title | Status | Date | Source |
 | --- | ----- | ------ | ---- | ------ |
+| ADR-102 | `thumb` Motion Tier: Editor/Vault Entrances Match the Scrollbar (amends ADR-101) | Accepted | 2026-09-13 | [2026-09-13_adr-102-thumb-motion-tier.md](./journal/2026-09/2026-09-13_adr-102-thumb-motion-tier.md) |
+| ADR-101 | Motion Tier Tokens (`snappy` / `mode`) | Accepted (amended by ADR-102) | 2026-09-13 | [2026-09-13_adr-101-motion-tier-tokens.md](./journal/2026-09/2026-09-13_adr-101-motion-tier-tokens.md) |
 | ADR-100 | Animated Hand-Drawn Scrollbar Thumb | Accepted | 2026-09-13 | [2026-09-13_adr-100-animated-hand-drawn-scrollbar-thumb.md](./journal/2026-09/2026-09-13_adr-100-animated-hand-drawn-scrollbar-thumb.md) |
 | ADR-099 | Vault Folder Delete: Empty Unlinks, Non-Empty Goes to the Bin | Accepted | 2026-09-12 | [2026-09-12_adr-099-vault-folder-delete-to-bin.md](./journal/2026-09/2026-09-12_adr-099-vault-folder-delete-to-bin.md) |
 | ADR-098 | Vault Tree Shows Empty Folders on Disk (amends ADR-095) | Accepted | 2026-09-12 | [2026-09-12_adr-098-vault-tree-shows-empty-folders.md](./journal/2026-09/2026-09-12_adr-098-vault-tree-shows-empty-folders.md) |

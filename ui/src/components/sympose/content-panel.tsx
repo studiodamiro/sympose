@@ -216,12 +216,13 @@ function ContentPanel({
         phone
           ? // phone: one surface at a time, so the panel is an absolute layer
             // that crossfades + slides a touch from the left on reveal
-            "absolute inset-0 transition-[opacity,translate] duration-300 ease-in-out"
-          : // `ease-in-out`, not `ease-out` — matches `<MarkdownPanel>` and the
-            // chat slot's own reveal transitions. The odd one out was most
-            // noticeable on hide: the same curve run in reverse looks
-            // asymmetric next to the other two panels closing alongside it.
-            "relative shrink-0 py-2 pe-2 transition-[width,margin,opacity] duration-300 ease-in-out data-dragging:transition-none",
+            "absolute inset-0 transition-[opacity,translate] duration-mode ease-mode"
+          : // the `mode` token, not a one-off `ease-out` — matches
+            // `<MarkdownPanel>` and the chat slot's own reveal transitions
+            // (ADR-101). The odd one out was most noticeable on hide: a
+            // different curve run in reverse looks asymmetric next to the
+            // other two panels closing alongside it.
+            "relative shrink-0 py-2 pe-2 transition-[width,margin,opacity] duration-mode ease-mode data-dragging:transition-none",
         // desktop reveal: a negative inline-start margin parks the panel one
         // width to the left (clipped by the shell row's overflow-hidden), opening
         // tweens it back to 0 so it fades and slides in from behind <MainMenu>.

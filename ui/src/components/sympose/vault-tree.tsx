@@ -12,6 +12,7 @@ import {
 
 import { cn, stripMdExtension } from "@/lib/utils"
 import { getCookie, setCookie } from "@/lib/cookies"
+import { useAnimatedNodeList } from "@/lib/use-animated-node-list"
 import { VaultRowMenu } from "@/components/sympose/vault-row-menu"
 
 /**
@@ -38,6 +39,11 @@ export interface VaultNode {
 }
 
 const IGNORED = new Set([".obsidian", ".git", "Attachments", ".trash"])
+
+// A stable reference for the `?? []` fallback below — every note lacks a
+// `children` array, so a fresh `[]` literal there would change identity on
+// every render and re-trigger `useAnimatedNodeList`'s effect indefinitely.
+const NO_CHILDREN: VaultNode[] = []
 
 export function filterVaultTree(nodes: VaultNode[]): VaultNode[] {
   return nodes
@@ -118,6 +124,7 @@ function VaultTree({
   }, [])
 
   const visible = React.useMemo(() => filterVaultTree(nodes), [nodes])
+  const { display, onExitComplete } = useAnimatedNodeList(visible)
   const actions: RowActions = {
     persona,
     onRenamed,
@@ -134,10 +141,12 @@ function VaultTree({
       className={cn("flex flex-col py-1 text-sm", className)}
       {...props}
     >
-      {visible.map((node) => (
+      {display.map(({ node, closing }) => (
         <VaultTreeRow
           key={node.path}
           node={node}
+          closing={closing}
+          onExitComplete={onExitComplete}
           depth={0}
           expanded={expanded}
           onToggle={toggle}
@@ -159,6 +168,8 @@ function isDailyFolder(name: string) {
 
 function VaultTreeRow({
   node,
+  closing,
+  onExitComplete,
   depth,
   expanded,
   onToggle,
@@ -168,6 +179,10 @@ function VaultTreeRow({
   hideExtension,
 }: {
   node: VaultNode
+  /** This row's node just left the vault tree (deleted, or moved by a
+   *  rename) — still mounted to play its exit animation (ADR-103). */
+  closing: boolean
+  onExitComplete: (path: string) => void
   depth: number
   expanded: Set<string>
   onToggle: (path: string) => void
@@ -180,6 +195,26 @@ function VaultTreeRow({
   const isSelected = selectedPath === node.path
   const basePad = depth * 14
   const pinned = node.type === "note" && !!actions.isPinned?.(node.path)
+
+  // Called unconditionally (a note has no children, so this just tracks an
+  // empty list) rather than only inside the folder branch below — `node.type`
+  // never changes for a given mounted row, so either way is safe, but this
+  // keeps every hook call unconditional regardless.
+  const { display: childDisplay, onExitComplete: onChildExitComplete } =
+    useAnimatedNodeList(node.children ?? NO_CHILDREN)
+
+  // Entrance (a genuinely new row mounting) vs. exit (ADR-103: this node just
+  // dropped out of the vault tree — held here by the parent's
+  // `useAnimatedNodeList` so it can play this animation before it actually
+  // unmounts, instead of vanishing the instant a refetch comes back without
+  // it). Both read `duration-thumb` (ADR-102) so a row enters and leaves at
+  // the same speed it fades in and out of the scrollbar thumb.
+  const rowMotionClass = closing
+    ? "pointer-events-none animate-out fade-out-0 slide-out-to-left-1 duration-thumb"
+    : "animate-in fade-in-0 slide-in-from-left-1 duration-thumb"
+  const onRowAnimationEnd = closing
+    ? () => onExitComplete(node.path)
+    : undefined
 
   // Row actions (`⋯` button + right-click / long-press context menu) need the
   // full callback set; the showcases pass a bare tree and get plain rows.
@@ -224,7 +259,9 @@ function VaultTreeRow({
       <div
         role="treeitem"
         aria-expanded={isOpen}
-        className="animate-in fade-in-0 slide-in-from-left-1 duration-thumb"
+        aria-hidden={closing || undefined}
+        className={rowMotionClass}
+        onAnimationEnd={onRowAnimationEnd}
       >
         {line(
           <button
@@ -249,10 +286,12 @@ function VaultTreeRow({
           basePad
         )}
         {isOpen &&
-          node.children?.map((child) => (
+          childDisplay.map(({ node: child, closing: childClosing }) => (
             <VaultTreeRow
               key={child.path}
               node={child}
+              closing={childClosing}
+              onExitComplete={onChildExitComplete}
               depth={depth + 1}
               expanded={expanded}
               onToggle={onToggle}
@@ -273,7 +312,9 @@ function VaultTreeRow({
     <div
       role="treeitem"
       aria-selected={isSelected}
-      className="animate-in fade-in-0 slide-in-from-left-1 duration-thumb"
+      aria-hidden={closing || undefined}
+      className={rowMotionClass}
+      onAnimationEnd={onRowAnimationEnd}
     >
       {line(
         <button

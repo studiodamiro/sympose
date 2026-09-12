@@ -188,14 +188,31 @@
    pills, vault-tree rows, the note-actions/vault-row menus, the wikilink
    hover-card — deliberately matched to `<ScrollThumb>`'s own hover-fade
    (ADR-100) rather than getting its own independently-tuned number; Settings
-   and the Agent panel keep their own popovers/menus at the shadcn defaults. */
+   and the Agent panel keep their own popovers/menus at the shadcn defaults.
+
+   Each also sets `--tw-duration` (ADR-103 fix), not just `transition-duration`
+   — mirroring Tailwind's own built-in numeric `duration-*` utility (verified
+   in `tailwindcss/dist/lib.js`: it emits both). tw-animate-css's `animate-in`/
+   `animate-out` keyframe utilities read `animation: … var(--tw-duration,.15s)…`,
+   not `transition-duration`, so a `duration-thumb` naming a *transition*
+   duration only was silently inert on every `animate-in`/`animate-out` call
+   site (vault-tree row entrance, the note-actions/vault-row menus, the
+   wikilink hover-card) — all of them were actually animating at
+   tw-animate-css's unrelated 150ms default (or, for the two `<DropdownMenuContent>`
+   call sites, the shared `menuPopupClass`'s own leftover `duration-100`),
+   never the claimed 300ms. Caught while building the vault-tree row's exit
+   animation and verified with a scratch Playwright check
+   (`getComputedStyle(row).animationDuration`) before and after this fix. */
 @utility duration-snappy {
+    --tw-duration: 150ms;
     transition-duration: 150ms;
 }
 @utility duration-thumb {
+    --tw-duration: 300ms;
     transition-duration: 300ms;
 }
 @utility duration-mode {
+    --tw-duration: 350ms;
     transition-duration: 350ms;
 }
 

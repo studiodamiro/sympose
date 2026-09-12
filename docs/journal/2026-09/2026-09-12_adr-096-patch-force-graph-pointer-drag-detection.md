@@ -1,5 +1,5 @@
 ---
-title: "ADR-096 — Patch force-graph / three-render-objects Pointer-Drag Detection"
+title: "ADR-096 — Patch force-graph / three-render-objects Pointer-Drag Detection & Hover Freshness"
 created: 2026-09-12
 type: adr
 parent: index
@@ -11,7 +11,7 @@ tags:
   - dependency
 ---
 
-# ADR-096 — Patch `force-graph` / `three-render-objects` Pointer-Drag Detection
+# ADR-096 — Patch `force-graph` / `three-render-objects` Pointer-Drag Detection & Hover Freshness
 
 - **Status:** Accepted — implemented 2026-09-12.
 - **Date:** 2026-09-12
@@ -50,6 +50,24 @@ UMD bundles) and confirming the patched logic reaches the shipped
 `sympose/webui/` bundle with zero remaining `pointerType === 'mouse'`
 occurrences.
 
+A second, independent bug shares the same blast radius: the click handler in
+both libraries resolves against `state.hoverObj` / `state.intersection`
+rather than a fresh hit-test at the moment of the click —
+
+- **2D** repaints its off-screen colour-picking canvas (what hover/click
+  picking reads) through a `lodash.throttle` capped at `HOVER_CANVAS_
+  THROTTLE_DELAY` = **800ms**, while the graph is actively animating (settling,
+  panning, zooming, or now our own eased highlight-colour transitions from
+  earlier this session). A click during that window can resolve against node
+  positions up to 800ms stale.
+- **3D** gates its raycast/hover check behind `pointerRaycasterThrottleMs`
+  (default **50ms**), checked unconditionally on every render-loop tick
+  regardless of scene activity — a smaller but still real staleness window.
+
+Both are exactly the kind of click a user takes right after watching
+something move (right after our own click-zoom flight, or while the initial
+force layout is still settling) — not a rare edge case for this app.
+
 ## Decision
 
 Patch both libraries with `patch-package` rather than working around it from
@@ -60,23 +78,33 @@ our own components:
   `ev.pointerType === 'mouse' ||` short-circuit so mouse input goes through
   the same `> 1px` movement-magnitude gate touch/pen already use. A comment
   at the patch site explains why, pointing back at the patch file.
+- **Same two patch files**, extended: each library's `pointerup` handler now
+  forces a fresh hover/hit-test read before the deferred click dispatch —
+  2D calls `state.flushShadowCanvas()` (an existing lodash `.flush()` hook
+  the library already exposed but never called before a click); 3D resets
+  `state.lastRaycasterCheck = 0` so the render loop's very next tick — which
+  runs before the click-dispatch `requestAnimationFrame` queued right after —
+  is forced past the throttle gate. Both libraries already run their
+  render/tick loop every frame unconditionally, so this only needed a nudge,
+  not a new loop.
 - **`patch-package`** added as a `ui/` dev dependency; `"postinstall":
   "patch-package"` in `ui/package.json` reapplies both patches after every
-  `npm install`. Verified end-to-end: wiped both packages, reinstalled,
-  confirmed `postinstall` reapplied cleanly, then rebuilt and grepped the
-  output bundle for the fixed string.
+  `npm install`. Verified end-to-end for both rounds of the fix: wiped both
+  packages, reinstalled, confirmed `postinstall` reapplied cleanly, then
+  rebuilt and grepped the output bundle for the fixed strings.
 
 ## Consequences
 
 - Node and background clicks in both the 2D and 3D Knowledge Nebula
   renderers now register reliably regardless of ordinary mouse/trackpad
-  jitter during the click.
+  jitter during the click, and resolve against current node positions even
+  immediately after the view was animating.
 - A dependency upgrade to either package that changes this code region will
   make the patch fail to apply — `patch-package` errors loudly on a failed
   patch rather than silently dropping it, so this surfaces at `npm install`
   time, not as a regression discovered later.
 - Two more files for a future contributor to notice in `ui/patches/`; the
-  patch's inline comment and this ADR are the trail back to why.
+  patch's inline comments and this ADR are the trail back to why.
 
 ## Alternatives rejected
 
@@ -85,10 +113,11 @@ our own components:
   sub-threshold `pointermove` events before they reach it). No new
   dependency, but delicate event-system code fighting a library's internals
   from the outside — more surface area to get subtly wrong (e.g. also
-  suppressing the library's own hover-position tracking for that instant),
-  and it doesn't fix the library's raycast-uses-stale-throttled-hover-state
-  wrinkle noted below, whereas the drag-flag fix is the actual root cause.
-  Rejected once damiro chose "do it properly."
+  suppressing the library's own hover-position tracking for that instant) —
+  and it wouldn't have reached the stale-hover-state half of the bug at all,
+  since that lives inside the library's own click dispatch, not something
+  reachable from outside pointer events. Rejected once damiro chose "do it
+  properly."
 - **Leave it unpatched, document it as a known upstream limitation.** Still
   visibly broken for daily use — this is the app's primary interaction
   surface, not a corner case.
@@ -96,15 +125,6 @@ our own components:
   than a two-line patch tracked against a specific upstream version;
   `patch-package` already fails loudly on version drift, giving the same
   safety net without owning a full fork.
-
-## Note for a future look
-
-While tracing this, also found (not patched — separate, smaller effect):
-`onClick`/`onNodeClick` reads `state.hoverObj`, which is only refreshed by a
-throttled raycaster check (`pointerRaycasterThrottleMs`, default 50ms) inside
-the render loop rather than a fresh raycast at the moment of the click. Worth
-revisiting if clicks still occasionally resolve to the wrong target (or none)
-even after this fix.
 
 ## B.4 index updates
 

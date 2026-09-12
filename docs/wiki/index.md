@@ -100,7 +100,7 @@ list and is kept in sync per the
 
 | ADR | Title | Status | Date |
 | --- | ----- | ------ | ---- |
-| [ADR-096](../journal/2026-09/2026-09-12_adr-096-patch-force-graph-pointer-drag-detection.md) | Patch force-graph / three-render-objects Pointer-Drag Detection | Accepted | 2026-09-12 |
+| [ADR-096](../journal/2026-09/2026-09-12_adr-096-patch-force-graph-pointer-drag-detection.md) | Patch force-graph / three-render-objects Pointer-Drag Detection & Hover Freshness | Accepted | 2026-09-12 |
 | [ADR-095](../journal/2026-09/2026-09-12_adr-095-content-panel-toolbar-folder-creation-and-visit-history.md) | Content Panel Toolbar: Folder Creation & Visit History | Accepted | 2026-09-12 |
 | [ADR-094](../journal/2026-09/2026-09-11_adr-094-settings-panel-density-cleanup.md) | Settings Panel Density Cleanup | Accepted | 2026-09-11 |
 | [ADR-093](../journal/2026-09/2026-09-11_adr-093-stage-action-group-swap-and-explore-slide-out.md) | Stage Action Group Order Swap & Explore Slide-Out | Accepted | 2026-09-11 |

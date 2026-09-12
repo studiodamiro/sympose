@@ -1,5 +1,5 @@
 diff --git a/node_modules/force-graph/dist/force-graph.mjs b/node_modules/force-graph/dist/force-graph.mjs
-index c6be1b1..ac63ac8 100644
+index c6be1b1..91fcf11 100644
 --- a/node_modules/force-graph/dist/force-graph.mjs
 +++ b/node_modules/force-graph/dist/force-graph.mjs
 @@ -1534,9 +1534,14 @@ var forceGraph = Kapsule({
@@ -19,3 +19,18 @@ index c6be1b1..ac63ac8 100644
          && (state.isPointerDragging = true);
  
          // update the pointer pos
+@@ -1570,6 +1575,14 @@ var forceGraph = Kapsule({
+         state.isPointerDragging = false;
+         return; // don't trigger click events after pointer drag (pan / node drag functionality)
+       }
++      // sympose patch (see ui/patches/force-graph+*.patch): state.hoverObj — what
++      // the click below resolves against — comes from a hit-test canvas that's
++      // only repainted at most every 800ms (HOVER_CANVAS_THROTTLE_DELAY) while
++      // the graph is animating (settling, panning, zooming). A click during that
++      // window could resolve against node positions up to 800ms stale. Force a
++      // fresh paint right now so the very next animation-cycle tick (which runs
++      // before the click dispatch below) picks up current positions.
++      state.flushShadowCanvas && state.flushShadowCanvas();
+       var cbEvents = [ev, state.pointerDownEvent];
+       requestAnimationFrame(function () {
+         // trigger click events asynchronously, to allow hoverObj to be set (on frame)

@@ -553,7 +553,8 @@
 [data-slot="markdown-panel"] .cm-inplace-menu-panel,
 [data-slot="markdown-panel"] .cm-inplace-menu-input,
 [data-slot="markdown-panel"] .cm-inplace-selbar,
-[data-slot="markdown-panel"] .cm-inplace-href-tip {
+[data-slot="markdown-panel"] .cm-inplace-href-tip,
+[data-slot="markdown-panel"] .cm-tooltip.cm-tooltip-autocomplete {
   background: color-mix(in srgb, var(--panel) 94%, transparent) !important;
   -webkit-backdrop-filter: blur(24px) saturate(1.4);
   backdrop-filter: blur(24px) saturate(1.4);
@@ -598,6 +599,40 @@
 [data-slot="markdown-panel"] .cm-inplace-menu-sep {
   margin: 0.25rem !important;
   background: color-mix(in srgb, var(--border) 50%, transparent) !important;
+}
+
+/* `[[wikilink` / `#tag` autocomplete popup — this is plain, unstyled
+   `@codemirror/autocomplete` (its `baseTheme`: a flat gray tooltip, `#347`
+   selected-row blue, underlined matched text, monospace list). Pushed onto
+   the same frosted footprint and geometry as the menus above — the frosted
+   background is added to the shared rule; this is shape and type only.
+   `!important` throughout for the same reason as the `cm-inplace-menu-*`
+   rules: it's beating an injected `EditorView.theme()` stylesheet. */
+[data-slot="markdown-panel"] .cm-tooltip.cm-tooltip-autocomplete {
+  border: none !important;
+  border-radius: var(--radius-lg) !important;
+  box-shadow:
+    0 25px 50px -12px rgb(0 0 0 / 0.25),
+    0 0 0 1px color-mix(in srgb, var(--foreground) 8%, transparent) !important;
+}
+[data-slot="markdown-panel"] .cm-tooltip.cm-tooltip-autocomplete > ul {
+  padding: 0.25rem !important;
+  font-family: inherit !important;
+}
+[data-slot="markdown-panel"] .cm-tooltip-autocomplete ul > li {
+  border-radius: var(--radius-md) !important;
+  padding: 0.5rem 0.75rem !important;
+  font-size: 0.875rem !important;
+  color: var(--muted-foreground) !important;
+}
+[data-slot="markdown-panel"] .cm-tooltip-autocomplete ul li[aria-selected] {
+  background: color-mix(in srgb, var(--foreground) 10%, transparent) !important;
+  color: var(--accent-foreground) !important;
+}
+[data-slot="markdown-panel"] .cm-completionMatchedText {
+  text-decoration: none !important;
+  color: var(--foreground) !important;
+  font-weight: 600 !important;
 }
 
 /* Sympose's own pointer-anchored context menu (`components/ui/context-menu`)

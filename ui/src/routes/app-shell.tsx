@@ -377,6 +377,11 @@ export function AppShell() {
   // switcher. Every folder row opens the same panel: the whole scoped tree.
   const [vaultTree, setVaultTree] = React.useState<VaultNode[]>([])
   const [selectedNote, setSelectedNote] = React.useState<string>()
+  // Nebula node ids are the bare filename stem (`vault_manifest_build._stem`
+  // on the backend), not the full vault-relative path — so whichever note
+  // becomes active in the content panel can drive the ambient nebula's
+  // focus/highlight (see `AmbientNebula`'s `activeNoteId`).
+  const activeNoteId = selectedNote?.split("/").pop()?.replace(/\.[^./]+$/, "")
   // Bumped after a note is created (ADR-083) to re-pull the tree so the new
   // file shows up without a persona switch.
   const [vaultRefreshKey, setVaultRefreshKey] = React.useState(0)
@@ -743,7 +748,11 @@ export function AppShell() {
           the chrome. */}
       {nebulaReady && (
         <React.Suspense fallback={null}>
-          <AmbientNebula prefs={nebulaPrefs} setPref={setNebulaPref} />
+          <AmbientNebula
+            prefs={nebulaPrefs}
+            setPref={setNebulaPref}
+            activeNoteId={activeNoteId}
+          />
         </React.Suspense>
       )}
 

@@ -38,9 +38,15 @@ type SetPref = <K extends keyof NebulaPreferences>(
 function AmbientNebula({
   prefs,
   setPref,
+  activeNoteId,
 }: {
   prefs: NebulaPreferences
   setPref: SetPref
+  /** The note currently open in the content panel (bare filename stem, same
+   *  id space as `NebulaNode.id`). Drives the same fly-to-node-and-highlight
+   *  behavior as an in-nebula click, so browsing notes elsewhere keeps the
+   *  ambient background in sync — in both Focus and Explore. */
+  activeNoteId?: string
 }) {
   const theme = useEffectiveTheme()
   const isLight = theme === "light"
@@ -49,6 +55,12 @@ function AmbientNebula({
   const { graph, source } = useNebulaGraph()
   const nebulaRef = React.useRef<KnowledgeNebulaHandle>(null)
   const [selectedNodeId, setSelectedNodeId] = React.useState<string | null>(null)
+
+  React.useEffect(() => {
+    if (!activeNoteId) return
+    setSelectedNodeId(activeNoteId)
+    nebulaRef.current?.focusNode(activeNoteId)
+  }, [activeNoteId])
 
   // The selection (and the highlight it drives) is kept across Explore ⇄ Focus
   // — it only *changes* while interactive, but a Focus trip and back leaves it

@@ -1095,6 +1095,35 @@ class VaultManager:
             return f"Error: Failed to create note: {e}"
 
     @classmethod
+    def create_folder(cls, profile: Dict[str, Any], folder_name: str) -> str:
+        """Create a new *empty* folder under the vault (ADR-095), alongside
+        `create_note`'s path resolution and sandbox rules: `folder_name` is
+        relative to the vault and lands under the master vault when it
+        contains a separator, otherwise in the persona's primary folder.
+        `NOTE_EXISTS` when the path is already a file or directory,
+        `NOTE_DENIED` outside the sandbox."""
+        mv, allowed_dirs, primary_dir = cls._get_master_vault(), cls.get_allowed_dirs(profile), cls.get_primary_dir(profile)
+        if not mv or not allowed_dirs:
+            return cls.NOTE_DENIED
+        clean_name = folder_name.strip().strip("\"'").strip("/\\")
+        if not clean_name:
+            return cls.NOTE_DENIED
+
+        base = mv if ("/" in clean_name or "\\" in clean_name) else (primary_dir or mv)
+        target_dir = os.path.normpath(os.path.join(base, clean_name))
+        if not any(is_safe_path(target_dir, allowed) for allowed in allowed_dirs):
+            return cls.NOTE_DENIED
+        if os.path.exists(target_dir):
+            return cls.NOTE_EXISTS
+
+        rel_display = os.path.relpath(target_dir, mv)
+        try:
+            os.makedirs(target_dir)
+            return f"Created folder: `{rel_display}`"
+        except Exception as e:
+            return f"Error: Failed to create folder: {e}"
+
+    @classmethod
     def _resolve_existing_note(cls, profile: Dict[str, Any], note_name: str) -> Optional[str]:
         """Absolute path of the file `read_note` would open for `note_name`, or
         `None`: direct path under the master vault → basename in an allowed

@@ -281,6 +281,43 @@ class TestCreateNote:
 
 
 # ---------------------------------------------------------------------------
+# VaultManager.create_folder (content-panel toolbar — ADR-095)
+# ---------------------------------------------------------------------------
+
+class TestCreateFolder:
+    def test_creates_empty_folder(self, tmp_vault_dir, monkeypatch):
+        from sympose.vault import VaultManager
+        monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
+        profile = {"vault_folders": ["*"]}
+
+        result = VaultManager.create_folder(profile, "Ideas/Archive")
+
+        assert result.startswith("Created folder:")
+        assert (tmp_vault_dir / "Ideas" / "Archive").is_dir()
+
+    def test_refuses_when_path_already_exists(self, tmp_vault_dir, monkeypatch):
+        from sympose.vault import VaultManager
+        note = tmp_vault_dir / "Notes" / "taken.md"
+        write_note(str(note), "original")
+        monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
+        profile = {"vault_folders": ["*"]}
+
+        result = VaultManager.create_folder(profile, "Notes/taken.md")
+
+        assert result == VaultManager.NOTE_EXISTS
+
+    def test_outside_sandbox_denied(self, tmp_vault_dir, tmp_path, monkeypatch):
+        from sympose.vault import VaultManager
+        monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
+        profile = {"vault_folders": ["*"]}
+
+        result = VaultManager.create_folder(profile, "../escapee")
+
+        assert result == VaultManager.NOTE_DENIED
+        assert not (tmp_path / "escapee").exists()
+
+
+# ---------------------------------------------------------------------------
 # VaultManager.rename_note / delete_note (dashboard editor — ADR-084)
 # ---------------------------------------------------------------------------
 

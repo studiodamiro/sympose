@@ -72,6 +72,16 @@ interface ContentPanelProps extends React.ComponentProps<"div"> {
    * reach instead of scrolling away under a tall settings list.
    */
   footer?: React.ReactNode
+  /**
+   * Pinned above the scrolling surface, at the panel's very top edge — a
+   * non-scrolling toolbar row, styled to match stylo's own formatting
+   * toolbar (`--stylo-bg` background, a `border-bottom`, `4px 6px` padding —
+   * see `_toolbar_1lohh` in stylo's stylesheet) so the two panels' chrome
+   * reads as one system. The vault view uses it for back/forward + new
+   * note/folder (ADR-095); everything else (the section title, the tree)
+   * stays regular scrolling content below it.
+   */
+  header?: React.ReactNode
 }
 
 function stageWidth(el: HTMLElement | null): number {
@@ -89,6 +99,7 @@ function ContentPanel({
   fill = false,
   scrollKey,
   footer,
+  header,
   children,
   style,
   ...props
@@ -228,6 +239,22 @@ function ContentPanel({
       }
       {...props}
     >
+      {header && (
+        <div
+          className={cn(
+            "shrink-0 border-b border-border px-1.5 py-1",
+            phone && plain
+              ? "text-foreground"
+              : "sy-frosted-panel text-panel-foreground",
+            // A `header` takes over the top edge — its own corners round
+            // instead, so the scroll surface below stays square there.
+            phone ? !plain && "rounded-tl-lg" : "rounded-tl-lg rounded-tr-lg"
+          )}
+        >
+          {header}
+        </div>
+      )}
+
       <div
         ref={scrollRef}
         onScroll={handleScroll}
@@ -243,10 +270,11 @@ function ContentPanel({
           // shorthand after the longhand and re-rounds the corner).
           phone
             ? // phone: flush to every edge; only the top-left corner (where it
-              // meets the icon rail) is rounded, and not for a plain page
-              !plain && "rounded-tl-lg"
+              // meets the icon rail) is rounded, and not for a plain page —
+              // unless `header` already claimed that corner.
+              !plain && !header && "rounded-tl-lg"
             : cn(
-                "rounded-tl-lg rounded-tr-lg",
+                header ? "" : "rounded-tl-lg rounded-tr-lg",
                 // A `footer` takes over the bottom edge below — its own
                 // corners round instead, so this surface stays square there.
                 footer ? "rounded-br-none" : "rounded-br-lg",

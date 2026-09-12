@@ -89,6 +89,37 @@ export async function createVaultNote(
   }
 }
 
+export type CreateVaultFolderResult =
+  | { ok: true; path: string }
+  | { ok: false; error: string }
+
+/**
+ * Client for `POST /api/vault/folder` — create a new empty folder at `path`
+ * (relative to the vault, e.g. `Projects/Archive`). A 409 means a file or
+ * folder already exists there, a 403 that the path fell outside the persona's
+ * sandbox (ADR-095).
+ */
+export async function createVaultFolder(
+  path: string,
+  persona: string
+): Promise<CreateVaultFolderResult> {
+  try {
+    const res = await fetch("/api/vault/folder", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ path, persona }),
+    })
+    if (res.ok) return { ok: true, path }
+    const detail = await res
+      .json()
+      .then((b) => (b as { detail?: string }).detail)
+      .catch(() => undefined)
+    return { ok: false, error: detail || `Couldn't create folder (HTTP ${res.status})` }
+  } catch (err) {
+    return { ok: false, error: `Couldn't create folder — backend unreachable (${err})` }
+  }
+}
+
 async function detailOf(res: Response): Promise<string | undefined> {
   return res
     .json()

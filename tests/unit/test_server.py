@@ -158,6 +158,50 @@ class TestVaultNoteCreate:
         assert resp.status_code == 403
 
 
+class TestVaultFolderCreate:
+    """`POST /api/vault/folder` maps `VaultManager.create_folder`'s sentinels
+    onto HTTP status codes (ADR-095)."""
+
+    def _client(self, monkeypatch, create_result):
+        from fastapi.testclient import TestClient
+        from sympose.auth import DASHBOARD_USER
+        import sympose.server as server
+
+        monkeypatch.setenv("DASHBOARD_PASSWORD", "pw")
+        monkeypatch.setattr(
+            server.VaultManager, "create_folder",
+            classmethod(lambda cls, profile, path: create_result),
+        )
+        engine = MagicMock()
+        engine.pm.get_profile.return_value = {"vault_folders": ["*"]}
+        engine.pm.profiles = {}
+        return TestClient(server.create_app(engine)), DASHBOARD_USER
+
+    def test_success_returns_201(self, monkeypatch):
+        client, user = self._client(monkeypatch, "Created folder: `Ideas/Archive`")
+        resp = client.post(
+            "/api/vault/folder", json={"path": "Ideas/Archive"}, auth=(user, "pw")
+        )
+        assert resp.status_code == 201
+        assert resp.json()["detail"].startswith("Created folder:")
+
+    def test_existing_path_returns_409(self, monkeypatch):
+        from sympose.vault import VaultManager
+        client, user = self._client(monkeypatch, VaultManager.NOTE_EXISTS)
+        resp = client.post(
+            "/api/vault/folder", json={"path": "Ideas/Taken"}, auth=(user, "pw")
+        )
+        assert resp.status_code == 409
+
+    def test_denied_returns_403(self, monkeypatch):
+        from sympose.vault import VaultManager
+        client, user = self._client(monkeypatch, VaultManager.NOTE_DENIED)
+        resp = client.post(
+            "/api/vault/folder", json={"path": "../evil"}, auth=(user, "pw")
+        )
+        assert resp.status_code == 403
+
+
 class TestVaultNoteRenameDelete:
     """`PATCH` / `DELETE /api/vault/note` sentinel → status-code mapping (ADR-084)."""
 

@@ -3,8 +3,11 @@ import { HugeiconsIcon } from "@hugeicons/react"
 import { notify } from "@/lib/notify"
 import {
   Add01Icon,
+  ArrowLeft01Icon,
+  ArrowRight01Icon,
   File01Icon,
   Folder01Icon,
+  FolderAddIcon,
   Note01Icon,
   ThumbsUpIcon,
 } from "@hugeicons/core-free-icons"
@@ -32,7 +35,7 @@ import {
   type LivePersona,
 } from "@/lib/personas"
 import { fetchVaultTree } from "@/lib/vault-tree-api"
-import { createVaultNote } from "@/lib/vault-note-api"
+import { createVaultNote, createVaultFolder } from "@/lib/vault-note-api"
 import { findNoteByWikilink } from "@/lib/find-note-by-wikilink"
 import { matchWikilinkTargets } from "@/lib/vault-wikilink-completions"
 import { VAULT_FOLDERS } from "@/lib/vault-folders"
@@ -123,6 +126,45 @@ export function AppShell() {
     setCookie(SECTION_COOKIE, active)
   }, [active])
 
+  // Browser-style visit history over `active`, for the content panel's
+  // back/forward toolbar buttons. A ref pair holds the stack/cursor (no
+  // re-render needed to track them); `historyTick` forces one so the buttons'
+  // disabled state stays current. `navigatingHistory` suppresses the effect's
+  // own push when `active` changes because a back/forward click set it.
+  const historyStack = React.useRef<string[]>([active])
+  const historyIndex = React.useRef(0)
+  const navigatingHistory = React.useRef(false)
+  const [, setHistoryTick] = React.useState(0)
+  React.useEffect(() => {
+    if (navigatingHistory.current) {
+      navigatingHistory.current = false
+      return
+    }
+    if (historyStack.current[historyIndex.current] === active) return
+    historyStack.current = [
+      ...historyStack.current.slice(0, historyIndex.current + 1),
+      active,
+    ]
+    historyIndex.current = historyStack.current.length - 1
+    setHistoryTick((t) => t + 1)
+  }, [active])
+  const canGoBack = historyIndex.current > 0
+  const canGoForward = historyIndex.current < historyStack.current.length - 1
+  const goBack = () => {
+    if (!canGoBack) return
+    navigatingHistory.current = true
+    historyIndex.current -= 1
+    setActive(historyStack.current[historyIndex.current])
+    setHistoryTick((t) => t + 1)
+  }
+  const goForward = () => {
+    if (!canGoForward) return
+    navigatingHistory.current = true
+    historyIndex.current += 1
+    setActive(historyStack.current[historyIndex.current])
+    setHistoryTick((t) => t + 1)
+  }
+
   // Phone: the TopBar vault button toggles the navigation view — the menu rail
   // and the content panel move together. Its open/closed state is remembered.
   const [menuShown, setMenuShown] = React.useState(() =>
@@ -183,8 +225,8 @@ export function AppShell() {
     }
     // A root note row (README.md) also selects it in the tree.
     if (noteIds.has(id)) setSelectedNote(id)
-    // Leaving the tree for the bin: drop any half-typed new-note name.
-    if (id === MENU_TRASH_ID) setNewNoteName(null)
+    // Leaving the tree for the bin: drop any half-typed create-input name.
+    if (id === MENU_TRASH_ID) closeCreate()
     if (id === resolvedActive && panels.isOpen("content")) {
       panels.close("content")
     } else {
@@ -338,9 +380,17 @@ export function AppShell() {
   // Bumped after a note is created (ADR-083) to re-pull the tree so the new
   // file shows up without a persona switch.
   const [vaultRefreshKey, setVaultRefreshKey] = React.useState(0)
-  // `null` = the new-note input is closed; a string = its current value.
-  const [newNoteName, setNewNoteName] = React.useState<string | null>(null)
-  const [creatingNote, setCreatingNote] = React.useState(false)
+  // `null` = no create-input open; otherwise which kind is being named, with
+  // its current typed value in `createName`.
+  const [pendingCreate, setPendingCreate] = React.useState<"note" | "folder" | null>(
+    null
+  )
+  const [createName, setCreateName] = React.useState("")
+  const [creating, setCreating] = React.useState(false)
+  const closeCreate = () => {
+    setPendingCreate(null)
+    setCreateName("")
+  }
   // The vault panel shows the bin (ADR-085) instead of the tree when the
   // main-menu Bin row is the active section.
   const trashView = active === MENU_TRASH_ID
@@ -416,27 +466,34 @@ export function AppShell() {
 
   const activeLabel = SECTION_LABELS[resolvedActive] ?? resolvedActive
 
-  // Create a note in the folder currently in view (or the vault root when a
-  // root note is the active surface), then open it in the editor (ADR-083).
-  const submitNewNote = async () => {
-    const name = (newNoteName ?? "")
+  // Create a note or folder in the folder currently in view (or the vault
+  // root when a root note is the active surface). A new note opens in the
+  // editor (ADR-083); a new folder (ADR-095) just refreshes the tree.
+  const submitCreate = async () => {
+    const kind = pendingCreate
+    const name = createName
       .trim()
       .replace(/\.md$/i, "")
       .replace(/^\/+|\/+$/g, "")
-    if (!name || creatingNote) return
+    if (!kind || !name || creating) return
     const folder = activeNode?.type === "folder" ? resolvedActive : ""
     const target = folder ? `${folder}/${name}` : name
-    setCreatingNote(true)
-    const result = await createVaultNote(target, activePersona)
-    setCreatingNote(false)
+    setCreating(true)
+    const result =
+      kind === "note"
+        ? await createVaultNote(target, activePersona)
+        : await createVaultFolder(target, activePersona)
+    setCreating(false)
     if (!result.ok) {
       notify.error(result.error)
       return
     }
-    setNewNoteName(null)
+    closeCreate()
     setVaultRefreshKey((k) => k + 1)
-    setSelectedNote(`${target}.md`)
-    panels.open("editor")
+    if (kind === "note") {
+      setSelectedNote(`${target}.md`)
+      panels.open("editor")
+    }
     notify.success(`Created ${name}`)
   }
 
@@ -451,6 +508,101 @@ export function AppShell() {
   // panel (same background, same gutter) rather than the vault content surface.
   const plainPage =
     isPhone && (active === MENU_SETTINGS_ID || active === MENU_ACCOUNT_ID)
+
+  // The panel-wide toolbar (back/forward, new note/folder) — pinned to the
+  // content panel's own top edge via `<ContentPanel header>`, mirroring the
+  // editor toolbar's chrome exactly rather than sitting inline with the
+  // section title. Shown on every surface (vault folders, Bin, Settings,
+  // Agent) so back/forward always works; new note/folder only make sense
+  // on an actual vault folder, so that group is dropped on the sentinel
+  // surfaces instead of rendering disabled, inert buttons.
+  const contentHeader = (
+    <div className="flex items-center justify-between gap-1">
+      <div className="flex items-center gap-0.5">
+        <button
+          type="button"
+          onClick={goBack}
+          disabled={!canGoBack}
+          aria-label="Back"
+          className="grid size-7 shrink-0 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
+        >
+          <HugeiconsIcon icon={ArrowLeft01Icon} className="size-4" />
+        </button>
+        <button
+          type="button"
+          onClick={goForward}
+          disabled={!canGoForward}
+          aria-label="Forward"
+          className="grid size-7 shrink-0 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
+        >
+          <HugeiconsIcon icon={ArrowRight01Icon} className="size-4" />
+        </button>
+      </div>
+      {!isSentinel && (
+        <div className="flex items-center gap-0.5">
+          <div
+            className={cn(
+              // `h-7` here (not just on the input) is load-bearing: `w-0` only
+              // clips width, so an unconstrained-height input still pushes
+              // the whole toolbar row taller by its own natural line-height
+              // even while invisibly zero-width. Fixing the wrapper's height
+              // to match the buttons keeps the row at their 28px regardless.
+              "h-7 overflow-hidden rounded-md transition-[width] duration-150 ease-out",
+              pendingCreate ? "w-40" : "w-0"
+            )}
+          >
+            <input
+              autoFocus
+              value={createName}
+              disabled={creating}
+              onChange={(e) => setCreateName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") void submitCreate()
+                else if (e.key === "Escape") closeCreate()
+              }}
+              onBlur={closeCreate}
+              placeholder={
+                pendingCreate === "folder"
+                  ? "New folder name… ↵"
+                  : activeNode?.type === "folder"
+                    ? `New note in ${activeLabel}… ↵`
+                    : "New note name… ↵"
+              }
+              className="h-7 w-full rounded-md border border-border bg-background px-2 text-sm outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:opacity-50"
+            />
+          </div>
+          <button
+            type="button"
+            onClick={() =>
+              setPendingCreate((v) => {
+                setCreateName("")
+                return v === "note" ? null : "note"
+              })
+            }
+            aria-label="New note"
+            aria-pressed={pendingCreate === "note"}
+            className="grid size-7 shrink-0 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground aria-pressed:text-foreground"
+          >
+            <HugeiconsIcon icon={Add01Icon} className="size-4" />
+          </button>
+          <button
+            type="button"
+            onClick={() =>
+              setPendingCreate((v) => {
+                setCreateName("")
+                return v === "folder" ? null : "folder"
+              })
+            }
+            aria-label="New folder"
+            aria-pressed={pendingCreate === "folder"}
+            className="grid size-7 shrink-0 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground aria-pressed:text-foreground"
+          >
+            <HugeiconsIcon icon={FolderAddIcon} className="size-4" />
+          </button>
+        </div>
+      )}
+    </div>
+  )
 
   const contentBody =
     active === MENU_ACCOUNT_ID ? (
@@ -479,22 +631,9 @@ export function AppShell() {
       </ControlSectionsProvider>
     ) : (
       <div className="flex flex-col gap-2">
-        <div className="flex items-center justify-between gap-2">
-          <h2 className="font-heading text-2xl font-semibold text-fg-strong">
-            {trashView ? "Bin" : activeLabel || "Vault"}
-          </h2>
-          {!trashView && (
-            <button
-              type="button"
-              onClick={() => setNewNoteName((v) => (v === null ? "" : null))}
-              aria-label="New note"
-              aria-pressed={newNoteName !== null}
-              className="grid size-7 shrink-0 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground aria-pressed:text-foreground"
-            >
-              <HugeiconsIcon icon={Add01Icon} className="size-4" />
-            </button>
-          )}
-        </div>
+        <h2 className="font-heading text-2xl font-semibold text-fg-strong">
+          {trashView ? "Bin" : activeLabel || "Vault"}
+        </h2>
         {trashView ? (
           <TrashList
             persona={activePersona}
@@ -503,24 +642,6 @@ export function AppShell() {
           />
         ) : (
           <>
-            {newNoteName !== null && (
-              <input
-                autoFocus
-                value={newNoteName}
-                disabled={creatingNote}
-                onChange={(e) => setNewNoteName(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") void submitNewNote()
-                  else if (e.key === "Escape") setNewNoteName(null)
-                }}
-                placeholder={
-                  activeNode?.type === "folder"
-                    ? `New note in ${activeLabel}… ↵`
-                    : "New note name… ↵"
-                }
-                className="rounded-md border border-border bg-background px-2 py-1.5 text-sm outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:opacity-50"
-              />
-            )}
             {vaultTree.length === 0 ? (
               <p className="text-sm text-fg-muted">
                 No notes in scope — check that the dashboard API is reachable
@@ -687,7 +808,13 @@ export function AppShell() {
             open and closed, so ordinary interaction is unaffected. */}
         <div className="relative flex min-w-0 flex-1 overflow-hidden pointer-events-none">
           {!isPhone && (
-            <div className="pointer-events-auto absolute top-4 right-3 z-30 flex items-center gap-2">
+            // `top-[10.5px]` centers this 32px-tall row (size-7 buttons + a
+            // 2px pad, see `<ChatActionGroup>`) on the editor toolbar's own
+            // vertical center: the panel's `py-2` outer margin (8px) plus
+            // half its 37px toolbar row (4px padding + a 28px button + a 1px
+            // border) — 8 + 37/2 - 32/2 = 10.5. A flat `top-4` (16px) sat
+            // 5.5px low against it.
+            <div className="pointer-events-auto absolute top-[10.5px] right-3 z-30 flex items-center gap-2">
               <ChatActionGroup
                 chatOpen={chatOpen}
                 onToggleChat={toggleChat}
@@ -724,6 +851,7 @@ export function AppShell() {
             flushBottomLeft={
               !isPhone && contentOpen && active === MENU_ACCOUNT_ID
             }
+            header={contentHeader}
             footer={
               // Read-only Slack daemon status (ADR-082) on the left, the
               // compact light/dark switch on the right — pinned below the

@@ -22,7 +22,6 @@ import {
   ListTodoIcon,
   MathIcon,
   ParagraphIcon,
-  PropertyEditIcon,
   QuoteDownIcon,
   RedoIcon,
   Search01Icon,
@@ -39,6 +38,7 @@ import {
 } from "@hugeicons/core-free-icons"
 
 import { cn } from "@/lib/utils"
+import { getCookieBool, setCookieBool } from "@/lib/cookies"
 import { useResizable } from "@/lib/use-resizable"
 import { useFillWidth } from "@/lib/use-fill-width"
 import { useTransientFlag } from "@/lib/use-transient-flag"
@@ -115,6 +115,20 @@ interface MarkdownPanelProps extends React.ComponentProps<"div"> {
   phone?: boolean
 }
 
+/** Stylo's own glyph for "frontmatter" on its built-in toolbar — literal
+ *  `fm` text in `<code>` (`src/toolbar/icons.tsx` in `@damiro/stylo`; the
+ *  package also has an unrelated SVG path under the same name used only for
+ *  its in-place YAML-block decoration, not the toolbar). Sizing/weight
+ *  copied from stylo's own `._toolbarButton_ code` CSS rule so it sits at
+ *  the same visual weight as the mono glyphs elsewhere in that toolbar. */
+function FrontmatterIcon() {
+  return (
+    <code aria-hidden="true" className="font-mono text-[13px] font-medium">
+      fm
+    </code>
+  )
+}
+
 /** One Hugeicons glyph per stylo built-in — the full `ToolbarCommandId` set,
  *  not just sympose's own curated default, since `<StyloToolbarSettings>`
  *  lets any user add any of them from "Available" (Settings > Markdown
@@ -148,11 +162,17 @@ const TOOLBAR_ICONS = {
   ),
   task: <HugeiconsIcon icon={ListTodoIcon} className="size-4" />,
   hr: <HugeiconsIcon icon={SeparatorHorizontalIcon} className="size-4" />,
-  frontmatter: <HugeiconsIcon icon={PropertyEditIcon} className="size-4" />,
+  frontmatter: <FrontmatterIcon />,
   table: <HugeiconsIcon icon={TableIcon} className="size-4" />,
   math: <HugeiconsIcon icon={MathIcon} className="size-4" />,
   mathBlock: <HugeiconsIcon icon={SigmaIcon} className="size-4" />,
 } as const
+
+/** Whether the frontmatter card is expanded or collapsed — a global
+ *  preference (like the shell rail / auto-collapse cookies in
+ *  `app-shell.tsx`), not per-note: it's a viewing convenience, not part of
+ *  the note's own state. */
+const FRONTMATTER_VISIBLE_COOKIE = "sympose:pref.frontmatterExpanded"
 
 const SAFE_LINK_SCHEMES = new Set(["http:", "https:", "mailto:"])
 
@@ -296,6 +316,15 @@ function MarkdownPanel({
   // never sees it, so editing a pill never touches CodeMirror's undo history.
   const [frontmatter, setFrontmatter] = React.useState<string | null>(null)
   const [body, setBody] = React.useState("")
+  // Expanded/collapsed state of the frontmatter card — toggled from the `⋯`
+  // row, persisted globally (same convention as `app-shell.tsx`'s rail /
+  // auto-collapse cookies).
+  const [frontmatterVisible, setFrontmatterVisible] = React.useState(() =>
+    getCookieBool(FRONTMATTER_VISIBLE_COOKIE, true)
+  )
+  React.useEffect(() => {
+    setCookieBool(FRONTMATTER_VISIBLE_COOKIE, frontmatterVisible)
+  }, [frontmatterVisible])
   const { surface, reveal, selectionUI, tableEditing, focusOutline, autosave } =
     preferences
 
@@ -319,23 +348,48 @@ function MarkdownPanel({
   // function identity handed to `<Stylo>` has to survive `frontmatter`/
   // `onWikiLinkClick`/`phone` changing without a remount, so it reads them
   // off a ref kept current every render instead of closing over them directly.
-  const frontmatterCardStateRef = React.useRef({ frontmatter, onWikiLinkClick, phone })
-  frontmatterCardStateRef.current = { frontmatter, onWikiLinkClick, phone }
+  const frontmatterCardStateRef = React.useRef({
+    frontmatter,
+    onWikiLinkClick,
+    phone,
+    frontmatterVisible,
+  })
+  frontmatterCardStateRef.current = {
+    frontmatter,
+    onWikiLinkClick,
+    phone,
+    frontmatterVisible,
+  }
   const canvasHeader = React.useCallback(() => {
-    const { frontmatter, onWikiLinkClick, phone } = frontmatterCardStateRef.current
+    const { frontmatter, onWikiLinkClick, phone, frontmatterVisible } =
+      frontmatterCardStateRef.current
     if (frontmatter === null) return null
     return (
-      <FrontmatterCard
-        raw={frontmatter}
-        onChange={(raw) => {
-          // A real card edit — from here on the block is re-serialised on
-          // save rather than kept verbatim.
-          frontmatterEditedRef.current = true
-          setFrontmatter(raw)
-        }}
-        onLinkClick={onWikiLinkClick}
-        className={cn("mt-2", phone ? "px-2" : "px-4 sm:px-6")}
-      />
+      // Animate via `grid-template-rows` rather than `max-height` — it tweens
+      // to the card's real content height with no guessed cap, and (unlike a
+      // hardcoded `max-height`) never needs revisiting if the card's content
+      // grows a row. The `overflow-hidden` inner wrapper is what actually
+      // clips it; the outer grid is what animates.
+      <div
+        className={cn(
+          "grid transition-[grid-template-rows] duration-300 ease-in-out",
+          frontmatterVisible ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
+        )}
+      >
+        <div className="overflow-hidden">
+          <FrontmatterCard
+            raw={frontmatter}
+            onChange={(raw) => {
+              // A real card edit — from here on the block is re-serialised on
+              // save rather than kept verbatim.
+              frontmatterEditedRef.current = true
+              setFrontmatter(raw)
+            }}
+            onLinkClick={onWikiLinkClick}
+            className={cn("mt-2", phone ? "px-2" : "px-4 sm:px-6")}
+          />
+        </div>
+      </div>
     )
   }, [])
 
@@ -532,7 +586,25 @@ function MarkdownPanel({
                   <div className="relative">
                     {bar}
                     {path && (
-                      <div className="absolute inset-y-0 right-1.5 flex items-center">
+                      <div className="absolute inset-y-0 right-1.5 flex items-center gap-0.5">
+                        {frontmatter !== null && (
+                          <button
+                            type="button"
+                            aria-label={
+                              frontmatterVisible
+                                ? "Hide frontmatter"
+                                : "Show frontmatter"
+                            }
+                            aria-pressed={frontmatterVisible}
+                            onClick={() => setFrontmatterVisible((v) => !v)}
+                            className={cn(
+                              "grid size-7 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground",
+                              frontmatterVisible && "bg-accent text-foreground"
+                            )}
+                          >
+                            {TOOLBAR_ICONS.frontmatter}
+                          </button>
+                        )}
                         <NoteActionsMenu
                           path={path}
                           persona={persona}

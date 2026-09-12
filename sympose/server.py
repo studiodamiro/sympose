@@ -36,6 +36,13 @@ class NoteCreate(BaseModel):
     persona: str = "samantha"
 
 
+class FolderCreate(BaseModel):
+    """Body of `POST /api/vault/folder` — create a new *empty* folder at `path`
+    (relative to the vault, e.g. `Projects/Archive`) (ADR-095)."""
+    path: str = Field(..., min_length=1)
+    persona: str = "samantha"
+
+
 class NoteRename(BaseModel):
     """Body of `PATCH /api/vault/note` — rename `path` to `new_path` and rewrite
     every `[[wikilink]]` that referenced it (ADR-084). `new_path` stays in the
@@ -195,6 +202,21 @@ def create_app(engine: Any, workspace_dir: Optional[str] = None) -> FastAPI:
         result = VaultManager.create_note(profile, body.path, body.content)
         if result == VaultManager.NOTE_EXISTS:
             raise HTTPException(status_code=409, detail=f"A note already exists at `{body.path}`.")
+        if result == VaultManager.NOTE_DENIED:
+            raise HTTPException(status_code=403, detail=f"Path `{body.path}` is outside the assigned sandbox.")
+        if result.startswith("Error:"):
+            raise HTTPException(status_code=500, detail=result)
+        return {"path": body.path, "detail": result}
+
+    @app.post("/api/vault/folder", status_code=201)
+    def create_folder(body: FolderCreate) -> Dict[str, Any]:
+        """Create a new empty vault folder (ADR-095). 409 if a file or folder
+        already exists at that path, 403 if it resolves outside the persona's
+        sandbox."""
+        profile = engine.pm.get_profile(body.persona) or engine.pm.get_profile("samantha")
+        result = VaultManager.create_folder(profile, body.path)
+        if result == VaultManager.NOTE_EXISTS:
+            raise HTTPException(status_code=409, detail=f"A file or folder already exists at `{body.path}`.")
         if result == VaultManager.NOTE_DENIED:
             raise HTTPException(status_code=403, detail=f"Path `{body.path}` is outside the assigned sandbox.")
         if result.startswith("Error:"):

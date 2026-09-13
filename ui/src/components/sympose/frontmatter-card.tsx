@@ -11,19 +11,28 @@ import {
 } from "@/lib/frontmatter"
 import { parseWikilink } from "@/lib/extract-wikilinks"
 
-/** One frontmatter list value as a removable pill. */
-function Pill({ children, onRemove }: { children: React.ReactNode; onRemove: () => void }) {
+/** One frontmatter list value as a pill — removable when `onRemove` is given,
+ *  a plain chip (read mode) when it's omitted. */
+function Pill({
+  children,
+  onRemove,
+}: {
+  children: React.ReactNode
+  onRemove?: () => void
+}) {
   return (
     <span className="inline-flex items-center gap-1 rounded-full border border-border bg-chip px-2 py-0.5 text-xs text-chip-foreground">
       {children}
-      <button
-        type="button"
-        aria-label="Remove"
-        onClick={onRemove}
-        className="grid size-3.5 place-items-center rounded-full text-fg-muted transition-colors hover:bg-accent hover:text-foreground"
-      >
-        <HugeiconsIcon icon={Cancel01Icon} className="size-3" />
-      </button>
+      {onRemove && (
+        <button
+          type="button"
+          aria-label="Remove"
+          onClick={onRemove}
+          className="grid size-3.5 place-items-center rounded-full text-fg-muted transition-colors hover:bg-accent hover:text-foreground"
+        >
+          <HugeiconsIcon icon={Cancel01Icon} className="size-3" />
+        </button>
+      )}
     </span>
   )
 }
@@ -49,15 +58,19 @@ function PillLabel({
   )
 }
 
-/** A frontmatter array field — its items as pills, plus an "add" affordance. */
+/** A frontmatter array field — its items as pills, plus an "add" affordance.
+ *  `readOnly` drops both: pills lose their remove control, and the "add"
+ *  affordance disappears entirely. */
 function PillRow({
   values,
   onChange,
   onLinkClick,
+  readOnly,
 }: {
   values: FrontmatterScalar[]
   onChange: (next: FrontmatterScalar[]) => void
   onLinkClick?: (target: string) => void
+  readOnly?: boolean
 }) {
   const [adding, setAdding] = React.useState(false)
   const [draft, setDraft] = React.useState("")
@@ -77,48 +90,57 @@ function PillRow({
   return (
     <div className="flex flex-wrap items-center gap-1.5">
       {values.map((v, i) => (
-        <Pill key={i} onRemove={() => onChange(values.filter((_, j) => j !== i))}>
+        <Pill
+          key={i}
+          onRemove={readOnly ? undefined : () => onChange(values.filter((_, j) => j !== i))}
+        >
           <PillLabel value={v} onLinkClick={onLinkClick} />
         </Pill>
       ))}
-      {adding ? (
-        <input
-          ref={inputRef}
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          onBlur={commitAdd}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") commitAdd()
-            if (e.key === "Escape") {
-              setDraft("")
-              setAdding(false)
-            }
-          }}
-          className="h-5 w-20 rounded-full border border-border bg-background px-2 text-xs outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
-        />
-      ) : (
-        <button
-          type="button"
-          aria-label="Add"
-          onClick={() => setAdding(true)}
-          className="grid size-5 place-items-center rounded-full border border-dashed border-border text-fg-muted transition-colors hover:border-solid hover:bg-accent hover:text-foreground"
-        >
-          <HugeiconsIcon icon={PlusSignIcon} className="size-3" />
-        </button>
-      )}
+      {!readOnly &&
+        (adding ? (
+          <input
+            ref={inputRef}
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onBlur={commitAdd}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") commitAdd()
+              if (e.key === "Escape") {
+                setDraft("")
+                setAdding(false)
+              }
+            }}
+            className="h-5 w-20 rounded-full border border-border bg-background px-2 text-xs outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+          />
+        ) : (
+          <button
+            type="button"
+            aria-label="Add"
+            onClick={() => setAdding(true)}
+            className="grid size-5 place-items-center rounded-full border border-dashed border-border text-fg-muted transition-colors hover:border-solid hover:bg-accent hover:text-foreground"
+          >
+            <HugeiconsIcon icon={PlusSignIcon} className="size-3" />
+          </button>
+        ))}
     </div>
   )
 }
 
-/** A scalar frontmatter value — plain text until clicked, then an inline input. */
+/** A scalar frontmatter value — plain text until clicked, then an inline
+ *  input; `readOnly` drops the click-to-edit affordance entirely, leaving a
+ *  plain (non-interactive) value. A `[[wikilink]]` value keeps navigating on
+ *  click either way — same "links still work" rule the note body follows. */
 function ScalarField({
   value,
   onChange,
   onLinkClick,
+  readOnly,
 }: {
   value: FrontmatterScalar
   onChange: (next: string) => void
   onLinkClick?: (target: string) => void
+  readOnly?: boolean
 }) {
   const [editing, setEditing] = React.useState(false)
   const [draft, setDraft] = React.useState(String(value ?? ""))
@@ -146,6 +168,13 @@ function ScalarField({
         >
           {link.label}
         </button>
+      )
+    }
+    if (readOnly) {
+      return (
+        <span className="rounded px-1 -mx-1 text-left text-muted-foreground">
+          {String(value ?? "") || <span className="text-fg-muted">—</span>}
+        </span>
       )
     }
     return (
@@ -196,12 +225,17 @@ function FrontmatterCard({
   raw,
   onChange,
   onLinkClick,
+  readOnly,
   className,
 }: {
   raw: string
   onChange: (raw: string) => void
   /** Fires when a `[[wikilink]]`-valued field is clicked. */
   onLinkClick?: (target: string) => void
+  /** Disables all field editing (remove/add pill controls, click-to-edit
+   *  scalars) while leaving wikilink navigation intact — the editor panel's
+   *  read/edit toggle. */
+  readOnly?: boolean
   className?: string
 }) {
   const data = React.useMemo(() => parseFrontmatter(raw), [raw])
@@ -261,12 +295,14 @@ function FrontmatterCard({
                 values={value}
                 onChange={(next) => setField(key, next)}
                 onLinkClick={onLinkClick}
+                readOnly={readOnly}
               />
             ) : (
               <ScalarField
                 value={value}
                 onChange={(next) => setField(key, next)}
                 onLinkClick={onLinkClick}
+                readOnly={readOnly}
               />
             )}
           </dd>

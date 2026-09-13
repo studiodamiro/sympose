@@ -166,6 +166,14 @@ class VaultManager:
         return os.path.abspath(os.path.expanduser(mv)) if mv else None
 
     @classmethod
+    def get_vault_name(cls) -> Optional[str]:
+        """Display name for the vault root, for the dashboard's note-path
+        breadcrumb — the master vault directory's own basename. `None` when
+        `MASTER_VAULT_PATH` isn't set, same contract as `_get_master_vault`."""
+        mv = cls._get_master_vault()
+        return os.path.basename(mv) if mv else None
+
+    @classmethod
     def get_allowed_dirs(cls, profile: Dict[str, Any]) -> List[str]:
         mv = cls._get_master_vault()
         if not mv: return []

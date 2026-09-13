@@ -393,13 +393,21 @@
    Headings get the app's serif display face instead, matching every other
    heading in Sympose (`font-heading`, e.g. the vault/settings page titles in
    `<AppShell>`) — no per-construct token exists to do this through the public
-   contract, so this stays an `!important` reach into `.cm-inplace-h*`. */
+   contract, so this stays an `!important` reach into `.cm-inplace-h*`.
+
+   `mode="preview"` renders a completely different DOM (react-markdown's own
+   literal `h1`–`h6`, not CodeMirror's `.cm-inplace-h*` decoration classes),
+   so it needs its own selector reaching the same tags scoped under
+   `[data-stylo-mode="preview"]` — without it, preview's headings silently
+   fell back to inherited body sans instead of the serif swap, reading as a
+   different font between the two modes for no reason a reader would expect. */
 [data-slot="markdown-panel"] .cm-inplace-h1,
 [data-slot="markdown-panel"] .cm-inplace-h2,
 [data-slot="markdown-panel"] .cm-inplace-h3,
 [data-slot="markdown-panel"] .cm-inplace-h4,
 [data-slot="markdown-panel"] .cm-inplace-h5,
-[data-slot="markdown-panel"] .cm-inplace-h6 {
+[data-slot="markdown-panel"] .cm-inplace-h6,
+[data-slot="markdown-panel"] [data-stylo-mode="preview"] :is(h1, h2, h3, h4, h5, h6) {
   font-family: var(--font-heading) !important;
 }
 /* Full-contrast against the muted `--stylo-text` body color above, matching
@@ -407,13 +415,106 @@
    the strong color while its surrounding body copy is muted. Not `h6`: stylo
    already gives it its own deliberately-muted treatment
    (`color: var(--stylo-text-muted)` in its own theme), one step further down
-   than body text — leave that distinction alone. */
+   than body text — leave that distinction alone. Same preview-DOM caveat as
+   the font-family rule above applies to the `[data-stylo-mode="preview"]`
+   selector here. */
 [data-slot="markdown-panel"] .cm-inplace-h1,
 [data-slot="markdown-panel"] .cm-inplace-h2,
 [data-slot="markdown-panel"] .cm-inplace-h3,
 [data-slot="markdown-panel"] .cm-inplace-h4,
-[data-slot="markdown-panel"] .cm-inplace-h5 {
+[data-slot="markdown-panel"] .cm-inplace-h5,
+[data-slot="markdown-panel"] [data-stylo-mode="preview"] :is(h1, h2, h3, h4, h5) {
   color: var(--fg-strong) !important;
+}
+
+/* Heading size/line-height scale, owned here rather than trusted to stylo's
+   two independent internal defaults (its CodeMirror in-place theme and its
+   preview CSS module) happening to agree. They mostly did — h1–h4 were
+   identical by coincidence — except h5/h6: in-place sizes both at `0.9em`,
+   preview never sets a size for h4/h5/h6 at all and silently falls back to
+   the browser UA stylesheet (~0.83em/~0.67em), a real, visible size
+   mismatch nobody had chosen. Declaring the scale once as variables and
+   forcing both `.cm-inplace-h*` and preview's literal tags to read from it
+   means a future stylo version bump can't quietly drift the two apart again
+   the way it already had for h5/h6 — this file becomes the one place that
+   ever needs editing to change a heading size app-wide. */
+[data-slot="markdown-panel"] {
+  --sy-heading-size-1: 2.25em;
+  --sy-heading-line-1: 1.1111111;
+  --sy-heading-size-2: 1.5em;
+  --sy-heading-line-2: 1.3333333;
+  --sy-heading-size-3: 1.25em;
+  --sy-heading-line-3: 1.6;
+  --sy-heading-size-4: 1em;
+  --sy-heading-line-4: 1.5;
+  --sy-heading-size-5: 0.9em;
+  --sy-heading-size-6: 0.9em;
+}
+[data-slot="markdown-panel"] .cm-inplace-h1,
+[data-slot="markdown-panel"] [data-stylo-mode="preview"] h1 {
+  font-size: var(--sy-heading-size-1) !important;
+  line-height: var(--sy-heading-line-1) !important;
+}
+[data-slot="markdown-panel"] .cm-inplace-h2,
+[data-slot="markdown-panel"] [data-stylo-mode="preview"] h2 {
+  font-size: var(--sy-heading-size-2) !important;
+  line-height: var(--sy-heading-line-2) !important;
+}
+[data-slot="markdown-panel"] .cm-inplace-h3,
+[data-slot="markdown-panel"] [data-stylo-mode="preview"] h3 {
+  font-size: var(--sy-heading-size-3) !important;
+  line-height: var(--sy-heading-line-3) !important;
+}
+[data-slot="markdown-panel"] .cm-inplace-h4,
+[data-slot="markdown-panel"] [data-stylo-mode="preview"] h4 {
+  font-size: var(--sy-heading-size-4) !important;
+  line-height: var(--sy-heading-line-4) !important;
+}
+[data-slot="markdown-panel"] .cm-inplace-h5,
+[data-slot="markdown-panel"] [data-stylo-mode="preview"] h5 {
+  font-size: var(--sy-heading-size-5) !important;
+}
+[data-slot="markdown-panel"] .cm-inplace-h6,
+[data-slot="markdown-panel"] [data-stylo-mode="preview"] h6 {
+  font-size: var(--sy-heading-size-6) !important;
+}
+
+/* Preview renders real `<ul>`/`<ol>`/`<li>` elements — the only stylo surface
+   that does, since in-place decorates markdown source rather than building
+   an actual list DOM — so it's the only one exposed to Sympose's own global
+   list reset (`ol, ul, menu { list-style: none }`, Tailwind's preflight,
+   applied app-wide for every other real list in the UI). stylo's own preview
+   CSS module sets the list's margin/indent but never re-declares
+   `list-style`, assuming a host with no such reset — so bullets and numbers
+   were silently gone in preview, not a stylo bug so much as a collision
+   between two defaults neither side knew about the other. Restored to the
+   plain browser markers `list-style` supplies elsewhere on the page — there
+   is no in-place equivalent to stay consistent with, since in-place has no
+   real list markers to compare against. */
+[data-slot="markdown-panel"] [data-stylo-mode="preview"] ul {
+  list-style: disc !important;
+}
+[data-slot="markdown-panel"] [data-stylo-mode="preview"] ol {
+  list-style: decimal !important;
+}
+/* In-place has no per-item gap at all: each list item is just one
+   `.cm-line` among others, stacked at the shared `1.75` line-height with no
+   extra margin — markdown list items aren't separated by blank source
+   lines, so there's nothing to reproduce that gap from. Preview's real
+   `<li>` picks up stylo's own CSS-module `margin: .5em 0` (`.75em` when
+   nested), a plain prose default with no equivalent on the in-place side to
+   match — zeroed so consecutive bullets sit as tight in preview as they do
+   in edit mode instead of visibly further apart for a reader switching
+   between the two. The list's own outer gap from surrounding paragraphs
+   (`ul`/`ol`'s own `margin: 1.25em 0`) is left alone — that one plays the
+   same role as a paragraph's margin, and paragraph spacing has no
+   fixable in-place equivalent either (there it's however many blank
+   lines happen to be in the source, not a CSS constant). */
+[data-slot="markdown-panel"] [data-stylo-mode="preview"] li {
+  margin: 0 !important;
+}
+[data-slot="markdown-panel"] [data-stylo-mode="preview"] li > :is(ul, ol) {
+  margin: 0 !important;
 }
 
 /* stylo's own `.cm-content` gutter (`0.75rem` on every side) is narrower than
@@ -425,26 +526,38 @@
    horizontal inset (this padding plus stylo's own `.cm-line` side padding of
    `0.75rem`, which stacks on top of it — there's no vertical equivalent), so
    the text box reads as evenly inset on all four sides instead of tighter on
-   top/bottom. */
-[data-slot="markdown-panel"] .cm-content {
-  padding-left: 1.5rem !important;
-  padding-right: 1.5rem !important;
-  padding-top: 2.25rem !important;
-  padding-bottom: 2.25rem !important;
+   top/bottom.
+
+   The actual numbers live only in these three `--sy-editor-pad-*` custom
+   property declarations — every surface that needs the note body's inset
+   (`.cm-content` for in-place/source, `[data-stylo-mode="preview"] > div`
+   for preview, the same node `getStyloScroller` in markdown-panel.tsx
+   resolves as preview's scroll container) reads the same variable below
+   instead of repeating the rem values per surface. Two surfaces drifting out
+   of sync is exactly the bug this replaced: `.cm-content` had this inset and
+   preview didn't, because the first version of this rule only ever named
+   `.cm-content` — a plain value duplicated into a second selector risks the
+   same drift the next time either number changes. */
+[data-slot="markdown-panel"] {
+  --sy-editor-pad-x: 1.5rem;
+  --sy-editor-pad-y: 2.25rem;
 }
 @media (min-width: 640px) {
-  [data-slot="markdown-panel"] .cm-content {
-    padding-left: 2rem !important;
-    padding-right: 2rem !important;
-    padding-top: 2.75rem !important;
-    padding-bottom: 2.75rem !important;
+  [data-slot="markdown-panel"] {
+    --sy-editor-pad-x: 2rem;
+    --sy-editor-pad-y: 2.75rem;
   }
 }
-[data-slot="markdown-panel"][data-phone] .cm-content {
-  padding-left: 1rem !important;
-  padding-right: 1rem !important;
-  padding-top: 1.75rem !important;
-  padding-bottom: 1.75rem !important;
+[data-slot="markdown-panel"][data-phone] {
+  --sy-editor-pad-x: 1rem;
+  --sy-editor-pad-y: 1.75rem;
+}
+[data-slot="markdown-panel"] .cm-content,
+[data-slot="markdown-panel"] [data-stylo-mode="preview"] > div {
+  padding-left: var(--sy-editor-pad-x) !important;
+  padding-right: var(--sy-editor-pad-x) !important;
+  padding-top: var(--sy-editor-pad-y) !important;
+  padding-bottom: var(--sy-editor-pad-y) !important;
 }
 
 /* stylo's find/replace panel (0.10.x) is a flat, single-row flex line —
@@ -569,6 +682,15 @@
   width: 100% !important;
 }
 [data-slot="markdown-panel"] .cm-inplace-table {
+  width: 100% !important;
+}
+/* Same full-width intent, preview's DOM shape: `mode="preview"` renders a
+   plain `<table>` with no wrapper (`stylo.module.css`'s own rule is just
+   `display: block; overflow-x: auto`, no width), so it shrinks to its cells'
+   intrinsic width instead of filling the pane like in-place's forced-100%
+   table above — no wrapper-first trick needed here since there's no
+   shrink-to-fit ancestor standing in the way. */
+[data-slot="markdown-panel"] [data-stylo-mode="preview"] table {
   width: 100% !important;
 }
 
@@ -732,15 +854,21 @@
 /* Two scroll surfaces get a hand-drawn thumb instead of the rule above
    (`<ScrollThumb>` in scroll-thumb.tsx, mounted in markdown-panel.tsx and
    content-panel.tsx) so the hover fade is a real, animatable DOM opacity
-   transition — stylo's own `.cm-scroller` (`dist/styles.css`,
-   `._root_*_1 .cm-scroller`, always-visible and unanimated regardless of the
-   rule above) and `<ContentPanel>`'s scroll surface (the vault view,
-   Settings, the Agent page). Both native scrollbars are hidden outright. */
+   transition — stylo's own scroll viewport (`dist/styles.css`,
+   `._root_*_1 .cm-scroller` in source/in-place/split, always-visible and
+   unanimated regardless of the rule above; `[data-stylo-mode="preview"]`'s
+   own child in `mode="preview"`, which has no `.cm-scroller` at all —
+   `getStyloScroller` in markdown-panel.tsx resolves whichever one applies,
+   this just needs to hide the native scrollbar on both the same way) and
+   `<ContentPanel>`'s scroll surface (the vault view, Settings, the Agent
+   page). All native scrollbars here are hidden outright. */
 [data-slot="markdown-panel"] .cm-scroller,
+[data-slot="markdown-panel"] [data-stylo-mode="preview"] > div,
 [data-slot="content-panel-scroll"] {
   scrollbar-width: none !important;
 }
 [data-slot="markdown-panel"] .cm-scroller::-webkit-scrollbar,
+[data-slot="markdown-panel"] [data-stylo-mode="preview"] > div::-webkit-scrollbar,
 [data-slot="content-panel-scroll"]::-webkit-scrollbar {
   display: none !important;
 }

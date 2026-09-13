@@ -166,7 +166,11 @@ def create_app(engine: Any, workspace_dir: Optional[str] = None) -> FastAPI:
         """Nested `VaultNode` directory tree (ADR-078 manifest projection) for
         the dashboard browser, scoped to the persona's allowed vault folders."""
         profile = engine.pm.get_profile(persona) or engine.pm.get_profile("samantha")
-        return {"persona": persona, "tree": VaultManager.get_vault_tree(profile)}
+        return {
+            "persona": persona,
+            "tree": VaultManager.get_vault_tree(profile),
+            "vaultName": VaultManager.get_vault_name(),
+        }
 
     @app.get("/api/vault/search")
     def search_vault(

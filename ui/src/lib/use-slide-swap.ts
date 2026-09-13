@@ -89,7 +89,14 @@ export function useSlideSwap<T>(
  * `.sy-note-footer` (the wikilink-pills bar under the canvas): unlike the
  * toolbar it's per-note content, not fixed chrome, so it rides along with the
  * canvas's slide rather than sitting frozen mid-transition while the note
- * underneath it moves. Each branch below is spelled out as a complete literal
+ * underneath it moves. `.sy-note-preview` is the same idea for stylo's
+ * `mode="preview"` — it has no `.cm-scroller` at all (no CodeMirror instance),
+ * so without a scope selector of its own a note switch while read-only left
+ * the whole panel sitting frozen (the wrapping element itself was never given
+ * `animate-out`/`animate-in`, only its `.cm-scroller` descendant was, and
+ * preview has none) instead of sliding — `MarkdownPanel` puts this class on
+ * its own read-mode wrapper (breadcrumb row + the rendered body together) for
+ * exactly that reason. Each branch below is spelled out as a complete literal
  * class string (not built by interpolating a scope prefix onto each utility)
  * because Tailwind's build-time scanner only generates CSS for class names it
  * can find verbatim in the source; a templated `` `[&_${scope}]:${utility}` ``
@@ -103,11 +110,13 @@ export function slideExitClassName(
     return direction === "back"
       ? cn(
           "[&_.cm-scroller]:pointer-events-none [&_.cm-scroller]:animate-out [&_.cm-scroller]:fade-out-0 [&_.cm-scroller]:duration-thumb [&_.cm-scroller]:fill-mode-forwards [&_.cm-scroller]:slide-out-to-right",
-          "[&_.sy-note-footer]:pointer-events-none [&_.sy-note-footer]:animate-out [&_.sy-note-footer]:fade-out-0 [&_.sy-note-footer]:duration-thumb [&_.sy-note-footer]:fill-mode-forwards [&_.sy-note-footer]:slide-out-to-right"
+          "[&_.sy-note-footer]:pointer-events-none [&_.sy-note-footer]:animate-out [&_.sy-note-footer]:fade-out-0 [&_.sy-note-footer]:duration-thumb [&_.sy-note-footer]:fill-mode-forwards [&_.sy-note-footer]:slide-out-to-right",
+          "[&_.sy-note-preview]:pointer-events-none [&_.sy-note-preview]:animate-out [&_.sy-note-preview]:fade-out-0 [&_.sy-note-preview]:duration-thumb [&_.sy-note-preview]:fill-mode-forwards [&_.sy-note-preview]:slide-out-to-right"
         )
       : cn(
           "[&_.cm-scroller]:pointer-events-none [&_.cm-scroller]:animate-out [&_.cm-scroller]:fade-out-0 [&_.cm-scroller]:duration-thumb [&_.cm-scroller]:fill-mode-forwards [&_.cm-scroller]:slide-out-to-left",
-          "[&_.sy-note-footer]:pointer-events-none [&_.sy-note-footer]:animate-out [&_.sy-note-footer]:fade-out-0 [&_.sy-note-footer]:duration-thumb [&_.sy-note-footer]:fill-mode-forwards [&_.sy-note-footer]:slide-out-to-left"
+          "[&_.sy-note-footer]:pointer-events-none [&_.sy-note-footer]:animate-out [&_.sy-note-footer]:fade-out-0 [&_.sy-note-footer]:duration-thumb [&_.sy-note-footer]:fill-mode-forwards [&_.sy-note-footer]:slide-out-to-left",
+          "[&_.sy-note-preview]:pointer-events-none [&_.sy-note-preview]:animate-out [&_.sy-note-preview]:fade-out-0 [&_.sy-note-preview]:duration-thumb [&_.sy-note-preview]:fill-mode-forwards [&_.sy-note-preview]:slide-out-to-left"
         )
   }
   return cn(
@@ -124,11 +133,13 @@ export function slideEnterClassName(
     return direction === "back"
       ? cn(
           "[&_.cm-scroller]:animate-in [&_.cm-scroller]:fade-in-0 [&_.cm-scroller]:duration-thumb [&_.cm-scroller]:slide-in-from-left",
-          "[&_.sy-note-footer]:animate-in [&_.sy-note-footer]:fade-in-0 [&_.sy-note-footer]:duration-thumb [&_.sy-note-footer]:slide-in-from-left"
+          "[&_.sy-note-footer]:animate-in [&_.sy-note-footer]:fade-in-0 [&_.sy-note-footer]:duration-thumb [&_.sy-note-footer]:slide-in-from-left",
+          "[&_.sy-note-preview]:animate-in [&_.sy-note-preview]:fade-in-0 [&_.sy-note-preview]:duration-thumb [&_.sy-note-preview]:slide-in-from-left"
         )
       : cn(
           "[&_.cm-scroller]:animate-in [&_.cm-scroller]:fade-in-0 [&_.cm-scroller]:duration-thumb [&_.cm-scroller]:slide-in-from-right",
-          "[&_.sy-note-footer]:animate-in [&_.sy-note-footer]:fade-in-0 [&_.sy-note-footer]:duration-thumb [&_.sy-note-footer]:slide-in-from-right"
+          "[&_.sy-note-footer]:animate-in [&_.sy-note-footer]:fade-in-0 [&_.sy-note-footer]:duration-thumb [&_.sy-note-footer]:slide-in-from-right",
+          "[&_.sy-note-preview]:animate-in [&_.sy-note-preview]:fade-in-0 [&_.sy-note-preview]:duration-thumb [&_.sy-note-preview]:slide-in-from-right"
         )
   }
   return cn(

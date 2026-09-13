@@ -12,6 +12,7 @@ import "@damiro/stylo/styles.css"
 import "@damiro/stylo/katex.css"
 import { HugeiconsIcon } from "@hugeicons/react"
 import {
+  BookOpen01Icon,
   CodeIcon,
   FloppyDiskIcon,
   Heading01Icon,
@@ -23,6 +24,7 @@ import {
   ListTodoIcon,
   MathIcon,
   ParagraphIcon,
+  PencilEdit01Icon,
   QuoteDownIcon,
   RedoIcon,
   Search01Icon,
@@ -60,7 +62,24 @@ import { ScrollThumb } from "@/components/sympose/scroll-thumb"
 // Module-level, not inline: a stable reference so `<ScrollThumb>`'s effect
 // (MutationObserver + ResizeObserver + scroll listener) doesn't tear down and
 // rebind on every keystroke, which re-renders this component.
-const getCmScroller = (el: HTMLElement) => el.querySelector<HTMLElement>(".cm-scroller")
+//
+// `.cm-scroller` is CodeMirror's own scroll viewport (source/in-place/split);
+// preview mode has no CodeMirror instance at all, so it falls through to
+// `[data-stylo-mode="preview"]`'s own child — stylo's stable, documented mode
+// attribute on its root, one level above the actual scrolling `.preview` div
+// (stylo >=0.13.1, once `.preview` got a real `overflow: auto` of its own —
+// see `stylo/docs/requests/2026-09-13_preview-missing-scroll-container.md`).
+// `.preview` itself is a CSS-module class with no stable selector of its own,
+// so this leans on it being that root's only child rather than naming it
+// directly — true today (`Preview.tsx` renders exactly one wrapping `<div>`),
+// worth a stable `stylo-preview-scroller`-style class from stylo directly if
+// that structure ever grows a sibling.
+function getStyloScroller(el: HTMLElement): HTMLElement | null {
+  const cmScroller = el.querySelector<HTMLElement>(".cm-scroller")
+  if (cmScroller) return cmScroller
+  const previewRoot = el.querySelector<HTMLElement>('[data-stylo-mode="preview"]')
+  return (previewRoot?.firstElementChild as HTMLElement | null) ?? null
+}
 
 /**
  * The markdown editor / reader — the middle stage panel, between `<ContentPanel>`
@@ -75,6 +94,29 @@ const getCmScroller = (el: HTMLElement) => el.querySelector<HTMLElement>(".cm-sc
  * `toolbar.sticky` is deliberately left unset: the panel already gives stylo a
  * bounded height (`min-h-0 flex-1`), so its own toolbar stays pinned as a plain
  * flex sibling of the scrolling canvas — no `position: fixed`, no watchdog.
+ *
+ * The toolbar's read/edit toggle flips `<Stylo>` to its `mode="preview"` —
+ * stylo's separate rendered-Markdown view, real `<a>` tags and all — rather
+ * than just setting `readOnly` on the in-place canvas. Two independent
+ * reasons, the second decisive: under in-place's `reveal: "never"` a click on
+ * a plain `[text](url)` link only opens its edit popup rather than
+ * navigating (stylo's link-click plumbing doesn't gate on `readOnly` at all
+ * — `@damiro/stylo/src/inplace/link-click.ts`); worse, in-place's right-click
+ * menu and floating selection bar don't check `readOnly` either, and their
+ * commands really do `view.dispatch()` real document changes rather than
+ * silently no-op (`@damiro/stylo/src/inplace/menu-plugin.ts`,
+ * `selection-bar.ts`) — so `readOnly` there is not actually a safe
+ * read-only guarantee today, only a keyboard-input block. `preview` has no
+ * CodeMirror instance at all, so none of that surface exists to misfire.
+ * Preview's own typography not matching in-place's is a separate, tracked
+ * gap (`stylo/docs/requests/`), not a reason to reconsider this. Because
+ * stylo only calls
+ * `toolbar.render` outside preview mode, the frontmatter/read-edit/`⋯`
+ * buttons can't live inside that callback exclusively — they're rendered
+ * once (`noteToolbarButtons`) and placed in two spots depending on mode: the
+ * overlay on stylo's own bar in every other mode, or a plain row that
+ * doubles as a clickable folder breadcrumb in preview mode, since stylo
+ * mounts no toolbar of its own there.
  *
  * Loading is wired to the vault (`GET /api/vault/note`); saving goes back
  * through `PUT /api/vault/note` (ADR-081). `onSave` recombines the frontmatter
@@ -108,6 +150,15 @@ interface MarkdownPanelProps extends React.ComponentProps<"div"> {
   isPinned?: (path: string) => boolean
   /** Toggle the open note's pinned state. */
   onTogglePin?: (path: string) => void
+  /** Read mode's folder breadcrumb passes the open note's top-level vault
+   *  folder here when clicked — the only segment with anywhere to navigate
+   *  to today (the content panel can only jump to root-level vault
+   *  sections). Wire straight to `selectSection`. */
+  onNavigateToRootFolder?: (rootPath: string) => void
+  /** The vault root's display name, leading the read-mode breadcrumb — `null`
+   *  (backend has no `MASTER_VAULT_PATH` configured, or it hasn't loaded yet)
+   *  drops that leading segment entirely rather than showing a placeholder. */
+  vaultName?: string | null
   /** Editing surface/decoration preferences — Settings > Markdown editor. */
   preferences: EditorPreferences
   /** The toolbar's button set — Settings > Markdown editor >
@@ -191,6 +242,11 @@ const TOOLBAR_ICONS = {
  *  `app-shell.tsx`), not per-note: it's a viewing convenience, not part of
  *  the note's own state. */
 const FRONTMATTER_VISIBLE_COOKIE = "sympose:pref.frontmatterExpanded"
+
+/** Whether the panel is locked to stylo's rendered `preview` mode — a global
+ *  viewing preference (see `FRONTMATTER_VISIBLE_COOKIE` above), not per-note.
+ *  Off (editable) by default, so existing notes open exactly as before. */
+const NOTE_READ_ONLY_COOKIE = "sympose:pref.noteReadOnly"
 
 const SAFE_LINK_SCHEMES = new Set(["http:", "https:", "mailto:"])
 
@@ -311,6 +367,8 @@ function MarkdownPanel({
   onDeleted,
   isPinned,
   onTogglePin,
+  onNavigateToRootFolder,
+  vaultName,
   preferences,
   toolbarItems,
   open = true,
@@ -376,6 +434,32 @@ function MarkdownPanel({
   React.useEffect(() => {
     setCookieBool(FRONTMATTER_VISIBLE_COOKIE, frontmatterVisible)
   }, [frontmatterVisible])
+  // Read/edit toggle — locks the canvas to stylo's `preview` mode so a stray
+  // keystroke or link click can't touch the note (see the doc comment above
+  // for why that's `preview` rather than in-place `readOnly`).
+  const [readOnly, setReadOnly] = React.useState(() =>
+    getCookieBool(NOTE_READ_ONLY_COOKIE, false)
+  )
+  React.useEffect(() => {
+    setCookieBool(NOTE_READ_ONLY_COOKIE, readOnly)
+  }, [readOnly])
+  // Sequences the toolbar-row swap (stylo's bar <-> the breadcrumb) so the
+  // outgoing row finishes its own slide-out before `readOnly` actually
+  // flips — same "freeze, animate out, then commit" contract `useSlideSwap`
+  // uses for note switching, just hand-rolled here since the payload isn't
+  // opaque data to snapshot, it's stylo's own live `bar` (only available
+  // while `mode` hasn't changed yet). Non-null while that exit is playing;
+  // its value is the target `readOnly` the commit lands on.
+  const [pendingReadOnly, setPendingReadOnly] = React.useState<boolean | null>(
+    null
+  )
+  const readOnlyExiting = pendingReadOnly !== null
+  const commitReadOnlyToggle = React.useCallback(() => {
+    setPendingReadOnly((pending) => {
+      if (pending !== null) setReadOnly(pending)
+      return null
+    })
+  }, [])
   const { surface, reveal, selectionUI, tableEditing, focusOutline, autosave } =
     preferences
 
@@ -404,15 +488,17 @@ function MarkdownPanel({
     onWikiLinkClick,
     phone,
     frontmatterVisible,
+    readOnly,
   })
   frontmatterCardStateRef.current = {
     frontmatter,
     onWikiLinkClick,
     phone,
     frontmatterVisible,
+    readOnly,
   }
   const canvasHeader = React.useCallback(() => {
-    const { frontmatter, onWikiLinkClick, phone, frontmatterVisible } =
+    const { frontmatter, onWikiLinkClick, phone, frontmatterVisible, readOnly } =
       frontmatterCardStateRef.current
     if (frontmatter === null) return null
     return (
@@ -437,6 +523,7 @@ function MarkdownPanel({
               setFrontmatter(raw)
             }}
             onLinkClick={onWikiLinkClick}
+            readOnly={readOnly}
             className={cn("mt-2", phone ? "px-2" : "px-4 sm:px-6")}
           />
         </div>
@@ -575,6 +662,139 @@ function MarkdownPanel({
     [note]
   )
 
+  // The frontmatter/read-edit/note-actions buttons — a single stable overlay
+  // (see the render tree below) that never unmounts across the read/edit
+  // toggle, so the icons themselves never animate or flicker; only the
+  // content behind them (stylo's bar vs. the breadcrumb) swaps.
+  const noteToolbarButtons = path && (
+    <>
+      {frontmatter !== null && (
+        <button
+          type="button"
+          aria-label={frontmatterVisible ? "Hide frontmatter" : "Show frontmatter"}
+          aria-pressed={frontmatterVisible}
+          onClick={() => setFrontmatterVisible((v) => !v)}
+          className={cn(
+            "grid size-7 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground",
+            frontmatterVisible && "bg-accent text-foreground"
+          )}
+        >
+          {TOOLBAR_ICONS.frontmatter}
+        </button>
+      )}
+      <button
+        type="button"
+        aria-label={readOnly ? "Switch to edit mode" : "Switch to read mode"}
+        aria-pressed={readOnly}
+        // Starts the exit half of the swap rather than flipping `readOnly`
+        // directly — `commitReadOnlyToggle` (fired by the exiting row's own
+        // `onAnimationEnd`) is what actually changes it.
+        onClick={() => setPendingReadOnly(!readOnly)}
+        disabled={readOnlyExiting}
+        className={cn(
+          "grid size-7 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:pointer-events-none disabled:opacity-60",
+          readOnly && "bg-accent text-foreground"
+        )}
+      >
+        <HugeiconsIcon
+          icon={readOnly ? PencilEdit01Icon : BookOpen01Icon}
+          className="size-4"
+        />
+      </button>
+      <NoteActionsMenu
+        path={path}
+        persona={persona}
+        onRenamed={(next) => onRenamed?.(next)}
+        onDeleted={() => onDeleted?.()}
+        pinned={!!isPinned?.(path)}
+        onTogglePin={onTogglePin}
+      />
+    </>
+  )
+
+  // Read mode's stand-in for stylo's own (hidden, per the doc comment above)
+  // formatting toolbar — the note's vault path, split into segments. Only
+  // the first folder segment navigates: the content panel can only jump to
+  // root-level vault sections today (`onNavigateToRootFolder`), so a deeper
+  // segment has nowhere real to send the click yet. The filename is plain
+  // text — it's the note already open.
+  const pathSegments = path ? path.split("/") : []
+  const folderSegments = pathSegments.slice(0, -1)
+  const fileSegment = pathSegments[pathSegments.length - 1]
+  const breadcrumb = (
+    <div className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden font-mono text-xs text-fg-muted">
+      {vaultName && <span className="shrink-0">{vaultName}</span>}
+      {folderSegments.map((segment, i) => (
+        <React.Fragment key={i}>
+          <span className="shrink-0">/</span>
+          {i === 0 ? (
+            <button
+              type="button"
+              onClick={() => onNavigateToRootFolder?.(segment)}
+              className="-mx-0.5 shrink-0 rounded px-0.5 transition-colors hover:bg-accent hover:text-foreground"
+            >
+              {segment}
+            </button>
+          ) : (
+            <span className="shrink-0">{segment}</span>
+          )}
+        </React.Fragment>
+      ))}
+      <span className="shrink-0">/</span>
+      <span className="truncate text-foreground">{fileSegment}</span>
+    </div>
+  )
+
+  // Built once and placed in one of two tree positions below depending on
+  // `readOnly` (bare, or nested one level inside the `.sy-note-preview`
+  // wrapper) rather than duplicated across two JSX branches with the same
+  // long prop list.
+  const styloElement = (
+    <Stylo
+      key={`${path}:${surface}:${reveal}:${selectionUI}:${tableEditing}:${readOnly}`}
+      value={body}
+      onChange={setBody}
+      onSave={() => void saveNote()}
+      onWikiLinkClick={onWikiLinkClick}
+      wikiLinkSource={wikiLinkSource}
+      tagSource={tagSource}
+      onLinkClick={openMarkdownLink}
+      mode={readOnly ? "preview" : surface}
+      inPlace={{ reveal, selectionUI, table: tableEditing }}
+      canvasHeader={readOnly ? undefined : canvasHeader}
+      toolbar={{
+        items: toolbarItems,
+        render: (bar) => (
+          // stylo's toolbar row. The note-actions overlay used to live here
+          // too; it's now the fixed sibling above, so this only ever wraps
+          // `bar` itself. `min-h-9.25` matches the read-mode breadcrumb
+          // row's own floor (see below) — belt-and-braces, since `bar`'s
+          // natural height already comes out the same. Only ever rendered
+          // outside preview mode — stylo doesn't call this at all once
+          // `mode` above resolves to "preview". Same exit-before-commit
+          // choreography as the breadcrumb row: while `readOnlyExiting`,
+          // this is the one playing the exit half (going edit -> read),
+          // `bar` still valid since `mode` hasn't flipped yet.
+          <div
+            className={cn(
+              "min-h-9.25 duration-thumb",
+              readOnlyExiting
+                ? "animate-out fade-out-0 slide-out-to-bottom-1 fill-mode-forwards"
+                : "animate-in fade-in-0 slide-in-from-bottom-1"
+            )}
+            onAnimationEnd={readOnlyExiting ? commitReadOnlyToggle : undefined}
+          >
+            {bar}
+          </div>
+        ),
+      }}
+      icons={TOOLBAR_ICONS}
+      codeLanguages={CODE_LANGUAGES}
+      placeholder="Start writing…"
+      className="h-full min-h-0 flex-1"
+    />
+  )
+
   // Sideways slide keyed on the open note — there's no back/forward concept
   // for the editor (unlike the content panel), so every note switch (a
   // wikilink, a vault-tree pick, a new note) reads as "forward": it's always
@@ -622,65 +842,64 @@ function MarkdownPanel({
           data-focus-outline={focusOutline}
           className="group/scroll-thumb relative flex min-h-0 w-full flex-1 flex-col text-sm leading-relaxed"
         >
-          <Stylo
-            key={`${path}:${surface}:${reveal}:${selectionUI}:${tableEditing}`}
-            value={body}
-            onChange={setBody}
-            onSave={() => void saveNote()}
-            onWikiLinkClick={onWikiLinkClick}
-            wikiLinkSource={wikiLinkSource}
-            tagSource={tagSource}
-            onLinkClick={openMarkdownLink}
-            mode={surface}
-            inPlace={{ reveal, selectionUI, table: tableEditing }}
-            canvasHeader={canvasHeader}
-            toolbar={{
-              items: toolbarItems,
-              render: (bar) => (
-                // stylo's toolbar row, with the note-actions `⋯` overlaid
-                // at its right edge (the built-in items are left-aligned,
-                // so that space is free). Only shown once a note is open.
-                <div className="relative">
-                  {bar}
-                  {path && (
-                    <div className="absolute inset-y-0 right-1.5 flex items-center gap-0.5">
-                      {frontmatter !== null && (
-                        <button
-                          type="button"
-                          aria-label={
-                            frontmatterVisible
-                              ? "Hide frontmatter"
-                              : "Show frontmatter"
-                          }
-                          aria-pressed={frontmatterVisible}
-                          onClick={() => setFrontmatterVisible((v) => !v)}
-                          className={cn(
-                            "grid size-7 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground",
-                            frontmatterVisible && "bg-accent text-foreground"
-                          )}
-                        >
-                          {TOOLBAR_ICONS.frontmatter}
-                        </button>
-                      )}
-                      <NoteActionsMenu
-                        path={path}
-                        persona={persona}
-                        onRenamed={(next) => onRenamed?.(next)}
-                        onDeleted={() => onDeleted?.()}
-                        pinned={!!isPinned?.(path)}
-                        onTogglePin={onTogglePin}
-                      />
-                    </div>
+          {path && (
+            // The frontmatter/read-edit/`⋯` buttons — a fixed overlay that
+            // never unmounts across the read/edit toggle (unlike the content
+            // behind it, which swaps between stylo's own bar and the
+            // breadcrumb below), so the icons themselves never animate.
+            // `top-1`: centers a 28px (`size-7`) button in the 37px row both
+            // variants below are pinned to.
+            <div className="absolute top-1 right-1.5 z-10 flex items-center gap-0.5">
+              {noteToolbarButtons}
+            </div>
+          )}
+          {readOnly ? (
+            // `.sy-note-preview` (not `.cm-scroller` — preview mode has no
+            // CodeMirror instance to own one) is what `slideExitClassName`/
+            // `slideEnterClassName` scope a note switch's slide to while
+            // read-only, so browsing the vault here slides the breadcrumb +
+            // rendered body together instead of leaving them frozen in
+            // place — `.cm-scroller`'s own scoped selectors simply match
+            // nothing in this mode, which is what made it jerky before this.
+            // A plain flex column standing in for `<Stylo>`'s own toolbar+
+            // canvas column above, not `<Stylo>` itself — the icon overlay
+            // above stays outside it on purpose, same "never animates" rule
+            // as the read/edit toggle.
+            <div className="sy-note-preview flex min-h-0 flex-1 flex-col">
+              {path && (
+                // Stands in for stylo's own toolbar row, which mounts
+                // nothing at all in preview mode (see the file doc
+                // comment). `min-h-9.25` matches stylo's own `.toolbar` row
+                // exactly (28px buttons + 4px padding top/bottom + 1px
+                // border) so toggling never jumps the canvas below it —
+                // same value the edit-mode wrapper pins to. Enters sliding
+                // down; on the way out (`readOnlyExiting`) slides back up
+                // and only commits the actual mode flip once that finishes
+                // (`onAnimationEnd`) — see `commitReadOnlyToggle` above —
+                // so the edit-mode bar's own entrance never starts until
+                // this one has fully left, instead of the two swapping
+                // instantly.
+                <div
+                  className={cn(
+                    "flex min-h-9.25 shrink-0 items-center border-b border-border pr-24 pl-1.5 duration-thumb",
+                    readOnlyExiting
+                      ? "animate-out fade-out-0 slide-out-to-top-1 fill-mode-forwards"
+                      : "animate-in fade-in-0 slide-in-from-top-1"
                   )}
+                  onAnimationEnd={
+                    readOnlyExiting ? commitReadOnlyToggle : undefined
+                  }
+                >
+                  {breadcrumb}
                 </div>
-              ),
-            }}
-            icons={TOOLBAR_ICONS}
-            codeLanguages={CODE_LANGUAGES}
-            placeholder="Start writing…"
-            className="h-full min-h-0 flex-1"
-          />
-          <ScrollThumb containerRef={editorScrollRef} getScroller={getCmScroller} />
+              )}
+              {canvasHeader()}
+              {styloElement}
+            </div>
+          ) : (
+            styloElement
+          )}
+          <ScrollThumb containerRef={editorScrollRef} getScroller={getStyloScroller} />
           {links.length > 0 && (
             <div
               className={cn(
@@ -740,7 +959,12 @@ function MarkdownPanel({
   // toolbar along with the document. `.cm-scroller` is CodeMirror's own
   // stable, public scroll-viewport class (already relied on for
   // `<ScrollThumb>` above) — scoping the slide to it keeps the toolbar
-  // planted while just the document surface moves.
+  // planted while just the document surface moves. In `readOnly` (preview)
+  // there's no `.cm-scroller` at all — `.sy-note-preview` (the wrapper
+  // above, around the breadcrumb + rendered body) is the equivalent target
+  // `slideExitClassName`/`slideEnterClassName` also scope to, which is what
+  // makes browsing the vault while read-only slide instead of sitting
+  // frozen (no matching descendant to animate at all, previously).
   const noteSlideScope = notePayload.hasToolbar
 
   return (

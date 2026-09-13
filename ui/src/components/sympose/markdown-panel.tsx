@@ -820,6 +820,7 @@ function MarkdownPanel({
       embedSource={embedSource}
       onLinkClick={openMarkdownLink}
       mode={readOnly ? "preview" : surface}
+      softBreaks
       inPlace={{ reveal, selectionUI, table: tableEditing }}
       canvasHeader={readOnly ? undefined : canvasHeader}
       toolbar={{

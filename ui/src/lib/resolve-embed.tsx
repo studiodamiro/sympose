@@ -51,5 +51,5 @@ export async function resolveEmbed(
   if (!node) return null
   const result = await fetchVaultNote(node.path, persona)
   if (!result) return null
-  return <Stylo mode="preview" value={result.content} onChange={() => {}} />
+  return <Stylo mode="preview" value={result.content} onChange={() => {}} softBreaks />
 }

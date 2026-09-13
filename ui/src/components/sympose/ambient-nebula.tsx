@@ -8,12 +8,22 @@ import {
   foldersInGraph,
 } from "@/lib/nebula-graph"
 import { useNebulaFilter } from "@/lib/nebula-filter"
-import type { NebulaGraph } from "@/lib/nebula-graph"
+import type { NebulaGraph, NebulaNode } from "@/lib/nebula-graph"
 import type { NebulaGraphSource } from "@/lib/use-nebula-graph"
 import type { NebulaPreferences } from "@/lib/use-nebula-preferences"
 import { NebulaControls } from "@/components/sympose/nebula-controls"
 import { KnowledgeNebula2D } from "@/components/sympose/knowledge-nebula-2d"
 import type { KnowledgeNebulaHandle } from "@/components/sympose/knowledge-nebula-shared"
+
+// Lazy — pulls in three.js / react-force-graph-3d / three-spritetext, so a
+// `mode: "2d"` viewer (the default) never downloads it. 2D stays a static
+// import: it's the common case and already inside this already-idle-mounted
+// chunk (see the `AmbientNebula` lazy import in app-shell.tsx).
+const KnowledgeNebula3D = React.lazy(() =>
+  import("@/components/sympose/knowledge-nebula-3d").then((m) => ({
+    default: m.KnowledgeNebula3D,
+  }))
+)
 
 type SetPref = <K extends keyof NebulaPreferences>(
   key: K,
@@ -31,10 +41,11 @@ type SetPref = <K extends keyof NebulaPreferences>(
  *    so the foreground panels own the interaction. The shell paints its own
  *    matte scrim over this so panels stay legible.
  *
- * Phase A ships the 2D canvas renderer only — imported directly so three.js
- * stays out of the bundle until the 3D renderer lands (Phase B). The app shell
- * lazy-mounts this component after first paint so `react-force-graph` never
- * sits on the TTFT hot path.
+ * Renderer picked by `prefs.mode` (§ below): 2D is a static import (the
+ * default, and already inside this idle-mounted chunk); 3D is a nested lazy
+ * import, so three.js only downloads once a viewer actually switches to it.
+ * The app shell lazy-mounts this whole component after first paint so
+ * `react-force-graph` never sits on the TTFT hot path either way.
  */
 function AmbientNebula({
   graph,
@@ -96,32 +107,45 @@ function AmbientNebula({
         !explore && "pointer-events-none"
       )}
     >
-      <KnowledgeNebula2D
-        ref={nebulaRef}
-        graph={graph}
-        className="absolute inset-0"
-        isLight={isLight}
-        dimmed={!explore}
-        interactive={explore}
-        showLabels={prefs.labels}
-        showArrows={prefs.arrows}
-        highlightedNodeIds={highlightedNodeIds}
-        hiddenNodeIds={hiddenNodeIds}
-        nodeRelSize={prefs.nodeRelSize}
-        nodeSeparation={prefs.nodeSeparation}
-        nodeVividness={prefs.nodeVividness}
-        linkWidth={prefs.linkWidth}
-        clickZoomDistance={prefs.clickZoomDistance}
-        centerForce={prefs.centerForce}
-        repelForce={prefs.repelForce}
-        linkForce={prefs.linkForce}
-        linkDistance={prefs.linkDistance}
-        onNodeClick={(n) => setSelectedNodeId(n.id)}
-        onBackgroundClick={() => {
-          setSelectedNodeId(null)
-          nebulaRef.current?.zoomToFit(600, 48)
-        }}
-      />
+      {(() => {
+        const rendererProps = {
+          ref: nebulaRef,
+          graph,
+          className: "absolute inset-0",
+          isLight,
+          dimmed: !explore,
+          interactive: explore,
+          showLabels: prefs.labels,
+          showArrows: prefs.arrows,
+          autoRotate: prefs.autoRotate,
+          highlightedNodeIds,
+          hiddenNodeIds,
+          nodeRelSize: prefs.nodeRelSize,
+          nodeSeparation: prefs.nodeSeparation,
+          nodeVividness: prefs.nodeVividness,
+          linkWidth: prefs.linkWidth,
+          clickZoomDistance: prefs.clickZoomDistance,
+          centerForce: prefs.centerForce,
+          repelForce: prefs.repelForce,
+          linkForce: prefs.linkForce,
+          linkDistance: prefs.linkDistance,
+          onNodeClick: (n: NebulaNode) => {
+            setSelectedNodeId(n.id)
+          },
+          onBackgroundClick: () => {
+            setSelectedNodeId(null)
+            nebulaRef.current?.zoomToFit(600, 48)
+          },
+        }
+
+        return prefs.mode === "3d" ? (
+          <React.Suspense fallback={null}>
+            <KnowledgeNebula3D {...rendererProps} />
+          </React.Suspense>
+        ) : (
+          <KnowledgeNebula2D {...rendererProps} />
+        )
+      })()}
 
       {/* Focus dimming — two independent layers so blur and tint don't fight.
           The blur layer stays fully opaque-free (just a `backdrop-filter`) so

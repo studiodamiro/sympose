@@ -153,9 +153,9 @@ const KnowledgeNebula3D = React.forwardRef<
 
     // Fade labels by camera distance every frame (three.js is already looping).
     // Piggybacks the highlight/dim colour-transition step on the same loop —
-    // three.js re-evaluates `nodeColor` every frame regardless (it diffs the
-    // result against each node's current material each render), so easing
-    // `__highlightT` here is free: no second loop, no extra redraw cost.
+    // see the `fg.refresh()` call below for why that step needs its own nudge
+    // (ADR-116): three-forcegraph does *not* re-evaluate `nodeColor` on its
+    // own just because `__highlightT` changed underneath it.
     React.useEffect(() => {
       let raf = 0
       let last = performance.now()
@@ -165,13 +165,24 @@ const KnowledgeNebula3D = React.forwardRef<
         const dt = now - last
         last = now
         const hiForColor = highlightedIdsRef.current
+        let anyEasing = false
         nodeById.forEach((node) => {
           const target = !hiForColor || hiForColor.has(node.id) ? 1 : 0
-          stepHighlightT(node, target, dt)
+          if (stepHighlightT(node, target, dt)) anyEasing = true
         })
 
         const fg = fgRef.current
         if (!fg) return
+        // three-forcegraph only re-evaluates `nodeColor` (and rebuilds node
+        // materials) from its own prop-diffing pass — it has no idea we just
+        // mutated `__highlightT` directly on the data objects above, so
+        // without this the eased colour transition never actually reaches
+        // the screen. `refresh()` is the library's own hook for exactly this
+        // ("I changed something outside your props, please redraw"), and
+        // `stepHighlightT`'s return value already told us whether anything
+        // is still moving — only nudge it while that's true, not every frame
+        // forever once everything's settled.
+        if (anyEasing) fg.refresh()
         const cam = fg.camera() as any
         if (!cam) return
         const { x: camX, y: camY, z: camZ } = cam.position
@@ -619,46 +630,18 @@ const KnowledgeNebula3D = React.forwardRef<
     const defaultLinkWidth = isLight ? 0.8 : 0.6
     const activeLinkWidth = linkWidth ?? defaultLinkWidth
 
-    const nodeClickedRef = React.useRef(false)
-    const pointerDownPosRef = React.useRef<{ x: number; y: number } | null>(null)
-
     const handleNodeClick = (node: NodeObject) => {
-      nodeClickedRef.current = true
       const fg = fgRef.current
       if (!fg) return
       const n = node as any
       const framing = getClusterFraming(n, clickZoomDistance)
-
       flyCameraTo(framing.cameraPos, framing.lookAt, 800)
       onNodeClick?.(n as NebulaNode)
-    }
-
-    const handlePointerDown = (e: React.PointerEvent) => {
-      pointerDownPosRef.current = { x: e.clientX, y: e.clientY }
-    }
-
-    const handlePointerUp = (e: React.PointerEvent) => {
-      if (!pointerDownPosRef.current) return
-      const dx = Math.abs(e.clientX - pointerDownPosRef.current.x)
-      const dy = Math.abs(e.clientY - pointerDownPosRef.current.y)
-      pointerDownPosRef.current = null
-
-      // If pointer moved less than 6px, treat as a clean empty-space tap/click
-      if (dx < 6 && dy < 6) {
-        setTimeout(() => {
-          if (!nodeClickedRef.current) {
-            onBackgroundClick?.()
-          }
-          nodeClickedRef.current = false
-        }, 40)
-      }
     }
 
     return (
       <div
         ref={containerRef}
-        onPointerDown={handlePointerDown}
-        onPointerUp={handlePointerUp}
         className={cn(
           "relative touch-none select-none overscroll-none transition-opacity duration-300",
           !live && "pointer-events-none",

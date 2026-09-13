@@ -13,7 +13,7 @@ export type NebulaInteraction = "explore" | "focus"
 export interface NebulaPreferences {
   /** Sharp-and-interactive vs. dimmed-ambient. Default `"focus"` (work first). */
   interaction: NebulaInteraction
-  /** `"2d"` flat canvas or `"3d"` WebGL cloud. Default `"2d"`; 3D is Phase B. */
+  /** `"2d"` flat canvas or `"3d"` WebGL cloud. Default `"2d"`. */
   mode: NebulaMode
 
   /** Show the folder-colour legend in Explore. */

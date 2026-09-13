@@ -1,0 +1,23 @@
+diff --git a/node_modules/three-forcegraph/dist/three-forcegraph.mjs b/node_modules/three-forcegraph/dist/three-forcegraph.mjs
+index 23ad46c..c8aa0e9 100644
+--- a/node_modules/three-forcegraph/dist/three-forcegraph.mjs
++++ b/node_modules/three-forcegraph/dist/three-forcegraph.mjs
+@@ -726,6 +726,18 @@ var ForceGraph = Kapsule({
+       //
+ 
+       function layoutTick() {
++        // `_animationCycle` starts ticking the instant the kapsule component
++        // mounts to its DOM element, which is *before* `graphData` has been
++        // propagated for the very first time (react-kapsule diffs/pushes
++        // props during render, but `state.layout` is only built once inside
++        // `_rerender()`'s "simulation engine" branch, which runs from a
++        // prop-change effect after that). Without this guard the first tick
++        // throws reading `undefined.tick()`, and since `_animationCycle` only
++        // reschedules itself via `requestAnimationFrame` *after* `tickFrame`
++        // returns, that first throw kills the render loop permanently — the
++        // scene never draws another frame. Skipping ticks until `state.layout`
++        // exists is a no-op (nothing has positions to update yet anyway).
++        if (!state.layout) return;
+         if (++state.cntTicks > state.cooldownTicks || new Date() - state.startTickTime > state.cooldownTime || isD3Sim && state.d3AlphaMin > 0 && state.d3ForceLayout.alpha() < state.d3AlphaMin) {
+           state.engineRunning = false; // Stop ticking graph
+           state.onEngineStop();

@@ -127,8 +127,7 @@ function SliderRow({
  * primitives rather than the standalone `/nebula` route's hand-rolled panel.
  *
  * Phase A exposes the subset agreed with the lead: Toggles (orphans, tags,
- * 2D/3D), Display (labels, node size, link thickness), Forces (all four). The
- * 3D segment is present but disabled — the WebGL renderer lands in Phase B.
+ * 2D/3D), Display (labels, node size, link thickness), Forces (all four).
  * Every other persisted knob keeps its default until wired here.
  */
 function NebulaControls({
@@ -171,7 +170,6 @@ function NebulaControls({
             size="sm"
             aria-label="Renderer"
             value={prefs.mode}
-            disabledValues={["3d"]}
             onValueChange={(v) => setPref("mode", v)}
             options={[
               { value: "2d", label: "2D" },
@@ -179,12 +177,17 @@ function NebulaControls({
             ]}
           />
         </ControlRow>
-        <p className="text-xs text-fg-muted">
-          3D renderer lands in a later build.
-        </p>
       </ControlSection>
 
       <ControlSection title="Display" defaultOpen>
+        {prefs.mode === "3d" && (
+          <ToggleRow
+            label="Auto rotate"
+            field="autoRotate"
+            prefs={prefs}
+            setPref={setPref}
+          />
+        )}
         <ToggleRow
           label="Labels"
           field="labels"

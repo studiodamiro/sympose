@@ -60,6 +60,7 @@ import type { EditorPreferences } from "@/lib/use-editor-preferences"
 import { FrontmatterCard } from "@/components/sympose/frontmatter-card"
 import { NoteActionsMenu } from "@/components/sympose/note-actions-menu"
 import { ScrollThumb } from "@/components/sympose/scroll-thumb"
+import { CodeBlockCopyButtons } from "@/components/sympose/code-block-copy-button"
 
 // Module-level, not inline: a stable reference so `<ScrollThumb>`'s effect
 // (MutationObserver + ResizeObserver + scroll listener) doesn't tear down and
@@ -998,6 +999,7 @@ function MarkdownPanel({
             styloElement
           )}
           <ScrollThumb containerRef={editorScrollRef} getScroller={getStyloScroller} />
+          <CodeBlockCopyButtons containerRef={editorScrollRef} active={readOnly} />
           {links.length > 0 && (
             <div
               className={cn(

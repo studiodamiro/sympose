@@ -675,7 +675,8 @@ function VaultTreeRow({
             onClick={() => onToggle(node.path)}
             style={{ paddingLeft: `${basePad}px` }}
             className={cn(
-              "flex min-w-0 flex-1 items-center gap-1.5 py-1 pr-8 text-left text-muted-foreground transition-colors hover:text-foreground",
+              "flex min-w-0 flex-1 items-center gap-1.5 py-1 pr-0 text-left text-muted-foreground transition-[color,padding-right] duration-thumb ease-snappy hover:text-foreground",
+              "group-hover/row:pr-8 group-focus-within/row:pr-8 group-has-data-popup-open/row:pr-8",
               "focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none",
               dragOver && "rounded-md bg-accent/60 text-foreground ring-1 ring-inset ring-brand/60"
             )}
@@ -742,7 +743,8 @@ function VaultTreeRow({
           // they sit flush with the panel gutter (matching Settings / Agent).
           style={{ paddingLeft: `${basePad + (depth > 0 ? 20 : 0)}px` }}
           className={cn(
-            "flex min-w-0 flex-1 items-center gap-1.5 py-1 pr-8 text-left transition-colors",
+            "flex min-w-0 flex-1 items-center gap-1.5 py-1 pr-0 text-left transition-[color,padding-right] duration-thumb ease-snappy",
+            "group-hover/row:pr-8 group-focus-within/row:pr-8 group-has-data-popup-open/row:pr-8",
             "focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none",
             isSelected
               ? "text-entity"

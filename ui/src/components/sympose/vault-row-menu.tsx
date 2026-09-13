@@ -292,9 +292,9 @@ function VaultRowMenu({
             aria-label={`${isNote ? "Note" : "Folder"} actions`}
             onClick={(e) => e.stopPropagation()}
             className={cn(
-              "absolute top-1/2 right-1 grid size-6 -translate-y-1/2 place-items-center rounded text-fg-muted",
-              "opacity-0 transition-opacity hover:bg-accent hover:text-foreground",
-              "group-hover/row:opacity-100 focus-visible:opacity-100 data-popup-open:opacity-100"
+              "absolute top-1/2 right-1 grid size-6 -translate-y-1/2 scale-75 place-items-center rounded text-fg-muted",
+              "opacity-0 transition-[opacity,transform] duration-thumb ease-snappy hover:bg-accent hover:text-foreground",
+              "group-hover/row:scale-100 group-hover/row:opacity-100 focus-visible:scale-100 focus-visible:opacity-100 data-popup-open:scale-100 data-popup-open:opacity-100"
             )}
           >
             <HugeiconsIcon icon={MoreHorizontalIcon} className="size-3.5" />

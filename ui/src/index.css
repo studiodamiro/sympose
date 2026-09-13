@@ -936,6 +936,16 @@
 [data-nebula-frost="tint"] [data-slot="markdown-panel"] .cm-panels.cm-panels-top {
   background: transparent !important;
 }
+/* Same `[role="toolbar"]` contract as the frost rule above. Its own
+   `border-bottom` (baked into stylo's CSS-module `.toolbar` class) sat
+   inside the fade wrapper `markdown-panel.tsx`'s `toolbar.render` puts
+   around it, so it visibly moved on every read/edit toggle. Dropped here in
+   favor of a static `border-b` on that wrapper's own (unanimated) outer
+   shell, so the line stays put through the whole toggle instead of
+   borrowing stylo's animated one. */
+[data-slot="markdown-panel"] [role="toolbar"] {
+  border-bottom: none;
+}
 
 /* The Knowledge Nebula's node-hover tooltip is `force-graph`'s bundled
    `float-tooltip` package, not a component of ours — `createNodeTooltip()`

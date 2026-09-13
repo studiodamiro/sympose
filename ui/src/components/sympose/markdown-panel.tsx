@@ -248,6 +248,40 @@ const FRONTMATTER_VISIBLE_COOKIE = "sympose:pref.frontmatterExpanded"
  *  Off (editable) by default, so existing notes open exactly as before. */
 const NOTE_READ_ONLY_COOKIE = "sympose:pref.noteReadOnly"
 
+/** Applied to `editorScrollRef`'s wrapper (stable across the read/edit
+ *  toggle — only its children swap) while `readOnlyExiting`/`readOnlyEntering`
+ *  — never once settled (see `readOnlyEntering`'s own doc comment: this
+ *  wrapper must go back to carrying neither, or its `.sy-note-chrome` rule
+ *  would sit there forever fighting the note-switch slide's own rule on the
+ *  same element). Same content scopes (`.cm-scroller`, `.sy-note-preview`)
+ *  and `.sy-note-chrome` marker as that note-switch slide in
+ *  `use-slide-swap.ts`, but content only crossfades here (it's the same
+ *  document either side of the toggle, not a new one sliding in) while the
+ *  toolbar/breadcrumb row still slides vertically. Both run on a `duration-100`
+ *  one-off (Tailwind's own built-in numeric duration utility, which the
+ *  `index.css` comment above `duration-snappy` confirms sets `--tw-duration`
+ *  the same way the named tiers do) — this toggle's own timing, kept off
+ *  both shared tiers on purpose: `duration-snappy` (150ms) still read as too
+ *  slow, and reaching for it anyway would also speed up the frontmatter
+ *  rename field and accordion collapses; `duration-thumb` (300ms) drives
+ *  vault-tree row entrance, the note-actions/vault-row menus, and the
+ *  wikilink hover-card. Content and chrome stay on the same number so they
+ *  finish together instead of chrome trailing. The commit/settle below
+ *  still only listens for chrome's own `animationend` (never content's),
+ *  which stays correct and simplest even with matching durations. Same
+ *  literal-class-string reasoning as `use-slide-swap.ts`'s own scoped
+ *  selectors (Tailwind's scanner needs each token spelled out). */
+const TOGGLE_CONTENT_EXIT = cn(
+  "[&_.cm-scroller]:pointer-events-none [&_.cm-scroller]:animate-out [&_.cm-scroller]:fade-out-0 [&_.cm-scroller]:duration-100 [&_.cm-scroller]:fill-mode-forwards",
+  "[&_.sy-note-preview]:pointer-events-none [&_.sy-note-preview]:animate-out [&_.sy-note-preview]:fade-out-0 [&_.sy-note-preview]:duration-100 [&_.sy-note-preview]:fill-mode-forwards",
+  "[&_.sy-note-chrome]:pointer-events-none [&_.sy-note-chrome]:animate-out [&_.sy-note-chrome]:duration-100 [&_.sy-note-chrome]:fill-mode-forwards [&_.sy-note-chrome]:slide-out-to-top-1"
+)
+const TOGGLE_CONTENT_ENTER = cn(
+  "[&_.cm-scroller]:animate-in [&_.cm-scroller]:fade-in-0 [&_.cm-scroller]:duration-100",
+  "[&_.sy-note-preview]:animate-in [&_.sy-note-preview]:fade-in-0 [&_.sy-note-preview]:duration-100",
+  "[&_.sy-note-chrome]:animate-in [&_.sy-note-chrome]:duration-100 [&_.sy-note-chrome]:slide-in-from-top-1"
+)
+
 const SAFE_LINK_SCHEMES = new Set(["http:", "https:", "mailto:"])
 
 /** Opens a plain Markdown `[text](url)` link — stylo hands over the raw
@@ -454,11 +488,30 @@ function MarkdownPanel({
     null
   )
   const readOnlyExiting = pendingReadOnly !== null
+  // Mirrors `useSlideSwap`'s own `entered`/`onEnterComplete` split, hand-
+  // rolled here for the same reason `pendingReadOnly` above is: true only
+  // for the entering half's own animation, then cleared the moment that
+  // finishes (`settleReadOnlyEnter`, fired the same chrome-only-`animationend`
+  // way as the commit below). Without this, `TOGGLE_CONTENT_ENTER`'s
+  // `.sy-note-chrome` classes would sit on `editorScrollRef` forever after
+  // settling — indistinguishable, to CSS, from a genuinely still-entering
+  // state — and fight the note-switch slide's own classes on the very same
+  // `.sy-note-chrome` element (equal-specificity rules setting the same
+  // `animation` property, one of them silently losing) the next time the
+  // user navigates while idle, which is what made that slide look broken
+  // mid-flight.
+  const [readOnlyEntering, setReadOnlyEntering] = React.useState(false)
   const commitReadOnlyToggle = React.useCallback(() => {
     setPendingReadOnly((pending) => {
-      if (pending !== null) setReadOnly(pending)
+      if (pending !== null) {
+        setReadOnly(pending)
+        setReadOnlyEntering(true)
+      }
       return null
     })
+  }, [])
+  const settleReadOnlyEnter = React.useCallback(() => {
+    setReadOnlyEntering(false)
   }, [])
   const { surface, reveal, selectionUI, tableEditing, focusOutline, autosave } =
     preferences
@@ -771,20 +824,18 @@ function MarkdownPanel({
           // row's own floor (see below) — belt-and-braces, since `bar`'s
           // natural height already comes out the same. Only ever rendered
           // outside preview mode — stylo doesn't call this at all once
-          // `mode` above resolves to "preview". Same exit-before-commit
-          // choreography as the breadcrumb row: while `readOnlyExiting`,
-          // this is the one playing the exit half (going edit -> read),
-          // `bar` still valid since `mode` hasn't flipped yet.
-          <div
-            className={cn(
-              "min-h-9.25 duration-thumb",
-              readOnlyExiting
-                ? "animate-out fade-out-0 slide-out-to-bottom-1 fill-mode-forwards"
-                : "animate-in fade-in-0 slide-in-from-bottom-1"
-            )}
-            onAnimationEnd={readOnlyExiting ? commitReadOnlyToggle : undefined}
-          >
-            {bar}
+          // `mode` above resolves to "preview". `bar`'s own bottom border is
+          // switched off (`[role="toolbar"]` in index.css) in favor of this
+          // outer shell's — a static `border-b` that isn't part of the
+          // animation, same split as the breadcrumb row below. The inner
+          // `.sy-note-chrome` marker carries no classes of its own — both
+          // the read/edit toggle and a note switch drive its vertical slide
+          // from `editorScrollRef`'s wrapper below (`TOGGLE_CONTENT_EXIT`/
+          // `_ENTER`) and the note-switch wrapper (`slideExitClassName`/
+          // `slideEnterClassName`) respectively, via scoped descendant
+          // selectors — the same one marker serves both animations.
+          <div className="min-h-9.25 border-b border-border">
+            <div className="sy-note-chrome">{bar}</div>
           </div>
         ),
       }}
@@ -840,7 +891,41 @@ function MarkdownPanel({
         <div
           ref={editorScrollRef}
           data-focus-outline={focusOutline}
-          className="group/scroll-thumb relative flex min-h-0 w-full flex-1 flex-col text-sm leading-relaxed"
+          // Drives the read/edit toggle's content-vs-chrome split
+          // (`TOGGLE_CONTENT_EXIT`/`_ENTER`, via `readOnlyExiting`/
+          // `readOnlyEntering`) and catches its `onAnimationEnd` — this
+          // wrapper is stable across the toggle (only its children swap),
+          // unlike the note-switch slide below, which instead rides its own
+          // outer key'd wrapper. Both sets of scoped selectors target the
+          // same `.cm-scroller`/`.sy-note-preview` (content) and
+          // `.sy-note-chrome` (toolbar/breadcrumb) descendants, so it's
+          // essential this only ever carries `TOGGLE_CONTENT_ENTER` for the
+          // entering animation's own actual duration (`readOnlyEntering`) —
+          // never indefinitely once settled — or its `.sy-note-chrome` rule
+          // would permanently fight the note-switch slide's own rule on that
+          // same element (see `readOnlyEntering`'s own doc comment above).
+          className={cn(
+            "group/scroll-thumb relative flex min-h-0 w-full flex-1 flex-col text-sm leading-relaxed",
+            readOnlyExiting
+              ? TOGGLE_CONTENT_EXIT
+              : readOnlyEntering && TOGGLE_CONTENT_ENTER
+          )}
+          // Chrome is the sole trigger for both the commit and settling the
+          // enter phase (both now run on the same `duration-snappy` as
+          // content, see `TOGGLE_CONTENT_EXIT` above, but scoping to chrome
+          // stays the simplest correct listener rather than reintroducing a
+          // plain "any bubbled `animationend`" one).
+          onAnimationEnd={
+            readOnlyExiting || readOnlyEntering
+              ? (e) => {
+                  if (!(e.target as HTMLElement).closest(".sy-note-chrome")) {
+                    return
+                  }
+                  if (readOnlyExiting) commitReadOnlyToggle()
+                  else settleReadOnlyEnter()
+                }
+              : undefined
+          }
         >
           {path && (
             // The frontmatter/read-edit/`⋯` buttons — a fixed overlay that
@@ -853,46 +938,36 @@ function MarkdownPanel({
               {noteToolbarButtons}
             </div>
           )}
+          {readOnly && path && (
+            // Read mode's stand-in for stylo's own (hidden, per the file doc
+            // comment) formatting toolbar — the note's vault path. A sibling
+            // of `.sy-note-preview` below, not nested inside it: nesting it
+            // would drag the breadcrumb along with that box's own horizontal
+            // note-switch slide, when it's meant to move only vertically
+            // (`.sy-note-chrome`, see `TOGGLE_CONTENT_EXIT`/`_ENTER` above
+            // and `slideExitClassName`/`slideEnterClassName` in
+            // `use-slide-swap.ts`). `min-h-9.25` matches stylo's own
+            // `.toolbar` row exactly (28px buttons + 4px padding top/bottom
+            // + 1px border) so toggling never jumps the canvas below it —
+            // same value the edit-mode wrapper pins to. The border lives on
+            // this outer row, which carries no classes of its own driving an
+            // animation — it's mounted for as long as this branch is
+            // (through the whole read/edit exit sequence, since `readOnly`
+            // doesn't flip until `commitReadOnlyToggle` fires), so the line
+            // itself never slides or fades; only the `.sy-note-chrome`
+            // breadcrumb inside does.
+            <div className="flex min-h-9.25 shrink-0 items-center border-b border-border pr-24 pl-1.5">
+              <div className="sy-note-chrome flex min-w-0 flex-1">
+                {breadcrumb}
+              </div>
+            </div>
+          )}
           {readOnly ? (
-            // `.sy-note-preview` (not `.cm-scroller` — preview mode has no
-            // CodeMirror instance to own one) is what `slideExitClassName`/
-            // `slideEnterClassName` scope a note switch's slide to while
-            // read-only, so browsing the vault here slides the breadcrumb +
-            // rendered body together instead of leaving them frozen in
-            // place — `.cm-scroller`'s own scoped selectors simply match
-            // nothing in this mode, which is what made it jerky before this.
             // A plain flex column standing in for `<Stylo>`'s own toolbar+
-            // canvas column above, not `<Stylo>` itself — the icon overlay
-            // above stays outside it on purpose, same "never animates" rule
-            // as the read/edit toggle.
+            // canvas column below, not `<Stylo>` itself — the icon overlay
+            // above and the breadcrumb row above both stay outside it on
+            // purpose (see their own comments).
             <div className="sy-note-preview flex min-h-0 flex-1 flex-col">
-              {path && (
-                // Stands in for stylo's own toolbar row, which mounts
-                // nothing at all in preview mode (see the file doc
-                // comment). `min-h-9.25` matches stylo's own `.toolbar` row
-                // exactly (28px buttons + 4px padding top/bottom + 1px
-                // border) so toggling never jumps the canvas below it —
-                // same value the edit-mode wrapper pins to. Enters sliding
-                // down; on the way out (`readOnlyExiting`) slides back up
-                // and only commits the actual mode flip once that finishes
-                // (`onAnimationEnd`) — see `commitReadOnlyToggle` above —
-                // so the edit-mode bar's own entrance never starts until
-                // this one has fully left, instead of the two swapping
-                // instantly.
-                <div
-                  className={cn(
-                    "flex min-h-9.25 shrink-0 items-center border-b border-border pr-24 pl-1.5 duration-thumb",
-                    readOnlyExiting
-                      ? "animate-out fade-out-0 slide-out-to-top-1 fill-mode-forwards"
-                      : "animate-in fade-in-0 slide-in-from-top-1"
-                  )}
-                  onAnimationEnd={
-                    readOnlyExiting ? commitReadOnlyToggle : undefined
-                  }
-                >
-                  {breadcrumb}
-                </div>
-              )}
               {canvasHeader()}
               {styloElement}
             </div>
@@ -939,18 +1014,21 @@ function MarkdownPanel({
       )}
     </>
   )
-  // `hasToolbar` rides frozen alongside the note it describes — an exiting
-  // "ready" note must still know to scope its slide-out to `.cm-scroller`
-  // once the live `note.status` has already moved past it.
+  // `hasToolbar`/`chromeAnimates` ride frozen alongside the note they
+  // describe — an exiting "ready" note must still know to scope its
+  // slide-out to `.cm-scroller` (and whether its chrome row was the
+  // breadcrumb or stylo's own toolbar) once the live `note.status`/`readOnly`
+  // have already moved past it.
   const {
     displayKey: noteDisplayKey,
     displayPayload: notePayload,
     exitDirection: noteExitDirection,
     enterDirection: noteEnterDirection,
     onExitComplete: onNoteExitComplete,
+    onEnterComplete: onNoteEnterComplete,
   } = useSlideSwap(
     path ?? "__empty__",
-    { node: noteBody, hasToolbar: note.status === "ready" },
+    { node: noteBody, hasToolbar: note.status === "ready", chromeAnimates: readOnly },
     "forward"
   )
   // Stylo bundles its own toolbar and the CodeMirror canvas into one mounted
@@ -966,6 +1044,11 @@ function MarkdownPanel({
   // makes browsing the vault while read-only slide instead of sitting
   // frozen (no matching descendant to animate at all, previously).
   const noteSlideScope = notePayload.hasToolbar
+  // Only the breadcrumb's content (the vault path) actually changes across a
+  // note switch — stylo's own edit-mode toolbar renders the same buttons for
+  // every note, so animating it on every switch was motion with nothing
+  // behind it to justify it (see `slideExitClassName`'s `animateChrome` doc).
+  const noteChromeAnimates = notePayload.chromeAnimates
 
   return (
     <div
@@ -1036,11 +1119,21 @@ function MarkdownPanel({
           className={cn(
             "flex h-full w-full flex-col",
             noteExitDirection
-              ? slideExitClassName(noteExitDirection, noteSlideScope)
+              ? slideExitClassName(noteExitDirection, noteSlideScope, noteChromeAnimates)
               : noteEnterDirection &&
-                  slideEnterClassName(noteEnterDirection, noteSlideScope)
+                  slideEnterClassName(noteEnterDirection, noteSlideScope, noteChromeAnimates)
           )}
-          onAnimationEnd={noteExitDirection ? onNoteExitComplete : undefined}
+          // Content (`.cm-scroller`/`.sy-note-preview`/`.sy-note-footer`,
+          // `duration-thumb`) is the sole trigger for both completion
+          // callbacks — `.sy-note-chrome`'s own faster `duration-snappy`
+          // slide (see `slideExitClassName`/`slideEnterClassName`) settles
+          // first and must never fire either one early, which would commit
+          // the swap (or drop `entered`) while content is still mid-slide.
+          onAnimationEnd={(e) => {
+            if ((e.target as HTMLElement).closest(".sy-note-chrome")) return
+            if (noteExitDirection) onNoteExitComplete()
+            else if (noteEnterDirection) onNoteEnterComplete()
+          }}
         >
           {notePayload.node}
         </div>

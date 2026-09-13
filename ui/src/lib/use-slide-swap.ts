@@ -64,12 +64,30 @@ export function useSlideSwap<T>(
     })
   }, [])
 
+  // Without this, `entered` (and the `slideEnterClassName` scoped classes it
+  // drives) would sit on the ancestor forever after a switch — including the
+  // `--tw-enter-translate-*` custom properties those classes set on the very
+  // same `.cm-scroller`/`.sy-note-preview`/`.sy-note-chrome` descendants a
+  // *later*, unrelated animation on the same elements (`MarkdownPanel`'s
+  // read/edit toggle) also targets. A still-matching stale rule and the new
+  // one both set `animation`/the custom properties on the same element, and
+  // which one's translate value wins comes down to CSS source order, not
+  // which is semantically "active" — the toggle's meant-to-be-pure-fade
+  // content silently inherited a leftover slide from the last note switch.
+  // Clearing `entered` once its own enter animation genuinely finishes (via
+  // `onAnimationEnd`, not a guessed timeout) drops that stale class the
+  // moment it's no longer needed.
+  const onEnterComplete = React.useCallback(() => {
+    setEntered(null)
+  }, [])
+
   return {
     displayKey: frozen ? frozen.key : key,
     displayPayload: frozen ? frozen.payload : payload,
     exitDirection: frozen?.direction ?? null,
     enterDirection: !frozen && entered?.key === key ? entered.direction : null,
     onExitComplete,
+    onEnterComplete,
   }
 }
 
@@ -94,30 +112,63 @@ export function useSlideSwap<T>(
  * so without a scope selector of its own a note switch while read-only left
  * the whole panel sitting frozen (the wrapping element itself was never given
  * `animate-out`/`animate-in`, only its `.cm-scroller` descendant was, and
- * preview has none) instead of sliding — `MarkdownPanel` puts this class on
- * its own read-mode wrapper (breadcrumb row + the rendered body together) for
- * exactly that reason. Each branch below is spelled out as a complete literal
- * class string (not built by interpolating a scope prefix onto each utility)
- * because Tailwind's build-time scanner only generates CSS for class names it
- * can find verbatim in the source; a templated `` `[&_${scope}]:${utility}` ``
+ * preview has none) instead of sliding.
+ *
+ * `.sy-note-chrome` is the toolbar row itself (`MarkdownPanel`'s breadcrumb
+ * in read mode, stylo's own formatting bar in edit mode) — a genuinely
+ * different animation from the content above, not just the same slide
+ * applied to a second element: it always moves vertically, never left/right
+ * (a plain `slide-out-to-top`/`slide-in-from-top` pair covers both nav
+ * directions, no `direction` branch needed), and it runs on `duration-snappy`
+ * (ADR-102) — faster than content's `duration-thumb` — deliberately, so the
+ * two are never racing to finish at the same instant. `onExitComplete` is
+ * wired to fire from content's own `animationend` only (`MarkdownPanel`
+ * filters by `event.target`), so a note switch's chrome settling early can
+ * never fire the commit ahead of content and truncate it mid-slide. Chrome
+ * carries `fade-out-0`/`fade-in-0` too (not just the slide nudge) precisely
+ * because it settles first: without a fade, `fill-mode-forwards` pins the
+ * old breadcrumb fully opaque — just offset by a hair — for the whole gap
+ * until content catches up, so the swap to the new path text (an instant DOM
+ * replacement, not itself animated) reads as an abrupt cut. Fading to
+ * transparent by the time it's sitting in that gap, and back in once the new
+ * one mounts, hides the actual replacement inside invisible time instead of
+ * flashing it.
+ * Each branch below is spelled out as a complete literal class string (not
+ * built by interpolating a scope prefix onto each utility) because
+ * Tailwind's build-time scanner only generates CSS for class names it can
+ * find verbatim in the source; a templated `` `[&_${scope}]:${utility}` ``
  * never appears as one token and would silently compile to no rule at all.
+ *
+ * `animateChrome` (default on) lets a `scopeToCmScroller` caller drop the
+ * `.sy-note-chrome` rule entirely — for `MarkdownPanel`'s edit-mode toolbar,
+ * whose buttons are identical across every note. Unlike the read-mode
+ * breadcrumb (whose text is the thing changing), nothing about that row
+ * actually differs after the switch, so sliding/fading it was motion with
+ * no real change behind it. `false` here doesn't just skip the animation
+ * classes, it omits the selector altogether — the row is never given
+ * `animate-out`/`animate-in` at all and simply sits still.
  */
 export function slideExitClassName(
   direction: SlideDirection,
-  scopeToCmScroller?: boolean
+  scopeToCmScroller?: boolean,
+  animateChrome = true
 ) {
   if (scopeToCmScroller) {
-    return direction === "back"
-      ? cn(
-          "[&_.cm-scroller]:pointer-events-none [&_.cm-scroller]:animate-out [&_.cm-scroller]:fade-out-0 [&_.cm-scroller]:duration-thumb [&_.cm-scroller]:fill-mode-forwards [&_.cm-scroller]:slide-out-to-right",
-          "[&_.sy-note-footer]:pointer-events-none [&_.sy-note-footer]:animate-out [&_.sy-note-footer]:fade-out-0 [&_.sy-note-footer]:duration-thumb [&_.sy-note-footer]:fill-mode-forwards [&_.sy-note-footer]:slide-out-to-right",
-          "[&_.sy-note-preview]:pointer-events-none [&_.sy-note-preview]:animate-out [&_.sy-note-preview]:fade-out-0 [&_.sy-note-preview]:duration-thumb [&_.sy-note-preview]:fill-mode-forwards [&_.sy-note-preview]:slide-out-to-right"
-        )
-      : cn(
-          "[&_.cm-scroller]:pointer-events-none [&_.cm-scroller]:animate-out [&_.cm-scroller]:fade-out-0 [&_.cm-scroller]:duration-thumb [&_.cm-scroller]:fill-mode-forwards [&_.cm-scroller]:slide-out-to-left",
-          "[&_.sy-note-footer]:pointer-events-none [&_.sy-note-footer]:animate-out [&_.sy-note-footer]:fade-out-0 [&_.sy-note-footer]:duration-thumb [&_.sy-note-footer]:fill-mode-forwards [&_.sy-note-footer]:slide-out-to-left",
-          "[&_.sy-note-preview]:pointer-events-none [&_.sy-note-preview]:animate-out [&_.sy-note-preview]:fade-out-0 [&_.sy-note-preview]:duration-thumb [&_.sy-note-preview]:fill-mode-forwards [&_.sy-note-preview]:slide-out-to-left"
-        )
+    return cn(
+      direction === "back"
+        ? cn(
+            "[&_.cm-scroller]:pointer-events-none [&_.cm-scroller]:animate-out [&_.cm-scroller]:fade-out-0 [&_.cm-scroller]:duration-thumb [&_.cm-scroller]:fill-mode-forwards [&_.cm-scroller]:slide-out-to-right",
+            "[&_.sy-note-footer]:pointer-events-none [&_.sy-note-footer]:animate-out [&_.sy-note-footer]:fade-out-0 [&_.sy-note-footer]:duration-thumb [&_.sy-note-footer]:fill-mode-forwards [&_.sy-note-footer]:slide-out-to-right",
+            "[&_.sy-note-preview]:pointer-events-none [&_.sy-note-preview]:animate-out [&_.sy-note-preview]:fade-out-0 [&_.sy-note-preview]:duration-thumb [&_.sy-note-preview]:fill-mode-forwards [&_.sy-note-preview]:slide-out-to-right"
+          )
+        : cn(
+            "[&_.cm-scroller]:pointer-events-none [&_.cm-scroller]:animate-out [&_.cm-scroller]:fade-out-0 [&_.cm-scroller]:duration-thumb [&_.cm-scroller]:fill-mode-forwards [&_.cm-scroller]:slide-out-to-left",
+            "[&_.sy-note-footer]:pointer-events-none [&_.sy-note-footer]:animate-out [&_.sy-note-footer]:fade-out-0 [&_.sy-note-footer]:duration-thumb [&_.sy-note-footer]:fill-mode-forwards [&_.sy-note-footer]:slide-out-to-left",
+            "[&_.sy-note-preview]:pointer-events-none [&_.sy-note-preview]:animate-out [&_.sy-note-preview]:fade-out-0 [&_.sy-note-preview]:duration-thumb [&_.sy-note-preview]:fill-mode-forwards [&_.sy-note-preview]:slide-out-to-left"
+          ),
+      animateChrome &&
+        "[&_.sy-note-chrome]:pointer-events-none [&_.sy-note-chrome]:animate-out [&_.sy-note-chrome]:fade-out-0 [&_.sy-note-chrome]:duration-snappy [&_.sy-note-chrome]:fill-mode-forwards [&_.sy-note-chrome]:slide-out-to-top-1"
+    )
   }
   return cn(
     "pointer-events-none animate-out fade-out-0 duration-thumb fill-mode-forwards",
@@ -127,20 +178,25 @@ export function slideExitClassName(
 
 export function slideEnterClassName(
   direction: SlideDirection,
-  scopeToCmScroller?: boolean
+  scopeToCmScroller?: boolean,
+  animateChrome = true
 ) {
   if (scopeToCmScroller) {
-    return direction === "back"
-      ? cn(
-          "[&_.cm-scroller]:animate-in [&_.cm-scroller]:fade-in-0 [&_.cm-scroller]:duration-thumb [&_.cm-scroller]:slide-in-from-left",
-          "[&_.sy-note-footer]:animate-in [&_.sy-note-footer]:fade-in-0 [&_.sy-note-footer]:duration-thumb [&_.sy-note-footer]:slide-in-from-left",
-          "[&_.sy-note-preview]:animate-in [&_.sy-note-preview]:fade-in-0 [&_.sy-note-preview]:duration-thumb [&_.sy-note-preview]:slide-in-from-left"
-        )
-      : cn(
-          "[&_.cm-scroller]:animate-in [&_.cm-scroller]:fade-in-0 [&_.cm-scroller]:duration-thumb [&_.cm-scroller]:slide-in-from-right",
-          "[&_.sy-note-footer]:animate-in [&_.sy-note-footer]:fade-in-0 [&_.sy-note-footer]:duration-thumb [&_.sy-note-footer]:slide-in-from-right",
-          "[&_.sy-note-preview]:animate-in [&_.sy-note-preview]:fade-in-0 [&_.sy-note-preview]:duration-thumb [&_.sy-note-preview]:slide-in-from-right"
-        )
+    return cn(
+      direction === "back"
+        ? cn(
+            "[&_.cm-scroller]:animate-in [&_.cm-scroller]:fade-in-0 [&_.cm-scroller]:duration-thumb [&_.cm-scroller]:slide-in-from-left",
+            "[&_.sy-note-footer]:animate-in [&_.sy-note-footer]:fade-in-0 [&_.sy-note-footer]:duration-thumb [&_.sy-note-footer]:slide-in-from-left",
+            "[&_.sy-note-preview]:animate-in [&_.sy-note-preview]:fade-in-0 [&_.sy-note-preview]:duration-thumb [&_.sy-note-preview]:slide-in-from-left"
+          )
+        : cn(
+            "[&_.cm-scroller]:animate-in [&_.cm-scroller]:fade-in-0 [&_.cm-scroller]:duration-thumb [&_.cm-scroller]:slide-in-from-right",
+            "[&_.sy-note-footer]:animate-in [&_.sy-note-footer]:fade-in-0 [&_.sy-note-footer]:duration-thumb [&_.sy-note-footer]:slide-in-from-right",
+            "[&_.sy-note-preview]:animate-in [&_.sy-note-preview]:fade-in-0 [&_.sy-note-preview]:duration-thumb [&_.sy-note-preview]:slide-in-from-right"
+          ),
+      animateChrome &&
+        "[&_.sy-note-chrome]:animate-in [&_.sy-note-chrome]:fade-in-0 [&_.sy-note-chrome]:duration-snappy [&_.sy-note-chrome]:slide-in-from-top-1"
+    )
   }
   return cn(
     "animate-in fade-in-0 duration-thumb",

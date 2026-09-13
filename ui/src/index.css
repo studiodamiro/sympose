@@ -727,20 +727,15 @@
    them. `!important`: stylo injects both rules as a CodeMirror
    `EditorView.theme()` stylesheet whose insertion order we can't rely on.
 
-   The wrap also carries its own `padding: 0 calc(1.15em + 4px) calc(1.15em
-   + 4px) 0` (reserving room on the right/bottom for those gizmo buttons to
-   sit past the table's actual edge) and a still-active `max-width: 100%`
-   that we don't override above. Under the default `box-sizing: content-box`,
-   `width: 100%` sets the *content* box to 100%, that padding is added on
-   top of it, and `max-width: 100%` then clamps the resulting border box
-   back down — shrinking the usable content width by exactly the padding
-   amount (confirmed live: the table measured ~20px narrower than the
-   editor's real available width, matching `calc(1.15em + 4px)` at this
-   font size almost exactly). `border-box` makes `width: 100%` describe the
-   *outer* edge instead, so the wrap's right/bottom edge lands flush with
-   the editor's content width same as preview's table does, with the
-   gizmo-reserving padding now living inside that box instead of being
-   added past it. */
+   stylo `>=0.15.1` (`theme-table-gizmos.ts`) dropped the wrap's right-side
+   padding entirely and switched to `overflow: visible`, so the gizmo strip
+   renders past the table's real edge instead of needing in-flow space
+   reserved for it — the table itself now reaches the wrap's full width on
+   its own. A `box-sizing: border-box` override used to live here to work
+   around that reserved padding fighting `max-width: 100%` under
+   `content-box` sizing (see `stylo/docs/requests/
+   2026-09-13_inplace-table-gizmo-padding-shrinks-table.md`); no longer
+   needed now that there's no horizontal padding left to fight. */
 [data-slot="markdown-panel"] .cm-inplace-table-wrap {
   display: block !important;
   width: 100% !important;

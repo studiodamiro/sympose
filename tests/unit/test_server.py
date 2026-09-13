@@ -48,6 +48,44 @@ def test_vault_note_write_endpoint_registered():
     assert put_routes, "PUT /api/vault/note missing — the dashboard editor cannot save"
 
 
+def test_vault_asset_endpoint_registered():
+    app = _app()
+    assert any(getattr(r, "path", "") == "/api/vault/asset" for r in app.routes)
+
+
+class TestVaultAsset:
+    """`GET /api/vault/asset` streams a `VaultManager.resolve_asset_path`
+    hit or 404s a miss — backs stylo's `embedSource` image embeds."""
+
+    def _client(self, monkeypatch, resolved_path):
+        from fastapi.testclient import TestClient
+        from sympose.auth import DASHBOARD_USER
+        import sympose.server as server
+
+        monkeypatch.setenv("DASHBOARD_PASSWORD", "pw")
+        monkeypatch.setattr(
+            server.VaultManager, "resolve_asset_path",
+            classmethod(lambda cls, profile, name: resolved_path),
+        )
+        engine = MagicMock()
+        engine.pm.get_profile.return_value = {"vault_folders": ["*"]}
+        engine.pm.profiles = {}
+        return TestClient(server.create_app(engine)), DASHBOARD_USER
+
+    def test_resolved_asset_streams_bytes(self, monkeypatch, tmp_path):
+        asset = tmp_path / "pic.png"
+        asset.write_bytes(b"fake-png-bytes")
+        client, user = self._client(monkeypatch, str(asset))
+        resp = client.get("/api/vault/asset?path=pic.png", auth=(user, "pw"))
+        assert resp.status_code == 200
+        assert resp.content == b"fake-png-bytes"
+
+    def test_missing_asset_returns_404(self, monkeypatch):
+        client, user = self._client(monkeypatch, None)
+        resp = client.get("/api/vault/asset?path=nope.png", auth=(user, "pw"))
+        assert resp.status_code == 404
+
+
 def test_slack_status_endpoint_registered_and_reads_heartbeat(tmp_path, monkeypatch):
     from sympose import slack_heartbeat
 

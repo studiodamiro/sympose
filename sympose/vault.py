@@ -242,6 +242,46 @@ class VaultManager:
         return f"Note `{clean_name}` not found in allowed vault folders."
 
     @classmethod
+    def resolve_asset_path(cls, profile: Dict[str, Any], asset_name: str) -> Optional[str]:
+        """Resolves a `![[ref]]` embed reference to an absolute file path within
+        the persona's sandbox — same three-tier lookup as `read_note` (direct
+        join, basename in each allowed dir, recursive walk), but for any file
+        and matched on the full filename rather than a bare stem, since an
+        asset ref always carries its extension (`diagram.png`, not `diagram`).
+        Deliberately does not consult `vault.ignore_folders`: that list exists
+        to keep attachment folders out of the *note* index/search/backlinks,
+        and its own default names "Attachments" — exactly where embedded
+        images typically live, so applying it here would make them
+        unreachable. Only dot-directories (`.git`, `.obsidian`, `.trash`, …)
+        are skipped."""
+        mv, allowed_dirs = cls._get_master_vault(), cls.get_allowed_dirs(profile)
+        if not mv or not allowed_dirs: return None
+        clean_name = asset_name.strip().strip("\"'")
+        if not clean_name: return None
+
+        direct_target = os.path.join(mv, clean_name)
+        for allowed in allowed_dirs:
+            if is_safe_path(direct_target, allowed) and os.path.isfile(direct_target):
+                return direct_target
+
+        for allowed in allowed_dirs:
+            target = os.path.join(allowed, os.path.basename(clean_name))
+            if is_safe_path(target, allowed) and os.path.isfile(target):
+                return target
+
+        want = os.path.basename(clean_name).lower()
+        for allowed in allowed_dirs:
+            for root, dirs, files in os.walk(allowed):
+                dirs[:] = [d for d in dirs if not d.startswith(".")]
+                for fn in files:
+                    if fn.lower() == want:
+                        fp = os.path.join(root, fn)
+                        if is_safe_path(fp, allowed):
+                            return fp
+
+        return None
+
+    @classmethod
     def get_folder_digest(cls, profile: Dict[str, Any], folder_name: str, max_files: int = 50) -> str:
         """Extracts high-density 1-line metadata for all notes in a folder for comprehensive synthesis."""
         mv, allowed_dirs = cls._get_master_vault(), cls.get_allowed_dirs(profile)

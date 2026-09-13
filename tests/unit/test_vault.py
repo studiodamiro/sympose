@@ -105,6 +105,63 @@ class TestReadNote:
 
 
 # ---------------------------------------------------------------------------
+# VaultManager.resolve_asset_path
+# ---------------------------------------------------------------------------
+
+class TestResolveAssetPath:
+    def test_resolves_direct_path(self, tmp_vault_dir, monkeypatch):
+        from sympose.vault import VaultManager
+        asset_path = tmp_vault_dir / "diagram.png"
+        asset_path.write_bytes(b"fake-png-bytes")
+        monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
+        profile = {"vault_folders": ["*"]}
+        resolved = VaultManager.resolve_asset_path(profile, "diagram.png")
+        assert resolved == str(asset_path)
+
+    def test_resolves_by_recursive_filename_match(self, tmp_vault_dir, monkeypatch):
+        """A bare filename (no folder prefix) should be found anywhere under
+        an allowed dir, the same way an Obsidian `![[pic.png]]` embed carries
+        no path — mirrors read_note's recursive stem fallback."""
+        from sympose.vault import VaultManager
+        nested = tmp_vault_dir / "Projects" / "Nested"
+        nested.mkdir(parents=True)
+        (nested / "pic.PNG").write_bytes(b"fake-bytes")
+        monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
+        profile = {"vault_folders": ["*"]}
+        resolved = VaultManager.resolve_asset_path(profile, "pic.png")
+        assert resolved == str(nested / "pic.PNG")
+
+    def test_reaches_into_attachments_folder(self, tmp_vault_dir, monkeypatch):
+        """`vault.ignore_folders` defaults to excluding "Attachments" from the
+        *note* index — but that's exactly where embedded images usually live,
+        so asset resolution must not apply that same exclusion (regression
+        guard for the resolver reusing read_note's ignore list by mistake)."""
+        from sympose.vault import VaultManager
+        attachments = tmp_vault_dir / "Attachments"
+        attachments.mkdir()
+        (attachments / "photo.jpg").write_bytes(b"fake-jpeg")
+        monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
+        profile = {"vault_folders": ["*"]}
+        resolved = VaultManager.resolve_asset_path(profile, "photo.jpg")
+        assert resolved == str(attachments / "photo.jpg")
+
+    def test_missing_asset_returns_none(self, tmp_vault_dir, monkeypatch):
+        from sympose.vault import VaultManager
+        monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
+        profile = {"vault_folders": ["*"]}
+        assert VaultManager.resolve_asset_path(profile, "nope.png") is None
+
+    def test_asset_outside_sandbox_denied(self, tmp_vault_dir, monkeypatch, tmp_path):
+        from sympose.vault import VaultManager
+        outside_asset = tmp_path / "secret.png"
+        outside_asset.write_bytes(b"TOP SECRET BYTES")
+        monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
+        profile = {"vault_folders": ["*"]}
+        resolved = VaultManager.resolve_asset_path(profile, str(outside_asset))
+        assert resolved is None
+
+
+# ---------------------------------------------------------------------------
 # VaultManager.parse_frontmatter
 # ---------------------------------------------------------------------------
 

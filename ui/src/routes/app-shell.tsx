@@ -51,6 +51,7 @@ import { findNoteByWikilink } from "@/lib/find-note-by-wikilink"
 import { findNodeByPath } from "@/lib/find-node-by-path"
 import { matchWikilinkTargets } from "@/lib/vault-wikilink-completions"
 import { matchTagTargets } from "@/lib/vault-tag-completions"
+import { resolveEmbed } from "@/lib/resolve-embed"
 import { VAULT_FOLDERS } from "@/lib/vault-folders"
 import {
   ActionBadge,
@@ -558,6 +559,20 @@ export function AppShell() {
   nebulaGraphRef.current = nebulaGraph
   const tagSource = React.useCallback(
     (query: string) => matchTagTargets(nebulaGraphRef.current, query),
+    []
+  )
+
+  // stylo's `embedSource` (>=0.13.x) resolves `![[ref]]` transclusion —
+  // reactive in `preview` but read once, at mount, on the in-place canvas
+  // (same contract as `wikiLinkSource`/`tagSource` above), so it needs the
+  // same ref-plus-stable-callback shape. `activePersona` gets its own ref
+  // here (unlike `tagSource`'s `nebulaGraphRef`) since a persona switch
+  // alone doesn't remount `<Stylo>` — see `resolve-embed.tsx` for what
+  // actually resolves image vs. note refs.
+  const activePersonaRef = React.useRef(activePersona)
+  activePersonaRef.current = activePersona
+  const embedSource = React.useCallback(
+    (ref: string) => resolveEmbed(vaultTreeRef.current, activePersonaRef.current, ref),
     []
   )
 
@@ -1226,6 +1241,7 @@ export function AppShell() {
             onWikiLinkClick={openWikilink}
             wikiLinkSource={wikiLinkSource}
             tagSource={tagSource}
+            embedSource={embedSource}
             onRenamed={(newPath) => {
               setSelectedNote(newPath)
               setVaultRefreshKey((k) => k + 1)

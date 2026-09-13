@@ -2,6 +2,7 @@ import * as React from "react"
 import {
   Stylo,
   splitFrontmatter,
+  type EmbedSource,
   type TagSource,
   type ToolbarItem,
   type WikiLinkSource,
@@ -141,6 +142,10 @@ interface MarkdownPanelProps extends React.ComponentProps<"div"> {
    *  read-once-at-mount contract as `wikiLinkSource` above; omit to leave the
    *  feature off. */
   tagSource?: TagSource
+  /** Resolves `![[ref]]` embeds — reactive in `preview`, read-once-at-mount
+   *  on the in-place canvas (stylo `>=0.13.x`); omit to leave `![[ref]]`
+   *  literal. */
+  embedSource?: EmbedSource
   /** The open note was renamed (ADR-084) — value is its new vault-relative path. */
   onRenamed?: (newPath: string) => void
   /** The open note was moved to trash (ADR-084). */
@@ -397,6 +402,7 @@ function MarkdownPanel({
   onWikiLinkClick,
   wikiLinkSource,
   tagSource,
+  embedSource,
   onRenamed,
   onDeleted,
   isPinned,
@@ -811,6 +817,7 @@ function MarkdownPanel({
       onWikiLinkClick={onWikiLinkClick}
       wikiLinkSource={wikiLinkSource}
       tagSource={tagSource}
+      embedSource={embedSource}
       onLinkClick={openMarkdownLink}
       mode={readOnly ? "preview" : surface}
       inPlace={{ reveal, selectionUI, table: tableEditing }}

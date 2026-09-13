@@ -7,7 +7,7 @@ import logging
 from typing import Dict, Any, Optional
 from fastapi import FastAPI, Query, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from sympose.vault import VaultManager
@@ -185,6 +185,20 @@ def create_app(engine: Any, workspace_dir: Optional[str] = None) -> FastAPI:
         the CLI/Slack `/vault` command (`VaultManager.search_structured`)."""
         profile = engine.pm.get_profile(persona) or engine.pm.get_profile("samantha")
         return {"query": q, "results": VaultManager.search_structured(profile, q)}
+
+    @app.get("/api/vault/asset")
+    def get_vault_asset(
+        path: str = Query(..., description="Relative path of the vault asset (image, etc.)"),
+        persona: Optional[str] = Query("samantha", description="Persona handle for sandbox scoping")
+    ) -> FileResponse:
+        """Raw file bytes for one vault asset — backs stylo's `![[ref]]` image
+        embeds (the `embedSource` prop), scoped to the persona's allowed vault
+        folders. 404 if it doesn't resolve inside the sandbox."""
+        profile = engine.pm.get_profile(persona) or engine.pm.get_profile("samantha")
+        resolved = VaultManager.resolve_asset_path(profile, path)
+        if not resolved:
+            raise HTTPException(status_code=404, detail=f"Asset `{path}` not found in allowed vault folders.")
+        return FileResponse(resolved)
 
     @app.get("/api/vault/note")
     def read_note(

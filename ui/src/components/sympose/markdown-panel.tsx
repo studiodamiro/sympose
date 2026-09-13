@@ -4,6 +4,7 @@ import {
   splitFrontmatter,
   type EmbedSource,
   type TagSource,
+  type TaskToggleInfo,
   type ToolbarItem,
   type WikiLinkSource,
 } from "@damiro/stylo"
@@ -804,6 +805,19 @@ function MarkdownPanel({
     </div>
   )
 
+  // Clicking a task checkbox in read mode (stylo >=0.15.0, `preview`-only —
+  // it's a no-op prop outside that mode) splices the new marker straight
+  // into `body`. This is the one deliberate mutation read mode allows: unlike
+  // the stray-keystroke/link-popup/menu-command misfires the doc comment
+  // above explains `preview` was chosen to avoid, a checkbox click is exactly
+  // as scoped and intentional as the read/edit toggle button itself. It rides
+  // the same persistence path as any other edit (autosave if on, otherwise
+  // the explicit save button or the leave-note flush) rather than a
+  // special-cased immediate write.
+  const handleTaskToggle = React.useCallback(({ start, end, checked }: TaskToggleInfo) => {
+    setBody((prev) => prev.slice(0, start) + (checked ? "[x]" : "[ ]") + prev.slice(end))
+  }, [])
+
   // Built once and placed in one of two tree positions below depending on
   // `readOnly` (bare, or nested one level inside the `.sy-note-preview`
   // wrapper) rather than duplicated across two JSX branches with the same
@@ -819,6 +833,7 @@ function MarkdownPanel({
       tagSource={tagSource}
       embedSource={embedSource}
       onLinkClick={openMarkdownLink}
+      onTaskToggle={handleTaskToggle}
       mode={readOnly ? "preview" : surface}
       softBreaks
       inPlace={{ reveal, selectionUI, table: tableEditing }}

@@ -100,6 +100,7 @@ list and is kept in sync per the
 
 | ADR | Title | Status | Date |
 | --- | ----- | ------ | ---- |
+| [ADR-113](../journal/2026-09/2026-09-14_adr-113-agent-notes-use-real-vault-templates.md) | Notes Use the Vault's Real Templates, Agent and Dashboard Alike (amends ADR-039, ADR-076, ADR-083) | Accepted | 2026-09-14 |
 | [ADR-111](../journal/2026-09/2026-09-13_adr-111-drag-drop-target-for-folder-in-view.md) | Drop Target for the Folder Currently in View (amends ADR-110) | Accepted | 2026-09-13 |
 | [ADR-110](../journal/2026-09/2026-09-13_adr-110-drag-and-drop-vault-note-moves.md) | Drag-and-Drop Note Moves: Vault Tree and Main Menu | Accepted | 2026-09-13 |
 | [ADR-109](../journal/2026-09/2026-09-13_adr-109-pinned-notes-scoped-to-root-folder.md) | Pinned Notes Scoped to Root Folder, Not Vault-Wide | Accepted | 2026-09-13 |

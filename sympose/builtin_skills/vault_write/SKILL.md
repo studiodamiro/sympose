@@ -55,7 +55,13 @@ ghost nodes. Use `#reflection`.
 
 ## Tags & frontmatter
 
-- `[WRITE_NOTE]` → a `tags:` list in YAML frontmatter (plus `type:`, `created:`).
+- `[WRITE_NOTE]` → **body content only, no frontmatter.** The runtime stamps
+  the real Obsidian template for the target folder from the vault's own
+  `Templates/` collection (title, date, and that type's default `tags:`
+  already filled in); a folder without a dedicated template gets the vault's
+  generic `Note template.md`. Writing your own frontmatter block overrides
+  this and loses those per-type fields — only do it for a field the template
+  can't express.
 - `[DAILY_NOTE]` → end the payload with `Tags: #jour` + domain tags (`#cinema`, `#trading`, …).
 
 ```
@@ -64,5 +70,5 @@ ghost nodes. Use `#reflection`.
 Tags: #jour #reflection #music]
 ```
 
-The payload contains only the note — no chat commentary or greetings. One tag,
-at the end of the response, single clean frontmatter block.
+The payload contains only the note — no chat commentary or greetings, one tag
+at the end of the response.

@@ -25,6 +25,7 @@ one in [`docs/wiki/index.md`](./wiki/index.md) are kept in sync per the
 
 | ADR | Title | Status | Date | Source |
 | --- | ----- | ------ | ---- | ------ |
+| ADR-113 | Notes Use the Vault's Real Templates, Agent and Dashboard Alike (amends ADR-039, ADR-076, ADR-083) | Accepted | 2026-09-14 | [2026-09-14_adr-113-agent-notes-use-real-vault-templates.md](./journal/2026-09/2026-09-14_adr-113-agent-notes-use-real-vault-templates.md) |
 | ADR-111 | Drop Target for the Folder Currently in View (amends ADR-110) | Accepted | 2026-09-13 | [2026-09-13_adr-111-drag-drop-target-for-folder-in-view.md](./journal/2026-09/2026-09-13_adr-111-drag-drop-target-for-folder-in-view.md) |
 | ADR-110 | Drag-and-Drop Note Moves: Vault Tree and Main Menu | Accepted | 2026-09-13 | [2026-09-13_adr-110-drag-and-drop-vault-note-moves.md](./journal/2026-09/2026-09-13_adr-110-drag-and-drop-vault-note-moves.md) |
 | ADR-109 | Pinned Notes Scoped to Root Folder, Not Vault-Wide | Accepted | 2026-09-13 | [2026-09-13_adr-109-pinned-notes-scoped-to-root-folder.md](./journal/2026-09/2026-09-13_adr-109-pinned-notes-scoped-to-root-folder.md) |

@@ -1006,26 +1006,32 @@ class VaultManager:
 
     @classmethod
     def get_template_for_path(cls, mv: str, note_name: str) -> Optional[str]:
-        """Resolves the user's authentic Obsidian template from Templates/ folder if present."""
-        if not mv or not os.path.exists(os.path.join(mv, "Templates")):
+        """Resolves the user's authentic Obsidian template from Templates/ folder if present.
+
+        The folder->template match is derived from whichever templates actually
+        live in Templates/ (its filename minus " template.md", matched against
+        the note's top-level folder exactly or as a singular/plural pair) rather
+        than a hardcoded list, so adding, renaming, or removing a template there
+        takes effect with no code change. "Note template.md" is the fallback for
+        any folder without a dedicated template.
+        """
+        tmpl_dir = os.path.join(mv, "Templates") if mv else ""
+        if not mv or not os.path.isdir(tmpl_dir):
             return None
 
-        tmpl_dir = os.path.join(mv, "Templates")
         norm = note_name.lower().replace("\\", "/")
-
-        mapping = {
-            "daily/": "Daily template.md",
-            "thoughts/": "Thoughts template.md",
-            "people/": "People template.md",
-            "movies/": "Movie template.md",
-            "quotes/": "Quote template.md",
-        }
+        folder = norm.split("/", 1)[0] if "/" in norm else ""
 
         matched_file = None
-        for prefix, tmpl_name in mapping.items():
-            if norm.startswith(prefix):
-                matched_file = os.path.join(tmpl_dir, tmpl_name)
-                break
+        if folder:
+            for fname in os.listdir(tmpl_dir):
+                fname_lower = fname.lower()
+                if fname_lower == "note template.md" or not fname_lower.endswith("template.md"):
+                    continue
+                note_type = fname_lower[: -len("template.md")].strip()
+                if folder in (note_type, note_type.rstrip("s"), note_type + "s"):
+                    matched_file = os.path.join(tmpl_dir, fname)
+                    break
 
         if not matched_file or not os.path.exists(matched_file):
             matched_file = os.path.join(tmpl_dir, "Note template.md")
@@ -1037,6 +1043,17 @@ class VaultManager:
             except Exception:
                 pass
         return None
+
+    @staticmethod
+    def _render_template(raw_tmpl: str, title_heading: str, now: "datetime.datetime") -> str:
+        """Substitutes the core-Obsidian-Templates placeholders this vault's
+        templates use: `{{date}}`, `{{time}}`, `{{title}}`, `{{date:YYYY}}`."""
+        return (
+            raw_tmpl.replace("{{date}}", now.strftime("%Y-%m-%d"))
+            .replace("{{time}}", now.strftime("%Y-%m-%d %H:%M"))
+            .replace("{{title}}", title_heading)
+            .replace("{{date:YYYY}}", now.strftime("%Y"))
+        ).strip()
 
     @classmethod
     def write_note(cls, profile: Dict[str, Any], note_name: str, content: str) -> str:
@@ -1061,12 +1078,7 @@ class VaultManager:
                 title_heading = os.path.splitext(os.path.basename(note_name))[0].replace("_", " ").title()
                 raw_tmpl = cls.get_template_for_path(mv, note_name)
                 if raw_tmpl and raw_tmpl.strip().startswith("---"):
-                    rendered_tmpl = (
-                        raw_tmpl.replace("{{date}}", date_str)
-                        .replace("{{time}}", time_str)
-                        .replace("{{title}}", title_heading)
-                        .replace("{{date:YYYY}}", now.strftime("%Y"))
-                    ).strip()
+                    rendered_tmpl = cls._render_template(raw_tmpl, title_heading, now)
                     final_content = f"{rendered_tmpl}\n\n# {title_heading}\n\n{clean_content}\n"
                 else:
                     final_content = (
@@ -1153,9 +1165,11 @@ class VaultManager:
         the master vault when it contains a separator, otherwise in the persona's
         primary folder. Refuses (`NOTE_EXISTS`) rather than overwriting an
         existing file — that is `overwrite_note`'s job. `NOTE_DENIED` for a path
-        outside the sandbox. When `content` is omitted a minimal
-        frontmatter + title stub is seeded so the editor opens onto something
-        editable. Re-indexed and added to the manifest like any other write."""
+        outside the sandbox. When `content` is omitted, the folder's real
+        Obsidian template (ADR-113) is seeded so the editor opens onto the same
+        frontmatter a hand-created note in that folder would get; a folder
+        without a dedicated template falls back to a minimal title stub.
+        Re-indexed and added to the manifest like any other write."""
         mv, allowed_dirs, primary_dir = cls._get_master_vault(), cls.get_allowed_dirs(profile), cls.get_primary_dir(profile)
         if not mv or not allowed_dirs:
             return cls.NOTE_DENIED
@@ -1177,8 +1191,12 @@ class VaultManager:
 
         if content is None or not content.strip():
             title = os.path.splitext(os.path.basename(clean_name))[0].replace("_", " ").replace("-", " ").strip().title()
-            today = datetime.datetime.now().strftime("%Y-%m-%d")
-            content = f"---\ntitle: {title}\ncreated: {today}\ntags: []\n---\n\n# {title}\n\n"
+            now = datetime.datetime.now()
+            raw_tmpl = cls.get_template_for_path(mv, clean_name)
+            if raw_tmpl and raw_tmpl.strip().startswith("---"):
+                content = f"{cls._render_template(raw_tmpl, title, now)}\n\n# {title}\n\n"
+            else:
+                content = f"---\ntitle: {title}\ncreated: {now.strftime('%Y-%m-%d')}\ntags: []\n---\n\n# {title}\n\n"
 
         rel_display = os.path.relpath(target_file, mv)
         try:

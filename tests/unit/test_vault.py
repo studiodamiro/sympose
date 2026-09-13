@@ -244,6 +244,95 @@ class TestWriteNote:
         else:
             assert isinstance(result, str)
 
+    def test_write_note_applies_matching_folder_template(self, tmp_vault_dir, monkeypatch):
+        """A [WRITE_NOTE] payload with no frontmatter of its own gets the vault's
+        real per-folder template (ADR-113) — not a generic tags/type/created block."""
+        from sympose.vault import VaultManager
+        tmpl_dir = tmp_vault_dir / "Templates"
+        tmpl_dir.mkdir()
+        (tmpl_dir / "People template.md").write_text(
+            "---\naka: {{title}}\nbirthday: \n---\n", encoding="utf-8"
+        )
+        (tmpl_dir / "Note template.md").write_text(
+            "---\ntitle: {{title}}\ntags: []\n---\n", encoding="utf-8"
+        )
+        monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
+        profile = {"vault_folders": ["*"]}
+        VaultManager.write_note(profile, "People/jane_doe", "Met her at the conference.")
+        content = (tmp_vault_dir / "People" / "jane_doe.md").read_text()
+        assert "aka: Jane Doe" in content
+        assert "birthday:" in content
+
+    def test_write_note_with_own_frontmatter_bypasses_template(self, tmp_vault_dir, monkeypatch):
+        """A model that supplies its own frontmatter block wins verbatim, even if
+        it skips the folder's real template — intentional, but the exception."""
+        from sympose.vault import VaultManager
+        tmpl_dir = tmp_vault_dir / "Templates"
+        tmpl_dir.mkdir()
+        (tmpl_dir / "People template.md").write_text(
+            "---\naka: {{title}}\nbirthday: \n---\n", encoding="utf-8"
+        )
+        monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
+        profile = {"vault_folders": ["*"]}
+        VaultManager.write_note(profile, "People/jane_doe", "---\ncustom: field\n---\n\nBody")
+        content = (tmp_vault_dir / "People" / "jane_doe.md").read_text()
+        assert "custom: field" in content
+        assert "aka:" not in content
+
+
+# ---------------------------------------------------------------------------
+# VaultManager.get_template_for_path (folder <-> template matching — ADR-113)
+# ---------------------------------------------------------------------------
+
+class TestGetTemplateForPath:
+    def _make_templates(self, tmp_vault_dir, files):
+        tmpl_dir = tmp_vault_dir / "Templates"
+        tmpl_dir.mkdir(exist_ok=True)
+        for name, body in files.items():
+            (tmpl_dir / name).write_text(body, encoding="utf-8")
+        return tmpl_dir
+
+    def test_exact_folder_name_match(self, tmp_vault_dir):
+        from sympose.vault import VaultManager
+        self._make_templates(tmp_vault_dir, {
+            "People template.md": "---\naka: {{title}}\n---\n",
+            "Note template.md": "---\ntitle: {{title}}\n---\n",
+        })
+        result = VaultManager.get_template_for_path(str(tmp_vault_dir), "People/jane.md")
+        assert "aka:" in result
+
+    def test_plural_folder_matches_singular_template_name(self, tmp_vault_dir):
+        from sympose.vault import VaultManager
+        self._make_templates(tmp_vault_dir, {
+            "Movie template.md": "---\nrelease: {{date:YYYY}}\n---\n",
+            "Note template.md": "---\ntitle: {{title}}\n---\n",
+        })
+        result = VaultManager.get_template_for_path(str(tmp_vault_dir), "Movies/dune.md")
+        assert "release:" in result
+
+    def test_unmapped_folder_falls_back_to_note_template(self, tmp_vault_dir):
+        from sympose.vault import VaultManager
+        self._make_templates(tmp_vault_dir, {
+            "Movie template.md": "---\nrelease: {{date:YYYY}}\n---\n",
+            "Note template.md": "---\ntitle: {{title}}\n---\n",
+        })
+        result = VaultManager.get_template_for_path(str(tmp_vault_dir), "Recipes/soup.md")
+        assert "title:" in result and "release:" not in result
+
+    def test_new_template_file_matched_without_a_code_change(self, tmp_vault_dir):
+        from sympose.vault import VaultManager
+        self._make_templates(tmp_vault_dir, {
+            "Recipe template.md": "---\ningredients: []\n---\n",
+            "Note template.md": "---\ntitle: {{title}}\n---\n",
+        })
+        result = VaultManager.get_template_for_path(str(tmp_vault_dir), "Recipes/soup.md")
+        assert "ingredients:" in result
+
+    def test_no_templates_folder_returns_none(self, tmp_vault_dir):
+        from sympose.vault import VaultManager
+        result = VaultManager.get_template_for_path(str(tmp_vault_dir), "People/jane.md")
+        assert result is None
+
 
 # ---------------------------------------------------------------------------
 # VaultManager.overwrite_note (dashboard editor save — ADR-081)
@@ -304,6 +393,29 @@ class TestCreateNote:
         assert body.startswith("---\n")
         assert "title: Rocket Stove" in body
         assert "# Rocket Stove" in body
+
+    def test_seeds_from_matching_folder_template_when_present(self, tmp_vault_dir, monkeypatch):
+        """The dashboard's 'new note' buttons (POST /api/vault/note, empty
+        content) get the same real per-folder template write_note applies for
+        agent-written notes — ADR-113."""
+        from sympose.vault import VaultManager
+        tmpl_dir = tmp_vault_dir / "Templates"
+        tmpl_dir.mkdir()
+        (tmpl_dir / "Movie template.md").write_text(
+            "---\ntitle: {{title}}\nrelease: {{date:YYYY}}\nrating: \n---\n", encoding="utf-8"
+        )
+        (tmpl_dir / "Note template.md").write_text(
+            "---\ntitle: {{title}}\ntags: []\n---\n", encoding="utf-8"
+        )
+        monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
+        profile = {"vault_folders": ["*"]}
+
+        VaultManager.create_note(profile, "Movies/dune")
+
+        body = (tmp_vault_dir / "Movies" / "dune.md").read_text()
+        assert "title: Dune" in body
+        assert "release:" in body
+        assert "rating:" in body
 
     def test_honours_supplied_content(self, tmp_vault_dir, monkeypatch):
         from sympose.vault import VaultManager

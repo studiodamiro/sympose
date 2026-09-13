@@ -45,6 +45,9 @@ export {
 export { PersonaPill } from "./persona-pill"
 export { PresetCard, type ThemePreset } from "./preset-card"
 export { QuietToggle } from "./quiet-toggle"
+export {
+  RecentNotesPreferencesSection,
+} from "./recent-notes-preferences-section"
 export { SearchPreferencesSection } from "./search-preferences-section"
 export {
   SegmentedControl,

@@ -1,19 +1,35 @@
 import * as React from "react"
 import { HugeiconsIcon } from "@hugeicons/react"
+import type { IconSvgElement } from "@hugeicons/react"
 import {
   ArrowRight01Icon,
   Calendar03Icon,
+  Cancel01Icon,
+  Clock01Icon,
   File01Icon,
   Folder01Icon,
   FolderOpenIcon,
+  MoreHorizontalIcon,
   Note01Icon,
   PinIcon,
+  PinOffIcon,
 } from "@hugeicons/core-free-icons"
 
 import { cn, stripMdExtension } from "@/lib/utils"
 import { getCookie, setCookie } from "@/lib/cookies"
 import { useAnimatedNodeList } from "@/lib/use-animated-node-list"
 import { VaultRowMenu } from "@/components/sympose/vault-row-menu"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuTrigger,
+} from "@/components/ui/context-menu"
 
 /**
  * Vault directory tree (UI_DESIGN_REFERENCE.md §5 / Module C). Collapsible,
@@ -29,6 +45,16 @@ import { VaultRowMenu } from "@/components/sympose/vault-row-menu"
  * enable per-row actions (rename / delete a note, new note in / delete a
  * folder — ADR-084, ADR-099): a `⋯` button on hover / focus, or right-click
  * on the row.
+ *
+ * Pass `isPinned` / `onTogglePin` to badge a note's row with a pin glyph and
+ * offer Pin/Unpin from its menu (ADR-092's cookie-backed pin state); pass
+ * `pinnedNodes` to also render every pinned note under the current *root*
+ * folder as its own group at the top of the list (ADR-109 — the caller
+ * scopes this per root folder, never vault-wide and never mixed across root
+ * folders; `pinnedShowPath` labels those rows by full path instead of bare
+ * filename, worth it only when that root folder actually has subfolders).
+ * Pass `recentNodes` the same way for a genuinely vault-wide "Recent" group
+ * under it (ADR-107/108).
  */
 export interface VaultNode {
   name: string
@@ -49,6 +75,12 @@ const IGNORED = new Set([".obsidian", ".git", "Attachments", ".trash"])
 // `children` array, so a fresh `[]` literal there would change identity on
 // every render and re-trigger `useAnimatedNodeList`'s effect indefinitely.
 const NO_CHILDREN: VaultNode[] = []
+
+// A "Recent" row isn't tracked by `useAnimatedNodeList` (its order is
+// recency, not vault-tree membership — see `recentNodes` below), so it never
+// actually has an exit animation to complete; `VaultTreeRow` still requires
+// the callback.
+function noop() {}
 
 export function filterVaultTree(nodes: VaultNode[]): VaultNode[] {
   return nodes
@@ -93,6 +125,135 @@ export function filterTreeByQuery(
       return acc
     }, [])
   return walk(nodes)
+}
+
+
+/**
+ * A group caption ("Pinned", "Recent", …) above a run of same-purpose rows,
+ * styled to match `VaultContentSearch`'s "N matches beyond {folder}" row
+ * (same icon-plus-label treatment) so every such grouping reads as one
+ * visual language. `menuItems`, when given, wires the same two-way access a
+ * row's own menu offers (`VaultRowMenu`): a hover-revealed `⋯` button, and
+ * right-click / long-press anywhere on the caption. Omit it for a plain,
+ * non-interactive caption.
+ */
+function GroupCaption({
+  icon,
+  label,
+  paddingLeft,
+  menuItems,
+}: {
+  icon: IconSvgElement
+  label: string
+  paddingLeft: number
+  menuItems?: React.ReactNode
+}) {
+  const inner = (
+    <>
+      <HugeiconsIcon icon={icon} className="size-3 text-fg-muted" />
+      <span className="text-xs text-fg-muted">{label}</span>
+
+      {menuItems && (
+        <DropdownMenu modal={false}>
+          <DropdownMenuTrigger
+            aria-label={`${label} group actions`}
+            onClick={(e) => e.stopPropagation()}
+            className={cn(
+              "absolute top-1/2 right-1 grid size-6 -translate-y-1/2 place-items-center rounded text-fg-muted",
+              "opacity-0 transition-opacity hover:bg-accent hover:text-foreground",
+              "group-hover/section-caption:opacity-100 focus-visible:opacity-100 data-popup-open:opacity-100"
+            )}
+          >
+            <HugeiconsIcon icon={MoreHorizontalIcon} className="size-3.5" />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="duration-thumb ease-snappy">
+            {menuItems}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      )}
+    </>
+  )
+
+  if (!menuItems) {
+    return (
+      <div
+        className="flex items-center gap-1.5 pt-2 pb-1"
+        style={{ paddingLeft: `${paddingLeft}px` }}
+      >
+        {inner}
+      </div>
+    )
+  }
+
+  return (
+    <ContextMenu>
+      <ContextMenuTrigger
+        className="group/section-caption relative flex items-center gap-1.5 pt-2 pr-8 pb-1"
+        style={{ paddingLeft: `${paddingLeft}px` }}
+      >
+        {inner}
+      </ContextMenuTrigger>
+      <ContextMenuContent className="duration-thumb ease-snappy">
+        {menuItems}
+      </ContextMenuContent>
+    </ContextMenu>
+  )
+}
+
+/** "Pinned" group caption with its "Unpin all" action, scoped to just this
+ *  group's own paths (its level, not the whole vault). */
+function PinnedSectionCaption({
+  paddingLeft,
+  paths,
+  onUnpinAll,
+}: {
+  paddingLeft: number
+  paths: string[]
+  /** Unpin every path in this group. Omit to hide "Unpin all" entirely. */
+  onUnpinAll?: (paths: string[]) => void
+}) {
+  return (
+    <GroupCaption
+      icon={PinIcon}
+      label="Pinned"
+      paddingLeft={paddingLeft}
+      menuItems={
+        onUnpinAll && (
+          <DropdownMenuItem onClick={() => onUnpinAll(paths)}>
+            <HugeiconsIcon icon={PinOffIcon} />
+            Unpin all
+          </DropdownMenuItem>
+        )
+      }
+    />
+  )
+}
+
+/** "Recent" group caption with its "Clear recents" action, emptying the
+ *  whole history — not just what's currently shown. */
+function RecentSectionCaption({
+  paddingLeft,
+  onClearRecents,
+}: {
+  paddingLeft: number
+  /** Empty the whole Recent history. Omit to hide "Clear recents" entirely. */
+  onClearRecents?: () => void
+}) {
+  return (
+    <GroupCaption
+      icon={Clock01Icon}
+      label="Recent"
+      paddingLeft={paddingLeft}
+      menuItems={
+        onClearRecents && (
+          <DropdownMenuItem onClick={onClearRecents}>
+            <HugeiconsIcon icon={Cancel01Icon} />
+            Clear recents
+          </DropdownMenuItem>
+        )
+      }
+    />
+  )
 }
 
 /** Every folder path in a tree, depth-first — used to seed `defaultExpanded`
@@ -166,7 +327,7 @@ interface RowActions {
   /** A new note was created from a folder row. */
   onCreated?: (path: string) => void
   /** Is this note path pinned — feeds the row's "Pin note" / "Unpin note"
-   *  menu item and its badge (prep work, ADR pending: no Pinned list yet). */
+   *  menu item and its badge. */
   isPinned?: (path: string) => boolean
   /** Toggle a note path's pinned state. */
   onTogglePin?: (path: string) => void
@@ -184,6 +345,38 @@ interface VaultTreeProps
   /** Hide the trailing `.md` on note labels (Settings > Markdown editor >
    *  File extensions). Default shown, matching the raw vault filename. */
   hideExtension?: boolean
+  /**
+   * Every pinned note under the current root folder, already resolved to its
+   * real `VaultNode` (ADR-108) — scoped per root folder, not vault-wide and
+   * not just the immediate parent folder: a note pinned anywhere under
+   * "Daily" shows while browsing Daily regardless of depth, never mixed with
+   * another root folder's own pinned notes. The caller resolves this against
+   * the *full* tree, not just this instance's own `nodes`, and decides the
+   * scope. Rendered as its own "Pinned" group at the top of the list.
+   */
+  pinnedNodes?: VaultNode[]
+  /** Label each Pinned row by its full path rather than its bare filename —
+   *  worth it only when the current root folder actually has nested
+   *  subfolders (e.g. Daily's year/month structure), where a bare filename
+   *  alone wouldn't say where the note lives. */
+  pinnedShowPath?: boolean
+  /** Unpin every currently pinned note in one call — the "Pinned" group
+   *  caption's "Unpin all". */
+  onUnpinAll?: (paths: string[]) => void
+  /**
+   * Recently opened notes, most-recent-first, already resolved to their real
+   * `VaultNode` and capped to the Settings "Recent notes shown" count
+   * (`use-recent-notes.ts`) — vault-wide, so a caller resolves them against
+   * the *full* tree, not just this instance's own `nodes`. Rendered as a
+   * "Recent" group under Pinned.
+   */
+  recentNodes?: VaultNode[]
+  /** Drop one note out of the Recent history — each recent row's own
+   *  "Remove from recents" menu item. */
+  onRemoveFromRecents?: (path: string) => void
+  /** Empty the whole Recent history — the "Recent" group caption's
+   *  "Clear recents". */
+  onClearRecents?: () => void
 }
 
 function VaultTree({
@@ -200,6 +393,12 @@ function VaultTree({
   isPinned,
   onTogglePin,
   hideExtension = false,
+  pinnedNodes = NO_CHILDREN,
+  pinnedShowPath = false,
+  onUnpinAll,
+  recentNodes = NO_CHILDREN,
+  onRemoveFromRecents,
+  onClearRecents,
   ...props
 }: VaultTreeProps) {
   const [expanded, setExpanded] = React.useState<Set<string>>(() => {
@@ -242,6 +441,68 @@ function VaultTree({
       className={cn("flex flex-col py-1 text-sm", className)}
       {...props}
     >
+      {pinnedNodes.length > 0 && (
+        <>
+          <PinnedSectionCaption
+            paddingLeft={0}
+            paths={pinnedNodes.map((node) => node.path)}
+            onUnpinAll={onUnpinAll}
+          />
+          {pinnedNodes.map((node) => (
+            <VaultTreeRow
+              key={`pinned:${node.path}`}
+              node={node}
+              closing={false}
+              onExitComplete={noop}
+              depth={0}
+              expanded={expanded}
+              onToggle={toggle}
+              selectedPath={selectedPath}
+              onSelect={onSelect}
+              actions={actions}
+              hideExtension={hideExtension}
+              showPath={pinnedShowPath}
+            />
+          ))}
+        </>
+      )}
+
+      {pinnedNodes.length > 0 && recentNodes.length > 0 && (
+        <div className="h-3" aria-hidden="true" />
+      )}
+
+      {recentNodes.length > 0 && (
+        <>
+          <RecentSectionCaption
+            paddingLeft={0}
+            onClearRecents={onClearRecents}
+          />
+          {recentNodes.map((node) => (
+            <VaultTreeRow
+              key={`recent:${node.path}`}
+              node={node}
+              closing={false}
+              onExitComplete={noop}
+              depth={0}
+              expanded={expanded}
+              onToggle={toggle}
+              selectedPath={selectedPath}
+              onSelect={onSelect}
+              actions={actions}
+              hideExtension={hideExtension}
+              onRemoveFromRecents={
+                onRemoveFromRecents
+                  ? () => onRemoveFromRecents(node.path)
+                  : undefined
+              }
+            />
+          ))}
+        </>
+      )}
+
+      {(pinnedNodes.length > 0 || recentNodes.length > 0) &&
+        display.length > 0 && <div className="h-3" aria-hidden="true" />}
+
       {display.map(({ node, closing }) => (
         <VaultTreeRow
           key={node.path}
@@ -278,6 +539,8 @@ function VaultTreeRow({
   onSelect,
   actions,
   hideExtension,
+  showPath = false,
+  onRemoveFromRecents,
 }: {
   node: VaultNode
   /** This row's node just left the vault tree (deleted, or moved by a
@@ -291,6 +554,13 @@ function VaultTreeRow({
   onSelect?: (node: VaultNode) => void
   actions: RowActions
   hideExtension: boolean
+  /** Label by the note's full vault-relative path instead of its bare
+   *  filename — the vault-wide "Pinned" group (ADR-107), shown outside the
+   *  folder the note actually lives in. */
+  showPath?: boolean
+  /** This row is a "Recent" group entry — drop just this path from the
+   *  history. Omit outside that group. */
+  onRemoveFromRecents?: () => void
 }) {
   const isOpen = expanded.has(node.path)
   const isSelected = selectedPath === node.path
@@ -340,6 +610,7 @@ function VaultTreeRow({
         onCreated={actions.onCreated!}
         pinned={pinned}
         onTogglePin={actions.onTogglePin}
+        onRemoveFromRecents={onRemoveFromRecents}
       >
         {rowButton}
       </VaultRowMenu>
@@ -406,6 +677,13 @@ function VaultTreeRow({
     )
   }
 
+  // A pinned row shows outside the folder it actually lives in (ADR-107's
+  // vault-wide "Pinned" group), so its full path stands in for the bare
+  // filename other rows use — the same reason `VaultContentSearch`'s "beyond
+  // folder" rows show a path rather than just a name.
+  const rawLabel = showPath ? node.path : node.name
+  const noteLabel = hideExtension ? stripMdExtension(rawLabel) : rawLabel
+
   return (
     // Keyed on `node.path` by the parent map, so this only mounts (and
     // animates in) for a genuinely new note — an existing row re-renders in
@@ -437,9 +715,7 @@ function VaultTreeRow({
             icon={node.name.endsWith(".md") ? Note01Icon : File01Icon}
             className="size-3.5 shrink-0 text-fg-muted"
           />
-          <span className="truncate">
-            {hideExtension ? stripMdExtension(node.name) : node.name}
-          </span>
+          <span className="truncate">{noteLabel}</span>
           {pinned && (
             <HugeiconsIcon
               icon={PinIcon}

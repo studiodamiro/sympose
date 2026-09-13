@@ -25,6 +25,10 @@ one in [`docs/wiki/index.md`](./wiki/index.md) are kept in sync per the
 
 | ADR | Title | Status | Date | Source |
 | --- | ----- | ------ | ---- | ------ |
+| ADR-109 | Pinned Notes Scoped to Root Folder, Not Vault-Wide | Accepted | 2026-09-13 | [2026-09-13_adr-109-pinned-notes-scoped-to-root-folder.md](./journal/2026-09/2026-09-13_adr-109-pinned-notes-scoped-to-root-folder.md) |
+| ADR-108 | Pinned Notes Promoted to a Vault-Wide Group; Recent Management + Toggle | Accepted | 2026-09-13 | [2026-09-13_adr-108-pinned-notes-vault-wide-recent-management.md](./journal/2026-09/2026-09-13_adr-108-pinned-notes-vault-wide-recent-management.md) |
+| ADR-107 | Recent Notes: A Vault-Wide Group Under Pinned | Accepted | 2026-09-13 | [2026-09-13_adr-107-recent-notes-group.md](./journal/2026-09/2026-09-13_adr-107-recent-notes-group.md) |
+| ADR-106 | Pinned Notes: Per-Folder Reorder in the Vault Tree | Accepted | 2026-09-13 | [2026-09-13_adr-106-pinned-notes-per-folder-reorder.md](./journal/2026-09/2026-09-13_adr-106-pinned-notes-per-folder-reorder.md) |
 | ADR-105 | Vault Search Field: Instant Client Filter, Backend Content Tier, Folder-Scoped Results | Accepted | 2026-09-13 | [2026-09-13_adr-105-vault-search-field.md](./journal/2026-09/2026-09-13_adr-105-vault-search-field.md) |
 | ADR-104 | Directional Slide for Content/Editor Panel Navigation | Accepted | 2026-09-13 | [2026-09-13_adr-104-directional-panel-slide-navigation.md](./journal/2026-09/2026-09-13_adr-104-directional-panel-slide-navigation.md) |
 | ADR-103 | Vault-Tree Row Exit Animation on Delete | Accepted | 2026-09-13 | [2026-09-13_adr-103-vault-tree-exit-animation.md](./journal/2026-09/2026-09-13_adr-103-vault-tree-exit-animation.md) |

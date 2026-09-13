@@ -35,6 +35,7 @@ import { useActivePersona } from "@/lib/use-active-persona"
 import { useEditorPreferences } from "@/lib/use-editor-preferences"
 import { useToolbarItems } from "@/lib/use-toolbar-items"
 import { usePinnedNotes } from "@/lib/use-pinned-notes"
+import { useRecentNotes } from "@/lib/use-recent-notes"
 import { useNotificationPreferences } from "@/lib/use-notification-preferences"
 import { useNebulaPreferences } from "@/lib/use-nebula-preferences"
 import { useSearchPreferences } from "@/lib/use-search-preferences"
@@ -47,6 +48,7 @@ import {
 import { fetchVaultTree } from "@/lib/vault-tree-api"
 import { createVaultNote, createVaultFolder } from "@/lib/vault-note-api"
 import { findNoteByWikilink } from "@/lib/find-note-by-wikilink"
+import { findNodeByPath } from "@/lib/find-node-by-path"
 import { matchWikilinkTargets } from "@/lib/vault-wikilink-completions"
 import { matchTagTargets } from "@/lib/vault-tag-completions"
 import { VAULT_FOLDERS } from "@/lib/vault-folders"
@@ -68,6 +70,7 @@ import {
   MENU_TRASH_ID,
   NebulaAppearanceSection,
   NebulaModeToggle,
+  RecentNotesPreferencesSection,
   SearchPreferencesSection,
   SlackStatusPill,
   ThemeToggle,
@@ -249,7 +252,7 @@ export function AppShell() {
       setMenuShown(false)
     }
     // A root note row (README.md) also selects it in the tree.
-    if (noteIds.has(id)) setSelectedNote(id)
+    if (noteIds.has(id)) selectNote(id)
     // Leaving the tree for the bin: drop any half-typed create-input name.
     if (id === MENU_TRASH_ID) closeCreate()
     if (id === resolvedActive && panels.isOpen("content")) {
@@ -343,7 +346,17 @@ export function AppShell() {
   const [activePersona, setActivePersona] = useActivePersona()
   const [editorPrefs, setEditorPref] = useEditorPreferences()
   const [toolbarItems, setToolbarItems] = useToolbarItems()
-  const { isPinned, togglePin } = usePinnedNotes()
+  const { isPinned, togglePin, unpinMany, pinnedPaths } = usePinnedNotes()
+  const {
+    recentPaths,
+    shownCount,
+    setShownCount,
+    enabled: recentsEnabled,
+    setEnabled: setRecentsEnabled,
+    recordVisit,
+    removeFromRecents,
+    clearRecents,
+  } = useRecentNotes()
   const [notifyPrefs, setNotifyPref] = useNotificationPreferences()
   const [nebulaPrefs, setNebulaPref] = useNebulaPreferences()
   const [searchPrefs, setSearchPref] = useSearchPreferences()
@@ -386,7 +399,9 @@ export function AppShell() {
   React.useEffect(() => {
     const hasIdle = typeof window.requestIdleCallback === "function"
     const handle = hasIdle
-      ? window.requestIdleCallback(() => setNebulaReady(true), { timeout: 2000 })
+      ? window.requestIdleCallback(() => setNebulaReady(true), {
+          timeout: 2000,
+        })
       : window.setTimeout(() => setNebulaReady(true), 400)
     return () => {
       if (hasIdle) window.cancelIdleCallback(handle as number)
@@ -408,6 +423,11 @@ export function AppShell() {
   // re-fetched whenever the active persona changes so the sandbox follows the
   // switcher. Every folder row opens the same panel: the whole scoped tree.
   const [vaultTree, setVaultTree] = React.useState<VaultNode[]>([])
+  // The vault root's display name (master vault directory basename) — the
+  // leading segment of the editor's read-mode breadcrumb. `null` until the
+  // first `/api/vault/tree` response lands, or permanently if the backend
+  // has no `MASTER_VAULT_PATH` configured.
+  const [vaultName, setVaultName] = React.useState<string | null>(null)
   // Persisted across a refresh so the editor reopens on the same note instead
   // of coming back empty — same cookie convention as `active` (SECTION_COOKIE).
   const [selectedNote, setSelectedNote] = React.useState<string | undefined>(
@@ -416,19 +436,33 @@ export function AppShell() {
   React.useEffect(() => {
     setCookie(NOTE_COOKIE, selectedNote ?? "")
   }, [selectedNote])
+  // A note genuinely opened by the user (row click, wikilink, search result,
+  // newly created) — as opposed to `setSelectedNote` alone, used to just
+  // remap the still-open note's path after a rename or clear it after a
+  // delete, neither of which is a new "visit" worth recording.
+  const selectNote = React.useCallback(
+    (path: string) => {
+      setSelectedNote(path)
+      recordVisit(path)
+    },
+    [recordVisit]
+  )
   // Nebula node ids are the bare filename stem (`vault_manifest_build._stem`
   // on the backend), not the full vault-relative path — so whichever note
   // becomes active in the content panel can drive the ambient nebula's
   // focus/highlight (see `AmbientNebula`'s `activeNoteId`).
-  const activeNoteId = selectedNote?.split("/").pop()?.replace(/\.[^./]+$/, "")
+  const activeNoteId = selectedNote
+    ?.split("/")
+    .pop()
+    ?.replace(/\.[^./]+$/, "")
   // Bumped after a note is created (ADR-083) to re-pull the tree so the new
   // file shows up without a persona switch.
   const [vaultRefreshKey, setVaultRefreshKey] = React.useState(0)
   // `null` = no create-input open; otherwise which kind is being named, with
   // its current typed value in `createName`.
-  const [pendingCreate, setPendingCreate] = React.useState<"note" | "folder" | null>(
-    null
-  )
+  const [pendingCreate, setPendingCreate] = React.useState<
+    "note" | "folder" | null
+  >(null)
   const [createName, setCreateName] = React.useState("")
   const [creating, setCreating] = React.useState(false)
   // Filters `panelNodes` client-side (name/path substring match) rather than
@@ -437,17 +471,41 @@ export function AppShell() {
   // Settings / Agent, which the same toolbar field sits above but don't read
   // it.
   const [vaultSearch, setVaultSearch] = React.useState("")
+  // Search, like new note/folder, is an icon-toggled field rather than
+  // always-visible — collapsed by default, closing it also clears the query
+  // so the filtered view resets.
+  const [searchOpen, setSearchOpen] = React.useState(false)
   const closeCreate = () => {
     setPendingCreate(null)
     setCreateName("")
   }
+  const closeSearch = () => {
+    setSearchOpen(false)
+    setVaultSearch("")
+  }
+  // Toggling any of these fields open moves focus into it — the shared input
+  // element persists across the "note"/"folder" switch (no remount), so a
+  // plain `autoFocus` prop only fires once; re-focusing on every open has to
+  // go through an effect instead.
+  const searchInputRef = React.useRef<HTMLInputElement>(null)
+  const noteInputRef = React.useRef<HTMLInputElement>(null)
+  const folderInputRef = React.useRef<HTMLInputElement>(null)
+  React.useEffect(() => {
+    if (searchOpen) searchInputRef.current?.focus()
+  }, [searchOpen])
+  React.useEffect(() => {
+    if (pendingCreate === "note") noteInputRef.current?.focus()
+    else if (pendingCreate === "folder") folderInputRef.current?.focus()
+  }, [pendingCreate])
   // The vault panel shows the bin (ADR-085) instead of the tree when the
   // main-menu Bin row is the active section.
   const trashView = active === MENU_TRASH_ID
   React.useEffect(() => {
     let alive = true
-    fetchVaultTree(activePersona).then((tree) => {
-      if (alive) setVaultTree(tree)
+    fetchVaultTree(activePersona).then(({ tree, vaultName }) => {
+      if (!alive) return
+      setVaultTree(tree)
+      setVaultName(vaultName)
     })
     return () => {
       alive = false
@@ -475,7 +533,7 @@ export function AppShell() {
   const openWikilink = (target: string) => {
     const match = findNoteByWikilink(vaultTree, target)
     if (match) {
-      setSelectedNote(match.path)
+      selectNote(match.path)
       panels.open("editor")
     }
   }
@@ -542,6 +600,36 @@ export function AppShell() {
           vaultSearchQuery
         )
       : []
+
+  // Pinned is scoped to the current *root* folder (the top-level menu entry
+  // — `activeNode` itself, since the content panel never changes which
+  // top-level entry it's showing just because a nested subfolder inside it
+  // is expanded/collapsed) — not vault-wide, and not the immediate parent
+  // folder either: a note pinned anywhere under "Daily" shows while browsing
+  // Daily regardless of how deep it lives, but never mixes in with "Code"'s
+  // own pinned notes. A stale path (renamed/deleted since) or anything that
+  // resolves to a folder is silently dropped rather than shown broken.
+  const activeRootFolder =
+    activeNode?.type === "folder" ? activeNode : undefined
+  const pinnedNodes = activeRootFolder
+    ? pinnedPaths
+        .filter((path) => path.startsWith(`${activeRootFolder.path}/`))
+        .map((path) => findNodeByPath(vaultTree, path))
+        .filter((node): node is VaultNode => node?.type === "note")
+    : []
+  // A pinned row shown outside the folder it lives in only needs its full
+  // path spelled out when that root folder actually has nested subfolders
+  // (e.g. Daily's year/month structure) — a flat root folder's own bare
+  // filenames are already unambiguous.
+  const pinnedShowPath =
+    activeRootFolder?.children?.some((n) => n.type === "folder") ?? false
+
+  // Recent, unlike Pinned, is genuinely vault-wide (ADR-107) — each path is
+  // resolved against the *full* tree regardless of which folder is
+  // currently in view, so a note surfaces there no matter where it lives.
+  const recentNodes = recentPaths
+    .map((path) => findNodeByPath(vaultTree, path))
+    .filter((node): node is VaultNode => node?.type === "note")
   // Only gates the "this folder is empty" message — while searching, an
   // empty *current* folder shouldn't hide vault-wide matches found elsewhere.
   const panelEmpty = !vaultSearchQuery && panelNodes.length === 0
@@ -556,7 +644,7 @@ export function AppShell() {
     onSelect: (node: VaultNode) => {
       // Picking a note always brings the editor forward — same as creating
       // one (`onCreated`) or following a wikilink.
-      setSelectedNote(node.path)
+      selectNote(node.path)
       panels.open("editor")
     },
     persona: activePersona,
@@ -575,11 +663,14 @@ export function AppShell() {
     },
     onCreated: (path: string) => {
       setVaultRefreshKey((k) => k + 1)
-      setSelectedNote(path)
+      selectNote(path)
       panels.open("editor")
     },
     isPinned,
     onTogglePin: togglePin,
+    onUnpinAll: unpinMany,
+    onRemoveFromRecents: removeFromRecents,
+    onClearRecents: clearRecents,
     hideExtension: editorPrefs.hideExtension === "on",
   }
 
@@ -608,7 +699,7 @@ export function AppShell() {
     closeCreate()
     setVaultRefreshKey((k) => k + 1)
     if (kind === "note") {
-      setSelectedNote(`${target}.md`)
+      selectNote(`${target}.md`)
       panels.open("editor")
     }
     notify.success(`Created ${name}`)
@@ -655,101 +746,152 @@ export function AppShell() {
           <HugeiconsIcon icon={ArrowRight01Icon} className="size-4" />
         </button>
       </div>
-      <div className="flex min-w-0 flex-1 items-center justify-center px-1">
-        <div className="relative w-full max-w-56">
-          {vaultSearch ? (
+      <div className="flex items-center gap-0.5">
+        <div
+          className={cn(
+            // `h-7` on the wrapper (not just the input) is load-bearing: `w-0`
+            // only clips width, so an unconstrained-height input still pushes
+            // the whole toolbar row taller by its own natural line-height even
+            // while invisibly zero-width. Fixing the wrapper's height to match
+            // the buttons keeps the row at their 28px regardless.
+            "h-7 overflow-hidden rounded-[calc(var(--radius-md)-3px)] transition-[width] duration-snappy ease-snappy",
+            searchOpen ? "w-40" : "w-0"
+          )}
+        >
+          <div className="relative h-7 w-full">
+            <input
+              ref={searchInputRef}
+              type="text"
+              value={vaultSearch}
+              onChange={(e) => setVaultSearch(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") closeSearch()
+              }}
+              // A blur while the field still holds a query keeps it open —
+              // otherwise focusing the results below (or anything else) would
+              // wipe the query out from under the list it's filtering.
+              // Empty-field blur still auto-hides, same as new note/folder.
+              onBlur={() => {
+                if (!vaultSearch) closeSearch()
+              }}
+              placeholder="Search vault"
+              aria-label="Search vault"
+              tabIndex={searchOpen ? 0 : -1}
+              // Sized off stylo's own `.stylo-search-field` (the find/replace
+              // input this was modeled on): `radius-md - 3px`, not the toolbar's
+              // plain `rounded-md`, and its 11px `font-size` (sympose's own
+              // override of stylo's field, see index.css) — matching `text-sm`
+              // here read visibly larger and rounder than that reference field.
+              // New note/folder share this exact styling for visual parity.
+              className="h-7 w-full rounded-[calc(var(--radius-md)-3px)] border border-border bg-background py-1 pr-6 pl-2 text-[0.6875rem] outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+            />
+            {vaultSearch && (
+              <button
+                type="button"
+                // Runs before the input's blur, so the clear can't be read as
+                // "field went empty because it lost focus" and re-hide it.
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => {
+                  setVaultSearch("")
+                  searchInputRef.current?.focus()
+                }}
+                aria-label="Clear search"
+                className="absolute top-1/2 right-1.5 grid size-3.5 -translate-y-1/2 place-items-center rounded-full text-muted-foreground transition-colors hover:text-foreground"
+              >
+                <HugeiconsIcon icon={Cancel01Icon} className="size-3" />
+              </button>
+            )}
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={() => {
+            if (searchOpen) closeSearch()
+            else setSearchOpen(true)
+          }}
+          aria-label="Search vault"
+          aria-pressed={searchOpen}
+          className="grid size-7 shrink-0 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground aria-pressed:text-foreground"
+        >
+          <HugeiconsIcon icon={Search01Icon} className="size-4" />
+        </button>
+        {!isSentinel && (
+          <>
+            <div
+              className={cn(
+                "h-7 overflow-hidden rounded-[calc(var(--radius-md)-3px)] transition-[width] duration-snappy ease-snappy",
+                pendingCreate === "note" ? "w-40" : "w-0"
+              )}
+            >
+              <input
+                ref={noteInputRef}
+                value={pendingCreate === "note" ? createName : ""}
+                disabled={creating}
+                onChange={(e) => setCreateName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") void submitCreate()
+                  else if (e.key === "Escape") closeCreate()
+                }}
+                onBlur={closeCreate}
+                placeholder="Filename"
+                aria-label="New note filename"
+                tabIndex={pendingCreate === "note" ? 0 : -1}
+                className="h-7 w-full rounded-[calc(var(--radius-md)-3px)] border border-border bg-background px-2 text-[0.6875rem] outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:opacity-50"
+              />
+            </div>
             <button
               type="button"
-              onClick={() => setVaultSearch("")}
-              aria-label="Clear search"
-              className="absolute left-1.5 top-1/2 grid size-3.5 -translate-y-1/2 place-items-center rounded-full text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
-            >
-              <HugeiconsIcon icon={Cancel01Icon} className="size-3" />
-            </button>
-          ) : (
-            <HugeiconsIcon
-              icon={Search01Icon}
-              className="pointer-events-none absolute left-1.5 top-1/2 size-3 -translate-y-1/2 text-muted-foreground"
-            />
-          )}
-          <input
-            type="text"
-            value={vaultSearch}
-            onChange={(e) => setVaultSearch(e.target.value)}
-            placeholder="Search vault…"
-            aria-label="Search vault"
-            // Sized off stylo's own `.stylo-search-field` (the find/replace
-            // input this was modeled on): `radius-md - 3px`, not the toolbar's
-            // plain `rounded-md`, and its 11px `font-size` (sympose's own
-            // override of stylo's field, see index.css) — matching `text-sm`
-            // here read visibly larger and rounder than that reference field.
-            className="h-7 w-full rounded-[calc(var(--radius-md)-3px)] border border-border bg-background pl-6 pr-2 text-[0.6875rem] outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
-          />
-        </div>
-      </div>
-      {!isSentinel && (
-        <div className="flex items-center gap-0.5">
-          <div
-            className={cn(
-              // `h-7` here (not just on the input) is load-bearing: `w-0` only
-              // clips width, so an unconstrained-height input still pushes
-              // the whole toolbar row taller by its own natural line-height
-              // even while invisibly zero-width. Fixing the wrapper's height
-              // to match the buttons keeps the row at their 28px regardless.
-              "h-7 overflow-hidden rounded-md transition-[width] duration-snappy ease-snappy",
-              pendingCreate ? "w-40" : "w-0"
-            )}
-          >
-            <input
-              autoFocus
-              value={createName}
-              disabled={creating}
-              onChange={(e) => setCreateName(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") void submitCreate()
-                else if (e.key === "Escape") closeCreate()
-              }}
-              onBlur={closeCreate}
-              placeholder={
-                pendingCreate === "folder"
-                  ? "New folder name… ↵"
-                  : activeNode?.type === "folder"
-                    ? `New note in ${activeLabel}… ↵`
-                    : "New note name… ↵"
+              onClick={() =>
+                setPendingCreate((v) => {
+                  setCreateName("")
+                  return v === "note" ? null : "note"
+                })
               }
-              className="h-7 w-full rounded-md border border-border bg-background px-2 text-sm outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:opacity-50"
-            />
-          </div>
-          <button
-            type="button"
-            onClick={() =>
-              setPendingCreate((v) => {
-                setCreateName("")
-                return v === "note" ? null : "note"
-              })
-            }
-            aria-label="New note"
-            aria-pressed={pendingCreate === "note"}
-            className="grid size-7 shrink-0 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground aria-pressed:text-foreground"
-          >
-            <HugeiconsIcon icon={Add01Icon} className="size-4" />
-          </button>
-          <button
-            type="button"
-            onClick={() =>
-              setPendingCreate((v) => {
-                setCreateName("")
-                return v === "folder" ? null : "folder"
-              })
-            }
-            aria-label="New folder"
-            aria-pressed={pendingCreate === "folder"}
-            className="grid size-7 shrink-0 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground aria-pressed:text-foreground"
-          >
-            <HugeiconsIcon icon={FolderAddIcon} className="size-4" />
-          </button>
-        </div>
-      )}
+              aria-label="New note"
+              aria-pressed={pendingCreate === "note"}
+              className="grid size-7 shrink-0 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground aria-pressed:text-foreground"
+            >
+              <HugeiconsIcon icon={Add01Icon} className="size-4" />
+            </button>
+            <div
+              className={cn(
+                "h-7 overflow-hidden rounded-[calc(var(--radius-md)-3px)] transition-[width] duration-snappy ease-snappy",
+                pendingCreate === "folder" ? "w-40" : "w-0"
+              )}
+            >
+              <input
+                ref={folderInputRef}
+                value={pendingCreate === "folder" ? createName : ""}
+                disabled={creating}
+                onChange={(e) => setCreateName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") void submitCreate()
+                  else if (e.key === "Escape") closeCreate()
+                }}
+                onBlur={closeCreate}
+                placeholder="Folder name"
+                aria-label="New folder name"
+                tabIndex={pendingCreate === "folder" ? 0 : -1}
+                className="h-7 w-full rounded-[calc(var(--radius-md)-3px)] border border-border bg-background px-2 text-[0.6875rem] outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:opacity-50"
+              />
+            </div>
+            <button
+              type="button"
+              onClick={() =>
+                setPendingCreate((v) => {
+                  setCreateName("")
+                  return v === "folder" ? null : "folder"
+                })
+              }
+              aria-label="New folder"
+              aria-pressed={pendingCreate === "folder"}
+              className="grid size-7 shrink-0 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground aria-pressed:text-foreground"
+            >
+              <HugeiconsIcon icon={FolderAddIcon} className="size-4" />
+            </button>
+          </>
+        )}
+      </div>
     </div>
   )
 
@@ -778,6 +920,12 @@ export function AppShell() {
         <NotificationsSection prefs={notifyPrefs} setPref={setNotifyPref} />
         <NebulaAppearanceSection prefs={nebulaPrefs} setPref={setNebulaPref} />
         <SearchPreferencesSection prefs={searchPrefs} setPref={setSearchPref} />
+        <RecentNotesPreferencesSection
+          enabled={recentsEnabled}
+          setEnabled={setRecentsEnabled}
+          shownCount={shownCount}
+          setShownCount={setShownCount}
+        />
       </ControlSectionsProvider>
     ) : (
       <div className="flex flex-col gap-2">
@@ -799,15 +947,19 @@ export function AppShell() {
               </p>
             ) : (
               <>
-                {panelEmpty ? (
-                  <p className="text-sm text-fg-muted">
-                    This folder is empty.
-                  </p>
-                ) : searchedPanelNodes.length === 0 ? (
-                  <p className="text-sm text-fg-muted">
-                    No matches for "{vaultSearchQuery}" in {activeLabel}.
-                  </p>
-                ) : (
+                {panelEmpty && (
+                  <p className="text-sm text-fg-muted">This folder is empty.</p>
+                )}
+                {!panelEmpty &&
+                  vaultSearchQuery &&
+                  searchedPanelNodes.length === 0 && (
+                    <p className="text-sm text-fg-muted">
+                      No matches for "{vaultSearchQuery}" in {activeLabel}.
+                    </p>
+                  )}
+                {(searchedPanelNodes.length > 0 ||
+                  pinnedNodes.length > 0 ||
+                  recentNodes.length > 0) && (
                   <VaultTree
                     // Remounts between browsing and searching so a search's
                     // matching folders start expanded (`defaultExpanded`, a
@@ -815,6 +967,9 @@ export function AppShell() {
                     // expanded-folders cookie used the rest of the time.
                     key={vaultSearchQuery ? "search" : "browse"}
                     nodes={searchedPanelNodes}
+                    pinnedNodes={pinnedNodes}
+                    pinnedShowPath={pinnedShowPath}
+                    recentNodes={recentNodes}
                     defaultExpanded={
                       vaultSearchQuery
                         ? collectFolderPaths(searchedPanelNodes)
@@ -834,7 +989,7 @@ export function AppShell() {
                     instantMatches={beyondFolderMatches}
                     resultsPerPage={searchPrefs.resultsPerPage}
                     onSelect={(path) => {
-                      setSelectedNote(path)
+                      selectNote(path)
                       panels.open("editor")
                     }}
                   />
@@ -952,7 +1107,7 @@ export function AppShell() {
           already uses one level down; without it, this row's own box (not
           the panels inside it) is what elementFromPoint hits at a closed
           panel's location, and the click never reaches the nebula. */}
-      <div className="relative flex min-h-0 min-w-0 flex-1 overflow-hidden pointer-events-none">
+      <div className="pointer-events-none relative flex min-h-0 min-w-0 flex-1 overflow-hidden">
         <MainMenu
           items={menuItems}
           // above the stage so the content panel tucks *behind* it on hide
@@ -987,7 +1142,7 @@ export function AppShell() {
             hit-target above the always-bottom ambient nebula — each of its
             three children claims `pointer-events-auto` back explicitly, both
             open and closed, so ordinary interaction is unaffected. */}
-        <div className="relative flex min-w-0 flex-1 overflow-hidden pointer-events-none">
+        <div className="pointer-events-none relative flex min-w-0 flex-1 overflow-hidden">
           {!isPhone && (
             // `top-[10.5px]` centers this 32px-tall row (size-7 buttons + a
             // 2px pad, see `<ChatActionGroup>`) on the editor toolbar's own
@@ -1081,6 +1236,8 @@ export function AppShell() {
             }}
             isPinned={isPinned}
             onTogglePin={togglePin}
+            onNavigateToRootFolder={selectSection}
+            vaultName={vaultName}
             preferences={editorPrefs}
             toolbarItems={toolbarItems}
             open={editorOpen}

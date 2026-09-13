@@ -1,6 +1,7 @@
 import * as React from "react"
 import { HugeiconsIcon } from "@hugeicons/react"
 import {
+  Cancel01Icon,
   Delete02Icon,
   Edit01Icon,
   MoreHorizontalIcon,
@@ -38,11 +39,12 @@ import type { VaultNode } from "@/components/sympose/vault-tree"
  *   - a right-click (fine pointer) or ~450ms long-press (touch / pen) anywhere
  *     on the row, opening a pointer-anchored context menu
  *
- * Both carry the same rows — **note**: Pin / Unpin (local-only for now — prep
- * work ahead of a Pinned/Recent list, no vault write, no round-trip), Rename
- * (an inline field overlaid on the row) and Delete (asks first via
- * `confirm()` per the Notifications preference, then moved to `.trash/`,
- * recoverable from the Bin — ADR-085 / ADR-087); **folder**: New note here
+ * Both carry the same rows — **note**: Pin / Unpin (local-only, no vault
+ * write, no round-trip — ADR-092), "Remove from recents" (only when the row
+ * is rendered inside the vault-wide "Recent" group — ADR-107), Rename (an
+ * inline field overlaid on the row) and Delete (asks first via `confirm()`
+ * per the Notifications preference, then moved to `.trash/`, recoverable
+ * from the Bin — ADR-085 / ADR-087); **folder**: New note here
  * (`Folder/Untitled`, auto-numbered) and Delete (ADR-099) — an empty folder
  * goes straight away (nothing to lose), a folder with anything in it asks
  * first via `confirm()` same as a note, then moves as one unit to `.trash/`;
@@ -61,6 +63,7 @@ function VaultRowMenu({
   onCreated,
   pinned = false,
   onTogglePin,
+  onRemoveFromRecents,
 }: {
   node: VaultNode
   persona: string
@@ -81,6 +84,9 @@ function VaultRowMenu({
   /** Toggle this note's pinned state. Omit to hide the Pin/Unpin row entirely
    *  (e.g. the showcase's bare-tree demo, which wires no persona either). */
   onTogglePin?: (path: string) => void
+  /** This row is rendered inside the "Recent" group specifically — drop just
+   *  this one path out of the history. Omit outside that group. */
+  onRemoveFromRecents?: () => void
 }) {
   const isNote = node.type === "note"
   const stem = node.name.replace(/\.md$/i, "")
@@ -190,6 +196,12 @@ function VaultRowMenu({
         <DropdownMenuItem onClick={() => onTogglePin(node.path)}>
           <HugeiconsIcon icon={pinned ? PinOffIcon : PinIcon} />
           {pinned ? "Unpin note" : "Pin note"}
+        </DropdownMenuItem>
+      )}
+      {onRemoveFromRecents && (
+        <DropdownMenuItem onClick={onRemoveFromRecents}>
+          <HugeiconsIcon icon={Cancel01Icon} />
+          Remove from recents
         </DropdownMenuItem>
       )}
       <DropdownMenuItem onClick={() => setPendingRename(true)}>

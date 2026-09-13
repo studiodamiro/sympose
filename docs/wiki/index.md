@@ -100,6 +100,10 @@ list and is kept in sync per the
 
 | ADR | Title | Status | Date |
 | --- | ----- | ------ | ---- |
+| [ADR-109](../journal/2026-09/2026-09-13_adr-109-pinned-notes-scoped-to-root-folder.md) | Pinned Notes Scoped to Root Folder, Not Vault-Wide | Accepted | 2026-09-13 |
+| [ADR-108](../journal/2026-09/2026-09-13_adr-108-pinned-notes-vault-wide-recent-management.md) | Pinned Notes Promoted to a Vault-Wide Group; Recent Management + Toggle | Accepted | 2026-09-13 |
+| [ADR-107](../journal/2026-09/2026-09-13_adr-107-recent-notes-group.md) | Recent Notes: A Vault-Wide Group Under Pinned | Accepted | 2026-09-13 |
+| [ADR-106](../journal/2026-09/2026-09-13_adr-106-pinned-notes-per-folder-reorder.md) | Pinned Notes: Per-Folder Reorder in the Vault Tree | Accepted | 2026-09-13 |
 | [ADR-105](../journal/2026-09/2026-09-13_adr-105-vault-search-field.md) | Vault Search Field: Instant Client Filter, Backend Content Tier, Folder-Scoped Results | Accepted | 2026-09-13 |
 | [ADR-104](../journal/2026-09/2026-09-13_adr-104-directional-panel-slide-navigation.md) | Directional Slide for Content/Editor Panel Navigation | Accepted | 2026-09-13 |
 | [ADR-103](../journal/2026-09/2026-09-13_adr-103-vault-tree-exit-animation.md) | Vault-Tree Row Exit Animation on Delete | Accepted | 2026-09-13 |

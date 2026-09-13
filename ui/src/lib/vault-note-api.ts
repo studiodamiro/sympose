@@ -161,6 +161,31 @@ export async function renameVaultNote(
   }
 }
 
+/**
+ * Move a note into `destFolder` (vault-relative, `""` for the vault root) by
+ * calling `renameVaultNote` with a slash-qualified target — the same
+ * `PATCH /api/vault/note` endpoint already used for a same-folder rename
+ * (ADR-084) also relocates across folders when `new_path` carries a `/`, so
+ * this is the drag-and-drop client (ADR-110), not a new backend route. A drop
+ * back onto the note's current folder is a no-op resolved without a fetch,
+ * so dragging a row over its own folder never round-trips or risks the
+ * backend's own same-path `NOTE_EXISTS` check misreporting a clash.
+ */
+export async function moveVaultNote(
+  path: string,
+  destFolder: string,
+  persona: string
+): Promise<RenameVaultNoteResult> {
+  const stem = path.split("/").pop()!.replace(/\.md$/i, "")
+  const currentFolder = path.includes("/")
+    ? path.slice(0, path.lastIndexOf("/"))
+    : ""
+  if (destFolder === currentFolder) {
+    return { ok: true, path, detail: "" }
+  }
+  return renameVaultNote(path, destFolder ? `${destFolder}/${stem}` : stem, persona)
+}
+
 export type DeleteVaultNoteResult =
   | { ok: true; detail: string }
   | { ok: false; error: string }

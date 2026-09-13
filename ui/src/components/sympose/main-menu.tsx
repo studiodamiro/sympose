@@ -9,6 +9,7 @@ import {
 
 import { cn } from "@/lib/utils"
 import { useResizable } from "@/lib/use-resizable"
+import { isNoteDrag, readNoteDrag } from "@/lib/vault-drag"
 import { Logo } from "@/components/logo"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 
@@ -48,6 +49,10 @@ export interface MainMenuItem {
   id: string
   label: string
   icon: IconSvgElement
+  /** The underlying vault node's type — a root-level note (e.g. `README.md`)
+   *  renders identically to a folder row but isn't a valid drop target for
+   *  `onDropNote` (ADR-110): only "folder" items accept the drag. */
+  type?: "folder" | "note"
 }
 
 /**
@@ -78,6 +83,14 @@ interface MainMenuProps extends Omit<React.ComponentProps<"nav">, "onSelect"> {
    * underlying folder stays `<vault>/.trash/`, Obsidian's own convention.)
    */
   onSelectTrash?: () => void
+  /**
+   * A note dragged from the vault tree was dropped on a folder item's row
+   * (ADR-110): the note's own path, and the folder item's `id` (its
+   * vault-relative path). Omit to leave folder rows non-interactive drop
+   * targets — they render the same either way, only the drag affordance and
+   * highlight differ.
+   */
+  onDropNote?: (path: string, destFolder: string) => void
   /**
    * Account row: label plus, when the active persona is known, its icon and
    * accent for the avatar (falls back to the first letter on `bg-accent`).
@@ -147,6 +160,7 @@ function MainMenu({
   onOpenSettings,
   onSelectAccount,
   onSelectTrash,
+  onDropNote,
   account = { name: "Agent" },
   storageKey,
   hideChrome = false,
@@ -155,6 +169,7 @@ function MainMenu({
   ...props
 }: MainMenuProps) {
   const lastExpanded = React.useRef(MENU_MAX)
+  const [dragOverId, setDragOverId] = React.useState<string | null>(null)
 
   const {
     size: width,
@@ -262,6 +277,7 @@ function MainMenu({
       >
         {items.map((item) => {
           const active = item.id === activeId
+          const dropTarget = onDropNote && item.type !== "note"
           return (
             <li key={item.id}>
               <button
@@ -269,7 +285,43 @@ function MainMenu({
                 onClick={() => onSelectItem?.(item)}
                 aria-current={active ? "page" : undefined}
                 title={collapsed ? item.label : undefined}
-                className={cn(ROW, active ? ROW_ACTIVE : ROW_MUTED)}
+                className={cn(
+                  ROW,
+                  active ? ROW_ACTIVE : ROW_MUTED,
+                  dragOverId === item.id &&
+                    "rounded-md bg-accent/60 text-foreground ring-1 ring-inset ring-brand/60"
+                )}
+                onDragOver={
+                  dropTarget
+                    ? (e) => {
+                        if (!isNoteDrag(e)) return
+                        e.preventDefault()
+                        e.dataTransfer.dropEffect = "move"
+                      }
+                    : undefined
+                }
+                onDragEnter={
+                  dropTarget
+                    ? (e) => {
+                        if (!isNoteDrag(e)) return
+                        setDragOverId(item.id)
+                      }
+                    : undefined
+                }
+                onDragLeave={
+                  dropTarget ? () => setDragOverId(null) : undefined
+                }
+                onDrop={
+                  dropTarget
+                    ? (e) => {
+                        const path = readNoteDrag(e)
+                        if (!path) return
+                        e.preventDefault()
+                        setDragOverId(null)
+                        onDropNote(path, item.id)
+                      }
+                    : undefined
+                }
               >
                 <span className={SLOT}>
                   <HugeiconsIcon icon={item.icon} className="size-4.5" />

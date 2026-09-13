@@ -17,6 +17,7 @@ import {
 
 import { cn, stripMdExtension } from "@/lib/utils"
 import { getCookie, setCookie } from "@/lib/cookies"
+import { startNoteDrag, isNoteDrag, readNoteDrag } from "@/lib/vault-drag"
 import { useAnimatedNodeList } from "@/lib/use-animated-node-list"
 import { VaultRowMenu } from "@/components/sympose/vault-row-menu"
 import {
@@ -331,6 +332,14 @@ interface RowActions {
   isPinned?: (path: string) => boolean
   /** Toggle a note path's pinned state. */
   onTogglePin?: (path: string) => void
+  /**
+   * A note row was dragged onto a folder row (ADR-110): the note's own path,
+   * and the folder it was dropped on. Independent of `menuReady` — like
+   * `onTogglePin`, it needs no `persona` gate of its own — so wiring just
+   * this alone is enough to make note rows draggable and folder rows drop
+   * targets, no rename/delete/create callbacks required.
+   */
+  onMoveNote?: (path: string, destFolder: string) => void
 }
 
 interface VaultTreeProps
@@ -392,6 +401,7 @@ function VaultTree({
   onCreated,
   isPinned,
   onTogglePin,
+  onMoveNote,
   hideExtension = false,
   pinnedNodes = NO_CHILDREN,
   pinnedShowPath = false,
@@ -432,6 +442,7 @@ function VaultTree({
     onCreated,
     isPinned,
     onTogglePin,
+    onMoveNote,
   }
 
   return (
@@ -566,6 +577,29 @@ function VaultTreeRow({
   const isSelected = selectedPath === node.path
   const basePad = depth * 14
   const pinned = node.type === "note" && !!actions.isPinned?.(node.path)
+  const [dragOver, setDragOver] = React.useState(false)
+  const canMove = !!actions.onMoveNote
+  const folderDropProps: React.HTMLAttributes<HTMLButtonElement> = canMove
+    ? {
+        onDragOver: (e) => {
+          if (!isNoteDrag(e)) return
+          e.preventDefault()
+          e.dataTransfer.dropEffect = "move"
+        },
+        onDragEnter: (e) => {
+          if (!isNoteDrag(e)) return
+          setDragOver(true)
+        },
+        onDragLeave: () => setDragOver(false),
+        onDrop: (e) => {
+          const path = readNoteDrag(e)
+          if (!path) return
+          e.preventDefault()
+          setDragOver(false)
+          actions.onMoveNote!(path, node.path)
+        },
+      }
+    : {}
 
   // Called unconditionally (a note has no children, so this just tracks an
   // empty list) rather than only inside the folder branch below — `node.type`
@@ -642,8 +676,10 @@ function VaultTreeRow({
             style={{ paddingLeft: `${basePad}px` }}
             className={cn(
               "flex min-w-0 flex-1 items-center gap-1.5 py-1 pr-8 text-left text-muted-foreground transition-colors hover:text-foreground",
-              "focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
+              "focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none",
+              dragOver && "rounded-md bg-accent/60 text-foreground ring-1 ring-inset ring-brand/60"
             )}
+            {...folderDropProps}
           >
             <HugeiconsIcon
               icon={ArrowRight01Icon}
@@ -699,6 +735,8 @@ function VaultTreeRow({
         <button
           type="button"
           onClick={() => onSelect?.(node)}
+          draggable={canMove}
+          onDragStart={canMove ? (e) => startNoteDrag(e, node.path) : undefined}
           // Nested notes align under the parent folder's label (+20 clears the
           // disclosure chevron); top-level notes have no folder above them, so
           // they sit flush with the panel gutter (matching Settings / Agent).

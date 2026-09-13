@@ -100,6 +100,8 @@ list and is kept in sync per the
 
 | ADR | Title | Status | Date |
 | --- | ----- | ------ | ---- |
+| [ADR-111](../journal/2026-09/2026-09-13_adr-111-drag-drop-target-for-folder-in-view.md) | Drop Target for the Folder Currently in View (amends ADR-110) | Accepted | 2026-09-13 |
+| [ADR-110](../journal/2026-09/2026-09-13_adr-110-drag-and-drop-vault-note-moves.md) | Drag-and-Drop Note Moves: Vault Tree and Main Menu | Accepted | 2026-09-13 |
 | [ADR-109](../journal/2026-09/2026-09-13_adr-109-pinned-notes-scoped-to-root-folder.md) | Pinned Notes Scoped to Root Folder, Not Vault-Wide | Accepted | 2026-09-13 |
 | [ADR-108](../journal/2026-09/2026-09-13_adr-108-pinned-notes-vault-wide-recent-management.md) | Pinned Notes Promoted to a Vault-Wide Group; Recent Management + Toggle | Accepted | 2026-09-13 |
 | [ADR-107](../journal/2026-09/2026-09-13_adr-107-recent-notes-group.md) | Recent Notes: A Vault-Wide Group Under Pinned | Accepted | 2026-09-13 |

@@ -46,7 +46,12 @@ import {
   type LivePersona,
 } from "@/lib/personas"
 import { fetchVaultTree } from "@/lib/vault-tree-api"
-import { createVaultNote, createVaultFolder } from "@/lib/vault-note-api"
+import {
+  createVaultNote,
+  createVaultFolder,
+  moveVaultNote,
+} from "@/lib/vault-note-api"
+import { isNoteDrag, readNoteDrag } from "@/lib/vault-drag"
 import { findNoteByWikilink } from "@/lib/find-note-by-wikilink"
 import { findNodeByPath } from "@/lib/find-node-by-path"
 import { matchWikilinkTargets } from "@/lib/vault-wikilink-completions"
@@ -523,6 +528,7 @@ export function AppShell() {
         ? stripMdExtension(node.name)
         : node.name,
     icon: menuIconFor(node),
+    type: node.type,
   }))
   const noteIds = new Set(
     vaultTree.filter((n) => n.type === "note").map((n) => n.path)
@@ -651,6 +657,29 @@ export function AppShell() {
 
   const activeLabel = SECTION_LABELS[resolvedActive] ?? resolvedActive
 
+  // Highlight state for the "drop here to move to the root of the folder
+  // currently in view" target below — the folder heading itself, since
+  // `<VaultTree>` only ever renders *that* folder's own subtree (its
+  // children), never a row for the folder itself to drop onto (ADR-110.1).
+  const [dragOverRootHeading, setDragOverRootHeading] = React.useState(false)
+
+  // Drag-and-drop a note onto a folder row — either a subfolder inside the
+  // tree currently in view, or a root folder in the main menu (ADR-110).
+  // Both drop surfaces hand this the same (path, destFolder) pair; the
+  // no-op case (dropped back on its own folder) resolves without a fetch
+  // inside `moveVaultNote` itself, so nothing here needs to guard it.
+  const moveNote = async (path: string, destFolder: string) => {
+    const res = await moveVaultNote(path, destFolder, activePersona)
+    if (!res.ok) {
+      notify.error(res.error)
+      return
+    }
+    if (res.path === path) return
+    setVaultRefreshKey((k) => k + 1)
+    if (selectedNote === path) setSelectedNote(res.path)
+    notify.success(res.detail)
+  }
+
   // Shared row callbacks for both `<VaultTree>` instances below (the folder
   // in view, and the "beyond {activeLabel}" tier) — identical behavior
   // either way, just spread onto each with its own `nodes`/`key`.
@@ -683,6 +712,7 @@ export function AppShell() {
     },
     isPinned,
     onTogglePin: togglePin,
+    onMoveNote: moveNote,
     onUnpinAll: unpinMany,
     onRemoveFromRecents: removeFromRecents,
     onClearRecents: clearRecents,
@@ -944,7 +974,46 @@ export function AppShell() {
       </ControlSectionsProvider>
     ) : (
       <div className="flex flex-col gap-2">
-        <h2 className="font-heading text-2xl font-semibold text-fg-strong">
+        <h2
+          className={cn(
+            "-mx-2 w-fit rounded-md px-2 font-heading text-2xl font-semibold text-fg-strong transition-colors",
+            dragOverRootHeading &&
+              "bg-accent/60 ring-1 ring-inset ring-brand/60"
+          )}
+          onDragOver={
+            activeRootFolder
+              ? (e) => {
+                  if (!isNoteDrag(e)) return
+                  e.preventDefault()
+                  e.dataTransfer.dropEffect = "move"
+                }
+              : undefined
+          }
+          onDragEnter={
+            activeRootFolder
+              ? (e) => {
+                  if (!isNoteDrag(e)) return
+                  setDragOverRootHeading(true)
+                }
+              : undefined
+          }
+          onDragLeave={
+            activeRootFolder
+              ? () => setDragOverRootHeading(false)
+              : undefined
+          }
+          onDrop={
+            activeRootFolder
+              ? (e) => {
+                  const path = readNoteDrag(e)
+                  if (!path) return
+                  e.preventDefault()
+                  setDragOverRootHeading(false)
+                  moveNote(path, activeRootFolder.path)
+                }
+              : undefined
+          }
+        >
           {trashView ? "Bin" : activeLabel || "Vault"}
         </h2>
         {trashView ? (
@@ -1134,6 +1203,7 @@ export function AppShell() {
           onOpenSettings={() => selectSection(MENU_SETTINGS_ID)}
           onSelectAccount={() => selectSection(MENU_ACCOUNT_ID)}
           onSelectTrash={() => selectSection(MENU_TRASH_ID)}
+          onDropNote={moveNote}
           account={{
             name: activeAgentName,
             icon: activeAgentVisuals.icon,

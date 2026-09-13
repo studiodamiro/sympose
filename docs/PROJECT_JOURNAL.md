@@ -25,6 +25,8 @@ one in [`docs/wiki/index.md`](./wiki/index.md) are kept in sync per the
 
 | ADR | Title | Status | Date | Source |
 | --- | ----- | ------ | ---- | ------ |
+| ADR-111 | Drop Target for the Folder Currently in View (amends ADR-110) | Accepted | 2026-09-13 | [2026-09-13_adr-111-drag-drop-target-for-folder-in-view.md](./journal/2026-09/2026-09-13_adr-111-drag-drop-target-for-folder-in-view.md) |
+| ADR-110 | Drag-and-Drop Note Moves: Vault Tree and Main Menu | Accepted | 2026-09-13 | [2026-09-13_adr-110-drag-and-drop-vault-note-moves.md](./journal/2026-09/2026-09-13_adr-110-drag-and-drop-vault-note-moves.md) |
 | ADR-109 | Pinned Notes Scoped to Root Folder, Not Vault-Wide | Accepted | 2026-09-13 | [2026-09-13_adr-109-pinned-notes-scoped-to-root-folder.md](./journal/2026-09/2026-09-13_adr-109-pinned-notes-scoped-to-root-folder.md) |
 | ADR-108 | Pinned Notes Promoted to a Vault-Wide Group; Recent Management + Toggle | Accepted | 2026-09-13 | [2026-09-13_adr-108-pinned-notes-vault-wide-recent-management.md](./journal/2026-09/2026-09-13_adr-108-pinned-notes-vault-wide-recent-management.md) |
 | ADR-107 | Recent Notes: A Vault-Wide Group Under Pinned | Accepted | 2026-09-13 | [2026-09-13_adr-107-recent-notes-group.md](./journal/2026-09/2026-09-13_adr-107-recent-notes-group.md) |

@@ -7,176 +7,186 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
-    --background: oklch(1 0 0);
-    --foreground: oklch(0.141 0.005 285.823);
-    --card: oklch(1 0 0);
-    --card-foreground: oklch(0.141 0.005 285.823);
-    --popover: oklch(1 0 0);
-    --popover-foreground: oklch(0.141 0.005 285.823);
-    --primary: oklch(0.21 0.006 285.885);
-    --primary-foreground: oklch(0.985 0 0);
-    --secondary: oklch(0.967 0.001 286.375);
-    --secondary-foreground: oklch(0.21 0.006 285.885);
-    --muted: oklch(0.967 0.001 286.375);
-    /* Darkened from shadcn's stock 0.552 — against `--panel` (0.967, the
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.141 0.005 285.823);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.141 0.005 285.823);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.141 0.005 285.823);
+  --primary: oklch(0.21 0.006 285.885);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.967 0.001 286.375);
+  --secondary-foreground: oklch(0.21 0.006 285.885);
+  --muted: oklch(0.967 0.001 286.375);
+  /* Darkened from shadcn's stock 0.552 — against `--panel` (0.967, the
        editor and every raised surface's background) that read as 4.39:1,
        just under WCAG AA's 4.5:1 for normal text. 0.53 clears it with margin
        (4.81:1) app-wide, not just in the editor, since every other
        muted-foreground spot (chat body text, timestamps) sits on the same
        kind of surface. */
-    --muted-foreground: oklch(0.53 0.016 285.938);
-    --accent: oklch(0.967 0.001 286.375);
-    --accent-foreground: oklch(0.21 0.006 285.885);
-    --destructive: oklch(0.577 0.245 27.325);
-    --border: oklch(0.92 0.004 286.32);
-    --input: oklch(0.92 0.004 286.32);
-    --ring: oklch(0.705 0.015 286.067);
-    --chart-1: oklch(0.865 0.127 207.078);
-    --chart-2: oklch(0.715 0.143 215.221);
-    --chart-3: oklch(0.609 0.126 221.723);
-    --chart-4: oklch(0.52 0.105 223.128);
-    --chart-5: oklch(0.45 0.085 224.283);
-    --radius: 0.625rem;
-    --sidebar: oklch(0.985 0 0);
-    --sidebar-foreground: oklch(0.141 0.005 285.823);
-    --sidebar-primary: oklch(0.21 0.006 285.885);
-    --sidebar-primary-foreground: oklch(0.985 0 0);
-    --sidebar-accent: oklch(0.967 0.001 286.375);
-    --sidebar-accent-foreground: oklch(0.21 0.006 285.885);
-    --sidebar-border: oklch(0.92 0.004 286.32);
-    --sidebar-ring: oklch(0.705 0.015 286.067);
+  --muted-foreground: oklch(0.53 0.016 285.938);
+  --accent: oklch(0.967 0.001 286.375);
+  --accent-foreground: oklch(0.21 0.006 285.885);
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: oklch(0.92 0.004 286.32);
+  --input: oklch(0.92 0.004 286.32);
+  --ring: oklch(0.705 0.015 286.067);
+  --chart-1: oklch(0.865 0.127 207.078);
+  --chart-2: oklch(0.715 0.143 215.221);
+  --chart-3: oklch(0.609 0.126 221.723);
+  --chart-4: oklch(0.52 0.105 223.128);
+  --chart-5: oklch(0.45 0.085 224.283);
+  --radius: 0.625rem;
+  --sidebar: oklch(0.985 0 0);
+  --sidebar-foreground: oklch(0.141 0.005 285.823);
+  --sidebar-primary: oklch(0.21 0.006 285.885);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.967 0.001 286.375);
+  --sidebar-accent-foreground: oklch(0.21 0.006 285.885);
+  --sidebar-border: oklch(0.92 0.004 286.32);
+  --sidebar-ring: oklch(0.705 0.015 286.067);
 
-    /* Sympose semantic accents — Flat Sovereign Craft §3.2 (mirrors the CLI
+  /* Sympose semantic accents — Flat Sovereign Craft §3.2 (mirrors the CLI
        design system, ADR-047). Layered on top of the base preset; the preset's
        own background / foreground / primary are left untouched. */
-    --brand: oklch(0.55 0.13 233);            /* cyan family — primary headings, active nav */
-    --brand-foreground: oklch(0.985 0 0);
-    --ok: oklch(0.6 0.13 163);                /* success / active / on-device */
-    --ok-foreground: oklch(0.985 0 0);
-    --danger: var(--destructive);             /* error / missing */
-    --entity: oklch(0.52 0.2 305);            /* file paths, [[wikilinks]], note titles */
-    --entity-foreground: oklch(0.985 0 0);
-    --chip: oklch(0.94 0.002 286.375);        /* @handle pills, inline code, kbd background */
-    --chip-foreground: oklch(0.5 0.12 74);    /* amber-on-grey */
-    --fg-strong: oklch(0.141 0.005 285.823);  /* category subheaders */
-    --fg-muted: oklch(0.552 0.016 285.938);   /* timestamps, token counts, ms readouts */
-    --panel: oklch(0.967 0.001 286.375);      /* raised working surface — distinct from --background in both modes (--card is not, in light) */
-    --panel-foreground: oklch(0.141 0.005 285.823);
+  --brand: oklch(
+    0.55 0.13 233
+  ); /* cyan family — primary headings, active nav */
+  --brand-foreground: oklch(0.985 0 0);
+  --ok: oklch(0.6 0.13 163); /* success / active / on-device */
+  --ok-foreground: oklch(0.985 0 0);
+  --danger: var(--destructive); /* error / missing */
+  --entity: oklch(0.52 0.2 305); /* file paths, [[wikilinks]], note titles */
+  --entity-foreground: oklch(0.985 0 0);
+  --chip: oklch(
+    0.94 0.002 286.375
+  ); /* @handle pills, inline code, kbd background */
+  --chip-foreground: oklch(0.5 0.12 74); /* amber-on-grey */
+  --fg-strong: oklch(0.141 0.005 285.823); /* category subheaders */
+  --fg-muted: oklch(
+    0.552 0.016 285.938
+  ); /* timestamps, token counts, ms readouts */
+  --panel: oklch(
+    0.967 0.001 286.375
+  ); /* raised working surface — distinct from --background in both modes (--card is not, in light) */
+  --panel-foreground: oklch(0.141 0.005 285.823);
 }
 
 .dark {
-    --background: oklch(0.141 0.005 285.823);
-    --foreground: oklch(0.985 0 0);
-    --card: oklch(0.21 0.006 285.885);
-    --card-foreground: oklch(0.985 0 0);
-    --popover: oklch(0.21 0.006 285.885);
-    --popover-foreground: oklch(0.985 0 0);
-    --primary: oklch(0.92 0.004 286.32);
-    --primary-foreground: oklch(0.21 0.006 285.885);
-    --secondary: oklch(0.274 0.006 286.033);
-    --secondary-foreground: oklch(0.985 0 0);
-    --muted: oklch(0.274 0.006 286.033);
-    --muted-foreground: oklch(0.705 0.015 286.067);
-    --accent: oklch(0.274 0.006 286.033);
-    --accent-foreground: oklch(0.985 0 0);
-    --destructive: oklch(0.704 0.191 22.216);
-    --border: oklch(1 0 0 / 10%);
-    --input: oklch(1 0 0 / 15%);
-    --ring: oklch(0.552 0.016 285.938);
-    --chart-1: oklch(0.865 0.127 207.078);
-    --chart-2: oklch(0.715 0.143 215.221);
-    --chart-3: oklch(0.609 0.126 221.723);
-    --chart-4: oklch(0.52 0.105 223.128);
-    --chart-5: oklch(0.45 0.085 224.283);
-    --sidebar: oklch(0.21 0.006 285.885);
-    --sidebar-foreground: oklch(0.985 0 0);
-    --sidebar-primary: oklch(0.488 0.243 264.376);
-    --sidebar-primary-foreground: oklch(0.985 0 0);
-    --sidebar-accent: oklch(0.274 0.006 286.033);
-    --sidebar-accent-foreground: oklch(0.985 0 0);
-    --sidebar-border: oklch(1 0 0 / 10%);
-    --sidebar-ring: oklch(0.552 0.016 285.938);
+  --background: oklch(0.141 0.005 285.823);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.21 0.006 285.885);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.21 0.006 285.885);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.92 0.004 286.32);
+  --primary-foreground: oklch(0.21 0.006 285.885);
+  --secondary: oklch(0.274 0.006 286.033);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.274 0.006 286.033);
+  --muted-foreground: oklch(0.705 0.015 286.067);
+  --accent: oklch(0.274 0.006 286.033);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.552 0.016 285.938);
+  --chart-1: oklch(0.865 0.127 207.078);
+  --chart-2: oklch(0.715 0.143 215.221);
+  --chart-3: oklch(0.609 0.126 221.723);
+  --chart-4: oklch(0.52 0.105 223.128);
+  --chart-5: oklch(0.45 0.085 224.283);
+  --sidebar: oklch(0.21 0.006 285.885);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.488 0.243 264.376);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.274 0.006 286.033);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.552 0.016 285.938);
 
-    /* Sympose semantic accents — dark (Obsidian Matte-leaning) */
-    --brand: oklch(0.78 0.13 220);
-    --brand-foreground: oklch(0.21 0.006 285.885);
-    --ok: oklch(0.78 0.14 165);
-    --ok-foreground: oklch(0.21 0.006 285.885);
-    --danger: var(--destructive);
-    --entity: oklch(0.78 0.14 305);
-    --entity-foreground: oklch(0.21 0.006 285.885);
-    --chip: oklch(0.274 0.006 286.033);
-    --chip-foreground: oklch(0.84 0.13 85);
-    --fg-strong: oklch(0.985 0 0);
-    --fg-muted: oklch(0.705 0.015 286.067);
-    --panel: oklch(0.21 0.006 285.885);       /* raised working surface (matches the approved dark shade) */
-    --panel-foreground: oklch(0.985 0 0);
+  /* Sympose semantic accents — dark (Obsidian Matte-leaning) */
+  --brand: oklch(0.78 0.13 220);
+  --brand-foreground: oklch(0.21 0.006 285.885);
+  --ok: oklch(0.78 0.14 165);
+  --ok-foreground: oklch(0.21 0.006 285.885);
+  --danger: var(--destructive);
+  --entity: oklch(0.78 0.14 305);
+  --entity-foreground: oklch(0.21 0.006 285.885);
+  --chip: oklch(0.274 0.006 286.033);
+  --chip-foreground: oklch(0.84 0.13 85);
+  --fg-strong: oklch(0.985 0 0);
+  --fg-muted: oklch(0.705 0.015 286.067);
+  --panel: oklch(
+    0.21 0.006 285.885
+  ); /* raised working surface (matches the approved dark shade) */
+  --panel-foreground: oklch(0.985 0 0);
 }
 
 @theme inline {
-    --font-sans: 'Inter Variable', sans-serif;
-    --font-heading: 'Merriweather Variable', serif;
-    --color-sidebar-ring: var(--sidebar-ring);
-    --color-sidebar-border: var(--sidebar-border);
-    --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-    --color-sidebar-accent: var(--sidebar-accent);
-    --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-    --color-sidebar-primary: var(--sidebar-primary);
-    --color-sidebar-foreground: var(--sidebar-foreground);
-    --color-sidebar: var(--sidebar);
-    --color-chart-5: var(--chart-5);
-    --color-chart-4: var(--chart-4);
-    --color-chart-3: var(--chart-3);
-    --color-chart-2: var(--chart-2);
-    --color-chart-1: var(--chart-1);
-    --color-ring: var(--ring);
-    --color-input: var(--input);
-    --color-border: var(--border);
-    --color-destructive: var(--destructive);
-    --color-accent-foreground: var(--accent-foreground);
-    --color-accent: var(--accent);
-    --color-muted-foreground: var(--muted-foreground);
-    --color-muted: var(--muted);
-    --color-secondary-foreground: var(--secondary-foreground);
-    --color-secondary: var(--secondary);
-    --color-primary-foreground: var(--primary-foreground);
-    --color-primary: var(--primary);
-    --color-popover-foreground: var(--popover-foreground);
-    --color-popover: var(--popover);
-    --color-card-foreground: var(--card-foreground);
-    --color-card: var(--card);
-    --color-foreground: var(--foreground);
-    --color-background: var(--background);
-    --color-brand: var(--brand);
-    --color-brand-foreground: var(--brand-foreground);
-    --color-ok: var(--ok);
-    --color-ok-foreground: var(--ok-foreground);
-    --color-danger: var(--danger);
-    --color-entity: var(--entity);
-    --color-entity-foreground: var(--entity-foreground);
-    --color-chip: var(--chip);
-    --color-chip-foreground: var(--chip-foreground);
-    --color-fg-strong: var(--fg-strong);
-    --color-fg-muted: var(--fg-muted);
-    --color-panel: var(--panel);
-    --color-panel-foreground: var(--panel-foreground);
-    --radius-sm: calc(var(--radius) * 0.6);
-    --radius-md: calc(var(--radius) * 0.8);
-    --radius-lg: var(--radius);
-    --radius-xl: calc(var(--radius) * 1.4);
-    --radius-2xl: calc(var(--radius) * 1.8);
-    --radius-3xl: calc(var(--radius) * 2.2);
-    --radius-4xl: calc(var(--radius) * 2.6);
+  --font-sans: "Inter Variable", sans-serif;
+  --font-heading: "Merriweather Variable", serif;
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --color-foreground: var(--foreground);
+  --color-background: var(--background);
+  --color-brand: var(--brand);
+  --color-brand-foreground: var(--brand-foreground);
+  --color-ok: var(--ok);
+  --color-ok-foreground: var(--ok-foreground);
+  --color-danger: var(--danger);
+  --color-entity: var(--entity);
+  --color-entity-foreground: var(--entity-foreground);
+  --color-chip: var(--chip);
+  --color-chip-foreground: var(--chip-foreground);
+  --color-fg-strong: var(--fg-strong);
+  --color-fg-muted: var(--fg-muted);
+  --color-panel: var(--panel);
+  --color-panel-foreground: var(--panel-foreground);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
 
-    /* Motion tiers (ADR-101/102), easing half — `--ease-*` is a real
+  /* Motion tiers (ADR-101/102), easing half — `--ease-*` is a real
        Tailwind v4 theme namespace, so this generates `ease-snappy` /
        `ease-mode` directly. `--duration-*` is not a themeable namespace
        (unlike `--color-*`/`--radius-*` above), so the duration half of each
        tier is defined as an explicit `@utility` below instead. `thumb`
        (ADR-102) reuses the same `ease-out` curve as `snappy` — only its
        duration differs — so it has no separate `--ease-thumb`. */
-    --ease-snappy: cubic-bezier(0, 0, 0.2, 1);      /* ease-out */
-    --ease-mode: cubic-bezier(0.4, 0, 0.2, 1);      /* ease-in-out */
+  --ease-snappy: cubic-bezier(0, 0, 0.2, 1); /* ease-out */
+  --ease-mode: cubic-bezier(0.4, 0, 0.2, 1); /* ease-in-out */
 }
 
 /* Motion tiers (ADR-101/102), duration half. `snappy` is small collapse/width
@@ -204,28 +214,28 @@
    animation and verified with a scratch Playwright check
    (`getComputedStyle(row).animationDuration`) before and after this fix. */
 @utility duration-snappy {
-    --tw-duration: 150ms;
-    transition-duration: 150ms;
+  --tw-duration: 150ms;
+  transition-duration: 150ms;
 }
 @utility duration-thumb {
-    --tw-duration: 300ms;
-    transition-duration: 300ms;
+  --tw-duration: 300ms;
+  transition-duration: 300ms;
 }
 @utility duration-mode {
-    --tw-duration: 350ms;
-    transition-duration: 350ms;
+  --tw-duration: 350ms;
+  transition-duration: 350ms;
 }
 
 @layer base {
   * {
     @apply border-border outline-ring/50;
-    }
+  }
   body {
     @apply bg-background text-foreground;
-    }
+  }
   html {
     @apply font-sans;
-    }
+  }
 }
 
 /* Bridges stylo's `--stylo-*` tokens (ADR-002) onto Sympose's own — every
@@ -407,7 +417,9 @@
 [data-slot="markdown-panel"] .cm-inplace-h4,
 [data-slot="markdown-panel"] .cm-inplace-h5,
 [data-slot="markdown-panel"] .cm-inplace-h6,
-[data-slot="markdown-panel"] [data-stylo-mode="preview"] :is(h1, h2, h3, h4, h5, h6) {
+[data-slot="markdown-panel"]
+  [data-stylo-mode="preview"]
+  :is(h1, h2, h3, h4, h5, h6) {
   font-family: var(--font-heading) !important;
 }
 /* Full-contrast against the muted `--stylo-text` body color above, matching
@@ -423,7 +435,9 @@
 [data-slot="markdown-panel"] .cm-inplace-h3,
 [data-slot="markdown-panel"] .cm-inplace-h4,
 [data-slot="markdown-panel"] .cm-inplace-h5,
-[data-slot="markdown-panel"] [data-stylo-mode="preview"] :is(h1, h2, h3, h4, h5) {
+[data-slot="markdown-panel"]
+  [data-stylo-mode="preview"]
+  :is(h1, h2, h3, h4, h5) {
   color: var(--fg-strong) !important;
 }
 
@@ -515,6 +529,41 @@
 }
 [data-slot="markdown-panel"] [data-stylo-mode="preview"] li > :is(ul, ol) {
   margin: 0 !important;
+}
+/* `list-style: disc` above (restoring Tailwind's stripped markers) applies
+   indiscriminately to every `<li>`, task items included — remark-gfm marks
+   a task item `<li class="task-list-item">` and renders its own checkbox
+   as inline content, so a bullet next to the checkbox is a marker on top
+   of a marker, not two different pieces of information. In-place has
+   nothing to match here either (no real `<li>` at all), so this follows
+   the more common convention instead (GitHub, Obsidian, VS Code preview):
+   the checkbox replaces the bullet, it doesn't sit beside it. A direct
+   `list-style` on the `<li>` itself wins over the inherited value from its
+   `<ul>` regardless of specificity, so `!important` here is redundant but
+   kept for consistency with the rest of this block. */
+[data-slot="markdown-panel"] [data-stylo-mode="preview"] li.task-list-item {
+  list-style: none !important;
+  margin-left: -0.25em !important;
+}
+/* `list-style: none` above removes the reserved marker gutter that a
+   bullet/number draws into without consuming any of the `<li>`'s own
+   content box — so a bare checkbox, being ordinary inline content, pushes
+   the text after it rightward by the checkbox's own rendered width,
+   landing noticeably further right than bullet/ordered text starting at
+   the same `<li>` edge. Fixed size (`1em`) makes the checkbox's footprint
+   knowable instead of native/OS-dependent, and a `margin-left` equal to
+   `-(width + margin-right)` cancels exactly regardless of root font size
+   — net horizontal contribution zero, so the text lands back on the same
+   edge bullet/ordered text does, by construction rather than a tuned
+   pixel guess. */
+[data-slot="markdown-panel"]
+  [data-stylo-mode="preview"]
+  li.task-list-item
+  > input[type="checkbox"] {
+  width: 1em;
+  height: 1em;
+  margin: 0 0.2em 0 -1.2em;
+  vertical-align: middle;
 }
 
 /* stylo's own `.cm-content` gutter (`0.75rem` on every side) is narrower than
@@ -676,10 +725,26 @@
    table across the pane; the gizmo buttons still track the table's real edges
    via `getBoundingClientRect()` at runtime, not CSS, so this doesn't disturb
    them. `!important`: stylo injects both rules as a CodeMirror
-   `EditorView.theme()` stylesheet whose insertion order we can't rely on. */
+   `EditorView.theme()` stylesheet whose insertion order we can't rely on.
+
+   The wrap also carries its own `padding: 0 calc(1.15em + 4px) calc(1.15em
+   + 4px) 0` (reserving room on the right/bottom for those gizmo buttons to
+   sit past the table's actual edge) and a still-active `max-width: 100%`
+   that we don't override above. Under the default `box-sizing: content-box`,
+   `width: 100%` sets the *content* box to 100%, that padding is added on
+   top of it, and `max-width: 100%` then clamps the resulting border box
+   back down — shrinking the usable content width by exactly the padding
+   amount (confirmed live: the table measured ~20px narrower than the
+   editor's real available width, matching `calc(1.15em + 4px)` at this
+   font size almost exactly). `border-box` makes `width: 100%` describe the
+   *outer* edge instead, so the wrap's right/bottom edge lands flush with
+   the editor's content width same as preview's table does, with the
+   gizmo-reserving padding now living inside that box instead of being
+   added past it. */
 [data-slot="markdown-panel"] .cm-inplace-table-wrap {
   display: block !important;
   width: 100% !important;
+  box-sizing: border-box !important;
 }
 [data-slot="markdown-panel"] .cm-inplace-table {
   width: 100% !important;
@@ -692,6 +757,38 @@
    shrink-to-fit ancestor standing in the way. */
 [data-slot="markdown-panel"] [data-stylo-mode="preview"] table {
   width: 100% !important;
+}
+
+/* `.preview p`'s blanket `margin: 1.25em 0` (stylo.module.css) applies
+   inside a callout's `<p>` same as anywhere else. A plain blockquote has
+   no padding of its own, so that margin collapses through to the
+   blockquote's own outer margin same as it would for a bare paragraph —
+   nothing to fix there. `.stylo-callout` does have real padding
+   (`--stylo-rhythm-callout-padding-y`, top *and* bottom), and a
+   parent's own padding blocks margin collapsing between it and its first/
+   last child — so the callout's padding and its first/last paragraph's
+   margin stack instead of overlapping, reading noticeably taller and
+   more loosely spaced than in-place's line-based equivalent (which has no
+   paragraph margin concept at all). `.stylo-callout` is stylo's
+   documented, stable override class (unlike the hashed `.preview` module
+   class — see the props reference's "Embeds"/callout override points),
+   safe to target directly. Paragraph-to-paragraph spacing *inside* a
+   multi-paragraph callout is left alone — untouched by this collapsing
+   issue (adjacent sibling margins do collapse with each other), and equal
+   to normal prose rhythm elsewhere in the document is the correct call,
+   not a bug (CommonMark's "blank line = new paragraph" is what a host
+   would be fighting here). */
+[data-slot="markdown-panel"]
+  [data-stylo-mode="preview"]
+  .stylo-callout
+  > :first-child {
+  margin-top: 0 !important;
+}
+[data-slot="markdown-panel"]
+  [data-stylo-mode="preview"]
+  .stylo-callout
+  > :last-child {
+  margin-bottom: 0 !important;
 }
 
 /* ONE frosted surface for every menu in the app — the Sympose dropdowns and
@@ -868,7 +965,9 @@
   scrollbar-width: none !important;
 }
 [data-slot="markdown-panel"] .cm-scroller::-webkit-scrollbar,
-[data-slot="markdown-panel"] [data-stylo-mode="preview"] > div::-webkit-scrollbar,
+[data-slot="markdown-panel"]
+  [data-stylo-mode="preview"]
+  > div::-webkit-scrollbar,
 [data-slot="content-panel-scroll"]::-webkit-scrollbar {
   display: none !important;
 }
@@ -933,7 +1032,9 @@
 [data-nebula-frost="tint"] [data-slot="markdown-panel"] .stylo,
 [data-nebula-frost="tint"] [data-slot="markdown-panel"] .cm-editor,
 [data-nebula-frost="tint"] [data-slot="markdown-panel"] [role="toolbar"],
-[data-nebula-frost="tint"] [data-slot="markdown-panel"] .cm-panels.cm-panels-top {
+[data-nebula-frost="tint"]
+  [data-slot="markdown-panel"]
+  .cm-panels.cm-panels-top {
   background: transparent !important;
 }
 /* Same `[role="toolbar"]` contract as the frost rule above. Its own

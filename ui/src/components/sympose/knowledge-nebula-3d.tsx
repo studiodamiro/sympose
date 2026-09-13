@@ -45,23 +45,21 @@ const BIRTH_REHEAT_INTERVAL_MS = 300
 const NODE_OPACITY = 0.95
 /**
  * Degrees of orbiting "spin" (see `flyCameraTo`'s `spinDeg` param) applied to
- * click-driven camera flights, by call site — 0 for all of them (ADR-118).
+ * click-driven camera flights, by call site.
  *
- * The mechanism has a real bug, not just a feel problem: at the flight's very
- * first frame (t=0), `remaining` (in `flyCameraTo`) evaluates to the *full*
- * spin angle, which then gets applied by rotating the camera's actual current
- * position around the look-at point immediately — so frame one is a
- * discontinuous jump to a rotated copy of wherever the camera already was,
- * not a continuation from it, and the rotation only eases back to 0 (the
- * true starting point) as the flight proceeds. That's what read as "the
- * frame suddenly jerks to a random position and then the animation starts" —
- * confirmed by a side-by-side test (spin on vs. isolated off; only removing
- * spin fixed it). Fixing this properly means easing `remaining` in from 0 at
- * t=0 (not out to 0 at t=1) so the flight actually starts at the real
- * position; until that's done, leave this at 0 rather than re-tune the angle.
+ * ADR-118 shipped this at 0 (a symmetric decay-from-full-at-t=0 bump jumped
+ * the camera discontinuously on the flight's very first frame) then fixed
+ * that with a `sin(pi * eased)` bump — but a symmetric bump returns to 0 by
+ * t=1, so the last half of every flight visibly *unwound* the spin, landing
+ * at the same angle a straight flight would have. ADR-119: the twist is now
+ * one-way (0 at t=0, growing to the full angle by t=1, around a random 3D
+ * axis picked fresh per flight rather than always yawing around world-up),
+ * so it persists into the final framing instead of reversing right before
+ * arrival. Sign no longer distinguishes zoom-in from zoom-out now that the
+ * axis itself is randomised each time — both values are just magnitudes.
  */
-const CLICK_SPIN_DEG = 0
-const BACKGROUND_SPIN_DEG = 0
+const CLICK_SPIN_DEG = 25
+const BACKGROUND_SPIN_DEG = 30
 /** Flat colour a dimmed (non-highlighted) node eases toward/from — `t=0` endpoint of `lerpNodeColor`. */
 const DIMMED_RGB_LIGHT = [148, 163, 184] as const
 const DIMMED_RGB_DARK = [100, 116, 139] as const
@@ -459,6 +457,20 @@ const KnowledgeNebula3D = React.forwardRef<
         const spinScale = Math.min(1, travelDist / TRAVEL_FOR_FULL_SPIN)
         const spinRad = (spinDeg * spinScale * Math.PI) / 180
 
+        // A fresh random axis per flight (ADR-119) — uniform over the sphere
+        // (not e.g. three independent random components then normalised,
+        // which biases toward the corners of the cube) — so which way the
+        // twist tumbles varies flight to flight instead of always being a
+        // yaw around world-up.
+        const axisU = Math.random() * 2 - 1
+        const axisTheta = Math.random() * Math.PI * 2
+        const axisR = Math.sqrt(1 - axisU * axisU)
+        const spinAxis = {
+          x: axisR * Math.cos(axisTheta),
+          y: axisU,
+          z: axisR * Math.sin(axisTheta),
+        }
+
         const tick = () => {
           const t = duration <= 0 ? 1 : Math.min(1, (performance.now() - startTime) / duration)
           const eased = easeInOutQuad(t)
@@ -474,17 +486,33 @@ const KnowledgeNebula3D = React.forwardRef<
           // A straight-line camera move reads exactly like the 2D renderer's
           // flat pan/zoom — no parallax gives away that this is a 3D scene.
           // Orbiting the camera around the look-at point on top of the linear
-          // move, with the orbit angle decaying from `spinDeg` down to 0 as
-          // the flight completes, curls the path into a spin that still lands
-          // exactly on the intended framing (0 remaining spin at t=1).
+          // move curls the path into a spin. ADR-118 shipped a symmetric
+          // bump (0 at both ends, so the flight always lands at exactly
+          // `cameraPos`) to fix a discontinuity bug, but that meant the last
+          // half of every flight visibly *unwinds* the spin it just did —
+          // same start/end angle either way. ADR-119: grow the angle
+          // monotonically from 0 to the full `spinRad` instead, around a
+          // random 3D axis (Rodrigues' rotation formula) rather than only
+          // ever yawing around world-up — the twist persists into the final
+          // framing (still the same *distance* from the look-at point,
+          // since rotation preserves the offset vector's length, just
+          // arriving from a different vantage point) instead of reversing
+          // itself right before arrival.
           if (spinRad) {
-            const remaining = spinRad * (1 - eased)
+            const spinNow = spinRad * eased
             const dx = posX - lookX
+            const dy = posY - lookY
             const dz = posZ - lookZ
-            const cos = Math.cos(remaining)
-            const sin = Math.sin(remaining)
-            posX = lookX + dx * cos - dz * sin
-            posZ = lookZ + dx * sin + dz * cos
+            const cosA = Math.cos(spinNow)
+            const sinA = Math.sin(spinNow)
+            const { x: kx, y: ky, z: kz } = spinAxis
+            const dot = dx * kx + dy * ky + dz * kz
+            const crossX = ky * dz - kz * dy
+            const crossY = kz * dx - kx * dz
+            const crossZ = kx * dy - ky * dx
+            posX = lookX + dx * cosA + crossX * sinA + kx * dot * (1 - cosA)
+            posY = lookY + dy * cosA + crossY * sinA + ky * dot * (1 - cosA)
+            posZ = lookZ + dz * cosA + crossZ * sinA + kz * dot * (1 - cosA)
           }
 
           cam.position.set(posX, posY, posZ)

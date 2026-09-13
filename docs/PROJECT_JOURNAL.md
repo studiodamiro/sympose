@@ -25,7 +25,8 @@ one in [`docs/wiki/index.md`](./wiki/index.md) are kept in sync per the
 
 | ADR | Title | Status | Date | Source |
 | --- | ----- | ------ | ---- | ------ |
-| ADR-118 | 3D Nebula Click-Then-Fly Sequencing (amends ADR-117) | Accepted | 2026-09-14 | [2026-09-14_adr-118-3d-nebula-click-then-fly-sequencing.md](./journal/2026-09/2026-09-14_adr-118-3d-nebula-click-then-fly-sequencing.md) |
+| ADR-119 | 3D Nebula Camera Spin: One-Way Twist on a Random Axis (amends ADR-118) | Accepted | 2026-09-14 | [2026-09-14_adr-119-3d-nebula-one-way-random-axis-spin.md](./journal/2026-09/2026-09-14_adr-119-3d-nebula-one-way-random-axis-spin.md) |
+| ADR-118 | 3D Nebula Click-Then-Fly Sequencing (amends ADR-117) | Accepted (amended by ADR-119) | 2026-09-14 | [2026-09-14_adr-118-3d-nebula-click-then-fly-sequencing.md](./journal/2026-09/2026-09-14_adr-118-3d-nebula-click-then-fly-sequencing.md) |
 | ADR-117 | 3D Nebula Click Stutter: Three Independent Root Causes (amends ADR-112, ADR-116) | Accepted (amended by ADR-118) | 2026-09-14 | [2026-09-14_adr-117-3d-nebula-click-stutter-root-causes.md](./journal/2026-09/2026-09-14_adr-117-3d-nebula-click-stutter-root-causes.md) |
 | ADR-116 | 3D Highlight/Dim Easing Never Reached the Screen (amends ADR-112, ADR-115) | Accepted (amended by ADR-117) | 2026-09-14 | [2026-09-14_adr-116-3d-highlight-easing-never-reached-the-screen.md](./journal/2026-09/2026-09-14_adr-116-3d-highlight-easing-never-reached-the-screen.md) |
 | ADR-115 | Remove the Duplicate 3D Background-Click Dispatch (amends ADR-112, ADR-114) | Accepted (amended by ADR-116) | 2026-09-14 | [2026-09-14_adr-115-remove-duplicate-3d-background-click-dispatch.md](./journal/2026-09/2026-09-14_adr-115-remove-duplicate-3d-background-click-dispatch.md) |

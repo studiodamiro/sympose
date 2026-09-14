@@ -25,6 +25,7 @@ def _trash(vault, rel, content="junk"):
 # vault_trash._original_relpath — clash-suffix stripping
 # ---------------------------------------------------------------------------
 
+
 class TestOriginalRelpath:
     def test_plain_path_unchanged(self):
         assert vault_trash._original_relpath("Notes/idea.md") == "Notes/idea.md"
@@ -43,9 +44,11 @@ class TestOriginalRelpath:
 # VaultManager.list_trash
 # ---------------------------------------------------------------------------
 
+
 class TestListTrash:
     def test_lists_trashed_notes_newest_first(self, tmp_vault_dir, monkeypatch):
         from sympose.vault import VaultManager
+
         _trash(tmp_vault_dir, "Notes/old.md")
         _trash(tmp_vault_dir, "scrap.md")
         older = tmp_vault_dir / ".trash" / "Notes" / "old.md"
@@ -60,6 +63,7 @@ class TestListTrash:
 
     def test_empty_when_no_trash_dir(self, tmp_vault_dir, monkeypatch):
         from sympose.vault import VaultManager
+
         monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
         assert VaultManager.list_trash({"vault_folders": ["*"]}) == []
 
@@ -67,6 +71,7 @@ class TestListTrash:
         """A trashed note whose original folder is outside the persona's
         allowed folders must not appear in that persona's listing."""
         from sympose.vault import VaultManager
+
         (tmp_vault_dir / "Private").mkdir()
         (tmp_vault_dir / "Shared").mkdir()
         _trash(tmp_vault_dir, "Private/secret.md")
@@ -82,9 +87,11 @@ class TestListTrash:
 # VaultManager.restore_from_trash
 # ---------------------------------------------------------------------------
 
+
 class TestRestoreFromTrash:
     def test_round_trips_to_original_path(self, tmp_vault_dir, monkeypatch):
         from sympose.vault import VaultManager
+
         _trash(tmp_vault_dir, "Notes/reborn.md", "# Reborn\n")
         monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
 
@@ -98,6 +105,7 @@ class TestRestoreFromTrash:
 
     def test_strips_clash_suffix_on_restore(self, tmp_vault_dir, monkeypatch):
         from sympose.vault import VaultManager
+
         _trash(tmp_vault_dir, "dupe-20260910120000.md", "recovered")
         monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
 
@@ -110,12 +118,14 @@ class TestRestoreFromTrash:
 
     def test_missing_entry_not_found(self, tmp_vault_dir, monkeypatch):
         from sympose.vault import VaultManager
+
         monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
         result = VaultManager.restore_from_trash({"vault_folders": ["*"]}, "ghost.md")
         assert result == VaultManager.NOTE_NOT_FOUND
 
     def test_original_path_occupied_refused(self, tmp_vault_dir, monkeypatch):
         from sympose.vault import VaultManager
+
         write_note(str(tmp_vault_dir / "here.md"), "live copy")
         _trash(tmp_vault_dir, "here.md", "trashed copy")
         monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
@@ -128,6 +138,7 @@ class TestRestoreFromTrash:
 
     def test_traversal_in_trash_path_denied(self, tmp_vault_dir, monkeypatch):
         from sympose.vault import VaultManager
+
         write_note(str(tmp_vault_dir.parent / "outside.md"), "x")
         monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
         result = VaultManager.restore_from_trash(
@@ -137,6 +148,7 @@ class TestRestoreFromTrash:
 
     def test_restore_out_of_scope_denied(self, tmp_vault_dir, monkeypatch):
         from sympose.vault import VaultManager
+
         (tmp_vault_dir / "Private").mkdir()
         _trash(tmp_vault_dir, "Private/secret.md", "s")
         monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
@@ -153,13 +165,17 @@ class TestRestoreFromTrash:
 # VaultManager.purge_from_trash / empty_trash
 # ---------------------------------------------------------------------------
 
+
 class TestPurge:
     def test_purge_removes_the_file(self, tmp_vault_dir, monkeypatch):
         from sympose.vault import VaultManager
+
         _trash(tmp_vault_dir, "Notes/gone.md")
         monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
 
-        result = VaultManager.purge_from_trash({"vault_folders": ["*"]}, "Notes/gone.md")
+        result = VaultManager.purge_from_trash(
+            {"vault_folders": ["*"]}, "Notes/gone.md"
+        )
 
         assert result == "Deleted permanently"
         assert not (tmp_vault_dir / ".trash" / "Notes" / "gone.md").exists()
@@ -167,12 +183,14 @@ class TestPurge:
 
     def test_purge_missing_not_found(self, tmp_vault_dir, monkeypatch):
         from sympose.vault import VaultManager
+
         monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
         result = VaultManager.purge_from_trash({"vault_folders": ["*"]}, "ghost.md")
         assert result == VaultManager.NOTE_NOT_FOUND
 
     def test_empty_trash_clears_only_in_scope(self, tmp_vault_dir, monkeypatch):
         from sympose.vault import VaultManager
+
         (tmp_vault_dir / "Private").mkdir()
         (tmp_vault_dir / "Shared").mkdir()
         _trash(tmp_vault_dir, "Shared/a.md")
@@ -191,19 +209,24 @@ class TestPurge:
 # delete_note — defensive trash-target guard (ADR-085 hardening)
 # ---------------------------------------------------------------------------
 
+
 class TestDeleteNoteTrashGuard:
     def test_rejects_trash_target_escaping_the_vault(self, tmp_path, monkeypatch):
         """If an allowed folder sits far enough above the vault root that the
         preserved relative path would send the `.trash` copy outside the vault,
         `delete_note` refuses rather than writing outside `mv`."""
+        from sympose import vault_paths
         from sympose.vault import VaultManager
+
         mv = tmp_path / "a" / "b"
         mv.mkdir(parents=True)
         write_note(str(tmp_path / "loot.md"), "secret")
         monkeypatch.setenv("MASTER_VAULT_PATH", str(mv))
+        # delete_note's real logic now lives in vault_write.py, which resolves
+        # allowed dirs via vault_paths directly (not through VaultManager) —
+        # patch the actual call site rather than the VaultManager facade.
         monkeypatch.setattr(
-            VaultManager, "get_allowed_dirs",
-            classmethod(lambda cls, profile: [str(tmp_path)]),
+            vault_paths, "get_allowed_dirs", lambda profile: [str(tmp_path)]
         )
 
         result = VaultManager.delete_note({"vault_folders": ["*"]}, "loot")

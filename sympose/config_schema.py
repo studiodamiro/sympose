@@ -29,17 +29,17 @@ class Setting:
     live: bool = True  # takes effect without a restart
 
 
-_PERF, _SESS, _RUN, _VAULT, _WORK, _PERSONA = (
+_PERF, _SESS, _RUN, _VAULT, _SUB_AGENT, _PERSONA = (
     "Performance & Streaming",
     "Session & Memory",
     "Runtime",
     "Vault",
-    "Worker Sandbox",
+    "Sub-Agent Sandbox",
     "Persona (set in profiles/<handle>.yaml)",
 )
 
 # Ordered for /config display.
-SECTIONS: tuple[str, ...] = (_PERF, _SESS, _RUN, _VAULT, _WORK, _PERSONA)
+SECTIONS: tuple[str, ...] = (_PERF, _SESS, _RUN, _VAULT, _SUB_AGENT, _PERSONA)
 
 SETTINGS: tuple[Setting, ...] = (
     Setting(
@@ -82,10 +82,10 @@ SETTINGS: tuple[Setting, ...] = (
         minimum=0,
     ),
     Setting(
-        "performance.max_worker_tool_turns",
+        "performance.max_sub_agent_tool_turns",
         "int",
         8,
-        "Tool-call budget for a sub-agent worker before a forced synthesis.",
+        "Tool-call budget for a sub-agent before a forced synthesis.",
         _PERF,
         minimum=1,
     ),
@@ -316,19 +316,19 @@ SETTINGS: tuple[Setting, ...] = (
         minimum=0,
     ),
     Setting(
-        "worker.shell_allowlist",
+        "sub_agent.shell_allowlist",
         "list",
         [],
-        "argv[0] allowlist for the worker `run_command` tool (read-only commands only).",
-        _WORK,
+        "argv[0] allowlist for the sub-agent `run_command` tool (read-only commands only).",
+        _SUB_AGENT,
         live=False,
     ),
     Setting(
-        "worker.shell_command_timeout",
+        "sub_agent.shell_command_timeout",
         "float",
         20.0,
         "Hard wall-clock cap on a single `run_command` execution, seconds.",
-        _WORK,
+        _SUB_AGENT,
         minimum=1,
     ),
     # Persona-scoped — set with `/persona set @<handle> <key> <value>`, not /config.

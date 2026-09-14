@@ -12,7 +12,7 @@ from sympose.mcp import mcp_registry
 from sympose.native_tools import NativeTools
 from sympose.skills import skill_manager
 from sympose.vault import VaultManager
-from sympose.workers import WorkerEngine, WorkerTask
+from sympose.sub_agents import SubAgentEngine, SubAgentTask
 
 log = logging.getLogger(__name__)
 
@@ -27,7 +27,7 @@ class ActionProcessor:
         "REMEMBER",
         "READ_NOTE",
         "VIEW_NOTE",
-        "SPAWN_WORKER",
+        "SPAWN_SUB_AGENT",
         "SEARCH",
         "WEB_SEARCH",
         "CONFIG_SET",
@@ -37,9 +37,9 @@ class ActionProcessor:
         "REACT",
     ]
 
-    # SPAWN_WORKER re-invokes execute_actions on worker output; caps that chain
-    # so a worker synthesis containing another [SPAWN_WORKER: ...] can't recurse
-    # unboundedly.
+    # SPAWN_SUB_AGENT re-invokes execute_actions on sub-agent output; caps that
+    # chain so a sub-agent synthesis containing another [SPAWN_SUB_AGENT: ...]
+    # can't recurse unboundedly.
     MAX_ACTION_DEPTH = 1
 
     @classmethod
@@ -102,13 +102,13 @@ class ActionProcessor:
         depth: int = 0,
     ) -> tuple[str, list[str]]:
         """Executes all detected action tags in model output and returns (clean_text, confirmation_badges)."""
-        is_worker = handle.lower() == "worker"
-        profile = profile_manager.get_profile(handle) if not is_worker else {}
-        if not profile and not is_worker:
+        is_sub_agent = handle.lower() == "sub_agent"
+        profile = profile_manager.get_profile(handle) if not is_sub_agent else {}
+        if not profile and not is_sub_agent:
             return text, []
 
         badges: list[str] = []
-        name = "Sub-Agent Worker" if is_worker else profile.get("name", handle)
+        name = "Sub-Agent" if is_sub_agent else profile.get("name", handle)
         vault_folder = profile.get("vault_folder", "")
         is_shared = profile.get("share_memory", False)
 
@@ -118,7 +118,7 @@ class ActionProcessor:
         # A model that repeats itself (common with weaker/local models) can
         # emit the exact same tag twice — the text strip below is already
         # idempotent, but without this guard the tag's real side effect
-        # (writing/appending a note, spawning a worker, remembering a fact)
+        # (writing/appending a note, spawning a sub-agent, remembering a fact)
         # would otherwise fire once per repeated occurrence.
         seen_raw_tags: set[str] = set()
 
@@ -199,9 +199,9 @@ class ActionProcessor:
                         TerminalUI.render_vault_note_panel(
                             console, rel_path, note_content
                         )
-                        if is_worker:
+                        if is_sub_agent:
                             # The panel only reaches a terminal. Fold the verbatim
-                            # text into the worker's returned synthesis so the
+                            # text into the sub-agent's returned synthesis so the
                             # primary persona (and Slack) can quote it — otherwise a
                             # weak model answers from a plausible fake.
                             clean_text += (
@@ -220,8 +220,8 @@ class ActionProcessor:
                         f"> ⚠️ **Note not found in allowed vault folders:** `{target_note}`"
                     )
 
-            # 5. SPAWN_WORKER
-            elif tag == "SPAWN_WORKER" and "|" in inner:
+            # 5. SPAWN_SUB_AGENT
+            elif tag == "SPAWN_SUB_AGENT" and "|" in inner:
                 parts = inner.split("|", 1)
                 spec, task_prompt = parts[0].strip(), parts[1].strip()
                 if task_prompt:
@@ -240,29 +240,29 @@ class ActionProcessor:
                         if tok not in skills_to_load and tok not in mcp_to_load:
                             skills_to_load.append(tok)
 
-                    task = WorkerTask(
+                    task = SubAgentTask(
                         task_prompt=task_prompt,
                         skills=skills_to_load,
                         mcp_servers=mcp_to_load,
                         parent_agent=handle,
                     )
                     final_synthesis, tool_calls_executed = (
-                        WorkerEngine.execute_worker_task(task)
+                        SubAgentEngine.execute_sub_agent_task(task)
                     )
                     if depth < cls.MAX_ACTION_DEPTH:
-                        clean_worker_res, worker_sub_badges = cls.execute_actions(
+                        clean_sub_agent_res, sub_agent_sub_badges = cls.execute_actions(
                             profile_manager,
-                            "worker",
+                            "sub_agent",
                             final_synthesis,
                             user_prompt=task_prompt,
                             depth=depth + 1,
                         )
                     else:
-                        clean_worker_res, worker_sub_badges = (
+                        clean_sub_agent_res, sub_agent_sub_badges = (
                             cls.strip_action_tags(final_synthesis),
                             [],
                         )
-                    for wb in worker_sub_badges:
+                    for wb in sub_agent_sub_badges:
                         if wb not in badges:
                             badges.append(wb)
 
@@ -277,7 +277,7 @@ class ActionProcessor:
                     )
 
                     report_md = [
-                        f"> ### 🛠️ Sub-Agent Worker Report `[{badge_spec}]`",
+                        f"> ### 🛠️ Sub-Agent Report `[{badge_spec}]`",
                         f"> **Task:** *{task_prompt}*",
                         "> ",
                         "> ---",
@@ -290,7 +290,7 @@ class ActionProcessor:
                         report_md.append(f"> {tool_str}")
                         report_md.append("> ")
 
-                    for line in clean_worker_res.strip().splitlines():
+                    for line in clean_sub_agent_res.strip().splitlines():
                         report_md.append(f"> {line}")
 
                     badges.append("\n" + "\n".join(report_md))

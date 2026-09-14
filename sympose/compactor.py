@@ -16,7 +16,7 @@ import litellm
 
 log = logging.getLogger(__name__)
 
-from sympose.config import DEFAULT_WORKER_MODEL, config_manager
+from sympose.config import DEFAULT_SUB_AGENT_MODEL, config_manager
 from sympose.models import resolve_api_key
 
 _FILE_LOCKS: dict[str, threading.Lock] = {}
@@ -105,7 +105,7 @@ class MemoryCompactor:
             return False
 
         target_model = model or config_manager.get(
-            "session.exit_behavior.summarization_model", DEFAULT_WORKER_MODEL
+            "session.exit_behavior.summarization_model", DEFAULT_SUB_AGENT_MODEL
         )
 
         title = (

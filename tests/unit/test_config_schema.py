@@ -172,5 +172,5 @@ class TestConfigManagerSchemaFallback:
         assert cm.get("no.such.key") is None
 
     def test_default_for_helper(self):
-        assert default_for("performance.max_worker_tool_turns") == 8
+        assert default_for("performance.max_sub_agent_tool_turns") == 8
         assert default_for("no.such.key") is None

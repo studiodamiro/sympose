@@ -538,7 +538,7 @@ class TestManifestBackedDiscovery:
         assert "2026" in folders and "2025" in folders and "projects" not in folders
 
 
-class TestWorkerManifestInjection:
+class TestSubAgentManifestInjection:
     def _enable(self, monkeypatch, tmp_vault_dir):
         from sympose.vault import config_manager
         real_get = config_manager.get
@@ -547,21 +547,21 @@ class TestWorkerManifestInjection:
         monkeypatch.setattr(config_manager, "get", lambda k, d=None: ov.get(k, real_get(k, d)))
         monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
 
-    def test_vault_recall_worker_gets_the_structure_map(self, tmp_vault_dir, monkeypatch):
-        from sympose.workers import WorkerEngine, WorkerTask
+    def test_vault_recall_sub_agent_gets_the_structure_map(self, tmp_vault_dir, monkeypatch):
+        from sympose.sub_agents import SubAgentEngine, SubAgentTask
         self._enable(monkeypatch, tmp_vault_dir)
         (tmp_vault_dir / "Projects").mkdir()
         (tmp_vault_dir / "Projects" / "x.md").write_text("# X\n[[y]]\n")
-        task = WorkerTask("count notes", skills=["vault_recall"], parent_agent="samantha")
-        sysprompt = WorkerEngine._build_worker_context(task)[0]
+        task = SubAgentTask("count notes", skills=["vault_recall"], parent_agent="samantha")
+        sysprompt = SubAgentEngine._build_sub_agent_context(task)[0]
         assert "Ground-Truth Vault Structure Map" in sysprompt
 
-    def test_non_vault_worker_gets_no_map(self, tmp_vault_dir, monkeypatch):
-        from sympose.workers import WorkerEngine, WorkerTask
+    def test_non_vault_sub_agent_gets_no_map(self, tmp_vault_dir, monkeypatch):
+        from sympose.sub_agents import SubAgentEngine, SubAgentTask
         self._enable(monkeypatch, tmp_vault_dir)
         (tmp_vault_dir / "a.md").write_text("hi")
-        task = WorkerTask("do a thing", skills=["web_search"], parent_agent="samantha")
-        sysprompt = WorkerEngine._build_worker_context(task)[0]
+        task = SubAgentTask("do a thing", skills=["web_search"], parent_agent="samantha")
+        sysprompt = SubAgentEngine._build_sub_agent_context(task)[0]
         assert "Ground-Truth Vault Structure Map" not in sysprompt
 
 

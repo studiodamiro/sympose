@@ -99,11 +99,11 @@ class TestParseActionTags:
         tags = ActionProcessor.parse_action_tags(text)
         assert tags == []
 
-    def test_spawn_worker_tag(self):
-        text = "[SPAWN_WORKER: skills=research | task=Find the latest Python version]"
+    def test_spawn_sub_agent_tag(self):
+        text = "[SPAWN_SUB_AGENT: skills=research | task=Find the latest Python version]"
         tags = ActionProcessor.parse_action_tags(text)
         assert len(tags) == 1
-        assert tags[0][0] == "SPAWN_WORKER"
+        assert tags[0][0] == "SPAWN_SUB_AGENT"
 
     def test_react_tag(self):
         text = "[REACT: 👍]"
@@ -204,26 +204,26 @@ class TestExecuteActionsMalformedTags:
         assert not any("Malformed" in b for b in badges)
         assert any("saved note" in b for b in badges)
 
-    def test_spawn_worker_missing_pipe_produces_warning_badge(self):
+    def test_spawn_sub_agent_missing_pipe_produces_warning_badge(self):
         """The audit's named example (a model omitting the `<skills> |` half
         entirely) — already fixed 2026-09-04 by this same catch-all, before
         the audit ran; this pins the specific tag down with its own test
         rather than only the generic WRITE_NOTE/READ_NOTE cases above."""
         pm = _FakeProfileManager()
         _, badges = ActionProcessor.execute_actions(
-            pm, "test", "[SPAWN_WORKER: find my notes about Dylan]"
+            pm, "test", "[SPAWN_SUB_AGENT: find my notes about Dylan]"
         )
-        assert any("Malformed" in b and "SPAWN_WORKER" in b for b in badges)
+        assert any("Malformed" in b and "SPAWN_SUB_AGENT" in b for b in badges)
 
 
-class TestWorkerReadNoteFoldsVerbatimContent:
-    """Regression: a `vault_recall` worker that surfaced a note via `[READ_NOTE]`
-    rendered it to the terminal panel only — the report handed back to the
-    primary persona (and Slack) had no note text, so a weak model quoted a
-    plausible fabrication. The worker path must fold the verbatim content into
-    its returned synthesis."""
+class TestSubAgentReadNoteFoldsVerbatimContent:
+    """Regression: a `vault_recall` sub-agent that surfaced a note via
+    `[READ_NOTE]` rendered it to the terminal panel only — the report handed
+    back to the primary persona (and Slack) had no note text, so a weak
+    model quoted a plausible fabrication. The sub-agent path must fold the
+    verbatim content into its returned synthesis."""
 
-    def test_worker_read_note_appends_ground_truth_block(self, monkeypatch):
+    def test_sub_agent_read_note_appends_ground_truth_block(self, monkeypatch):
         pm = _FakeProfileManager()
         body = "---\nentry: 2024-04-20\n---\nIm fixing the layout of Benns resume. I feel devastated."
         monkeypatch.setattr("sympose.actions.VaultManager.resolve_note_target",
@@ -232,15 +232,15 @@ class TestWorkerReadNoteFoldsVerbatimContent:
         monkeypatch.setattr("sympose.ui.TerminalUI.render_vault_note_panel", lambda *a, **k: None)
 
         clean, badges = ActionProcessor.execute_actions(
-            pm, "worker", "Here's the entry: [READ_NOTE: Daily/2024/04-April/2024-04-20.md]"
+            pm, "sub_agent", "Here's the entry: [READ_NOTE: Daily/2024/04-April/2024-04-20.md]"
         )
         assert "### Ground-Truth Sandboxed Vault Note" in clean
         assert "fixing the layout of Benns resume" in clean
         assert "I feel devastated" in clean
 
     def test_primary_persona_read_note_does_not_fold_content(self, monkeypatch):
-        """Only the worker path folds text; a primary persona's [READ_NOTE] still
-        just renders the panel (that transcript is user-facing already)."""
+        """Only the sub-agent path folds text; a primary persona's [READ_NOTE]
+        still just renders the panel (that transcript is user-facing already)."""
         pm = _FakeProfileManager()
         monkeypatch.setattr("sympose.actions.VaultManager.resolve_note_target",
                             lambda profile, t: ("N.md", "/abs/N.md"))

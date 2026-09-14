@@ -3,7 +3,7 @@ Unit tests for sympose.native_tools.NativeTools.
 
 Covers ADR-073's `run_command` argv[0] allowlist: only commands (or every
 segment of a `&&`/`||`/`;`/`|`-chained command line) whose first word is on
-`worker.shell_allowlist` (or the built-in default) may execute.
+`sub_agent.shell_allowlist` (or the built-in default) may execute.
 """
 
 import pytest
@@ -40,7 +40,7 @@ class TestShellAllowlist:
     def test_config_override_widens_allowlist(self, monkeypatch):
         monkeypatch.setattr(
             "sympose.config.config_manager.get",
-            lambda key, default=None: ["python3"] if key == "worker.shell_allowlist" else default,
+            lambda key, default=None: ["python3"] if key == "sub_agent.shell_allowlist" else default,
         )
         ok, out = NativeTools.execute("run_command", {"command": "python3 -c \"print(1)\""})
         assert ok is True
@@ -55,7 +55,7 @@ class TestShellAllowlist:
 
 
 class TestShellCommandTimeout:
-    """worker.shell_command_timeout (ADR-077): was a hardcoded `timeout=20`
+    """sub_agent.shell_command_timeout (ADR-077): was a hardcoded `timeout=20`
     literal at the subprocess.run call site, now a declared config knob."""
 
     def test_default_is_20_seconds(self):
@@ -65,7 +65,7 @@ class TestShellCommandTimeout:
         monkeypatch.setattr(
             "sympose.config.config_manager.get",
             lambda key, default=None: (
-                5.0 if key == "worker.shell_command_timeout" else default
+                5.0 if key == "sub_agent.shell_command_timeout" else default
             ),
         )
         assert NativeTools._shell_command_timeout() == 5.0
@@ -82,7 +82,7 @@ class TestShellCommandTimeout:
         monkeypatch.setattr(
             "sympose.config.config_manager.get",
             lambda key, default=None: (
-                7.5 if key == "worker.shell_command_timeout" else default
+                7.5 if key == "sub_agent.shell_command_timeout" else default
             ),
         )
         monkeypatch.setattr("sympose.native_tools.subprocess.run", fake_run)
@@ -100,7 +100,7 @@ class TestShellCommandTimeout:
         monkeypatch.setattr(
             "sympose.config.config_manager.get",
             lambda key, default=None: (
-                3.0 if key == "worker.shell_command_timeout" else default
+                3.0 if key == "sub_agent.shell_command_timeout" else default
             ),
         )
         monkeypatch.setattr("sympose.native_tools.subprocess.run", fake_run)

@@ -22,7 +22,7 @@ Universal Workspace Rules) and confirm it in plain, outcome-focused language.
 | :--- | :--- |
 | faster / less lag | `performance.max_context_turns \| 10`, `performance.request_timeout \| 8.0` |
 | longer active memory | `performance.max_context_turns \| 25` |
-| deeper worker research | `performance.max_worker_tool_turns \| 12` |
+| deeper sub-agent research | `performance.max_sub_agent_tool_turns \| 12` |
 | auto-save sessions on quit | `session.exit_behavior.auto_save \| true` + `…default_target \| both` |
 | keep sessions ephemeral | `session.exit_behavior.auto_save \| true` + `…default_target \| discard` |
 | change session note folder | `session.exit_behavior.obsidian_subfolder \| <Folder>` |
@@ -91,7 +91,7 @@ untouched) and unmounts it from `/switch`. Confirm the archival.
 
 - Surgical coding / architecture → `anthropic/claude-3-5-sonnet-20241022` or `openrouter/anthropic/claude-3.5-sonnet`
 - Deep algorithmic reasoning → `openrouter/deepseek/deepseek-r1`
-- Fast multimodal / sub-agent workers → `gemini/gemini-3.6-flash`, `openrouter/google/gemini-2.5-flash`
+- Fast multimodal / sub-agents → `gemini/gemini-3.6-flash`, `openrouter/google/gemini-2.5-flash`
 - High-throughput open weights → `openrouter/meta-llama/llama-3.3-70b-instruct`, `ollama/qwen2.5:7b`
 
 Teach `/model` (active model + key status), `/model find <keyword>` (live

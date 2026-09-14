@@ -48,7 +48,7 @@ except ImportError:
 # Canonical model fallback constants — change here to update everywhere
 # ---------------------------------------------------------------------------
 DEFAULT_CHAT_MODEL: str = os.getenv("DEFAULT_MODEL", "gemini/gemini-3.6-flash")
-DEFAULT_WORKER_MODEL: str = os.getenv("DEFAULT_WORKER_MODEL", DEFAULT_CHAT_MODEL)
+DEFAULT_SUB_AGENT_MODEL: str = os.getenv("DEFAULT_SUB_AGENT_MODEL", DEFAULT_CHAT_MODEL)
 
 
 class ConfigManager:

@@ -24,7 +24,7 @@ Every runtime knob Sympose reads. Global keys live in `config.yaml`, settable at
 | `performance.local_keep_alive` | str | *(unset)* | — | yes | Ollama residency hint: -1 forever, 0 unload, '30m'. Unset = defer to OLLAMA_KEEP_ALIVE. |
 | `performance.max_context_turns` | int | `15` | ≥ 1 | yes | Conversation turns kept in the model context window. |
 | `performance.resume_context_turns` | int | `6` | ≥ 0 | yes | Turns rehydrated when resuming a saved session. |
-| `performance.max_worker_tool_turns` | int | `8` | ≥ 1 | yes | Tool-call budget for a sub-agent worker before a forced synthesis. |
+| `performance.max_sub_agent_tool_turns` | int | `8` | ≥ 1 | yes | Tool-call budget for a sub-agent before a forced synthesis. |
 | `performance.max_consecutive_bot_turns` | int | `3` | ≥ 1 | yes | Bot-to-bot reply streak cap in a Slack thread. |
 | `performance.slack_thread_context_limit` | int | `12` | ≥ 0 | yes | Preceding Slack thread messages pulled into a turn's context. |
 | `performance.slack_max_concurrent` | int | `3` | ≥ 1 | yes | Max concurrently-handled Slack messages. |
@@ -70,12 +70,12 @@ Every runtime knob Sympose reads. Global keys live in `config.yaml`, settable at
 | `vault.manifest.check_debounce_seconds` | float | `2.0` | ≥ 0 | yes | Minimum seconds between vault-manifest freshness scans; 0 disables the debounce. |
 | `vault.manifest.max_nodes` | int | `0` | ≥ 0 | yes | Cap on vault-manifest nodes (0 = unlimited); guards pathological vaults. |
 
-## Worker Sandbox
+## Sub-Agent Sandbox
 
 | Key | Type | Default | Allowed | Live | Description |
 | --- | --- | --- | --- | --- | --- |
-| `worker.shell_allowlist` | list | `[]` | — | **restart** | argv[0] allowlist for the worker `run_command` tool (read-only commands only). |
-| `worker.shell_command_timeout` | float | `20.0` | ≥ 1 | yes | Hard wall-clock cap on a single `run_command` execution, seconds. |
+| `sub_agent.shell_allowlist` | list | `[]` | — | **restart** | argv[0] allowlist for the sub-agent `run_command` tool (read-only commands only). |
+| `sub_agent.shell_command_timeout` | float | `20.0` | ≥ 1 | yes | Hard wall-clock cap on a single `run_command` execution, seconds. |
 
 ## Persona (set in profiles/<handle>.yaml)
 

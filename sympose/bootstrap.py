@@ -107,7 +107,7 @@ _RULES_MD_FALLBACK = """# 🏛️ Sympose: Universal Workspace & Action Rules
 ### Directives
 1. Never fabricate. Your only knowledge of user history is {{sources}} plus the active turns; if a fact isn't there, say so.
 2. No time-delay simulation — deliver findings in the current turn.
-3. Actions happen only by emitting the runtime tag (`[REMEMBER]`, `[READ_NOTE]`, `[WRITE_NOTE]`, `[DAILY_NOTE]`, `[SEARCH]`, `[SPAWN_WORKER]`, `[CONFIG_SET]`, `[CREATE_PERSONA]`, `[DELETE_PERSONA]`) — describing or roleplaying the action does nothing.
+3. Actions happen only by emitting the runtime tag (`[REMEMBER]`, `[READ_NOTE]`, `[WRITE_NOTE]`, `[DAILY_NOTE]`, `[SEARCH]`, `[SPAWN_SUB_AGENT]`, `[CONFIG_SET]`, `[CREATE_PERSONA]`, `[DELETE_PERSONA]`) — describing or roleplaying the action does nothing.
 4. Stay in your sandbox ({{sandboxed_vault}}); point out-of-scope requests to the right specialist.
 5. No self-narration, no faked sub-agent reports, no payload dumping — summarize in 2–3 sentences and let the runtime inject ground truth.
 """

@@ -1,8 +1,8 @@
 """
-Unit tests for sympose.workers.WorkerEngine — the tool-loop budget backstop.
+Unit tests for sympose.sub_agents.SubAgentEngine — the tool-loop budget backstop.
 
-Regression: a worker that read the relevant notes but then spent its remaining
-tool turns on redundant greps hit `max_worker_tool_turns` and returned
+Regression: a sub-agent that read the relevant notes but then spent its remaining
+tool turns on redundant greps hit `max_sub_agent_tool_turns` and returned
 "reached maximum tool turns without completing final synthesis" — throwing away
 the content it had already gathered. The final turn now disables tools and
 forces a synthesis; if that still comes back empty, `_forced_synthesis` is the
@@ -13,7 +13,7 @@ import types
 
 import pytest
 
-from sympose.workers import WorkerEngine, WorkerTask
+from sympose.sub_agents import SubAgentEngine, SubAgentTask
 
 
 class _FakeChoice:
@@ -40,10 +40,10 @@ def _fake_tool_call(name="read_file"):
 
 @pytest.fixture
 def ctx(monkeypatch):
-    """Stub _build_worker_context so no real MCP / model setup runs."""
+    """Stub _build_sub_agent_context so no real MCP / model setup runs."""
     monkeypatch.setattr(
-        WorkerEngine,
-        "_build_worker_context",
+        SubAgentEngine,
+        "_build_sub_agent_context",
         classmethod(
             lambda cls, task: (
                 "sys",
@@ -57,7 +57,7 @@ def ctx(monkeypatch):
         ),
     )
     monkeypatch.setattr(
-        WorkerEngine,
+        SubAgentEngine,
         "_dispatch_tool_call",
         staticmethod(
             lambda tc, t2c, dirs: (
@@ -70,7 +70,7 @@ def ctx(monkeypatch):
         ),
     )
     monkeypatch.setattr(
-        WorkerEngine, "_inject_api_key", staticmethod(lambda kw, m: None)
+        SubAgentEngine, "_inject_api_key", staticmethod(lambda kw, m: None)
     )
 
 
@@ -84,10 +84,10 @@ def test_budget_exhaustion_forces_synthesis_instead_of_failure(ctx, monkeypatch)
             return _resp(content="Tin is Dylan's mother; you noted you miss her.")
         return _resp(tool_calls=[_fake_tool_call()])
 
-    monkeypatch.setattr("sympose.workers.litellm.completion", fake_completion)
+    monkeypatch.setattr("sympose.sub_agents.litellm.completion", fake_completion)
 
-    task = WorkerTask(task_prompt="find notes on Tin and Dylan", max_tool_turns=4)
-    out, tool_calls = WorkerEngine.execute_worker_task(task)
+    task = SubAgentTask(task_prompt="find notes on Tin and Dylan", max_tool_turns=4)
+    out, tool_calls = SubAgentEngine.execute_sub_agent_task(task)
 
     assert "Tin is Dylan's mother" in out
     assert "maximum tool turns" not in out
@@ -98,9 +98,9 @@ def test_normal_completion_unaffected(ctx, monkeypatch):
     def fake_completion(**kwargs):
         return _resp(content="done: the answer")
 
-    monkeypatch.setattr("sympose.workers.litellm.completion", fake_completion)
-    out, _ = WorkerEngine.execute_worker_task(
-        WorkerTask(task_prompt="x", max_tool_turns=8)
+    monkeypatch.setattr("sympose.sub_agents.litellm.completion", fake_completion)
+    out, _ = SubAgentEngine.execute_sub_agent_task(
+        SubAgentTask(task_prompt="x", max_tool_turns=8)
     )
     assert out == "done: the answer"
 
@@ -111,9 +111,9 @@ def test_forced_synthesis_empty_falls_back_to_notice(ctx, monkeypatch):
             return _resp(content="")  # forced synth yields nothing
         return _resp(tool_calls=[_fake_tool_call()])
 
-    monkeypatch.setattr("sympose.workers.litellm.completion", fake_completion)
-    out, _ = WorkerEngine.execute_worker_task(
-        WorkerTask(task_prompt="x", max_tool_turns=3)
+    monkeypatch.setattr("sympose.sub_agents.litellm.completion", fake_completion)
+    out, _ = SubAgentEngine.execute_sub_agent_task(
+        SubAgentTask(task_prompt="x", max_tool_turns=3)
     )
     assert "tool budget" in out
 
@@ -150,9 +150,9 @@ class TestDispatchToolCall:
             return True, "file contents"
 
         monkeypatch.setattr(
-            "sympose.workers.NativeTools.execute", staticmethod(fake_execute)
+            "sympose.sub_agents.NativeTools.execute", staticmethod(fake_execute)
         )
-        call_id, name, arg_summary, ok, res = WorkerEngine._dispatch_tool_call(
+        call_id, name, arg_summary, ok, res = SubAgentEngine._dispatch_tool_call(
             _tc("read_file", '{"path": "People/Tin.md"}'), {}, ["/vault"]
         )
         assert (call_id, name, ok, res) == (
@@ -170,14 +170,14 @@ class TestDispatchToolCall:
 
     def test_mcp_tool_routes_to_its_registered_client(self, monkeypatch):
         client = _FakeMCPClient(ok=True, result="42")
-        _, name, _, ok, res = WorkerEngine._dispatch_tool_call(
+        _, name, _, ok, res = SubAgentEngine._dispatch_tool_call(
             _tc("calc_add", '{"a": 1, "b": 41}'), {"calc_add": client}, None
         )
         assert (name, ok, res) == ("calc_add", True, "42")
         assert client.calls == [("calc_add", {"a": 1, "b": 41})]
 
     def test_unregistered_tool_fails_cleanly(self):
-        _, name, _, ok, res = WorkerEngine._dispatch_tool_call(
+        _, name, _, ok, res = SubAgentEngine._dispatch_tool_call(
             _tc("mystery_tool", "{}"), {}, None
         )
         assert ok is False
@@ -186,26 +186,28 @@ class TestDispatchToolCall:
     def test_malformed_json_arguments_become_empty_dict(self, monkeypatch):
         captured = {}
         monkeypatch.setattr(
-            "sympose.workers.NativeTools.execute",
+            "sympose.sub_agents.NativeTools.execute",
             staticmethod(
                 lambda tool_name, args, allowed_dirs=None: (
                     captured.update(args=args) or (True, "ok")
                 )
             ),
         )
-        WorkerEngine._dispatch_tool_call(_tc("run_command", "not valid json"), {}, None)
+        SubAgentEngine._dispatch_tool_call(
+            _tc("run_command", "not valid json"), {}, None
+        )
         assert captured["args"] == {}
 
     def test_dict_style_tool_call_is_also_accepted(self, monkeypatch):
         monkeypatch.setattr(
-            "sympose.workers.NativeTools.execute",
+            "sympose.sub_agents.NativeTools.execute",
             staticmethod(lambda tool_name, args, allowed_dirs=None: (True, "ok")),
         )
         tc = {
             "id": "call_9",
             "function": {"name": "run_command", "arguments": '{"command": "ls"}'},
         }
-        call_id, name, arg_summary, ok, res = WorkerEngine._dispatch_tool_call(
+        call_id, name, arg_summary, ok, res = SubAgentEngine._dispatch_tool_call(
             tc, {}, None
         )
         assert (call_id, name, arg_summary, ok, res) == (
@@ -217,23 +219,23 @@ class TestDispatchToolCall:
         )
 
     def test_long_output_is_truncated(self, monkeypatch):
-        from sympose.workers import MAX_TOOL_OUTPUT_CHARS
+        from sympose.sub_agents import MAX_TOOL_OUTPUT_CHARS
 
         huge = "x" * (MAX_TOOL_OUTPUT_CHARS + 500)
         monkeypatch.setattr(
-            "sympose.workers.NativeTools.execute",
+            "sympose.sub_agents.NativeTools.execute",
             staticmethod(lambda tool_name, args, allowed_dirs=None: (True, huge)),
         )
-        *_, res = WorkerEngine._dispatch_tool_call(_tc("read_file", "{}"), {}, None)
+        *_, res = SubAgentEngine._dispatch_tool_call(_tc("read_file", "{}"), {}, None)
         assert len(res) < len(huge)
         assert res.endswith("[Output truncated for brevity]...")
 
     def test_arg_summary_only_includes_whitelisted_keys(self, monkeypatch):
         monkeypatch.setattr(
-            "sympose.workers.NativeTools.execute",
+            "sympose.sub_agents.NativeTools.execute",
             staticmethod(lambda tool_name, args, allowed_dirs=None: (True, "ok")),
         )
-        _, _, arg_summary, _, _ = WorkerEngine._dispatch_tool_call(
+        _, _, arg_summary, _, _ = SubAgentEngine._dispatch_tool_call(
             _tc("run_command", '{"command": "ls", "unrelated_flag": true}'), {}, None
         )
         assert arg_summary == "command=ls"
@@ -257,38 +259,38 @@ class TestInjectApiKey:
     def test_injects_matching_provider_key(self, monkeypatch, prefix, env_var, model):
         monkeypatch.setenv(env_var, "secret-123")
         kwargs = {}
-        WorkerEngine._inject_api_key(kwargs, model)
+        SubAgentEngine._inject_api_key(kwargs, model)
         assert kwargs["api_key"] == "secret-123"
 
     def test_no_key_injected_when_env_var_unset(self, monkeypatch):
         monkeypatch.delenv("GEMINI_API_KEY", raising=False)
         kwargs = {}
-        WorkerEngine._inject_api_key(kwargs, "gemini/gemini-3.6-flash")
+        SubAgentEngine._inject_api_key(kwargs, "gemini/gemini-3.6-flash")
         assert "api_key" not in kwargs
 
     def test_no_key_injected_for_local_ollama_model(self, monkeypatch):
         kwargs = {}
-        WorkerEngine._inject_api_key(kwargs, "ollama/gemma2:9b")
+        SubAgentEngine._inject_api_key(kwargs, "ollama/gemma2:9b")
         assert "api_key" not in kwargs
 
 
 # --------------------------------------------------------------------------- #
-#  execute_worker_stream — the streaming twin of execute_worker_task          #
+#  execute_sub_agent_stream — the streaming twin of execute_sub_agent_task          #
 # --------------------------------------------------------------------------- #
 
 
-class TestExecuteWorkerStream:
+class TestExecuteSubAgentStream:
     def test_yields_tool_call_status_then_final_answer(self, ctx, monkeypatch):
         def fake_completion(**kwargs):
             if "tools" not in kwargs:
                 return _resp(content="Tin is Dylan's mother.")
             return _resp(tool_calls=[_fake_tool_call()])
 
-        monkeypatch.setattr("sympose.workers.litellm.completion", fake_completion)
-        task = WorkerTask(task_prompt="find notes on Tin", max_tool_turns=4)
-        chunks = list(WorkerEngine.execute_worker_stream(task))
+        monkeypatch.setattr("sympose.sub_agents.litellm.completion", fake_completion)
+        task = SubAgentTask(task_prompt="find notes on Tin", max_tool_turns=4)
+        chunks = list(SubAgentEngine.execute_sub_agent_stream(task))
 
-        assert any("Worker calling tool" in c and "read_file" in c for c in chunks)
+        assert any("Sub-agent calling tool" in c and "read_file" in c for c in chunks)
         assert chunks[-1] == "Tin is Dylan's mother."
 
     def test_budget_exhaustion_forces_synthesis(self, ctx, monkeypatch):
@@ -297,15 +299,15 @@ class TestExecuteWorkerStream:
                 return _resp(content="synthesised from what was gathered")
             return _resp(tool_calls=[_fake_tool_call()])
 
-        monkeypatch.setattr("sympose.workers.litellm.completion", fake_completion)
-        task = WorkerTask(task_prompt="x", max_tool_turns=3)
-        chunks = list(WorkerEngine.execute_worker_stream(task))
+        monkeypatch.setattr("sympose.sub_agents.litellm.completion", fake_completion)
+        task = SubAgentTask(task_prompt="x", max_tool_turns=3)
+        chunks = list(SubAgentEngine.execute_sub_agent_stream(task))
         assert chunks[-1] == "synthesised from what was gathered"
 
     def test_warns_when_an_mcp_server_fails_to_connect(self, monkeypatch):
         monkeypatch.setattr(
-            WorkerEngine,
-            "_build_worker_context",
+            SubAgentEngine,
+            "_build_sub_agent_context",
             classmethod(
                 lambda cls, task: (
                     "sys",
@@ -319,11 +321,11 @@ class TestExecuteWorkerStream:
             ),
         )
         monkeypatch.setattr(
-            "sympose.workers.litellm.completion",
+            "sympose.sub_agents.litellm.completion",
             lambda **kwargs: _resp(content="done"),
         )
-        task = WorkerTask(task_prompt="x", mcp_servers=["docs"], max_tool_turns=2)
-        chunks = list(WorkerEngine.execute_worker_stream(task))
+        task = SubAgentTask(task_prompt="x", mcp_servers=["docs"], max_tool_turns=2)
+        chunks = list(SubAgentEngine.execute_sub_agent_stream(task))
         assert any(
             "Could not connect to MCP server" in c and "docs" in c for c in chunks
         )
@@ -334,7 +336,7 @@ class TestExecuteWorkerStream:
         def raise_error(**kwargs):
             raise RuntimeError("model unavailable")
 
-        monkeypatch.setattr("sympose.workers.litellm.completion", raise_error)
-        task = WorkerTask(task_prompt="x", max_tool_turns=2)
-        chunks = list(WorkerEngine.execute_worker_stream(task))
-        assert any("Worker Execution Error" in c for c in chunks)
+        monkeypatch.setattr("sympose.sub_agents.litellm.completion", raise_error)
+        task = SubAgentTask(task_prompt="x", max_tool_turns=2)
+        chunks = list(SubAgentEngine.execute_sub_agent_stream(task))
+        assert any("Sub-Agent Execution Error" in c for c in chunks)

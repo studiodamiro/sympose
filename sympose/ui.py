@@ -740,16 +740,16 @@ class TerminalUI:
         )
 
     @staticmethod
-    def render_worker_report_panel(
+    def render_sub_agent_report_panel(
         console: Any | None,
         task: str,
         skills: list[str],
         tool_calls: list[str],
         deliverables: str,
     ) -> None:
-        """Renders Sub-Agent Worker Report inside a vibrant styled Rich panel."""
+        """Renders Sub-Agent Report inside a vibrant styled Rich panel."""
         if not console or Markdown is None:
-            print(f"\n=== SUB-AGENT WORKER REPORT ({', '.join(skills)}) ===")
+            print(f"\n=== SUB-AGENT REPORT ({', '.join(skills)}) ===")
             print(f"Task: {task}")
             if tool_calls:
                 for tc in tool_calls:
@@ -772,7 +772,7 @@ class TerminalUI:
                 )
             body_lines.append("")
 
-        panel_title = f"[bold yellow]🛠️  SUB-AGENT WORKER REPORT[/bold yellow]  [dim]•[/dim]  {skill_chips}"
+        panel_title = f"[bold yellow]🛠️  SUB-AGENT REPORT[/bold yellow]  [dim]•[/dim]  {skill_chips}"
         content = (
             f"[bold white]Task:[/bold white] [italic]{task}[/italic]\n\n"
             + ("\n".join(body_lines) if body_lines else "")

@@ -5,7 +5,7 @@ The Markdown templates live at ``sympose/prompts/*.md`` so they are covered by
 ``[tool.setuptools.package-data]`` and are present in every wheel / pipx
 install. A bare top-level ``prompts/`` directory is *not* shipped in the wheel,
 which previously forced every non-editable install onto the terse inline
-fallback strings in ``bootstrap``, ``memory`` and ``workers``.
+fallback strings in ``bootstrap``, ``memory`` and ``sub_agents``.
 """
 
 import os

@@ -39,10 +39,10 @@ def command_completions(comp: Any, line_l: str, text: str) -> list[str]:
             p for p in personas if p.startswith(text) or p.lstrip("@").startswith(text)
         ]
 
-    # /worker -> skills and mcp servers
-    if cmd == "/worker":
+    # /subagent -> skills and mcp servers
+    if cmd == "/subagent":
         if len(tokens) == 1 or (len(tokens) == 2 and not line_l.endswith(" ")):
-            targets = comp.get_worker_targets()
+            targets = comp.get_sub_agent_targets()
             return [t for t in targets if t.startswith(text)]
 
     # /skill, /skills, /tools -> subcommands, skill names, and @personas

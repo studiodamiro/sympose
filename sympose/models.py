@@ -3,7 +3,7 @@ Model Discovery, Provider-Key Resolution, and OpenRouter Catalog Manager
 for Sympose. Provides fast local caching, catalog search, dynamic
 tab-completion candidates, and the one place `target_model` -> API key
 resolution lives — this used to be copy-pasted across five call sites
-(engine.py, workers.py, compactor.py, memory.py x2, sessions.py), each a
+(engine.py, sub_agents.py, compactor.py, memory.py x2, sessions.py), each a
 verbatim or near-verbatim rewrite of the same four-provider prefix match.
 """
 

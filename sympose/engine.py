@@ -29,7 +29,7 @@ class PersonaEngine:
     # cannot yet know the result, so everything it streams afterwards is a guess
     # — the visible stream is cut here and the runtime injects the real report.
     _RETRIEVAL_TAG_RE = re.compile(
-        r"\[(?:ACTION:)?(?:SEARCH|WEB_SEARCH|SPAWN_WORKER)\b", re.IGNORECASE
+        r"\[(?:ACTION:)?(?:SEARCH|WEB_SEARCH|SPAWN_SUB_AGENT)\b", re.IGNORECASE
     )
 
     # Local inference backends: with `vault_grounding: auto`, a persona on one of
@@ -74,7 +74,6 @@ class PersonaEngine:
             "but",
             "sub",
             "agent",
-            "worker",
             "report",
             "task",
             "skills",
@@ -89,7 +88,7 @@ class PersonaEngine:
 
     def _grounding_mode(self, profile: dict[str, Any], target_model: str) -> str:
         """`strict` → the runtime enforces vault retrieval itself; `trust` →
-        rely on the model to emit `[SPAWN_WORKER: vault_recall]`. An explicit
+        rely on the model to emit `[SPAWN_SUB_AGENT: vault_recall]`. An explicit
         persona `vault_grounding: strict|trust` wins; otherwise `auto` derives it
         from the model (local backend or a localhost `api_base` → strict)."""
         explicit = str(profile.get("vault_grounding", "") or "").strip().lower()
@@ -365,7 +364,7 @@ class PersonaEngine:
 
     def _visible_stream(self, response: Any, sink: list[str]):
         """Yield model text for display, but stop the moment a retrieval tag
-        (`[SEARCH …]` / `[SPAWN_WORKER …]`) begins: the runtime will inject the
+        (`[SEARCH …]` / `[SPAWN_SUB_AGENT …]`) begins: the runtime will inject the
         real report, so a weak local model that keeps 'reading out' the note it
         has not seen yet must not reach the user. The full raw text still lands
         in `sink[0]` for `ActionProcessor`. A short hold-back keeps a tag that
@@ -440,7 +439,7 @@ class PersonaEngine:
             elif VaultManager.has_recall_intent(clean_input):
                 # Fresh vault question, nothing retrieved: drop any carried-over
                 # context so the model can't answer "pull up X" from a stale,
-                # unrelated note. It must take the honest path (spawn a worker
+                # unrelated note. It must take the honest path (spawn a sub-agent
                 # or say it has no record).
                 self.active_vault_ctx[h_key] = None
             elif self.active_vault_ctx.get(h_key):
@@ -508,14 +507,14 @@ class PersonaEngine:
             clean_text, badges = ActionProcessor.execute_actions(
                 self.pm, handle, complete_text, user_prompt=clean_input
             )
-            has_worker = any(
-                "Sub-Agent Worker" in b or "Live Web Search Report" in b for b in badges
+            has_sub_agent = any(
+                "Sub-Agent" in b or "Live Web Search Report" in b for b in badges
             )
-            has_retrieval = has_worker or any("Web Search" in b for b in badges)
+            has_retrieval = has_sub_agent or any("Web Search" in b for b in badges)
 
             forced_answer = None
-            if strict and not has_worker:
-                # The model neither had pre-turn context nor spawned a worker.
+            if strict and not has_sub_agent:
+                # The model neither had pre-turn context nor spawned a sub-agent.
                 # If a vault subject is in play, retrieve it ourselves; if it is
                 # clearly reporting vault content anyway, withhold the guess.
                 prev_asst = next(
@@ -562,12 +561,12 @@ class PersonaEngine:
                     _, fb = ActionProcessor.execute_actions(
                         self.pm,
                         handle,
-                        f"[SPAWN_WORKER: vault_recall | {subj}]",
+                        f"[SPAWN_SUB_AGENT: vault_recall | {subj}]",
                         user_prompt=clean_input,
                     )
-                    if any("Sub-Agent Worker" in b for b in fb):
+                    if any("Sub-Agent" in b for b in fb):
                         badges = fb + badges
-                        has_worker = has_retrieval = True
+                        has_sub_agent = has_retrieval = True
                         clean_text = ""  # discard the model's un-retrieved answer
                 elif self._VAULT_CLAIM_RE.search(clean_text):
                     forced_answer = (
@@ -581,7 +580,7 @@ class PersonaEngine:
                 # own text when it did not need forcing.
                 if forced_answer is not None:
                     yield forced_answer
-                elif not (has_worker and not "".join(held).strip()):
+                elif not (has_sub_agent and not "".join(held).strip()):
                     lead = "".join(held) if clean_text else ""
                     if lead:
                         yield lead
@@ -603,11 +602,11 @@ class PersonaEngine:
             if badges:
                 yield "\n\n" + "\n".join(badges)
 
-            # Always synthesise a grounded final answer from the worker report:
+            # Always synthesise a grounded final answer from the sub-agent report:
             # the model's pre-tag text was trimmed as a guess, and the report now
             # carries the verbatim note text (see actions.py READ_NOTE) for it to
             # quote — on terminal and Slack alike.
-            if has_worker:
+            if has_sub_agent:
                 yield "\n\n"
                 synth_msgs = list(active_messages) + [
                     {"role": "assistant", "content": assistant_record},

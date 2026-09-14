@@ -36,17 +36,17 @@ class TestVisibleStreamGate:
         assert out == "Here is the whole answer."
         assert raw == "Here is the whole answer."
 
-    def test_cuts_at_spawn_worker_tag(self, engine):
+    def test_cuts_at_spawn_sub_agent_tag(self, engine):
         out, raw = self._run(
             engine,
             "Let me check the vault. ",
-            "[SPAWN_WORKER: vault_recall | Dylan] ",
+            "[SPAWN_SUB_AGENT: vault_recall | Dylan] ",
             "Here is Dylan's note: Created 2021-06-15, a close friend...",
         )
         assert out == "Let me check the vault. "
         assert "close friend" not in out
         # the raw text still carries the tag for ActionProcessor
-        assert "[SPAWN_WORKER: vault_recall | Dylan]" in raw
+        assert "[SPAWN_SUB_AGENT: vault_recall | Dylan]" in raw
 
     def test_cuts_at_search_tag_split_across_chunks(self, engine):
         out, raw = self._run(
@@ -56,9 +56,9 @@ class TestVisibleStreamGate:
         assert "70k" not in out
 
     def test_tag_only_reply_yields_nothing_visible(self, engine):
-        out, raw = self._run(engine, "[SPAWN_WORKER: vault_recall | grief]")
+        out, raw = self._run(engine, "[SPAWN_SUB_AGENT: vault_recall | grief]")
         assert out == ""
-        assert raw == "[SPAWN_WORKER: vault_recall | grief]"
+        assert raw == "[SPAWN_SUB_AGENT: vault_recall | grief]"
 
 
 class TestGroundingModeKnob:

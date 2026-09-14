@@ -55,7 +55,7 @@ class SymposeCompleter:
         "/skill",
         "/skills",
         "/tools",
-        "/worker",
+        "/subagent",
         "/save",
         "/reset",
         "/new",
@@ -116,7 +116,7 @@ class SymposeCompleter:
         except Exception:
             return []
 
-    def get_worker_targets(self) -> list[str]:
+    def get_sub_agent_targets(self) -> list[str]:
         """Returns combined list of procedural skills and MCP servers."""
         targets = []
         try:

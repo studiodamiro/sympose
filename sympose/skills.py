@@ -1,6 +1,6 @@
 """
 Modular Skill Playbook Manager for Sympose.
-Parses, indexes, and formats standard SKILL.md playbooks for agents and workers.
+Parses, indexes, and formats standard SKILL.md playbooks for personas and sub-agents.
 """
 
 import glob

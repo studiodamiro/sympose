@@ -20,7 +20,7 @@ MINIMAL_CONFIG_YAML = textwrap.dedent("""\
     performance:
       request_timeout: 5.0
       max_context_turns: 5
-      max_worker_tool_turns: 3
+      max_sub_agent_tool_turns: 3
       drop_unsupported_params: true
       stream: false
     session:

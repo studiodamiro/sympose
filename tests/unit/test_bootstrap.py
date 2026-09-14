@@ -75,7 +75,7 @@ def test_prompt_templates_ship_inside_the_package():
     import sympose
 
     pkg_prompts = os.path.join(os.path.dirname(sympose.__file__), "prompts")
-    for name in ("workspace_rules.md", "worker_system.md", "memory_extraction.md", "session_summary.md"):
+    for name in ("workspace_rules.md", "sub_agent_system.md", "memory_extraction.md", "session_summary.md"):
         assert os.path.isfile(os.path.join(pkg_prompts, name)), f"{name} missing from sympose/prompts/"
 
 

@@ -1,6 +1,6 @@
 """
-Ephemeral Sub-Agent Worker Engine & Multi-Turn Tool Execution Loop for Sympose.
-Executes isolated worker tasks loaded with specific skills and MCP servers without polluting main agent context.
+Ephemeral Sub-Agent Engine & Multi-Turn Tool Execution Loop for Sympose.
+Executes isolated sub-agent tasks loaded with specific skills and MCP servers without polluting main persona context.
 """
 
 import json
@@ -11,7 +11,7 @@ from typing import Any
 
 import litellm
 
-from sympose.config import DEFAULT_WORKER_MODEL, config_manager
+from sympose.config import DEFAULT_SUB_AGENT_MODEL, config_manager
 from sympose.mcp import MCPClient, mcp_registry
 from sympose.models import resolve_api_key
 from sympose.native_tools import NativeTools
@@ -25,8 +25,8 @@ log = logging.getLogger(__name__)
 MAX_TOOL_OUTPUT_CHARS = 20000
 
 
-class WorkerTask:
-    """Specification for an isolated, ephemeral worker execution."""
+class SubAgentTask:
+    """Specification for an isolated, ephemeral sub-agent execution."""
 
     def __init__(
         self,
@@ -43,23 +43,25 @@ class WorkerTask:
         self.mcp_servers = mcp_servers or []
         self.model = model
         self.temperature = temperature
-        default_turns = int(config_manager.get("performance.max_worker_tool_turns", 8))
+        default_turns = int(
+            config_manager.get("performance.max_sub_agent_tool_turns", 8)
+        )
         self.max_tool_turns = (
             max_tool_turns if max_tool_turns is not None else default_turns
         )
         self.parent_agent = parent_agent
 
 
-class WorkerEngine:
-    """Executes single/multi-turn worker runs with tool calling and skill playbooks."""
+class SubAgentEngine:
+    """Executes single/multi-turn sub-agent runs with tool calling and skill playbooks."""
 
     # ------------------------------------------------------------------ #
     #  Shared setup helpers                                                #
     # ------------------------------------------------------------------ #
 
     @classmethod
-    def _build_worker_context(
-        cls, task: WorkerTask
+    def _build_sub_agent_context(
+        cls, task: SubAgentTask
     ) -> tuple[
         str,  # system_prompt
         str,  # target_model
@@ -69,7 +71,7 @@ class WorkerEngine:
         list[dict[str, Any]],  # all_litellm_tools
         list[str] | None,  # allowed_dirs
     ]:
-        """Builds the shared execution context for both streaming and non-streaming workers."""
+        """Builds the shared execution context for both streaming and non-streaming sub-agents."""
         skills_text = skill_manager.format_skills_for_prompt(task.skills)
 
         # Resolve parent agent sandbox whitelist
@@ -101,7 +103,8 @@ class WorkerEngine:
                     all_litellm_tools.append(t)
             elif server_name not in ("shell", "git", "native"):
                 log.debug(
-                    "WorkerEngine: could not connect to MCP server [%s]", server_name
+                    "SubAgentEngine: could not connect to MCP server [%s]",
+                    server_name,
                 )
 
         # Load system prompt template
@@ -110,8 +113,8 @@ class WorkerEngine:
             [f"- Obsidian Vault Directory: `{mv}`"] if mv else []
         )
         tmpl = load_prompt(
-            "worker_system.md",
-            "You are an ephemeral Sub-Agent Worker in Sympose on macOS dispatched by parent agent @{{parent_agent}}.\n\n"
+            "sub_agent_system.md",
+            "You are an ephemeral Sub-Agent in Sympose on macOS dispatched by parent agent @{{parent_agent}}.\n\n"
             "### RUNTIME ENVIRONMENT:\n{{environment}}\n\n"
             "### UNIVERSAL OPERATIONAL DIRECTIVES:\n"
             "1. GROUND-TRUTH EXECUTION: Use tools directly.\n"
@@ -125,7 +128,7 @@ class WorkerEngine:
         if skills_text:
             system_prompt += f"\n\n{skills_text}"
 
-        # ADR-078.7: hand a vault-skilled worker the structural map so it
+        # ADR-078.7: hand a vault-skilled sub-agent the structural map so it
         # navigates from it instead of shelling out to find/ls/wc. No-op when
         # `vault.manifest.enabled` is off or no manifest exists yet.
         if any(s in ("vault_recall", "vault_write") for s in task.skills):
@@ -137,7 +140,7 @@ class WorkerEngine:
                     )
             except Exception:
                 log.debug(
-                    "WorkerEngine: manifest digest injection failed", exc_info=True
+                    "SubAgentEngine: manifest digest injection failed", exc_info=True
                 )
 
         # Resolve model: task override → skill recommendation → env default
@@ -148,7 +151,7 @@ class WorkerEngine:
                 if s_obj and s_obj.recommended_models:
                     target_model = s_obj.recommended_models[0]
                     break
-        target_model = target_model or DEFAULT_WORKER_MODEL
+        target_model = target_model or DEFAULT_SUB_AGENT_MODEL
 
         messages: list[dict[str, Any]] = [
             {"role": "system", "content": system_prompt},
@@ -223,7 +226,7 @@ class WorkerEngine:
 
         return call_id, t_name, arg_summary, ok, tool_res
 
-    # Appended on the worker's final allowed turn so it wraps up instead of
+    # Appended on the sub-agent's final allowed turn so it wraps up instead of
     # spending the turn on another tool call.
     _LAST_TURN_NUDGE = (
         "[System: this is your final turn — no more tool calls. Synthesise the "
@@ -233,7 +236,7 @@ class WorkerEngine:
 
     @classmethod
     def _forced_synthesis(
-        cls, messages: list[dict[str, Any]], target_model: str, task: "WorkerTask"
+        cls, messages: list[dict[str, Any]], target_model: str, task: "SubAgentTask"
     ) -> str:
         """Backstop when the tool loop exhausts its budget mid-search: one more
         call with tools disabled, so the notes already read (they are in the
@@ -259,8 +262,8 @@ class WorkerEngine:
     # ------------------------------------------------------------------ #
 
     @classmethod
-    def execute_worker_stream(cls, task: WorkerTask) -> Generator[str, None, None]:
-        """Streams the worker execution, tool calling status, and final synthesized output."""
+    def execute_sub_agent_stream(cls, task: SubAgentTask) -> Generator[str, None, None]:
+        """Streams the sub-agent execution, tool calling status, and final synthesized output."""
         (
             _,
             target_model,
@@ -269,7 +272,7 @@ class WorkerEngine:
             tool_to_client,
             all_litellm_tools,
             allowed_dirs,
-        ) = cls._build_worker_context(task)
+        ) = cls._build_sub_agent_context(task)
 
         # Emit MCP connection warnings for stream consumers
         for s_name in list(task.mcp_servers) + [
@@ -322,7 +325,7 @@ class WorkerEngine:
                         call_id, t_name, _, ok, tool_res = cls._dispatch_tool_call(
                             tc, tool_to_client, allowed_dirs
                         )
-                        yield f"> ⚙️ *Worker calling tool:* `{t_name}`...\n"
+                        yield f"> ⚙️ *Sub-agent calling tool:* `{t_name}`...\n"
                         messages.append(
                             {
                                 "role": "tool",
@@ -340,16 +343,16 @@ class WorkerEngine:
                 final_synthesis = cls._forced_synthesis(
                     messages, target_model, task
                 ) or (
-                    "⚠️ Worker hit its tool budget before finishing; retry with a narrower ask."
+                    "⚠️ Sub-agent hit its tool budget before finishing; retry with a narrower ask."
                 )
             yield final_synthesis
 
         except Exception as e:
-            yield f"\n⚠️ **Worker Execution Error ({target_model}):** {e}"
+            yield f"\n⚠️ **Sub-Agent Execution Error ({target_model}):** {e}"
 
     @classmethod
-    def execute_worker_task(cls, task: WorkerTask) -> tuple[str, list[str]]:
-        """Executes worker task and returns (final_deliverable_text, tool_calls_summary_list)."""
+    def execute_sub_agent_task(cls, task: SubAgentTask) -> tuple[str, list[str]]:
+        """Executes sub-agent task and returns (final_deliverable_text, tool_calls_summary_list)."""
         (
             _,
             target_model,
@@ -358,7 +361,7 @@ class WorkerEngine:
             tool_to_client,
             all_litellm_tools,
             allowed_dirs,
-        ) = cls._build_worker_context(task)
+        ) = cls._build_sub_agent_context(task)
 
         turn_count = 0
         final_synthesis = ""
@@ -419,16 +422,16 @@ class WorkerEngine:
                 final_synthesis = cls._forced_synthesis(
                     messages, target_model, task
                 ) or (
-                    "⚠️ Worker hit its tool budget before finishing; retry with a narrower ask."
+                    "⚠️ Sub-agent hit its tool budget before finishing; retry with a narrower ask."
                 )
 
             return final_synthesis, tool_calls_executed
         except Exception as e:
             return (
-                f"⚠️ **Worker Execution Error ({target_model}):** {e}",
+                f"⚠️ **Sub-Agent Execution Error ({target_model}):** {e}",
                 tool_calls_executed,
             )
 
 
-# Singleton worker engine
-worker_engine = WorkerEngine()
+# Singleton sub-agent engine
+sub_agent_engine = SubAgentEngine()

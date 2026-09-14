@@ -16,7 +16,7 @@ from sympose.sessions import SessionManager
 from sympose.skills import skill_manager
 from sympose.ui import TerminalUI
 from sympose.vault import VaultManager
-from sympose.workers import WorkerEngine, WorkerTask
+from sympose.sub_agents import SubAgentEngine, SubAgentTask
 
 log = logging.getLogger(__name__)
 
@@ -971,20 +971,20 @@ class CommandInterceptor:
                     "- Inspect playbook directives: `/skill show <skill_name>`"
                 )
                 lines.append(
-                    "- Run one-off task with skill: `/worker <skill_name> <task prompt>`"
+                    "- Run one-off task with skill: `/subagent <skill_name> <task prompt>`"
                 )
 
                 yield "\n".join(lines)
 
             return _skills()
 
-        # 8. Ephemeral Sub-Agent Worker Dispatch (/worker)
-        if clean_input.startswith("/worker "):
+        # 8. Ephemeral Sub-Agent Dispatch (/subagent)
+        if clean_input.startswith("/subagent "):
 
-            def _worker():
-                parts = clean_input[8:].strip().split(maxsplit=1)
+            def _sub_agent():
+                parts = clean_input[10:].strip().split(maxsplit=1)
                 if len(parts) < 2:
-                    yield "Usage: `/worker <skill_or_mcp> <task prompt>`\nExample: `/worker git_workflow summarize uncommitted git diffs`"
+                    yield "Usage: `/subagent <skill_or_mcp> <task prompt>`\nExample: `/subagent git_workflow summarize uncommitted git diffs`"
                     return
                 spec, task_prompt = parts[0], parts[1]
                 tokens = [
@@ -1000,17 +1000,17 @@ class CommandInterceptor:
                     else:
                         skills_to_load.append(tok)
 
-                task = WorkerTask(
+                task = SubAgentTask(
                     task_prompt=task_prompt,
                     skills=skills_to_load,
                     mcp_servers=mcp_to_load,
                     parent_agent=handle,
                 )
-                yield f"🛠️ **Dispatching Ephemeral Sub-Agent Worker** (Skills: `{skills_to_load}`, MCP: `{mcp_to_load}`)...\n\n"
-                for chunk in WorkerEngine.execute_worker_stream(task):
+                yield f"🛠️ **Dispatching Ephemeral Sub-Agent** (Skills: `{skills_to_load}`, MCP: `{mcp_to_load}`)...\n\n"
+                for chunk in SubAgentEngine.execute_sub_agent_stream(task):
                     yield chunk
 
-            return _worker()
+            return _sub_agent()
 
         # 9. Explicit @mention delegation (must start with @<handle>)
         mention_match = re.match(
@@ -1098,7 +1098,7 @@ class CommandInterceptor:
                     "- `/skill add <name> [@handle]` — Mount skill to active persona (or @handle)\n"
                     "- `/skill remove <name> [@handle]` — Unmount skill from persona\n"
                     "- `/skill show <name>` — Inspect playbook directives & markdown source\n"
-                    "- `/worker <skill|mcp> <task>` — Dispatch ephemeral sub-agent worker\n"
+                    "- `/subagent <skill|mcp> <task>` — Dispatch ephemeral sub-agent\n"
                     "- `/ask <@handle> <task>` — Delegate isolated sub-task to a peer\n\n"
                     "### ⚙️  RUNTIME SETTINGS\n"
                     "- `/render [hybrid|buffered|raw]` — Switch terminal render mode (interactive menu or direct)\n"

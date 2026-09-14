@@ -37,7 +37,7 @@ class HeuristicGatedExtractor:
     SKIP_PATTERNS: ClassVar[list[str]] = [
         r"^(?:hi|hello|hey|yo|thanks|thank\s+you|ok|okay|cool|nice|yes|no|yep|nope)[\.\!\?]?$",
         r"^(?:clear|reset|delete|help|exit|quit|status|\/switch|\/save|\/clear|\/reset)",
-        r"^\[SPAWN_WORKER:",
+        r"^\[SPAWN_SUB_AGENT:",
     ]
 
     @classmethod

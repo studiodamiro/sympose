@@ -16,6 +16,7 @@ from sympose.actions import ActionProcessor
 from sympose.commands import CommandInterceptor
 from sympose.config import DEFAULT_CHAT_MODEL, config_manager
 from sympose.memory import SessionArchivist
+from sympose.model_router import resolve_turn_model
 from sympose.profiles import ProfileManager
 from sympose.sessions import SessionManager
 from sympose.vault import VaultManager
@@ -434,17 +435,54 @@ class PersonaEngine:
             yield "⚠️ LiteLLM is not installed. Run `pip install -r requirements.txt`."
             return
 
-        strict = (
-            self._grounding_mode(profile, target_model) == "strict" and not vault_ctx
-        )
+        # ADR-122: route genuinely SIMPLE turns to a persona's own cheap
+        # local_model instead of target_model. Skipped entirely when the user
+        # has a manual /model override in play, or when this turn already
+        # resolved (or clearly wants) vault content — a small local model
+        # summarizing retrieved notes is exactly the case strict grounding
+        # exists to guard against, so those turns stay on the persona's
+        # normal (cloud) model.
+        call_model, routed_local = target_model, False
+        local_model = str(profile.get("local_model") or "").strip()
+        if (
+            local_model
+            and not self.get_model_override(handle)
+            and not vault_ctx
+            and not VaultManager.has_recall_intent(clean_input)
+        ):
+            keep_alive = profile.get("keep_alive")
+            if keep_alive is None:
+                keep_alive = self.config.get("performance.local_keep_alive")
+            call_model, routed_local = resolve_turn_model(
+                target_model, local_model, clean_input, keep_alive=keep_alive
+            )
+
+        strict = self._grounding_mode(profile, call_model) == "strict" and not vault_ctx
 
         try:
             stream_val = bool(self.config.get("performance.stream"))
-            response = litellm.completion(
-                **self._build_kwargs(
-                    target_model, profile, active_messages, stream=stream_val
-                )
+            kwargs = self._build_kwargs(
+                call_model, profile, active_messages, stream=stream_val
             )
+            if routed_local:
+                kwargs["max_tokens"] = int(
+                    self.config.get("performance.local_simple_max_tokens")
+                )
+            try:
+                response = litellm.completion(**kwargs)
+            except Exception:
+                if not routed_local:
+                    raise
+                log.debug(
+                    "Local-routed call to %s failed, falling back to %s",
+                    call_model,
+                    target_model,
+                )
+                call_model, routed_local = target_model, False
+                kwargs = self._build_kwargs(
+                    call_model, profile, active_messages, stream=stream_val
+                )
+                response = litellm.completion(**kwargs)
             sink: list[str] = []
             held: list[str] = []
             for piece in self._visible_stream(response, sink):

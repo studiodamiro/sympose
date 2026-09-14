@@ -13,7 +13,11 @@ tags:
 
 # ADR-122 — Local/Cloud Model Routing by Message Complexity
 
-- **Status:** Accepted — design decided; implementation not yet started.
+- **Status:** Accepted — implementation in progress (config schema, Ollama
+  warm-check/warm-up helpers, classifier + decision function, and
+  `chat_stream` wiring shipped; per-persona `local_model` values, tests
+  around concurrent local-model requests, and Slack transparency-indicator
+  follow-ups still open — see Follow-ups).
 - **Date:** 2026-09-14
 - **Deciders:** damiro (Lead Architect); Grace (Engineering Partner)
 
@@ -49,29 +53,50 @@ reason:
 
 ## Decision
 
-### Routing mechanism
+### Routing mechanism (revised during implementation, 2026-09-14)
 
-Adopt **LiteLLM's `ComplexityRouter`** (`litellm.Router` with a
-`model_list` entry pointing at `auto_router/complexity_router`) rather than
-hand-rolling a classifier. LiteLLM is already a Sympose dependency; this
-ships a purpose-built heuristic classifier — regex/keyword/token-count
-scoring, no network call, sub-millisecond — that sorts a message into
-SIMPLE / MEDIUM / COMPLEX / REASONING and dispatches to whichever model
-each tier is configured with. No custom routing code, no new dependency;
-configuration only. Verified directly against the installed
-`litellm==1.98.0` source
-(`litellm/router_strategy/complexity_router/config.py`), not from
-documentation alone.
+Originally scoped as: adopt LiteLLM's `ComplexityRouter` (`litellm.Router`
+with a `model_list` entry pointing at `auto_router/complexity_router`)
+wholesale. Verified that config shape directly against the installed
+`litellm==1.98.0` source — it's real and it works as documented. But
+implementing against it surfaced a better option sitting right next to it:
+`sympose/engine.py::PersonaEngine._build_kwargs` already correctly
+resolves `keep_alive`, per-backend timeout, API keys, and temperature for
+whichever model a turn calls — every `litellm.completion()` call in the
+app already goes through it. Adopting the full `Router` object would mean
+re-deriving that same resolution a second time, in the Router's own
+`litellm_params` config shape, instead of reusing code this project
+already trusts — and trusting a materially more complex object verified
+only by reading its source, not by running it.
 
-Only the **SIMPLE** tier routes local. MEDIUM/COMPLEX/REASONING all stay on
-the persona's existing configured (cloud) model — unchanged from today.
+**Revised mechanism:** a small, self-owned classifier
+(`sympose/model_router.py::is_simple_message`) — deterministic
+regex/keyword/length checks, no model call, same shape and spirit as
+LiteLLM's own heuristic (and as the vault-query-trigger check Sympose
+already ships) — decides SIMPLE-or-not before anything is called. The
+turn then reuses the existing `_build_kwargs` + `litellm.completion()`
+path with whichever model that decision points to, with fallback-to-cloud
+implemented directly as a plain try/except around the local call rather
+than the Router's `fallbacks` config. Same behavioral contract as the
+original plan (free, instant, deterministic, never a model judging its
+own reliability) — smaller, more testable mechanism, no new dependency
+surface. This is the version actually implemented; the paragraph above is
+kept for the record, not deleted, per this project's own convention of
+revising ADRs in place rather than rewriting history.
+
+Only genuinely **SIMPLE** messages route local. Everything else stays on
+the persona's existing configured (cloud) model — unchanged from today,
+and this is the default for every persona until `local_model` is
+explicitly set on one.
 
 ### Fallback
 
-Use the Router's own `fallbacks` parameter (`fallbacks=[{"<persona>-local":
-"<persona>-cloud"}]`) so a local-model error retries on cloud automatically
-— e.g. the exact `ollama/qwen2.5:7b not found` error hit live during this
-design, from a model that was never actually pulled.
+A plain try/except around the local `litellm.completion()` call, retrying
+on the persona's normal cloud model on any exception — e.g. the exact
+`ollama/qwen2.5:7b not found` error hit live during this design, from a
+model that was never actually pulled. No router config needed to express
+this; it's the same shape as any other error-handling path already in
+`engine.py`.
 
 ### Warm-up (the cost this design actually has to manage)
 
@@ -144,7 +169,9 @@ defaults at call sites, no second copies.
 
 - Genuinely free, near-instant handling for the everyday small stuff this
   was built for, once warm.
-- No new dependency — LiteLLM already ships the router this needs.
+- No new dependency — the classifier and decision function are a few dozen
+  lines of stdlib-only Python sitting next to the `_build_kwargs` path
+  every model call already goes through.
 - Confirmed zero interaction with ADR-071's dispatch-mechanism decision —
   this is a model-selection question, resolved before any model call, with
   no model ever asked to self-assess.
@@ -179,11 +206,15 @@ defaults at call sites, no second copies.
   need cloud anyway, since the local model's full response time gets paid
   as pure overhead before the cloud call even starts. Deciding the lane
   upfront, before calling anything, avoids this entirely.
-- **Hand-roll a custom classifier/router.** Rejected — LiteLLM's
-  `ComplexityRouter`, already a dependency, does exactly this with a
-  heuristic (non-LLM) classifier out of the box. Verified directly against
-  installed source before deciding, not assumed from the library's
-  reputation.
+- **Adopt LiteLLM's `Router`/`ComplexityRouter` object wholesale.**
+  Initially the plan (see "Routing mechanism" above) — verified real and
+  workable directly against installed source, not just documentation.
+  Reversed once implementation started: it would require re-deriving
+  `_build_kwargs`'s already-correct, already-tested config resolution a
+  second time inside the Router's own `litellm_params` shape, and would
+  mean trusting a materially more complex object never run live in this
+  codebase. A small, self-owned classifier reusing `_build_kwargs`
+  achieves the identical behavioral contract with less surface area.
 - **Pin one model for the whole conversation once it starts.** Rejected/
   refined mid-discussion — the real risk is a specific message's weight,
   not its position in the conversation; a trivial aside deep into a

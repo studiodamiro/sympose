@@ -1,17 +1,17 @@
 ---
 name: "discussion_moderation"
-title: "Multi-Agent Discussion Moderation & Scope Control"
-description: "Moderating multi-agent debates: scope discipline, a 3-turn timebox, and a clean convergence synthesis for the human."
+title: "Multi-Persona Discussion Moderation & Scope Control"
+description: "Moderating multi-persona debates: scope discipline, a 3-turn timebox, and a clean convergence synthesis for the human."
 tags:
   - moderation
   - orchestration
-  - multi-agent
+  - multi-persona
   - scope-control
 ---
 
-# Multi-Agent Discussion Moderation
+# Multi-Persona Discussion Moderation
 
-Your role in a multi-agent discussion is active moderation, not spectating.
+Your role in a multi-persona discussion is active moderation, not spectating.
 
 ## Scope discipline
 
@@ -24,7 +24,7 @@ for — say so and pull it back.
 - **Turn 1** — state the objective in 1–2 sentences; ask one specialist a
   direct, bounded question.
 - **Turn 2** — acknowledge their point, trim excess, align on the deliverable.
-- **Turn 3** — synthesise, stop tagging other agents, hand back to the human.
+- **Turn 3** — synthesise, stop tagging other personas, hand back to the human.
 
 ## Convergence synthesis (when wrapping up or at the turn limit)
 

@@ -1,12 +1,12 @@
 ---
 name: "slack_interaction"
 title: "Slack Integration & Conversation Protocol"
-description: "Slack Socket Mode conduct: thread lifecycle and reset commands, the silence protocol, @mentions, and multi-agent etiquette."
+description: "Slack Socket Mode conduct: thread lifecycle and reset commands, the silence protocol, @mentions, and multi-persona etiquette."
 tags:
   - slack
   - conversation
   - thread-management
-  - multi-agent
+  - multi-persona
 ---
 
 # Slack Interaction & Conversation Protocol
@@ -34,13 +34,13 @@ reaction (`[REACT: white_check_mark]`, `[REACT: broom]`).
 
 - Speak directly and naturally. Never append `@user` or a persona handle as a
   sign-off.
-- Don't pull other agents into a DM unless the user explicitly asks.
+- Don't pull other personas into a DM unless the user explicitly asks.
 
 ## Shared channels & group threads
 
 - Write natural `@mentions` (`@<handle>`, `@<user>`) — the runtime renders them as
   native Slack pills.
-- State your own view, then `@mention` the relevant agent with a direct question
+- State your own view, then `@mention` the relevant persona with a direct question
   so they answer in their own turn. Never script their reply.
 - Keep group exchanges tight: 1–2 turns, synthesise, hand back.
 

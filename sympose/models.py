@@ -21,6 +21,21 @@ def get_cache_file() -> str:
     return os.path.join(ws, ".models_cache.json")
 
 
+def get_local_ollama_models() -> list[str]:
+    """Live-queries a locally running Ollama for its actually-pulled model
+    tags. A 0.5s timeout keeps this from stalling `/model` when Ollama isn't
+    running at all — connection-refused on localhost is near-instant, this
+    only guards the rare hung-daemon case. Never raises; empty list means
+    "Ollama unreachable or nothing pulled," not an error to surface."""
+    req = urllib.request.Request("http://localhost:11434/api/tags")
+    try:
+        with urllib.request.urlopen(req, timeout=0.5) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+            return [m["name"] for m in data.get("models", []) if m.get("name")]
+    except Exception:
+        return []
+
+
 CACHE_TTL_SECONDS = 86400  # 24 hours
 
 

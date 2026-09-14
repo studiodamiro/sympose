@@ -11,7 +11,7 @@ from typing import Any
 
 from sympose.config import DEFAULT_CHAT_MODEL
 from sympose.mcp import mcp_registry
-from sympose.models import ModelCatalog
+from sympose.models import ModelCatalog, get_local_ollama_models
 from sympose.sessions import SessionManager
 from sympose.skills import skill_manager
 from sympose.ui import TerminalUI
@@ -549,6 +549,18 @@ class CommandInterceptor:
                         else f"`{current_model}` (Profile Default)"
                     )
 
+                    local_models = get_local_ollama_models()
+                    if local_models:
+                        ollama_lines = [
+                            f"  - `ollama/{m}` — pulled locally"
+                            for m in local_models[:3]
+                        ]
+                    else:
+                        ollama_lines = [
+                            "  - *None pulled.* `ollama pull <model>` (e.g. `gemma2:9b`), "
+                            "or `ollama serve` if it's not running."
+                        ]
+
                     lines = [
                         "# 🤖  MODEL & PROVIDER CONFIGURATION\n",
                         "### 🎯  ACTIVE MODEL",
@@ -569,7 +581,8 @@ class CommandInterceptor:
                         f"  - `{DEFAULT_CHAT_MODEL}` — Sub-second low latency",
                         "  - `anthropic/claude-3-5-sonnet-20241022` — Direct Anthropic API",
                         "- **Local Ollama:**",
-                        "  - `ollama/qwen2.5:7b` — Sovereign local execution\n",
+                        *ollama_lines,
+                        "",
                         "### 💡  COMMANDS & NAVIGATION",
                         "- Search catalog: `/model find <keyword>` (e.g. `/model find sonnet`, `/model find deepseek`)",
                         "- Switch model: `/model <model_id>` (e.g. `/model openrouter/anthropic/claude-3.5-sonnet`)",

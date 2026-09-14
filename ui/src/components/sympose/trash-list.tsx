@@ -9,7 +9,7 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty"
-import { confirm } from "@/lib/confirm"
+import { confirm } from "@/lib/confirm-store"
 import { notify } from "@/lib/notify"
 import {
   emptyTrash,

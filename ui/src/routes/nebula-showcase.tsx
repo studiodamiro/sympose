@@ -131,15 +131,23 @@ export function NebulaShowcase() {
     }
   )
 
-  // Dynamically update camera zoom distance in real-time as the slider moves
+  // Dynamically update camera zoom distance in real-time as the slider
+  // moves — intentionally keyed on `clickZoomDistance` alone, re-focusing
+  // whatever node is *currently* selected rather than re-running whenever
+  // selection itself changes, so a ref tracks the latest id instead of
+  // being a reactive dependency.
   const isFirstMount = React.useRef(true)
+  const selectedNodeIdRef = React.useRef(selectedNodeId)
+  React.useEffect(() => {
+    selectedNodeIdRef.current = selectedNodeId
+  })
   React.useEffect(() => {
     if (isFirstMount.current) {
       isFirstMount.current = false
       return
     }
-    if (!selectedNodeId) return
-    nebulaRef.current?.focusNode(selectedNodeId, clickZoomDistance, 150)
+    if (!selectedNodeIdRef.current) return
+    nebulaRef.current?.focusNode(selectedNodeIdRef.current, clickZoomDistance, 150)
   }, [clickZoomDistance])
 
   // Automatically zoom and frame highlighted search result nodes

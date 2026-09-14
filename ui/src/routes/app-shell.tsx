@@ -153,29 +153,29 @@ export function AppShell() {
   }, [active])
 
   // Browser-style visit history over `active`, for the content panel's
-  // back/forward toolbar buttons. A ref pair holds the stack/cursor (no
-  // re-render needed to track them); `historyTick` forces one so the buttons'
-  // disabled state stays current. `navigatingHistory` suppresses the effect's
-  // own push when `active` changes because a back/forward click set it.
-  const historyStack = React.useRef<string[]>([active])
-  const historyIndex = React.useRef(0)
+  // back/forward toolbar buttons. Stack and cursor live together in one
+  // state value so the buttons' disabled state is always current — no
+  // ref-plus-forced-rerender needed. `navigatingHistory` suppresses the
+  // effect's own push when `active` changes because a back/forward click
+  // set it.
+  const [history, setHistory] = React.useState(() => ({
+    stack: [active],
+    index: 0,
+  }))
   const navigatingHistory = React.useRef(false)
-  const [, setHistoryTick] = React.useState(0)
   React.useEffect(() => {
     if (navigatingHistory.current) {
       navigatingHistory.current = false
       return
     }
-    if (historyStack.current[historyIndex.current] === active) return
-    historyStack.current = [
-      ...historyStack.current.slice(0, historyIndex.current + 1),
-      active,
-    ]
-    historyIndex.current = historyStack.current.length - 1
-    setHistoryTick((t) => t + 1)
+    setHistory((prev) => {
+      if (prev.stack[prev.index] === active) return prev
+      const stack = [...prev.stack.slice(0, prev.index + 1), active]
+      return { stack, index: stack.length - 1 }
+    })
   }, [active])
-  const canGoBack = historyIndex.current > 0
-  const canGoForward = historyIndex.current < historyStack.current.length - 1
+  const canGoBack = history.index > 0
+  const canGoForward = history.index < history.stack.length - 1
   // Which way the content panel's body should slide on the next `active`
   // change — set right alongside whatever triggered it (a back/forward click,
   // or any other pick, which reads as "forward": it's pushing a new
@@ -186,17 +186,15 @@ export function AppShell() {
     if (!canGoBack) return
     navigatingHistory.current = true
     setContentDirection("back")
-    historyIndex.current -= 1
-    setActive(historyStack.current[historyIndex.current])
-    setHistoryTick((t) => t + 1)
+    setActive(history.stack[history.index - 1])
+    setHistory((prev) => ({ ...prev, index: prev.index - 1 }))
   }
   const goForward = () => {
     if (!canGoForward) return
     navigatingHistory.current = true
     setContentDirection("forward")
-    historyIndex.current += 1
-    setActive(historyStack.current[historyIndex.current])
-    setHistoryTick((t) => t + 1)
+    setActive(history.stack[history.index + 1])
+    setHistory((prev) => ({ ...prev, index: prev.index + 1 }))
   }
 
   // Phone: the TopBar vault button toggles the navigation view — the menu rail
@@ -381,7 +379,9 @@ export function AppShell() {
   // handle so this effect only fires on an actual mode change, not on every
   // panel-order write `usePanels` makes.
   const panelsRef = React.useRef(panels)
-  panelsRef.current = panels
+  React.useEffect(() => {
+    panelsRef.current = panels
+  })
   const stashedPanels = React.useRef<StagePanel[] | null>(null)
   const prevInteraction = React.useRef(nebulaPrefs.interaction)
   React.useEffect(() => {
@@ -451,7 +451,7 @@ export function AppShell() {
       setSelectedNote(path)
       recordVisit(path)
     },
-    [recordVisit]
+    [recordVisit, setSelectedNote]
   )
   // Nebula node ids are the bare filename stem (`vault_manifest_build._stem`
   // on the backend), not the full vault-relative path — so whichever note
@@ -551,7 +551,9 @@ export function AppShell() {
   // every render. A ref carries the live tree; the callback itself never
   // changes.
   const vaultTreeRef = React.useRef(vaultTree)
-  vaultTreeRef.current = vaultTree
+  React.useEffect(() => {
+    vaultTreeRef.current = vaultTree
+  })
   const wikiLinkSource = React.useCallback(
     (query: string) => matchWikilinkTargets(vaultTreeRef.current, query),
     []
@@ -562,7 +564,9 @@ export function AppShell() {
   // changes. Candidates come from `buildMasterGraph`'s pre-indexed tag hubs
   // (`nebula-graph.ts`), not a separate client-side vault scan.
   const nebulaGraphRef = React.useRef(nebulaGraph)
-  nebulaGraphRef.current = nebulaGraph
+  React.useEffect(() => {
+    nebulaGraphRef.current = nebulaGraph
+  })
   const tagSource = React.useCallback(
     (query: string) => matchTagTargets(nebulaGraphRef.current, query),
     []
@@ -576,7 +580,9 @@ export function AppShell() {
   // alone doesn't remount `<Stylo>` — see `resolve-embed.tsx` for what
   // actually resolves image vs. note refs.
   const activePersonaRef = React.useRef(activePersona)
-  activePersonaRef.current = activePersona
+  React.useEffect(() => {
+    activePersonaRef.current = activePersona
+  })
   const embedSource = React.useCallback(
     (ref: string) => resolveEmbed(vaultTreeRef.current, activePersonaRef.current, ref),
     []

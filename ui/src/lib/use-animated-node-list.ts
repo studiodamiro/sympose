@@ -27,46 +27,51 @@ export interface AnimatedNodeEntry {
  * closing sibling doesn't matter since they animate in independently.
  */
 export function useAnimatedNodeList(nodes: VaultNode[]) {
+  // `prevNodes` + the render-time comparison below is React's documented
+  // "adjust state during render" pattern — it replaces an effect that ran
+  // setDisplay after the fact, so a nodes change lands in the same render
+  // pass instead of an extra effect-triggered re-render.
+  const [prevNodes, setPrevNodes] = React.useState(nodes)
   const [display, setDisplay] = React.useState<AnimatedNodeEntry[]>(() =>
     nodes.map((node) => ({ node, closing: false }))
   )
 
-  React.useEffect(() => {
+  if (nodes !== prevNodes) {
+    setPrevNodes(nodes)
+
     const byPath = new Map(nodes.map((node) => [node.path, node]))
+    const placed = new Set<string>()
+    const merged: AnimatedNodeEntry[] = []
+    // `nodes` can arrive as a fresh array/object graph on every render (an
+    // unmemoized `.map()`/`.filter()` upstream) without any node actually
+    // being added, removed, or replaced with different data — `changed`
+    // tracks whether that's actually happened, so `display` can keep the
+    // same reference when it hasn't.
+    let changed = display.length !== nodes.length
 
-    setDisplay((prev) => {
-      const placed = new Set<string>()
-      const merged: AnimatedNodeEntry[] = []
-      let changed = prev.length !== nodes.length
-
-      for (const entry of prev) {
-        const fresh = byPath.get(entry.node.path)
-        if (fresh) {
-          if (fresh !== entry.node || entry.closing) changed = true
-          merged.push({ node: fresh, closing: false })
-          placed.add(entry.node.path)
-        } else if (entry.closing) {
-          merged.push(entry)
-        } else {
-          changed = true
-          merged.push({ node: entry.node, closing: true })
-        }
+    for (const entry of display) {
+      const fresh = byPath.get(entry.node.path)
+      if (fresh) {
+        if (fresh !== entry.node || entry.closing) changed = true
+        merged.push({ node: fresh, closing: false })
+        placed.add(entry.node.path)
+      } else if (entry.closing) {
+        merged.push(entry)
+      } else {
+        changed = true
+        merged.push({ node: entry.node, closing: true })
       }
+    }
 
-      for (const node of nodes) {
-        if (!placed.has(node.path)) {
-          changed = true
-          merged.push({ node, closing: false })
-        }
+    for (const node of nodes) {
+      if (!placed.has(node.path)) {
+        changed = true
+        merged.push({ node, closing: false })
       }
+    }
 
-      // Bail out with the same reference when nothing actually changed —
-      // `nodes` can arrive as a fresh array/object graph on every render
-      // (an unmemoized `.map()`/`.filter()` upstream) without any node
-      // actually being added, removed, or replaced with different data.
-      return changed ? merged : prev
-    })
-  }, [nodes])
+    if (changed) setDisplay(merged)
+  }
 
   const onExitComplete = React.useCallback((path: string) => {
     setDisplay((prev) =>

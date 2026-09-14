@@ -79,11 +79,16 @@ export function CodeBlockCopyButtons({
 }) {
   const [blocks, setBlocks] = React.useState<HTMLPreElement[]>([])
 
+  // `active` turning off clears the list immediately, during render, rather
+  // than waiting a tick for the effect below to catch up.
+  const [prevActive, setPrevActive] = React.useState(active)
+  if (active !== prevActive) {
+    setPrevActive(active)
+    if (!active) setBlocks([])
+  }
+
   React.useEffect(() => {
-    if (!active) {
-      setBlocks([])
-      return
-    }
+    if (!active) return
     const container = containerRef.current
     if (!container) return
 

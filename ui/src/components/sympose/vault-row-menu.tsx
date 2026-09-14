@@ -27,7 +27,7 @@ import {
   deleteVaultNote,
   renameVaultNote,
 } from "@/lib/vault-note-api"
-import { confirm } from "@/lib/confirm"
+import { confirm } from "@/lib/confirm-store"
 import { notify } from "@/lib/notify"
 import type { VaultNode } from "@/components/sympose/vault-tree"
 

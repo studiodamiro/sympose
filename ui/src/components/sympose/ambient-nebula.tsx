@@ -73,9 +73,16 @@ function AmbientNebula({
   const nebulaRef = React.useRef<KnowledgeNebulaHandle>(null)
   const [selectedNodeId, setSelectedNodeId] = React.useState<string | null>(null)
 
+  // Mirrors `activeNoteId` into local selection state during render (React's
+  // "adjust state" pattern) rather than an effect, since only the imperative
+  // camera move needs to wait for commit.
+  const [prevActiveNoteId, setPrevActiveNoteId] = React.useState(activeNoteId)
+  if (activeNoteId && activeNoteId !== prevActiveNoteId) {
+    setPrevActiveNoteId(activeNoteId)
+    setSelectedNodeId(activeNoteId)
+  }
   React.useEffect(() => {
     if (!activeNoteId) return
-    setSelectedNodeId(activeNoteId)
     nebulaRef.current?.focusNode(activeNoteId)
   }, [activeNoteId])
 

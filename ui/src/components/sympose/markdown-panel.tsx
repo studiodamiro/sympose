@@ -551,6 +551,11 @@ function MarkdownPanel({
     frontmatterVisible,
     readOnly,
   })
+  // Deliberately synchronous, not effect-deferred: `canvasHeader()` below is
+  // invoked directly in this component's own render (the read-only branch
+  // further down), in the same pass — an effect-deferred write would still
+  // be showing last render's values by the time that call reads the ref.
+  // eslint-disable-next-line react-hooks/refs -- see comment above
   frontmatterCardStateRef.current = {
     frontmatter,
     onWikiLinkClick,
@@ -688,7 +693,9 @@ function MarkdownPanel({
   // every edit, so it reads through this ref (updated every render, a plain
   // assignment — cheap) instead of taking `saveNote` as a dependency.
   const saveNoteRef = React.useRef(saveNote)
-  saveNoteRef.current = saveNote
+  React.useEffect(() => {
+    saveNoteRef.current = saveNote
+  })
 
   // Flush a save when leaving this note — switching to another one, or the
   // panel unmounting entirely (a full route change away from `/shell`) — so
@@ -992,6 +999,9 @@ function MarkdownPanel({
             // above and the breadcrumb row above both stay outside it on
             // purpose (see their own comments).
             <div className="sy-note-preview flex min-h-0 flex-1 flex-col">
+              {/* eslint-disable-next-line react-hooks/refs -- frontmatterCardStateRef
+                  is written synchronously just above in this same render, see its
+                  comment; this read is always current, never stale. */}
               {canvasHeader()}
               {styloElement}
             </div>

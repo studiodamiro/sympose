@@ -13,7 +13,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { confirm } from "@/lib/confirm"
+import { confirm } from "@/lib/confirm-store"
 import { notify } from "@/lib/notify"
 import { deleteVaultNote, renameVaultNote } from "@/lib/vault-note-api"
 

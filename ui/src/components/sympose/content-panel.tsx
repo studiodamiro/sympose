@@ -184,7 +184,9 @@ function ContentPanel({
   // two panel widths themselves are.
   const preFillSize = React.useRef<number | null>(null)
   const sizeRef = React.useRef(size)
-  sizeRef.current = size
+  React.useEffect(() => {
+    sizeRef.current = size
+  })
   const prevFill = React.useRef(fill)
   React.useEffect(() => {
     if (fill === prevFill.current) return

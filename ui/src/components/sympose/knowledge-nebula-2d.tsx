@@ -1,13 +1,18 @@
 import * as React from "react"
-import ForceGraph2D, { type ForceGraphMethods } from "react-force-graph-2d"
+import ForceGraph2D, {
+  type ForceGraphMethods,
+  type NodeObject,
+  type LinkObject,
+} from "react-force-graph-2d"
 import { forceRadial } from "d3-force"
 
 import { cn } from "@/lib/utils"
-import { type NebulaGraph, type NebulaNode } from "@/lib/nebula-graph"
+import { type NebulaNode } from "@/lib/nebula-graph"
 import {
   clamp,
   createNodeTooltip,
   lerpNodeColor,
+  linkEndId,
   nebulaNodeColor,
   nodeRenderVal,
   stepHighlightT,
@@ -15,6 +20,13 @@ import {
   type KnowledgeNebulaHandle,
   type KnowledgeNebulaProps,
 } from "./knowledge-nebula-shared"
+
+/** This renderer's concrete node/link shapes — the vault's `NebulaNode`
+ *  fields plus whatever `react-force-graph-2d` writes onto each object at
+ *  runtime (`x`/`y`, and this module's own `__highlightT`/`__birthed`/`__scale`
+ *  via the library's open index signature). */
+type NebulaNodeObject = NodeObject<NebulaNode>
+type NebulaLinkObject = LinkObject<NebulaNode>
 
 /**
  * Knowledge Nebula — 2D variant. The flat, Obsidian-default knowledge-graph
@@ -79,19 +91,24 @@ const KnowledgeNebula2D = React.forwardRef<
     ref
   ) => {
     const containerRef = React.useRef<HTMLDivElement>(null)
-    const fgRef = React.useRef<ForceGraphMethods | undefined>(undefined)
-    const timerRef = React.useRef<any>(null)
+    const fgRef = React.useRef<ForceGraphMethods<NebulaNode> | undefined>(undefined)
+    const timerRef = React.useRef<ReturnType<typeof setInterval> | null>(null)
     const lastReheatRef = React.useRef(0)
     const didInitialFitRef = React.useRef(false)
-    const pendingPanZoomTimeoutRef = React.useRef<any>(null)
+    const pendingPanZoomTimeoutRef = React.useRef<ReturnType<
+      typeof setTimeout
+    > | null>(null)
     const { w, h } = useElementSize(containerRef)
     const live = interactive ?? !dimmed
 
     // force-graph mutates what it is handed (link ends become node refs, x/y get
     // written). Clone so the caller's data — a JSON import singleton — is safe.
     const data = React.useMemo(() => {
-      const cloned = structuredClone(graph) as NebulaGraph
-      cloned.nodes.forEach((n: any) => {
+      const cloned = structuredClone(graph) as {
+        nodes: NebulaNodeObject[]
+        links: NebulaLinkObject[]
+      }
+      cloned.nodes.forEach((n) => {
         n.__scale = 1.0
         n.__highlightT = 1
       })
@@ -120,7 +137,7 @@ const KnowledgeNebula2D = React.forwardRef<
         last = now
         const hi = highlightedIdsRef.current
         let stillActive = false
-        ;(data.nodes as any[]).forEach((n) => {
+        data.nodes.forEach((n) => {
           const target = !hi || hi.has(n.id) ? 1 : 0
           if (stepHighlightT(n, target, dt)) stillActive = true
         })
@@ -152,13 +169,13 @@ const KnowledgeNebula2D = React.forwardRef<
     // Centroid + zoom factor that frames a node together with its 1-hop cluster.
     const getClusterFraming = (nodeId: string, knobDist = clickZoomDistance) => {
       const memberIds = new Set<string>([nodeId])
-      data.links.forEach((l: any) => {
-        const srcId = typeof l.source === "object" ? l.source.id : l.source
-        const tgtId = typeof l.target === "object" ? l.target.id : l.target
+      data.links.forEach((l) => {
+        const srcId = linkEndId(l.source)
+        const tgtId = linkEndId(l.target)
         if (srcId === nodeId) memberIds.add(tgtId)
         if (tgtId === nodeId) memberIds.add(srcId)
       })
-      const members = (data.nodes as any[]).filter((n) => memberIds.has(n.id))
+      const members = data.nodes.filter((n) => memberIds.has(n.id))
       if (members.length === 0) return null
 
       let sumX = 0, sumY = 0
@@ -232,9 +249,9 @@ const KnowledgeNebula2D = React.forwardRef<
         const fg = fgRef.current
         if (!fg) return
         const idSet = new Set(nodeIds)
-        const matching = (data.nodes as any[]).some((n) => idSet.has(n.id))
+        const matching = data.nodes.some((n) => idSet.has(n.id))
         if (!matching) return
-        fg.zoomToFit(duration, padding, (n: any) => idSet.has(n.id))
+        fg.zoomToFit(duration, padding, (n) => idSet.has(n.id))
       },
       animateBirth: (noteDelayMs = 25) => {
         const fg = fgRef.current
@@ -249,7 +266,7 @@ const KnowledgeNebula2D = React.forwardRef<
         if (totalNodes === 0) return
 
         // Scatter every node and hide it, then reveal one by one.
-        data.nodes.forEach((n: any) => {
+        data.nodes.forEach((n) => {
           n.x = (Math.random() - 0.5) * 900
           n.y = (Math.random() - 0.5) * 900
           n.vx = (Math.random() - 0.5) * 8
@@ -262,7 +279,7 @@ const KnowledgeNebula2D = React.forwardRef<
         let currentIdx = 0
         timerRef.current = setInterval(() => {
           if (currentIdx < totalNodes) {
-            ;(data.nodes[currentIdx] as any).__birthed = true
+            data.nodes[currentIdx].__birthed = true
             currentIdx++
             const now = Date.now()
             if (now - lastReheatRef.current >= BIRTH_REHEAT_INTERVAL_MS) {
@@ -270,9 +287,9 @@ const KnowledgeNebula2D = React.forwardRef<
               lastReheatRef.current = now
             }
           } else {
-            clearInterval(timerRef.current)
+            if (timerRef.current) clearInterval(timerRef.current)
             timerRef.current = null
-            data.nodes.forEach((n: any) => {
+            data.nodes.forEach((n) => {
               n.__birthed = true
             })
             fg.d3ReheatSimulation()
@@ -349,15 +366,15 @@ const KnowledgeNebula2D = React.forwardRef<
       [highlightedNodeIds]
     )
 
-    const linkEndsHidden = (l: any) => {
-      const srcId = typeof l.source === "object" ? l.source.id : l.source
-      const tgtId = typeof l.target === "object" ? l.target.id : l.target
+    const linkEndsHidden = (l: NebulaLinkObject) => {
+      const srcId = linkEndId(l.source)
+      const tgtId = linkEndId(l.target)
       return { srcId, tgtId }
     }
 
     // Obsidian-style label: drawn under the disc, fading in with zoom.
     const paintNodeLabel = (
-      node: any,
+      node: NebulaNodeObject,
       ctx: CanvasRenderingContext2D,
       globalScale: number
     ) => {
@@ -382,17 +399,21 @@ const KnowledgeNebula2D = React.forwardRef<
       ctx.fillStyle = isLight
         ? `rgba(15,23,42,${0.88 * alpha})`
         : `rgba(226,232,240,${0.92 * alpha})`
-      ctx.fillText(label, node.x, node.y + discRadius + 1.5 / globalScale)
+      ctx.fillText(
+        label,
+        node.x ?? 0,
+        (node.y ?? 0) + discRadius + 1.5 / globalScale
+      )
     }
 
-    const handleNodeClick = (node: any) => {
+    const handleNodeClick = (node: NebulaNodeObject) => {
       const fg = fgRef.current
       if (!fg) return
       const framing = getClusterFraming(node.id, clickZoomDistance)
       // Fire the highlight change first (synchronously, so the very next
       // paint already has it in flight) and only schedule the pan/zoom after
       // CLICK_ZOOM_LEAD_MS — see the comment on `schedulePanZoom`.
-      onNodeClick?.(node as NebulaNode)
+      onNodeClick?.(node)
       if (framing) {
         schedulePanZoom(() => {
           fg.centerAt(framing.cx, framing.cy, 600)
@@ -424,13 +445,13 @@ const KnowledgeNebula2D = React.forwardRef<
             cooldownTicks={200}
             onEngineStop={fitWhole}
             nodeRelSize={nodeRelSize}
-            nodeVal={(n: any) => nodeRenderVal(n, highlightedNodeIds)}
+            nodeVal={(n: NebulaNodeObject) => nodeRenderVal(n, highlightedNodeIds)}
             nodeLabel={tooltipFn}
-            nodeVisibility={(n: any) => {
+            nodeVisibility={(n: NebulaNodeObject) => {
               if (hiddenNodeIds?.has(n.id)) return false
               return n.__birthed !== false
             }}
-            nodeColor={(n: any) => {
+            nodeColor={(n: NebulaNodeObject) => {
               const t = n.__highlightT ?? 1
               const dimmedRgb = isLight ? DIMMED_RGB_LIGHT : DIMMED_RGB_DARK
               const dimmedAlpha = isLight ? DIMMED_ALPHA_LIGHT : DIMMED_ALPHA_DARK
@@ -441,7 +462,7 @@ const KnowledgeNebula2D = React.forwardRef<
             }}
             nodeCanvasObjectMode={() => "after"}
             nodeCanvasObject={paintNodeLabel}
-            linkVisibility={(l: any) => {
+            linkVisibility={(l: NebulaLinkObject) => {
               const { srcId, tgtId } = linkEndsHidden(l)
               if (hiddenNodeIds?.has(srcId) || hiddenNodeIds?.has(tgtId)) return false
               const srcBirthed =
@@ -450,7 +471,7 @@ const KnowledgeNebula2D = React.forwardRef<
                 typeof l.target === "object" ? l.target.__birthed !== false : true
               return srcBirthed && tgtBirthed
             }}
-            linkColor={(l: any) => {
+            linkColor={(l: NebulaLinkObject) => {
               const { srcId, tgtId } = linkEndsHidden(l)
               if (
                 highlightedNodeIds &&
@@ -460,7 +481,7 @@ const KnowledgeNebula2D = React.forwardRef<
               }
               return isLight ? "rgba(51,65,85,0.38)" : "rgba(203,213,225,0.22)"
             }}
-            linkWidth={(l: any) => {
+            linkWidth={(l: NebulaLinkObject) => {
               const { srcId, tgtId } = linkEndsHidden(l)
               if (
                 highlightedNodeIds &&

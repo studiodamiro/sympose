@@ -20,6 +20,42 @@ import {
  */
 export type NebulaMode = "2d" | "3d"
 
+/**
+ * A {@link NebulaNode} as it actually exists once a force-graph renderer has
+ * taken hold of it: the vault fields it started with, plus whatever
+ * positional/simulation fields the renderer's force engine writes directly
+ * onto the object (`x`/`y` in 2D, `x`/`y`/`z` in 3D), plus this module's own
+ * ephemeral per-node animation state. Both renderers' own node types
+ * (`NodeObject<NebulaNode>` from `react-force-graph-2d`/`-3d`) carry an open
+ * string index signature, which makes them structural supersets of this —
+ * safe to pass into any of the helpers below regardless of which renderer's
+ * live node object it came from.
+ */
+export interface ForceGraphNode extends NebulaNode {
+  x?: number
+  y?: number
+  z?: number
+  /** Set once per clone in each renderer; read by `nebulaNodeColor`/`stepHighlightT`. */
+  __highlightT?: number
+  /** `false` until `animateBirth`'s reveal sequence reaches this node. */
+  __birthed?: boolean
+}
+
+/**
+ * Resolves a link endpoint (`link.source`/`link.target`) to its node id.
+ * Force-graph starts a link's endpoints as the plain id string from the
+ * input data, then mutates the link in place to point at the resolved node
+ * object once the simulation initializes — so any code reading a link's
+ * endpoints has to handle both shapes depending on when it runs relative to
+ * that mutation.
+ */
+export function linkEndId(
+  end: string | number | ForceGraphNode | undefined
+): string {
+  if (end && typeof end === "object") return end.id
+  return String(end ?? "")
+}
+
 export interface KnowledgeNebulaHandle {
   /** Frame the whole graph. */
   zoomToFit: (duration?: number, padding?: number) => void
@@ -127,8 +163,8 @@ export function useElementSize(ref: React.RefObject<HTMLElement | null>) {
 
 /** Build the hover-tooltip HTML string renderer for the given theme. */
 export function createNodeTooltip(isLight: boolean) {
-  return (node: any): string => {
-    const n = node as NebulaNode
+  return (node: ForceGraphNode): string => {
+    const n = node
     const home = n.folder || "unresolved link"
     const tags = n.tags?.length ? ` · #${n.tags.join(" #")}` : ""
     const bg = isLight ? "rgba(255,255,255,0.96)" : "rgba(20,22,28,0.92)"
@@ -236,12 +272,12 @@ export function adjustSaturation(hex: string, amount: number): string {
  * when negative. Both `0` leaves the palette untouched.
  */
 export function nebulaNodeColor(
-  node: any,
+  node: ForceGraphNode,
   isLight: boolean,
   separation = 0,
   vividness = 0
 ): string {
-  let color = nodeColor(node as NebulaNode, isLight)
+  let color = nodeColor(node, isLight)
   if (vividness) color = adjustSaturation(color, vividness)
   if (separation) {
     const awayFromBg = isLight ? "#000000" : "#ffffff"
@@ -257,7 +293,7 @@ export function nebulaNodeColor(
 
 /** Highlight-weighted render value for a node (matches across both renderers). */
 export function nodeRenderVal(
-  node: any,
+  node: ForceGraphNode,
   highlightedNodeIds?: Set<string>
 ): number {
   const isHighlight = !highlightedNodeIds || highlightedNodeIds.has(node.id)
@@ -281,7 +317,11 @@ export const HIGHLIGHT_EASE_HALF_LIFE_MS = 90
  * is, rather than resetting. Returns `true` if still short of the target, so
  * the caller's animation loop knows whether to keep ticking this node.
  */
-export function stepHighlightT(node: any, target: number, dtMs: number): boolean {
+export function stepHighlightT(
+  node: ForceGraphNode,
+  target: number,
+  dtMs: number
+): boolean {
   const current = node.__highlightT ?? 1
   const diff = target - current
   if (Math.abs(diff) < 0.003) {

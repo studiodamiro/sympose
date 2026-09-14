@@ -2,19 +2,21 @@ import * as React from "react"
 import ForceGraph3D, {
   type ForceGraphMethods,
   type NodeObject,
+  type LinkObject,
 } from "react-force-graph-3d"
 import { forceRadial } from "d3-force-3d"
 import SpriteText from "three-spritetext"
+import type { Vector3 } from "three"
 
 import { cn } from "@/lib/utils"
 import {
-  type NebulaGraph,
   type NebulaNode,
 } from "@/lib/nebula-graph"
 import {
   clamp,
   createNodeTooltip,
   lerpNodeColor,
+  linkEndId,
   nebulaNodeColor,
   nodeRenderVal,
   stepHighlightT,
@@ -22,6 +24,32 @@ import {
   type KnowledgeNebulaHandle,
   type KnowledgeNebulaProps,
 } from "./knowledge-nebula-shared"
+
+/** This renderer's concrete node/link shapes — the vault's `NebulaNode`
+ *  fields plus whatever `react-force-graph-3d` writes onto each object at
+ *  runtime (`x`/`y`/`z`, and this module's own `__highlightT`/`__birthed`/
+ *  `__scale`/`__threeObj` via the library's open index signature). */
+type NebulaNodeObject = NodeObject<NebulaNode>
+type NebulaLinkObject = LinkObject<NebulaNode>
+
+/**
+ * Minimal shape this file actually reads/writes on `fg.controls()` — the
+ * library types it as a bare `object` since the underlying control scheme is
+ * swappable, but 3d-force-graph always wires up three.js's OrbitControls by
+ * default, which is what every call site here assumes.
+ */
+interface OrbitControlsLike {
+  target: Vector3
+  autoRotate: boolean
+  autoRotateSpeed: number
+  enableZoom: boolean
+  enableRotate: boolean
+  enablePan: boolean
+  minDistance: number
+  maxDistance: number
+  zoomSpeed: number
+  update: () => void
+}
 
 /**
  * Camera-distance window over which in-scene node labels fade in — the 3D
@@ -105,7 +133,7 @@ const KnowledgeNebula3D = React.forwardRef<
     ref
   ) => {
     const containerRef = React.useRef<HTMLDivElement>(null)
-    const fgRef = React.useRef<ForceGraphMethods | undefined>(undefined)
+    const fgRef = React.useRef<ForceGraphMethods<NebulaNode> | undefined>(undefined)
     const animFrameRef = React.useRef<number | null>(null)
     const flightRafRef = React.useRef<number | null>(null)
     const pendingFlightTimeoutRef = React.useRef<number | null>(null)
@@ -116,15 +144,18 @@ const KnowledgeNebula3D = React.forwardRef<
     // refs, x/y/z get written). Clone so the caller's data — a JSON import module
     // singleton in the showcase — is never touched.
     const data = React.useMemo(() => {
-      const cloned = structuredClone(graph) as NebulaGraph
-      cloned.nodes.forEach((n: any) => {
+      const cloned = structuredClone(graph) as {
+        nodes: NebulaNodeObject[]
+        links: NebulaLinkObject[]
+      }
+      cloned.nodes.forEach((n) => {
         n.__scale = 1.0
         n.__highlightT = 1
       })
       return cloned
     }, [graph])
 
-    const timerRef = React.useRef<any>(null)
+    const timerRef = React.useRef<ReturnType<typeof setInterval> | null>(null)
     const lastReheatRef = React.useRef(0)
 
     // --- In-scene node labels ----------------------------------------------
@@ -149,12 +180,12 @@ const KnowledgeNebula3D = React.forwardRef<
     nodeVividnessRef.current = nodeVividness
 
     const nodeById = React.useMemo(() => {
-      const m = new Map<string, any>()
-      ;(data.nodes as any[]).forEach((n) => m.set(n.id, n))
+      const m = new Map<string, NebulaNodeObject>()
+      data.nodes.forEach((n) => m.set(n.id, n))
       return m
     }, [data])
 
-    const buildNodeLabel = React.useCallback((node: any) => {
+    const buildNodeLabel = React.useCallback((node: NebulaNodeObject) => {
       const sprite = new SpriteText(String(node.label ?? node.id))
       sprite.textHeight = 3.5
       sprite.fontFace = "Inter Variable, system-ui, sans-serif"
@@ -215,7 +246,7 @@ const KnowledgeNebula3D = React.forwardRef<
         const dimmedAlpha = light ? DIMMED_ALPHA_LIGHT : DIMMED_ALPHA_DARK
         const separation = nodeSeparationRef.current
         const vividness = nodeVividnessRef.current
-        nodeById.forEach((node: any) => {
+        nodeById.forEach((node) => {
           const target = !hiForColor || hiForColor.has(node.id) ? 1 : 0
           const stillEasing = stepHighlightT(node, target, dt)
 
@@ -252,7 +283,7 @@ const KnowledgeNebula3D = React.forwardRef<
 
         const fg = fgRef.current
         if (!fg) return
-        const cam = fg.camera() as any
+        const cam = fg.camera()
         if (!cam) return
         const { x: camX, y: camY, z: camZ } = cam.position
         const on = showLabelsRef.current
@@ -298,7 +329,7 @@ const KnowledgeNebula3D = React.forwardRef<
     React.useEffect(() => {
       const sprites = labelSpritesRef.current
       return () => {
-        sprites.forEach((s: any) => {
+        sprites.forEach((s) => {
           s.material?.map?.dispose?.()
           s.material?.dispose?.()
         })
@@ -316,8 +347,8 @@ const KnowledgeNebula3D = React.forwardRef<
     // Falls back to +Z before the first render, when there's no camera pose yet.
     const getViewDirection = () => {
       const fg = fgRef.current
-      const cam = fg?.camera() as any
-      const controls = fg?.controls() as any
+      const cam = fg?.camera()
+      const controls = fg?.controls() as OrbitControlsLike | undefined
       if (!cam || !controls?.target) return { x: 0, y: 0, z: 1 }
       const dx = cam.position.x - controls.target.x
       const dy = cam.position.y - controls.target.y
@@ -327,23 +358,26 @@ const KnowledgeNebula3D = React.forwardRef<
       return { x: dx / len, y: dy / len, z: dz / len }
     }
 
-    const getClusterFraming = (liveNode: any, zoomDist = clickZoomDistance) => {
+    const getClusterFraming = (
+      liveNode: NebulaNodeObject,
+      zoomDist = clickZoomDistance
+    ) => {
       const nodeId = liveNode.id
-      const clusterNodes: any[] = [liveNode]
+      const clusterNodes: NebulaNodeObject[] = [liveNode]
       const clusterNodeIds = new Set<string>([nodeId])
 
-      data.links.forEach((l: any) => {
-        const srcId = typeof l.source === "object" ? l.source.id : l.source
-        const tgtId = typeof l.target === "object" ? l.target.id : l.target
+      data.links.forEach((l) => {
+        const srcId = linkEndId(l.source)
+        const tgtId = linkEndId(l.target)
         if (srcId === nodeId && !clusterNodeIds.has(tgtId)) {
-          const neighbor = (data.nodes as any[]).find((n) => n.id === tgtId)
+          const neighbor = data.nodes.find((n) => n.id === tgtId)
           if (neighbor) {
             clusterNodes.push(neighbor)
             clusterNodeIds.add(tgtId)
           }
         }
         if (tgtId === nodeId && !clusterNodeIds.has(srcId)) {
-          const neighbor = (data.nodes as any[]).find((n) => n.id === srcId)
+          const neighbor = data.nodes.find((n) => n.id === srcId)
           if (neighbor) {
             clusterNodes.push(neighbor)
             clusterNodeIds.add(srcId)
@@ -405,8 +439,8 @@ const KnowledgeNebula3D = React.forwardRef<
         autoRotateOverride?: boolean
       ) => {
         const fg = fgRef.current
-        const cam = fg?.camera() as any
-        const controls = fg?.controls() as any
+        const cam = fg?.camera()
+        const controls = fg?.controls() as OrbitControlsLike | undefined
         if (!cam || !controls?.target) return
 
         if (flightRafRef.current) {
@@ -568,7 +602,9 @@ const KnowledgeNebula3D = React.forwardRef<
         // what's supposed to be the colour fade's still period, and the
         // flight would then start from that nudged position instead of
         // where the click actually left things.
-        const controls = fgRef.current?.controls() as any
+        const controls = fgRef.current?.controls() as
+          | OrbitControlsLike
+          | undefined
         let wasAutoRotating = false
         if (controls) {
           wasAutoRotating = controls.autoRotate
@@ -600,7 +636,7 @@ const KnowledgeNebula3D = React.forwardRef<
     // an opposite sign from the node-click zoom-in's so zooming out reads as
     // twisting the other way — a deliberate little "in vs. out" distinction.
     const frameAndFly = (
-      nodes: any[],
+      nodes: NebulaNodeObject[],
       padding: number,
       duration: number,
       spinDeg: number,
@@ -644,13 +680,13 @@ const KnowledgeNebula3D = React.forwardRef<
 
     React.useImperativeHandle(ref, () => ({
       zoomToFit: (duration = 600, padding = 48) => {
-        frameAndFly(data.nodes as any[], padding, duration, BACKGROUND_SPIN_DEG, CLICK_ZOOM_LEAD_MS)
+        frameAndFly(data.nodes, padding, duration, BACKGROUND_SPIN_DEG, CLICK_ZOOM_LEAD_MS)
       },
       focusNode: (nodeOrId: NebulaNode | string, distance?: number, duration = 800) => {
         const fg = fgRef.current
         if (!fg) return
         const id = typeof nodeOrId === "string" ? nodeOrId : nodeOrId.id
-        const liveNode = (data.nodes as any[]).find((n) => n.id === id)
+        const liveNode = data.nodes.find((n) => n.id === id)
         if (!liveNode) return
 
         const framing = getClusterFraming(liveNode, distance ?? clickZoomDistance)
@@ -658,7 +694,7 @@ const KnowledgeNebula3D = React.forwardRef<
       },
       fitNodes: (nodeIds: string[] | Set<string>, duration = 800, padding = 40) => {
         const idSet = new Set(nodeIds)
-        const matching = (data.nodes as any[]).filter((n) => idSet.has(n.id))
+        const matching = data.nodes.filter((n) => idSet.has(n.id))
         frameAndFly(matching, padding, duration, CLICK_SPIN_DEG)
       },
       animateBirth: (noteDelayMs = 25) => {
@@ -678,7 +714,7 @@ const KnowledgeNebula3D = React.forwardRef<
         if (totalNodes === 0) return
 
         // 1. Hide all nodes initially and randomize entry points
-        data.nodes.forEach((n: any) => {
+        data.nodes.forEach((n) => {
           n.x = (Math.random() - 0.5) * 450
           n.y = (Math.random() - 0.5) * 450
           n.z = (Math.random() - 0.5) * 450
@@ -697,7 +733,7 @@ const KnowledgeNebula3D = React.forwardRef<
         // 2. Spawn notes ONE BY ONE with interval noteDelayMs
         timerRef.current = setInterval(() => {
           if (currentIdx < totalNodes) {
-            const node = data.nodes[currentIdx] as any
+            const node = data.nodes[currentIdx]
             node.__birthed = true
             currentIdx++
             fg.refresh?.()
@@ -711,7 +747,7 @@ const KnowledgeNebula3D = React.forwardRef<
               clearInterval(timerRef.current)
               timerRef.current = null
             }
-            data.nodes.forEach((n: any) => {
+            data.nodes.forEach((n) => {
               n.__birthed = true
             })
             fg.refresh?.()
@@ -810,7 +846,9 @@ const KnowledgeNebula3D = React.forwardRef<
     // Configure controls for touch and mouse wheel zooming
     React.useEffect(() => {
       const setupControls = () => {
-        const controls = fgRef.current?.controls() as any
+        const controls = fgRef.current?.controls() as
+          | OrbitControlsLike
+          | undefined
         if (!controls) return false
         controls.enableZoom = true
         controls.enablePan = true
@@ -835,15 +873,14 @@ const KnowledgeNebula3D = React.forwardRef<
     const activeLinkWidthRef = React.useRef(activeLinkWidth)
     activeLinkWidthRef.current = activeLinkWidth
 
-    const handleNodeClick = (node: NodeObject) => {
+    const handleNodeClick = (node: NebulaNodeObject) => {
       const fg = fgRef.current
       if (!fg) return
-      const n = node as any
-      const framing = getClusterFraming(n, clickZoomDistance)
+      const framing = getClusterFraming(node, clickZoomDistance)
       // Fire the highlight change first (synchronously, so the very next
       // paint already has it in flight) and only schedule the camera flight
       // after CLICK_ZOOM_LEAD_MS — see the comment on `scheduleFlyCameraTo`.
-      onNodeClick?.(n as NebulaNode)
+      onNodeClick?.(node)
       scheduleFlyCameraTo(framing.cameraPos, framing.lookAt, 800, CLICK_SPIN_DEG, CLICK_ZOOM_LEAD_MS)
     }
 
@@ -856,25 +893,23 @@ const KnowledgeNebula3D = React.forwardRef<
     // stacking on top of the rAF loop's own deliberate `fg.refresh()` calls
     // during the highlight fade. Keeping these stable means the *only*
     // trigger for a rebuild is that explicit refresh.
-    const nodeVisibilityFn = React.useCallback((n: NodeObject) => {
-      const node = n as NebulaNode
+    const nodeVisibilityFn = React.useCallback((node: NebulaNodeObject) => {
       if (hiddenIdsRef.current?.has(node.id)) return false
-      return (node as any).__birthed !== false
+      return node.__birthed !== false
     }, [])
-    const linkVisibilityFn = React.useCallback((l: any) => {
-      const srcId = typeof l.source === "object" ? l.source.id : l.source
-      const tgtId = typeof l.target === "object" ? l.target.id : l.target
+    const linkVisibilityFn = React.useCallback((l: NebulaLinkObject) => {
+      const srcId = linkEndId(l.source)
+      const tgtId = linkEndId(l.target)
       if (hiddenIdsRef.current?.has(srcId) || hiddenIdsRef.current?.has(tgtId)) return false
       const srcBirthed = typeof l.source === "object" ? l.source.__birthed !== false : true
       const tgtBirthed = typeof l.target === "object" ? l.target.__birthed !== false : true
       return srcBirthed && tgtBirthed
     }, [])
     const nodeValFn = React.useCallback(
-      (n: NodeObject) => nodeRenderVal(n, highlightedIdsRef.current),
+      (n: NebulaNodeObject) => nodeRenderVal(n, highlightedIdsRef.current),
       []
     )
-    const nodeColorFn = React.useCallback((n: NodeObject) => {
-      const node = n as any
+    const nodeColorFn = React.useCallback((node: NebulaNodeObject) => {
       const t = node.__highlightT ?? 1
       const light = isLightRef.current
       const dimmedRgb = light ? DIMMED_RGB_LIGHT : DIMMED_RGB_DARK
@@ -884,18 +919,18 @@ const KnowledgeNebula3D = React.forwardRef<
       if (t >= 1) return full
       return lerpNodeColor(t, full, dimmedRgb, dimmedAlpha)
     }, [])
-    const linkColorFn = React.useCallback((l: any) => {
-      const srcId = typeof l.source === "object" ? l.source.id : l.source
-      const tgtId = typeof l.target === "object" ? l.target.id : l.target
+    const linkColorFn = React.useCallback((l: NebulaLinkObject) => {
+      const srcId = linkEndId(l.source)
+      const tgtId = linkEndId(l.target)
       const hi = highlightedIdsRef.current
       if (hi && (!hi.has(srcId) || !hi.has(tgtId))) {
         return isLightRef.current ? "rgba(203,213,225,0.06)" : "rgba(255,255,255,0.02)"
       }
       return isLightRef.current ? "rgba(51,65,85,0.70)" : "rgba(203,213,225,0.65)"
     }, [])
-    const linkWidthFn = React.useCallback((l: any) => {
-      const srcId = typeof l.source === "object" ? l.source.id : l.source
-      const tgtId = typeof l.target === "object" ? l.target.id : l.target
+    const linkWidthFn = React.useCallback((l: NebulaLinkObject) => {
+      const srcId = linkEndId(l.source)
+      const tgtId = linkEndId(l.target)
       const hi = highlightedIdsRef.current
       if (hi && (!hi.has(srcId) || !hi.has(tgtId))) return 0.1
       return activeLinkWidthRef.current

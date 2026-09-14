@@ -10,7 +10,7 @@ tags:
 
 # ⚡ Sympose Latency & Performance Tuning Guide
 
-> **Target SLA:** Sub-1.0s Time-To-First-Token (TTFT) across all agents.  
+> **Target SLA:** Sub-1.0s Time-To-First-Token (TTFT) across all personas.  
 > **Architecture:** Zero-Bloat Agnostic Model Router (`sympose/`) on macOS Apple Silicon.
 
 This reference lists all key configuration variables, system flags, and architectural knobs governing latency in Sympose, where they live, their optimal defaults, and their impact.

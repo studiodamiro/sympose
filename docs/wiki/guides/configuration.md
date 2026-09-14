@@ -12,7 +12,7 @@ tags:
 
 # ⚙️ Configuration & Live Tuning
 
-Sympose separates system performance and exit policies from agent manifests using a centralized [`config.yaml`](../../../config.yaml) file. Every knob is declared once in the schema module `sympose/config_schema.py` ([ADR-077](../../journal/2026-09/2026-09-08_adr-077-declarative-configuration-schema.md)); `config.yaml` only carries the values you override.
+Sympose separates system performance and exit policies from persona manifests using a centralized [`config.yaml`](../../../config.yaml) file. Every knob is declared once in the schema module `sympose/config_schema.py` ([ADR-077](../../journal/2026-09/2026-09-08_adr-077-declarative-configuration-schema.md)); `config.yaml` only carries the values you override.
 
 ---
 
@@ -94,7 +94,7 @@ Model selection in Sympose is resolved across three layers:
 
 ```mermaid
 flowchart TD
-    subgraph Execution["1. Primary Agents & Peer Specialists"]
+    subgraph Execution["1. Primary Personas & Peer Specialists"]
         A["Persona Profile (profiles/handle.yaml)"] --> B["Active Session Override (/model name)"]
     end
     subgraph Worker["2. Ephemeral Sub-Agent Workers"]
@@ -107,7 +107,7 @@ flowchart TD
     end
 ```
 
-1. **Primary Agents (`@grace`, `@samantha`, `@aurelius`)**:
+1. **Primary Personas (`@grace`, `@samantha`, `@aurelius`)**:
    - Specified via the `model:` attribute in [`profiles/<handle>.yaml`](../../../profiles/grace.yaml).
    - Can be temporarily swapped live in the terminal using `/model <model_name>`.
 2. **Ephemeral Sub-Agent Workers (`/worker` or `[SPAWN_WORKER]`)**:

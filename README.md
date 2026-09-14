@@ -1,9 +1,9 @@
-# Sympose: Multi-Model AI Agent Hub
+# Sympose: Multi-Model AI Persona Hub
 
 [![Tests](https://github.com/studiodamiro/sympose/actions/workflows/tests.yml/badge.svg)](https://github.com/studiodamiro/sympose/actions/workflows/tests.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-> **Sympose** (_from Symposium: a forum of gathering experts_) is a zero-bloat, sub-second latency (`<0.8s TTFT`), and local-first multi-agent ecosystem engineered for **macOS Terminal** and **Slack (Socket Mode)**.
+> **Sympose** (_from Symposium: a forum of gathering experts_) is a zero-bloat, sub-second latency (`<0.8s TTFT`), and local-first multi-persona ecosystem engineered for **macOS Terminal** and **Slack (Socket Mode)**.
 
 ---
 
@@ -61,7 +61,7 @@ Full walkthrough, troubleshooting, and upgrade notes: **[Quickstart Guide](docs/
 
 ## 🏛️ Architecture: The Triad Pattern
 
-Sympose separates agent intelligence into three specialized, file-based components — plain Markdown and YAML, no database:
+Sympose separates persona intelligence into three specialized, file-based components — plain Markdown and YAML, no database:
 
 ```text
 ┌─────────────────────────────────────────────────────────────┐
@@ -72,7 +72,7 @@ Sympose separates agent intelligence into three specialized, file-based componen
 └─────────────────────────────────────────────────────────────┘
                                │
 ┌─────────────────────────────────────────────────────────────┐
-│ 2. Agent Soul (_soul.md)   ──>  COGNITIVE DIRECTIVES        │
+│ 2. Persona Soul (_soul.md) ──>  COGNITIVE DIRECTIVES        │
 │    • Injected into LLM System Prompt                        │
 │    • Personality, voice cadence, psychological depth        │
 └─────────────────────────────────────────────────────────────┘
@@ -97,19 +97,19 @@ Full breakdown: **[Architecture Overview](docs/wiki/architecture/overview.md)**.
 3. **Dynamic Model Discovery** — `ModelCatalog` queries and caches OpenRouter's live catalog on-demand; zero hardcoded model lists.
 4. **Zero Infrastructure Daemons** — Python standard library over local Markdown files; no Postgres, Redis, Docker, or vector DB to run or migrate.
 5. **Self-Regulating Context** — sliding context windows prevent token bloat without manual `/clear` micromanagement.
-6. **Anti-Helplessness Axiom** — agents have autonomous live web search and native tools; they never punt a question back to you to go search yourself.
+6. **Anti-Helplessness Axiom** — personas have autonomous live web search and native tools; they never punt a question back to you to go search yourself.
 
 ---
 
 ## 🌟 Core Pillars
 
-- **Agnostic Flat-File Engine** (`profiles/`) — personas, memories, and settings are plain Markdown/YAML; no Python changes to add or retire an agent.
+- **Agnostic Flat-File Engine** (`profiles/`) — personas, memories, and settings are plain Markdown/YAML; no Python changes to add or retire a persona.
 - **Modular Skills Engine** (`skills/`) — reusable procedural playbooks with mandatory deliverable schemas.
 - **Native Obsidian `Templates/` Engine** — variable interpolation and dynamic frontmatter tag syncing on daily notes.
 - **Autonomous Live Web Search** — real-time search and market data, $0 API key, powered by `ddgs`.
-- **Dedicated MCP Server Hub** (`mcp/`) — heavy tools (GitHub, Fetch, Filesystem, SQL) run isolated in child-process workers so the primary agent stays fast and token-light.
+- **Dedicated MCP Server Hub** (`mcp/`) — heavy tools (GitHub, Fetch, Filesystem, SQL) run isolated in child-process workers so the primary persona stays fast and token-light.
 - **Slack Socket Mode** — zero open ports, thread-bound memory isolation, `/clear`, expressive emoji reactions.
-- **Autonomic Natural-Language Lifecycle** — tune config, spawn, and retire agents purely through conversation.
+- **Autonomic Natural-Language Lifecycle** — tune config, spawn, and retire personas purely through conversation.
 
 ---
 
@@ -117,11 +117,11 @@ Full breakdown: **[Architecture Overview](docs/wiki/architecture/overview.md)**.
 
 Sympose ships with exactly one persona out of the box: **Samantha** (`@samantha`), the master orchestrator. Everything else — a co-engineer, a private journaling companion, a domain specialist — is something *you* create, not product content bundled in.
 
-Ask Samantha in natural language and she emits `[CREATE_PERSONA]` to write the manifest and soul directives, instantly mounting the new agent into `/switch`:
+Ask Samantha in natural language and she emits `[CREATE_PERSONA]` to write the manifest and soul directives, instantly mounting the new persona into `/switch`:
 
-> *"Create an agent modeled after Rear Admiral Grace Hopper for surgical systems engineering and zero-bloat code reviews."*
+> *"Create a persona modeled after Rear Admiral Grace Hopper for surgical systems engineering and zero-bloat code reviews."*
 
-Persona anatomy, memory model, and hand-authoring a manifest yourself: **[Profile System & Persona Genesis](docs/wiki/agents/profile-system.md)** · **[Creating Custom Agents](docs/wiki/guides/creating-agents.md)**.
+Persona anatomy, memory model, and hand-authoring a manifest yourself: **[Profile System & Persona Genesis](docs/wiki/personas/profile-system.md)** · **[Creating Custom Personas](docs/wiki/guides/creating-personas.md)**.
 
 ---
 
@@ -129,7 +129,7 @@ Persona anatomy, memory model, and hand-authoring a manifest yourself: **[Profil
 
 - **Hot memory** (`profiles/*_memory.md`) — lean bullet points injected into the system prompt for sub-second recall, auto-compacted at 25+ lines.
 - **Deep vault archives** (`Projects/`, `Thoughts/`, `Daily/`) — real Obsidian notes with `[[Wikilinks]]` and YAML frontmatter.
-- **Selective sharing** — team agents can share project memory; private companions stay fully air-gapped (`share_memory: false`).
+- **Selective sharing** — team personas can share project memory; private companions stay fully air-gapped (`share_memory: false`).
 
 Full standard: **[Memory Architecture](docs/wiki/memory/architecture-standard.md)**.
 
@@ -137,11 +137,11 @@ Full standard: **[Memory Architecture](docs/wiki/memory/architecture-standard.md
 
 ## ⚡ Skills & Action Protocols
 
-Agents act on the world by emitting declarative tags in their response stream — `[WRITE_NOTE: path | content]`, `[REMEMBER: fact]`, `[SPAWN_WORKER: spec | task]`, `[CONFIG_SET: key | value]`, and more — parsed and executed after the model finishes streaming, at zero added round-trips.
+Personas act on the world by emitting declarative tags in their response stream — `[WRITE_NOTE: path | content]`, `[REMEMBER: fact]`, `[SPAWN_SUBAGENT: spec | task]`, `[CONFIG_SET: key | value]`, and more — parsed and executed after the model finishes streaming, at zero added round-trips.
 
 Ten built-in skill playbooks ship inside the package at `sympose/builtin_skills/`: `vault_write`, `vault_recall`, `web_search`, `slack_interaction`, `sympose_mastery`, `code_review`, `git_workflow`, `strategic_analysis`, `system_architecture`, `discussion_moderation`.
 
-Full tag reference and skill specs: **[Action Tags Reference](docs/wiki/reference/action-tags.md)** · **[Modular Skills System](docs/wiki/agents/skills-system.md)**.
+Full tag reference and skill specs: **[Action Tags Reference](docs/wiki/reference/action-tags.md)** · **[Modular Skills System](docs/wiki/personas/skills-system.md)**.
 
 ---
 
@@ -149,7 +149,7 @@ Full tag reference and skill specs: **[Action Tags Reference](docs/wiki/referenc
 
 ```text
 sympose/
-├── profiles/     # Agent souls, YAML manifests, and working memory
+├── profiles/     # Persona souls, YAML manifests, and working memory
 ├── mcp/          # MCP server hub & configs
 ├── sympose/      # Python package, <200 LOC per file
 │   ├── prompts/         # Declarative system prompt templates (shipped in the wheel)
@@ -171,7 +171,7 @@ Per-file responsibility breakdown: **[Package Layering & Modular Design](docs/wi
 | `/config [get\|set] <key> <val>` | Inspect or live-tune a validated runtime knob |
 | `/persona set @handle <key> <val>` | Set a per-persona knob (`temperature`, `model`, …) |
 | `/model find <query>` | Search and switch live models |
-| `/worker <skill\|mcp> <task>` | Dispatch an isolated sub-agent worker |
+| `/subagent <skill\|mcp> <task>` | Dispatch an isolated sub-agent |
 | `/vault <query>` | Query the sandboxed Obsidian vault |
 | `/save [memory\|obsidian\|both]` | Synthesize and save session takeaways |
 | `/help` | Full command reference, in-app |

@@ -5,7 +5,7 @@ type: wiki-memory
 parent: index
 tags:
   - sympose/memory
-  - autonomous-agents
+  - autonomous-personas
   - shadow-extractor
 ---
 

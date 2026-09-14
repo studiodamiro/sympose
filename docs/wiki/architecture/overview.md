@@ -11,7 +11,7 @@ tags:
 
 # 📐 Architecture Overview & The Triad Pattern
 
-Sympose is designed around strict separation of concerns. Instead of stuffing prompt instructions, API configurations, personality, and memory into a single monolithic file or database row, Sympose separates agent intelligence into three distinct, specialized file formats: the **Triad Pattern**.
+Sympose is designed around strict separation of concerns. Instead of stuffing prompt instructions, API configurations, personality, and memory into a single monolithic file or database row, Sympose separates persona intelligence into three distinct, specialized file formats: the **Triad Pattern**.
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -21,7 +21,7 @@ Sympose is designed around strict separation of concerns. Instead of stuffing pr
 └─────────────────────────────────────────────────────────────┘
                                │
 ┌─────────────────────────────────────────────────────────────┐
-│ 2. Agent Soul (_soul.md)   ──>  COGNITIVE DIRECTIVES        │
+│ 2. Persona Soul (_soul.md) ──>  COGNITIVE DIRECTIVES        │
 │    • Injected into LLM System Prompt                        │
 │    • Inflexible tone, reasoning heuristics, boundaries      │
 └─────────────────────────────────────────────────────────────┘
@@ -41,7 +41,7 @@ Sympose is designed around strict separation of concerns. Instead of stuffing pr
 UI presentation strings (like terminal status spinners, Slack avatar URLs, and domain vault folders) live exclusively in the `profiles/{handle}.yaml` manifest. The LLM never reads these strings in its system prompt, saving valuable context tokens and eliminating pre-fill latency.
 
 ### 2. Immutable Soul vs. Mutable Memory
-- **The Soul (`_soul.md`)** is static and deliberate. It defines who the agent is, how it reasons, and its communication philosophy.
+- **The Soul (`_soul.md`)** is static and deliberate. It defines who the persona is, how it reasons, and its communication philosophy.
 - **The Memory (`_memory.md`)** is dynamic. It mutates silently as you work, capturing user plans, technical decisions, and preferences.
 
 ### 3. File-Based & Obsidian-Native

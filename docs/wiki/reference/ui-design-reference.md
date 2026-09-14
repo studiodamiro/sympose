@@ -45,7 +45,7 @@ Everything below is derived from these. Cross-reference them for detail; cite th
 ## 1. Product context (one paragraph)
 
 **Sympose** ("a symposium — a forum of gathering experts") is a zero-bloat, local-first
-multi-agent hub. Multiple AI personas (cloud + local models) share a sandboxed Obsidian
+multi-persona hub. Multiple AI personas (cloud + local models) share a sandboxed Obsidian
 vault and an autonomous memory layer. It runs as a macOS Terminal REPL and a Slack bot
 today; the web dashboard is the third surface. The dashboard is served by a native
 FastAPI process on `http://localhost:8000` (no Node runtime for end users) and is
@@ -55,7 +55,7 @@ Primary target is the desktop window (≥1280px, graceful to ≥1024px); a portr
 layout is also in scope (§6.8) as a responsive view of the same surface.
 
 The dashboard has four jobs, all on one screen:
-- Talk to the agents (streaming multi-agent chat).
+- Talk to the personas (streaming multi-persona chat).
 - See the vault as a living idea-web (2D/3D ambient knowledge nebula).
 - Browse and edit vault notes without opening Obsidian (standalone vault explorer).
 - Re-theme the whole UI live from **Settings → Appearance** (no persistent theme bar).
@@ -173,7 +173,7 @@ app. It has two states (ADR-051, wiki spec §1):
 | Transition | 300–400ms cross-fade + panel slide | same, reversed |
 
 Node/link motion: gentle particle pulse along links; a referenced note **pulses its node cluster**
-when an agent mentions it in chat ("Active Nebula Synergy"). Physics visibly settles and stops
+when a persona mentions it in chat ("Active Nebula Synergy"). Physics visibly settles and stops
 after ~3s (it is not perpetually jittering).
 
 The **2D/3D mode switch** and the **Explore ⇄ Focus** toggle are reached from Settings → Appearance
@@ -194,7 +194,7 @@ Three-column shell, derived from the wiki spec §1 diagram (theme-bar row remove
 
 ```
 ┌──────────────────────┬───────────────────────────────────────┬─────────────────────────┐
-│  LEFT  ▸ VAULT       │  CENTER ▸ MULTI-AGENT CHAT & TIMELINE  │  RIGHT ▸ NEBULA CONTROLS │
+│  LEFT  ▸ VAULT       │  CENTER ▸ MULTI-PERSONA CHAT & TIMELINE│  RIGHT ▸ NEBULA CONTROLS │
 │  EXPLORER            │                                       │  (over the ambient bg)   │
 │                      │  [@samantha] Formulating auth plan…   │                          │
 │  ▾ Projects/         │  [@grace]   Inverted index verified   │  🔍 Search files…        │
@@ -207,7 +207,7 @@ Three-column shell, derived from the wiki spec §1 diagram (theme-bar row remove
 └──────────────────────┴───────────────────────────────────────┴─────────────────────────┘
 ```
 
-- **Left panel** (~260–320px): directory tree. Collapsible. Respects agent domain sandboxes;
+- **Left panel** (~260–320px): directory tree. Collapsible. Respects persona domain sandboxes;
   hides `.obsidian`, `.git`, `Attachments`, `.trash`.
 - **Center** is the anchor: streaming chat timeline + composer. In Focus Mode it widens and
   gets a matte backing; in Explore Mode it can minimize to a docked bar.
@@ -292,14 +292,14 @@ separate native app. Produce these mobile artboards:
   mark: Vault, Chat/AI (sparkle), Settings (gear), Code, Daily (clock), Writing (ink-pot),
   etc. Show a 3–4 frame progressive reveal (mark only → 2 icons → full arc). Motion is a
   quick spring, ~200ms staggered.
-- **6.8b — Radial launcher (agent switch).** Same gesture, but the arc is **agent avatars**
+- **6.8b — Radial launcher (persona switch).** Same gesture, but the arc is **persona avatars**
   (Samantha, Grace, Anaïs) with a small green "online / on-device" dot on the active one.
-- **6.8c — Chat (full screen).** Back chevron + agent avatar + name in the header (or the
+- **6.8c — Chat (full screen).** Back chevron + persona avatar + name in the header (or the
   conversation title when opened from history); user message right-aligned in a filled
-  bubble; agent reply as plain flowing text; `0.68 TTFT` chip; thumbs-up + emoji react;
+  bubble; persona reply as plain flowing text; `0.68 TTFT` chip; thumbs-up + emoji react;
   composer pinned to the bottom safe-area with `+` attach and a `3.7 Flash` model chip +
-  agent avatar.
-- **6.8d — Agent home (conversation list).** Header (back + avatar + name + gear); `PINNED:`
+  persona avatar.
+- **6.8d — Persona home (conversation list).** Header (back + avatar + name + gear); `PINNED:`
   then `RECENT:` conversation lists as plain tappable rows; composer docked at bottom.
 - **6.8e — Vault (list).** Header (back + vault icon + "Vault" + gear); `PINNED:` Projects /
   Code / Daily; `RECENT:` the vault folders (Drawings, General, Limbo, Movies, People,
@@ -309,7 +309,7 @@ separate native app. Produce these mobile artboards:
 - **6.8f — Note reader (full screen).** Back chevron + note title + breadcrumb
   (`Projects / Design Assets`); the **contextual formatting toolbar** (B I U S · bullet /
   numbered list · code / quote · send) directly under the header — present only here, never
-  global; frontmatter card (`TITLE / DATE / AGENT / TAGS`); body with inline `[[wikilinks]]`
+  global; frontmatter card (`TITLE / DATE / PERSONA / TAGS`); body with inline `[[wikilinks]]`
   in the brand accent and a blockquote; `LINKS:` chips at the foot.
 - **6.8g — Settings (full screen).** Header (back + "Settings"); the same grouped sections as
   §6.4 stacked as cards: Shared Memory Compactor (meter + button), Runtime Parameters
@@ -318,7 +318,7 @@ separate native app. Produce these mobile artboards:
 
 ---
 
-## 7. Multi-agent chat — component detail (wiki spec §2 Module D)
+## 7. Multi-persona chat — component detail (wiki spec §2 Module D)
 
 - **Streaming timeline:** token-by-token via SSE. Show a mid-stream message with a caret.
 - **Message identity:** each turn led by a colored `@handle` pill + persona icon + model chip
@@ -449,5 +449,5 @@ From ADR-052 / wiki spec §4 — these bound what the design may ask for:
 - [ ] 6.5 Vault Explorer + markdown reader + backlink inspector + daily calendar (read + edit states)
 - [ ] 6.6 Login gate stub (ADR-064, minimal)
 - [ ] 6.7 States pass — empty / loading (skeleton) / error / local-model, for chat + nebula + explorer
-- [ ] 6.8a–g Mobile — radial launcher (home + agent-switch), chat, agent home, vault (list + tree), note reader, settings
+- [ ] 6.8a–g Mobile — radial launcher (home + persona-switch), chat, persona home, vault (list + tree), note reader, settings
 - [ ] Palette proof — one screen rendered in Blueprint & Paper (light) + one at `0.5rem` radius

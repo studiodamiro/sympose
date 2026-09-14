@@ -1,11 +1,11 @@
 ---
-title: "Agent Specification: Grace Hopper (@grace)"
+title: "Persona Specification: Grace Hopper (@grace)"
 created: 2026-08-24
 updated: 2026-08-25
-type: wiki-agents
-parent: agents/profile-system
+type: wiki-personas
+parent: personas/profile-system
 tags:
-  - sympose/agents
+  - sympose/personas
   - grace
   - engineering
   - systems
@@ -134,7 +134,7 @@ You (to @grace): Grace, inspect sympose/workers.py. We need to reduce its line c
 ---
 
 ## 🔗 Related Documentation
-* [Agent Profile System Guide](./profile-system.md)
+* [Persona Profile System Guide](./profile-system.md)
 * [Modular Skills System Specification](./skills-system.md)
 * [Model Context Protocol & Sub-Agent Workers](../architecture/mcp-and-workers.md)
-* [Autonomous Agent Memory Standard](../memory/architecture-standard.md)
+* [Autonomous Persona Memory Standard](../memory/architecture-standard.md)

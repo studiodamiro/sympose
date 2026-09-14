@@ -12,23 +12,23 @@ tags:
 
 # 🛡️ Sandboxed Obsidian Vault & Autonomous File Protocols
 
-Sympose connects AI agents directly to your local **Obsidian Vault** for persistent note-taking, daily journaling, and session archival. To prevent cloud LLMs or rogue agent prompts from reading or corrupting private personal notes, Sympose enforces a strict **Domain Sandboxing Security Architecture** combined with **Autonomous Action Tag Protocols**.
+Sympose connects AI personas directly to your local **Obsidian Vault** for persistent note-taking, daily journaling, and session archival. To prevent cloud LLMs or rogue persona prompts from reading or corrupting private personal notes, Sympose enforces a strict **Domain Sandboxing Security Architecture** combined with **Autonomous Action Tag Protocols**.
 
 ---
 
 ## 1. Multi-Folder Whitelist & Domain Sandboxing (ADR-011)
 
-Sympose supports existing Obsidian vault structures without requiring file reorganizations. Agent manifests configure their domain boundaries using `vault_folders`:
+Sympose supports existing Obsidian vault structures without requiring file reorganizations. Persona manifests configure their domain boundaries using `vault_folders`:
 
 | Mode | Manifest Syntax | Description |
 | :--- | :--- | :--- |
-| **Multi-Folder Whitelist** | `vault_folders: ["Projects", "Architecture", "Reference"]` | Agent searches & reads across all listed folders. |
-| **Full Vault Access** | `vault_folders: ["*"]` or `vault_folder: ""` | Agent has root access to read/search across the entire vault. |
-| **Single Folder (Legacy)** | `vault_folder: "Projects"` | Agent is isolated to a single domain subfolder. |
+| **Multi-Folder Whitelist** | `vault_folders: ["Projects", "Architecture", "Reference"]` | Persona searches & reads across all listed folders. |
+| **Full Vault Access** | `vault_folders: ["*"]` or `vault_folder: ""` | Persona has root access to read/search across the entire vault. |
+| **Single Folder (Legacy)** | `vault_folder: "Projects"` | Persona is isolated to a single domain subfolder. |
 
 ### Active Profile Permissions
 
-| Agent | Model Tier | Permitted Folders | Security Boundary |
+| Persona | Model Tier | Permitted Folders | Security Boundary |
 | :--- | :--- | :--- | :--- |
 | **@grace** | Cloud (Gemini/Claude) | `Projects/`, `Architecture/`, `Reference/`, `Daily Notes/` | Blocked from `Personal/`, `Finances/` |
 | **@samantha** | Cloud (Gemini) | `General/`, `Projects/`, `Strategy/`, `Daily Notes/` | Blocked from `Personal/`, `Finances/`, `Architecture/` |
@@ -36,7 +36,7 @@ Sympose supports existing Obsidian vault structures without requiring file reorg
 
 > [!NOTE]
 > **The Deny-by-Default Security Model:**  
-> In Sympose, permissions are closed by default. An agent has zero visibility into any directory unless that folder is explicitly declared in its `vault_folders` list. To restrict an agent (e.g., Samantha) from specific directories (like `Personal/` or `Finances/`), simply leave them off that agent's manifest. No complex ACLs or permission daemons needed.
+> In Sympose, permissions are closed by default. A persona has zero visibility into any directory unless that folder is explicitly declared in its `vault_folders` list. To restrict a persona (e.g., Samantha) from specific directories (like `Personal/` or `Finances/`), simply leave them off that persona's manifest. No complex ACLs or permission daemons needed.
 
 ---
 
@@ -55,7 +55,7 @@ def is_safe_path(target_path: str, base_dir: str) -> bool:
         return False
 ```
 
-If an agent or command attempts to escape its assigned domain folder:
+If a persona or command attempts to escape its assigned domain folder:
 1. The file write/read is aborted immediately.
 2. A `Security Error` is returned.
 3. No external files or sensitive personal directories are exposed to cloud models.
@@ -64,7 +64,7 @@ If an agent or command attempts to escape its assigned domain folder:
 
 ## 3. Autonomous Action Tag Protocol (ADR-009)
 
-Agents can autonomously create, append, and log notes during conversations without roundtrip latency penalties by emitting structured action tags inline:
+Personas can autonomously create, append, and log notes during conversations without roundtrip latency penalties by emitting structured action tags inline:
 
 ```mermaid
 sequenceDiagram
@@ -93,7 +93,7 @@ sequenceDiagram
 
 ## 4. Pre-Turn Grounded Vault Retrieval
 
-When a user asks an agent to inspect a past note (e.g. *"Grace, check what we wrote in `specs/cache.md`"* or *"Search vault for OAuth"*), [`PersonaEngine._resolve_vault_context()`](../../../sympose/engine.py) performs a `<3ms` local read/search across the agent's sandboxed domain and injects the excerpt into the turn's prompt before streaming.
+When a user asks a persona to inspect a past note (e.g. *"Grace, check what we wrote in `specs/cache.md`"* or *"Search vault for OAuth"*), [`PersonaEngine._resolve_vault_context()`](../../../sympose/engine.py) performs a `<3ms` local read/search across the persona's sandboxed domain and injects the excerpt into the turn's prompt before streaming.
 
 This delivers instant, grounded contextual awareness without additional network roundtrips.
 

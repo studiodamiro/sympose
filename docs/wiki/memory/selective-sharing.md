@@ -15,7 +15,7 @@ In a multi-model personal AI hub, different personas operate under different tru
 - **Cloud Models** (Google Gemini, Anthropic Claude) provide massive reasoning bandwidth for engineering and strategy, but send payloads over the network.
 - **Local Offline Models** (Ollama / Gemma) run completely air-gapped on your local hardware for private reflections, journaling, and sensitive personal notes.
 
-To prevent private reflections from leaking into cloud prompt payloads while ensuring all agents know who you are, Sympose implements the **Selective Memory Sharing & Privacy Ring Standard (ADR-010)**.
+To prevent private reflections from leaking into cloud prompt payloads while ensuring all personas know who you are, Sympose implements the **Selective Memory Sharing & Privacy Ring Standard (ADR-010)**.
 
 ---
 
@@ -54,9 +54,9 @@ graph TD
 
 ## 2. Configuration & Manifest Controls
 
-Memory sharing is configured per agent via the `share_memory` boolean in [`profiles/*.yaml`](../../../profiles/):
+Memory sharing is configured per persona via the `share_memory` boolean in [`profiles/*.yaml`](../../../profiles/):
 
-| Agent | Model Backend | `share_memory` | Injected Memories |
+| Persona | Model Backend | `share_memory` | Injected Memories |
 | :--- | :--- | :--- | :--- |
 | **@samantha** | Cloud (Gemini) | `true` | `user_profile.md` + `_shared_memory.md` + `samantha_memory.md` |
 | **@grace** | Cloud (Claude/Gemini) | `true` | `user_profile.md` + `_shared_memory.md` + `grace_memory.md` |
@@ -71,7 +71,7 @@ When [`ProfileManager.build_system_prompt()`](../../../sympose/profiles.py) comp
 1. **Step 1 (Universal Identity)**: Injects [`profiles/user_profile.md`](../../../profiles/user_profile.md).
 2. **Step 2 (Shared Team Pool)**: Injects [`profiles/_shared_memory.md`](../../../profiles/_shared_memory.md) **only** if `share_memory: true`.
 3. **Step 3 (Persona Memory)**: Injects `profiles/{handle}_memory.md`.
-4. **Step 4 (Anti-Hallucination Grounding)**: Enforces strict grounding rules, commanding the agent to admit ignorance if a queried fact is missing from the injected sections.
+4. **Step 4 (Anti-Hallucination Grounding)**: Enforces strict grounding rules, commanding the persona to admit ignorance if a queried fact is missing from the injected sections.
 
 ---
 

@@ -13,7 +13,7 @@ tags:
 Master index for the engineering journal (`docs/journal/YYYY-MM/`). Chronological
 milestones and Architectural Decision Records, newest first.
 
-> **Project:** Sympose — Zero-Bloat Multi-Model AI Agent Hub & Sovereign Vault Explorer
+> **Project:** Sympose — Zero-Bloat Multi-Model AI Persona Hub & Sovereign Vault Explorer
 > **Lead Architect:** damiro · **Engineering Partner:** Grace (Rear Admiral Grace Hopper persona)
 
 Every formal decision lives in its own
@@ -75,7 +75,7 @@ one in [`docs/wiki/index.md`](./wiki/index.md) are kept in sync per the
 | ADR-074 | Default Persona Vault Scope & Onboarding Persona-Genesis Nudge | Accepted | 2026-09-05 | [2026-09-05_adr-074-default-persona-vault-scope-and-onboarding-genesis-nudge.md](./journal/2026-09/2026-09-05_adr-074-default-persona-vault-scope-and-onboarding-genesis-nudge.md) |
 | ADR-073 | Worker Native-Shell Command Allowlisting & Symlink-Safe Path Checks | Accepted | 2026-09-04 | [2026-09-04_adr-073-worker-native-shell-allowlisting.md](./journal/2026-09/2026-09-04_adr-073-worker-native-shell-allowlisting.md) |
 | ADR-072 | Engine Concurrency Model & Bounded Background Hygiene Pool | Accepted | 2026-09-04 | [2026-09-04_adr-072-engine-concurrency-bounded-background-hygiene.md](./journal/2026-09/2026-09-04_adr-072-engine-concurrency-bounded-background-hygiene.md) |
-| ADR-071 | Primary-Agent Action Dispatch — Bracket-Tag DSL vs Native Function Calling | Accepted | 2026-09-04 | [2026-09-04_adr-071-primary-agent-action-dispatch-mechanism.md](./journal/2026-09/2026-09-04_adr-071-primary-agent-action-dispatch-mechanism.md) |
+| ADR-071 | Primary-Agent Action Dispatch — Bracket-Tag DSL vs Native Function Calling | Accepted (revisited 2026-09-14, unchanged) | 2026-09-04 | [2026-09-04_adr-071-primary-agent-action-dispatch-mechanism.md](./journal/2026-09/2026-09-04_adr-071-primary-agent-action-dispatch-mechanism.md) |
 | ADR-070 | Hot-Path Vault Retrieval Budget, Trigger Discipline & Indexed Search Tier | Accepted | 2026-09-04 | [2026-09-04_adr-070-hot-path-retrieval-budget-trigger-discipline.md](./journal/2026-09/2026-09-04_adr-070-hot-path-retrieval-budget-trigger-discipline.md) |
 | ADR-065 | MCP Client Threading & Logging Standard | Accepted | 2026-08-30 | [2026-08-30_adr-065-mcp-client-threading-logging-standard.md](./journal/2026-08/2026-08-30_adr-065-mcp-client-threading-logging-standard.md) |
 | ADR-064 | Dashboard/API Gateway Security Design Gap & Zero-Dependency Auth Plan | Accepted | 2026-08-30 | [2026-08-30_adr-064-dashboard-api-auth-plan.md](./journal/2026-08/2026-08-30_adr-064-dashboard-api-auth-plan.md) |
@@ -232,9 +232,9 @@ one in [`docs/wiki/index.md`](./wiki/index.md) are kept in sync per the
 
 ## Technical Standards & Guides
 
-- **[Autonomous Agent Memory Architecture Standard](./wiki/memory/architecture-standard.md):** triad memory management, anti-hallucination grounding, shadow extraction, and Obsidian integration.
+- **[Autonomous Persona Memory Architecture Standard](./wiki/memory/architecture-standard.md):** triad memory management, anti-hallucination grounding, shadow extraction, and Obsidian integration.
 - **[Latency & Performance Tuning Guide](./wiki/guides/latency-tuning.md):** the catalog of knobs, timeouts, context windows, and model configuration governing the sub-second SLA.
-- **[Slack Socket Mode Setup Guide](./wiki/guides/slack-setup.md):** 1-click app manifest, Socket Mode, and multi-agent Slack deployment.
+- **[Slack Socket Mode Setup Guide](./wiki/guides/slack-setup.md):** 1-click app manifest, Socket Mode, and multi-persona Slack deployment.
 - **[Web Dashboard & Standalone Vault Explorer](./wiki/architecture/dashboard-and-vault-explorer.md):** architectural blueprint for the web dashboard, knowledge graph, chat stream, and vault explorer.
 - **[Web Dashboard UI Design Reference](./wiki/reference/ui-design-reference.md):** the flat "Sovereign Craft" design brief — theme presets, semantic tokens, layout shell, per-screen artboards — derived from ADR-047 and ADR-051–053.
 - **[Wiki Documentation Hub](./wiki/index.md):** skills, MCP workers, profile system, and command references.

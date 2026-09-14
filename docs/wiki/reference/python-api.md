@@ -44,7 +44,7 @@ for token in engine.chat_stream("samantha", "How do we structure our deployment?
 ```
 
 ### `sympose.profiles.ProfileManager`
-Discovers, bootstraps, and manages YAML agent profiles, souls, and memories.
+Discovers, bootstraps, and manages YAML persona profiles, souls, and memories.
 
 ```python
 pm = ProfileManager("profiles")

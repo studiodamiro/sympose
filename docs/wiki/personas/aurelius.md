@@ -1,11 +1,11 @@
 ---
-title: "Agent Specification: Marcus Aurelius (@aurelius)"
+title: "Persona Specification: Marcus Aurelius (@aurelius)"
 created: 2026-08-24
 updated: 2026-08-25
-type: wiki-agents
-parent: agents/profile-system
+type: wiki-personas
+parent: personas/profile-system
 tags:
-  - sympose/agents
+  - sympose/personas
   - aurelius
   - local-ollama
   - privacy
@@ -31,7 +31,7 @@ tags:
 | **Default Model** | `ollama/gemma2:9b` (or `ollama/qwen2.5:7b`) | 100% local, offline inference running entirely on your machine. |
 | **API Base** | `http://localhost:11434` | Local Ollama endpoint ($0.00 API cost, zero cloud transmission). |
 | **Icon Emoji** | 🏛️ (`:classical_building:`) | Classical architectural indicator. |
-| **Memory Sharing** | `share_memory: false` (Air-gapped) | **Strictly isolated.** Cloud agents (Samantha, Grace) cannot read Aurelius's memory. |
+| **Memory Sharing** | `share_memory: false` (Air-gapped) | **Strictly isolated.** Cloud personas (Samantha, Grace) cannot read Aurelius's memory. |
 | **Obsidian Sandbox** | `["Journal", "Personal", "Daily Notes"]` | Sandboxed exclusively to personal journal folders in your local Obsidian vault. |
 
 ---
@@ -42,7 +42,7 @@ Marcus Aurelius occupies Sympose's **Inner Privacy Ring**:
 
 ```text
 ┌─────────────────────────────────────────────────────────────┐
-│                    Cloud Multi-Agent Layer                  │
+│                    Cloud Multi-Persona Layer                │
 │       (@samantha, @grace) ──► Google Gemini / Anthropic     │
 │       Obsidian Access: Projects/, Architecture/, Strategy/   │
 └──────────────────────────────┬──────────────────────────────┘
@@ -124,6 +124,6 @@ You (to @aurelius): Help me evaluate whether taking on this new advisory role al
 
 ## 🔗 Related Documentation
 * [Selective Memory Sharing & Privacy Rings](../memory/selective-sharing.md)
-* [Agent Profile System Guide](./profile-system.md)
-* [Samantha Agent Specification](./samantha.md)
-* [Grace Hopper Agent Specification](./grace.md)
+* [Persona Profile System Guide](./profile-system.md)
+* [Samantha Persona Specification](./samantha.md)
+* [Grace Hopper Persona Specification](./grace.md)

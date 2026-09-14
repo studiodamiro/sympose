@@ -18,20 +18,20 @@ Sympose implements the **Supervisor-Worker (Orchestrator-Subagent) pattern** com
 
 ## 1. Why Sub-Agent Workers?
 
-In traditional agent systems, loading tools (e.g. GitHub, SQL databases, filesystems) directly into the primary agent causes two critical problems:
+In traditional agent systems, loading tools (e.g. GitHub, SQL databases, filesystems) directly into the primary persona causes two critical problems:
 1. **Context Pollution**: Large raw tool outputs (e.g. 500 lines of git diffs or SQL tables) permanently bloat the chat history, degrading reasoning and inflating token costs on every subsequent message.
 2. **Schema Overhead**: Declaring 50 tool schemas adds 5,000+ tokens to every single turn—even when just saying "hello".
 
 ### The Sympose Solution:
-* **Primary Agents** (e.g. `@grace`, `@samantha`, `@aurelius`) remain 100% conversational, fast, and token-efficient.
-* When a tool or heavy task is required, the primary agent spawns an **Ephemeral Sub-Agent Worker**.
-* The worker executes the tools, parses raw data, synthesizes the findings, and returns a high-signal report to the primary agent before terminating.
+* **Primary Personas** (e.g. `@grace`, `@samantha`, `@aurelius`) remain 100% conversational, fast, and token-efficient.
+* When a tool or heavy task is required, the primary persona spawns an **Ephemeral Sub-Agent Worker**.
+* The worker executes the tools, parses raw data, synthesizes the findings, and returns a high-signal report to the primary persona before terminating.
 
 ```mermaid
 sequenceDiagram
     autonumber
     actor User
-    participant Grace as Primary Agent (@grace)
+    participant Grace as Primary Persona (@grace)
     participant Worker as Sub-Agent Sandbox
     participant MCP as MCP Server (Local stdio)
 
@@ -75,15 +75,15 @@ mcp_servers:
 
 ---
 
-## 3. How Agents Delegate to Workers
+## 3. How Personas Delegate to Workers
 
 ### Autonomic Tag Protocol & In-Turn Proactive Synthesis
-Primary agents delegate tasks directly in their stream using the `[SPAWN_WORKER]` action tag:
+Primary personas delegate tasks directly in their stream using the `[SPAWN_WORKER]` action tag:
 ```text
 [SPAWN_WORKER: git_workflow,github | "Inspect recent pull requests and summarize review points"]
 ```
 
-When an agent emits `[SPAWN_WORKER]`, Sympose executes a seamless **3-step in-turn loop**:
+When a persona emits `[SPAWN_WORKER]`, Sympose executes a seamless **3-step in-turn loop**:
 1. **Worker Execution**: The ephemeral worker sandbox runs the requested skills and tools in isolation.
 2. **Badge Rendering**: The verified report is rendered to the terminal (`> 🛠️ Sub-Agent Worker Report...`).
 3. **In-Turn Proactive Synthesis**: The primary orchestrator immediately reads the worker's findings and streams an executive summary and strategic next steps in the exact same response turn!
@@ -105,7 +105,7 @@ You can also trigger workers directly in the terminal:
 
 When a worker runs, its execution model is resolved in the following priority order:
 1. **Explicit Task Model**: `WorkerTask(..., model="...")` if specified in code.
-2. **Skill Recommendation**: The first entry in `recommended_models:` from the loaded skill's [`SKILL.md`](../agents/skills-system.md) frontmatter.
+2. **Skill Recommendation**: The first entry in `recommended_models:` from the loaded skill's [`SKILL.md`](../personas/skills-system.md) frontmatter.
 3. **Global Environment**: `DEFAULT_MODEL` specified in `.env` (e.g. `DEFAULT_MODEL=openrouter/anthropic/claude-3.7-sonnet`).
 4. **System Default**: Fallback to `gemini/gemini-3.6-flash`.
 

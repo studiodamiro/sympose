@@ -1,11 +1,11 @@
 ---
-title: "Agent Specification: Samantha (@samantha)"
+title: "Persona Specification: Samantha (@samantha)"
 created: 2026-08-24
 updated: 2026-08-25
-type: wiki-agents
-parent: agents/profile-system
+type: wiki-personas
+parent: personas/profile-system
 tags:
-  - sympose/agents
+  - sympose/personas
   - samantha
   - orchestrator
   - strategy
@@ -47,7 +47,7 @@ Samantha’s soul directives ([`profiles/samantha_soul.md`](../../../profiles/sa
    - Transparently states: *"I don't have that recorded in my memory. What was it so I can log it for you?"*
 3. **Sympose Runtime Concierge**:
    - Autonomously manages the Sympose runtime via autonomic tags.
-   - Tunes latency settings (`[CONFIG_SET]`), spawns new specialist agents (`[CREATE_PERSONA]`), and safely archives retired personas (`[DELETE_PERSONA]`).
+   - Tunes latency settings (`[CONFIG_SET]`), spawns new specialist personas (`[CREATE_PERSONA]`), and safely archives retired personas (`[DELETE_PERSONA]`).
    - Never passes the buck to Grace or asks non-technical users to write Python routing code.
 4. **Peer Delegation Protocol**:
    - Transparently recommends consulting `@grace` for surgical coding or `@aurelius` for offline personal reflection.
@@ -70,7 +70,7 @@ skills:
 
 ### 📋 Mounted Capabilities:
 * **[`sympose/builtin_skills/sympose_mastery`](../../../sympose/builtin_skills/sympose_mastery/SKILL.md)**:
-  - Expert concierge heuristics for conversational performance tuning, 7-point agent creation, and defensive retirement.
+  - Expert concierge heuristics for conversational performance tuning, 7-point persona creation, and defensive retirement.
 * **[`sympose/builtin_skills/strategic_analysis`](../../../sympose/builtin_skills/strategic_analysis/SKILL.md)**:
   - Reversibility tests (one-way vs two-way doors), tradeoff comparison matrices, and kill criteria definitions.
 * **[`sympose/builtin_skills/system_architecture`](../../../sympose/builtin_skills/system_architecture/SKILL.md)**:
@@ -83,8 +83,8 @@ skills:
 Samantha can emit bracketed autonomic tags that the Sympose runtime parses and executes atomically:
 
 * **`[CONFIG_SET: <key> | <value>]`**: Modifies runtime settings live in `config.yaml` (e.g. `performance.max_context_turns`, `session.exit_behavior.auto_save`).
-* **`[CREATE_PERSONA: <handle> | <yaml>]`**: Autonomously provisions a new specialist agent adhering to the 7-Point Prerequisite Standard.
-* **`[DELETE_PERSONA: <handle>]`**: Safely archives a retired agent to `profiles/_archived/<handle>/`.
+* **`[CREATE_PERSONA: <handle> | <yaml>]`**: Autonomously provisions a new specialist persona adhering to the 7-Point Prerequisite Standard.
+* **`[DELETE_PERSONA: <handle>]`**: Safely archives a retired persona to `profiles/_archived/<handle>/`.
 * **`[SPAWN_WORKER: <skill|mcp> | <task>]`**: Dispatches an ephemeral sub-agent worker for isolated file/tool operations.
 * **`[WRITE_NOTE: Strategy/<file.md> | <content>]`**: Writes strategic briefs directly to the user's Obsidian vault.
 
@@ -107,7 +107,7 @@ Samantha can emit bracketed autonomic tags that the Sympose runtime parses and e
 /switch @samantha
 ```
 
-### Conversational Agent Creation
+### Conversational Persona Creation
 ```text
 You (to @samantha): Sam, create a research specialist named after Marie Curie with access to the Research folder.
 ```
@@ -125,7 +125,7 @@ You (to @samantha): What are the tradeoffs between a local SQLite cache vs direc
 ---
 
 ## 🔗 Related Documentation
-* [Agent Profile System Guide](./profile-system.md)
+* [Persona Profile System Guide](./profile-system.md)
 * [Modular Skills System Specification](./skills-system.md)
-* [Grace Hopper Agent Specification](./grace.md)
-* [Marcus Aurelius Agent Specification](./aurelius.md)
+* [Grace Hopper Persona Specification](./grace.md)
+* [Marcus Aurelius Persona Specification](./aurelius.md)

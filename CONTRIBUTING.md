@@ -1,6 +1,6 @@
 # Contributing to Sympose
 
-Sympose is a zero-bloat, sub-second multi-model AI agent hub and sovereign
+Sympose is a zero-bloat, sub-second multi-model AI persona hub and sovereign
 Obsidian vault explorer. It pairs fast cloud models (Google Gemini, Anthropic
 Claude) with local private models (Ollama) under one CLI, a sandboxed vault, an
 autonomous memory layer, a Slack Socket Mode daemon, and a FastAPI-served web
@@ -28,7 +28,7 @@ maintenance cost it imposes on that system.
 
 ## Architecture invariants
 
-- **The Triad Pattern.** Every agent is three files: identity metadata in YAML
+- **The Triad Pattern.** Every persona is three files: identity metadata in YAML
   (`profiles/<handle>.yaml`), cognitive directives in Soul
   (`profiles/<handle>_soul.md`), and dynamic facts in Memory
   (`profiles/<handle>_memory.md`). Nothing that belongs in one layer leaks into
@@ -76,7 +76,7 @@ layers. This section is the binding standard.
 ### Wiki (`docs/wiki/`)
 
 Concept-based, publication-ready documentation (Quartz / Docusaurus / Obsidian
-Publish). Subfolders: `architecture/`, `memory/`, `agents/`, `guides/`,
+Publish). Subfolders: `architecture/`, `memory/`, `personas/`, `guides/`,
 `reference/`, with `docs/wiki/index.md` as the navigation map. Include the
 systems rationale — why a decision was made, benchmarks, gotchas — and Mermaid
 diagrams for data flow. The wiki is present-tense: it always describes how the
@@ -129,7 +129,7 @@ files (`README.md`, `CONTRIBUTING.md`, `LICENSE`) are exempt.
 ---
 title: "Article Title"
 created: YYYY-MM-DD
-type: wiki-architecture # wiki-architecture | wiki-memory | wiki-agents | wiki-guides | wiki-reference | wiki-index | journal | adr
+type: wiki-architecture # wiki-architecture | wiki-memory | wiki-personas | wiki-guides | wiki-reference | wiki-index | journal | adr
 parent: index
 tags:
   - sympose/architecture
@@ -142,7 +142,7 @@ Use a controlled tag vocabulary; do not invent per-file variants:
 | Content                                            | Tags                                           |
 | ------------------------------------------------- | ---------------------------------------------- |
 | Wiki — architecture                               | `sympose/architecture`, `engineering/standard` |
-| Wiki — memory / agents / guides / reference / home | `sympose/wiki`, `engineering/standard`         |
+| Wiki — memory / personas / guides / reference / home | `sympose/wiki`, `engineering/standard`         |
 | ADR                                              | `sympose/architecture`, `engineering/adr`      |
 | Journal milestone                                | `sympose/journal`, `engineering/milestone`     |
 

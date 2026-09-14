@@ -10,7 +10,7 @@ tags:
 
 # ⚡ Sympose: Complete Slack Socket Mode Setup Guide
 
-> **Zero-Bloat Multi-Agent Slack Hub**: Learn how to configure your Slack workspace to run Samantha, Grace, and Aurelius over secure **Socket Mode** with zero public inbound ports, webhooks, or ngrok tunnels.
+> **Zero-Bloat Multi-Persona Slack Hub**: Learn how to configure your Slack workspace to run Samantha, Grace, and Aurelius over secure **Socket Mode** with zero public inbound ports, webhooks, or ngrok tunnels.
 
 ---
 
@@ -109,7 +109,7 @@ If you prefer configuring the app manually through the Slack API portal:
 
 ---
 
-## 👥 Multi-Agent Setup (Dedicated Apps for Grace & Aurelius)
+## 👥 Multi-Persona Setup (Dedicated Apps for Grace & Aurelius)
 
 Sympose can run multiple dedicated Slack bots concurrently from a single `./chat.sh --slack` process.
 
@@ -130,18 +130,18 @@ SLACK_AURELIUS_APP_TOKEN=xapp-1-aurelius-app-token...
 
 When you launch `./chat.sh --slack`, Sympose auto-discovers all configured tokens and launches all bots concurrently:
 ```text
-🚀 [Sympose] Launching 3 Slack Agent(s)...
+🚀 [Sympose] Launching 3 Slack Persona(s)...
   • @aurelius listening on Socket Mode...
   • @grace listening on Socket Mode...
   • @samantha listening on Socket Mode...
 ```
 
 > [!IMPORTANT]
-> **Checklist for each new agent app:**
+> **Checklist for each new persona app:**
 > 1. **App Home:** Check ☑️ **"Allow users to send Slash commands and messages from the messages tab"** (unlocks 1-on-1 DMs).
 > 2. **Event Subscriptions:** Ensure `app_mention` and `message.im` are added under **Subscribe to bot events**.
 > 3. **Reinstall App:** Click **Reinstall to Workspace** after updating scopes or events.
-> 4. **Local Models (Aurelius):** Ensure `ollama serve` is running for offline Ollama agents.
+> 4. **Local Models (Aurelius):** Ensure `ollama serve` is running for offline Ollama personas.
 
 ---
 
@@ -168,16 +168,16 @@ When you launch `./chat.sh --slack`, Sympose auto-discovers all configured token
    ```
 
 ### 3. Slack Command Ergonomics (`!` Prefix vs `/`)
-Slack intercepts leading `/` characters as Slack Workspace Commands before sending them over Socket Mode. To run commands reliably without registering workspace commands, use the **`!` prefix** or **mention the agent**:
+Slack intercepts leading `/` characters as Slack Workspace Commands before sending them over Socket Mode. To run commands reliably without registering workspace commands, use the **`!` prefix** or **mention the persona**:
 
 | Intent | Exclamation Command | Tagged Command | Natural Phrasing |
 | :--- | :--- | :--- | :--- |
-| **Delete Thread & Purge History** | `!clear` or `!delete` | `@agent /clear` | *"delete this thread"*, *"clear our chat"* |
-| **Reset Conversation Context** | `!reset` or `!new` | `@agent /reset` | *"start a new conversation"*, *"reset chat"* |
-| **Inspect / Switch Model** | `!model` or `!model <id>` | `@agent /model` | `!model openrouter/anthropic/claude-sonnet-4.5` |
-| **Compact Working Memory** | `!compact` | `@agent /compact` | `!compact shared` |
-| **Save Session to Vault** | `!save` | `@agent /save` | `!save obsidian` |
-| **Wipe Working Memory** | `!reset memory` | `@agent /reset memory` | *"wipe your memory"*, *"delete your memory"* |
+| **Delete Thread & Purge History** | `!clear` or `!delete` | `@persona /clear` | *"delete this thread"*, *"clear our chat"* |
+| **Reset Conversation Context** | `!reset` or `!new` | `@persona /reset` | *"start a new conversation"*, *"reset chat"* |
+| **Inspect / Switch Model** | `!model` or `!model <id>` | `@persona /model` | `!model openrouter/anthropic/claude-sonnet-4.5` |
+| **Compact Working Memory** | `!compact` | `@persona /compact` | `!compact shared` |
+| **Save Session to Vault** | `!save` | `@persona /save` | `!save obsidian` |
+| **Wipe Working Memory** | `!reset memory` | `@persona /reset memory` | *"wipe your memory"*, *"delete your memory"* |
 
 ---
 

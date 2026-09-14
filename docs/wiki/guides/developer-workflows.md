@@ -80,7 +80,7 @@ Run Sympose's native interactive CLI directly inside your editor’s integrated 
 
 ## 📱 2. Mobile Access via Slack Socket Mode
 
-Sympose includes a multi-agent Slack daemon utilizing **Socket Mode**. Because connections are outbound WebSockets, **zero inbound firewall ports, public URLs, or ngrok tunnels are required**.
+Sympose includes a multi-persona Slack daemon utilizing **Socket Mode**. Because connections are outbound WebSockets, **zero inbound firewall ports, public URLs, or ngrok tunnels are required**.
 
 ```
 [Phone (Slack Mobile)] ───> [Slack Cloud] ───> [Mac Daemon (sympose.slack)] ───> [LLM + Vault]

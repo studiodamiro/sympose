@@ -11,14 +11,14 @@ tags:
   - 3d-nebula
   - shadcn-ui
   - theme-engine
-  - multi-agent-ui
+  - multi-persona-ui
   - architecture-spec
 ---
 
 # 🖥️ Sympose Web Dashboard, Vault Explorer & 2D/3D Knowledge Nebula Specification
 
 > **Design Philosophy: Engine First, Face Second & Flat Sovereign Craft**  
-> The Sympose Dashboard provides an integrated, local-first web interface for multi-agent conversations, real-time configuration, a **2D/3D Ambient Knowledge Nebula**, and a **standalone Vault Explorer** that eliminates the requirement for users to install or run Obsidian.
+> The Sympose Dashboard provides an integrated, local-first web interface for multi-persona conversations, real-time configuration, a **2D/3D Ambient Knowledge Nebula**, and a **standalone Vault Explorer** that eliminates the requirement for users to install or run Obsidian.
 
 > **Designing the UI?** See the [Web Dashboard UI Design Reference](../reference/ui-design-reference.md) — a self-contained brief (visual language, theme presets, layout shell, per-screen artboard list, mock content) built from this spec and ADR-047 / ADR-051–053, meant to be fed directly into Claude Design.
 
@@ -31,7 +31,7 @@ tags:
 │                                       SYMPOSE WEB DASHBOARD                                     │
 │  [ 🎨 Preset: Obsidian Matte ▾]  [ 🏛️ Style: Nova ▾]  [ 📐 Radius: 0px ]  [ 💡 Dark ]  [ 2D | 3D ]│
 ├──────────────────────────┬──────────────────────────────────────────┬───────────────────────────┤
-│ 📁 VAULT EXPLORER        │ 💬 MULTI-AGENT CHAT & TIMELINE           │ 🌌 AMBIENT KNOWLEDGE      │
+│ 📁 VAULT EXPLORER        │ 💬 MULTI-PERSONA CHAT & TIMELINE         │ 🌌 AMBIENT KNOWLEDGE      │
 │                          │                                          │    NEBULA (2D/3D)         │
 │ ▾ Projects/              │ [@samantha]: Formulating auth plan...    │   • (Architecture)        │
 │   ▾ Sympose/             │                                          │      /      \             │
@@ -120,7 +120,7 @@ An integrated appearance drawer providing instantaneous UI re-theming:
 
 ### 🌿 Module C: Standalone Vault Explorer & Markdown Editor
 
-* **Directory Tree Navigator**: Hierarchical folder tree respecting agent domain sandboxes and ignoring binary/system folders (`.obsidian`, `.git`, `Attachments`, `.trash`). Back/forward through the main-menu's section history (ADR-095), same semantics as a browser tab.
+* **Directory Tree Navigator**: Hierarchical folder tree respecting persona domain sandboxes and ignoring binary/system folders (`.obsidian`, `.git`, `Attachments`, `.trash`). Back/forward through the main-menu's section history (ADR-095), same semantics as a browser tab.
 * **Directional panel-content slide (ADR-104)**: switching the content panel's folder/section, or the editor's open note, slides the body sideways — left on forward navigation, right on back — instead of an instant swap; exit finishes fully before enter starts, never a cross-fade. Scoped to CodeMirror's own scroll viewport in the editor so Stylo's toolbar never moves.
 * **Vault search (ADR-105)**: the toolbar's search field runs two tiers — an instant, client-side match on path (so a query matching a folder's name surfaces everything under it), tags, and wikilinks, scoped to whichever folder is currently open; and a debounced `GET /api/vault/search` call covering the rest of the vault, merging in anything the instant pass can't see (note-body content) or missed, de-duplicated by path and captioned "N matches beyond {folder}." No nested tree for that second list — flat rows, pathname plus a one-line reason (`#tag`, `↔ wikilink target`, or a content snippet). Togglable and paginated from Settings → Search (below).
 * **Row actions (ADR-086)**: both a `⋯` button (hover/focus) and a real pointer-anchored right-click / long-press context menu — not a fixed-anchor dropdown — attach to every row, sharing one item list. Note rows: Pin/Unpin (ADR-092, cookie-only), "Remove from recents" (only inside the Recent group — ADR-108), Rename, Delete. Folder rows: New note here, Delete.
@@ -133,13 +133,13 @@ An integrated appearance drawer providing instantaneous UI re-theming:
   * Clickable `[[Wikilink]]` routing (clicking `[[OAuth]]` navigates directly to `OAuth.md` or centers the 3D nebula), with wikilink autocomplete while typing `[[`.
   * Dynamic YAML frontmatter inspector and tag editor, with a collapse toggle (ADR-095).
   * Autosave (ADR-081) on a debounce, and a "hide `.md` extensions" preference (ADR-092, Obsidian convention) — both togglable from Settings.
-* **Animated scrollbar (ADR-100)**: every scroll surface — the editor, the vault tree, Settings, the Agent page — shares one hand-drawn thumb (`<ScrollThumb>`) instead of the browser's native one, since native scrollbar pseudo-elements don't actually animate in Chromium. It fades in on hover, drags to scroll, and pages on a track click; wheel/trackpad scrolling itself stays native and instant by design.
+* **Animated scrollbar (ADR-100)**: every scroll surface — the editor, the vault tree, Settings, the Persona page — shares one hand-drawn thumb (`<ScrollThumb>`) instead of the browser's native one, since native scrollbar pseudo-elements don't actually animate in Chromium. It fades in on hover, drags to scroll, and pages on a track click; wheel/trackpad scrolling itself stays native and instant by design.
 * **Backlink & Mention Inspector**: Dedicated side panel displaying incoming links, exact line numbers, and verbatim surrounding context lines via our In-Memory Inverted Index ([ADR-044](../../../docs/journal/2026-08/2026-08-27_backlink_lookup_engine_and_inverted_index.md)).
 * **Daily Reflections Calendar**: Interactive calendar view mapping `Daily/YYYY/mm-Month/YYYY-MM-DD.md` entries to dates for chronological reminiscence.
 
 ---
 
-### 💬 Module D: Multi-Agent Conversational Hub
+### 💬 Module D: Multi-Persona Conversational Hub
 
 * **Sub-Second Streaming Timeline**: Real-time token streaming via Server-Sent Events (SSE).
 * **Persona Drawer & Selector**: Switch between **Samantha** (Orchestrator), **Grace** (Systems Engineer), and **Anaïs** (Diarist), or trigger `@mentions`.
@@ -207,7 +207,7 @@ The dashboard communicates with Sympose's native FastAPI gateway on `http://loca
 ### 4. Persona Roster API (`/api/personas`)
 * **`GET /api/personas`** *(shipped)*:
   * Returns: `{ default: <handle>, personas: [{ handle, name, title, model, skills, is_default }] }` — a trimmed projection of each `profiles/*.yaml`, never the raw profile (no `soul_file` / `memory_file` paths, no `thinking_phrases`).
-  * Feeds the Agent panel's identity card and switcher.
+  * Feeds the Persona panel's identity card and switcher.
 * The **active persona is client state**, not a server session: a `sympose:active_persona` cookie the dashboard passes as `?persona=` on sandboxed vault requests, mirroring the CLI's per-handle scoping. `samantha` (`vault_folders: ["*"]`) is the default.
 * Planned: `GET /api/personas/{handle}/soul` and `/memory` for the card's (currently disabled) Soul / Memory panels.
 * The switcher writes the cookie; `GET /api/vault/tree?persona=` is its first consumer (the browser re-fetches the tree on every persona switch).

@@ -103,7 +103,7 @@ You can launch the onboarding wizard in three ways:
    # or
    sympose --onboard
    ```
-3. **In-Session Slash Command:** While chatting with any agent in the CLI, type:
+3. **In-Session Slash Command:** While chatting with any persona in the CLI, type:
    ```text
    You: /setup
    # or
@@ -159,7 +159,7 @@ pip install -e .
 ```
 
 ### 🛡️ Data Retention Guarantee
-When you upgrade Sympose, your custom agent personas, soul directives, working memories, and configuration settings in `~/.sympose/` are **100% preserved**. Only the runtime engine code is updated.
+When you upgrade Sympose, your custom personas, soul directives, working memories, and configuration settings in `~/.sympose/` are **100% preserved**. Only the runtime engine code is updated.
 
 ---
 
@@ -185,13 +185,13 @@ Sympose uses a **Dual-Mode Workspace Resolver** (`sympose.bootstrap.resolve_work
 ├── .env                  # API keys and master vault path
 ├── config.yaml           # Runtime performance & exit knobs
 ├── workspace_rules.md    # Universal physical grounding rules
-├── profiles/             # Your persistent agent personas
+├── profiles/             # Your persistent personas
 │   ├── _shared_memory.md # Collaborative team memory pool
 │   ├── user_profile.md   # Universal user identity card
 │   ├── samantha.yaml     # Samantha manifest
 │   ├── samantha_soul.md  # Samantha soul directives
 │   ├── samantha_memory.md# Samantha working memory
-│   └── <custom_agent>.*  # Dynamically generated personas
+│   └── <custom_persona>.*  # Dynamically generated personas
 └── skills/               # Reusable procedural playbooks
 ```
 

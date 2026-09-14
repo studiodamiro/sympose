@@ -1,23 +1,23 @@
 ---
-title: "Agent Profile System & Autonomous Genesis"
+title: "Persona Profile System & Autonomous Genesis"
 created: 2026-08-24
-type: wiki-agents
+type: wiki-personas
 parent: index
 tags:
-  - sympose/agents
+  - sympose/personas
   - profiles
   - auto-bootstrapping
 ---
 
-# 🎭 Agent Profile System & Autonomous Genesis
+# 🎭 Persona Profile System & Autonomous Genesis
 
-Creating new specialist agents in Sympose requires zero boilerplate. You do not need to manually craft three synchronized files (`.yaml`, `_soul.md`, `_memory.md`). Sympose supports **Autonomous Genesis (Method A)**.
+Creating new specialist personas in Sympose requires zero boilerplate. You do not need to manually craft three synchronized files (`.yaml`, `_soul.md`, `_memory.md`). Sympose supports **Autonomous Genesis (Method A)**.
 
 ---
 
-## 1. Minimal 4-Line Agent Manifest
+## 1. Minimal 4-Line Persona Manifest
 
-To add a new agent, simply drop a minimal YAML file into `profiles/`:
+To add a new persona, simply drop a minimal YAML file into `profiles/`:
 
 ```yaml
 # profiles/feynman.yaml
@@ -74,9 +74,9 @@ The tunable knobs in a manifest — `model`, `temperature`, `api_base`, `keep_al
 
 ---
 
-## 4. The 7-Point Master Agent Prerequisite Standard
+## 4. The 7-Point Master Persona Prerequisite Standard
 
-Every complete, production-grade agent in Sympose satisfies seven foundational architectural pillars:
+Every complete, production-grade persona in Sympose satisfies seven foundational architectural pillars:
 
 | # | Prerequisite | Responsibility & Standard |
 | :--- | :--- | :--- |
@@ -90,23 +90,23 @@ Every complete, production-grade agent in Sympose satisfies seven foundational a
 
 ---
 
-## 5. Conversational Agent Creation (Samantha Concierge)
+## 5. Conversational Persona Creation (Samantha Concierge)
 
 Non-technical users do not need to create YAML files manually. They can ask Samantha in natural language:
 
 ```text
-You (to @samantha): Sam, please create a new research agent named "Curie" with access to the Research folder.
+You (to @samantha): Sam, please create a new research persona named "Curie" with access to the Research folder.
 ```
 
-Samantha verifies whether the `Research/` folder exists in your Obsidian vault, emits `[CREATE_PERSONA: curie | ...]`, and you can immediately switch to the new agent using `/switch @curie`!
+Samantha verifies whether the `Research/` folder exists in your Obsidian vault, emits `[CREATE_PERSONA: curie | ...]`, and you can immediately switch to the new persona using `/switch @curie`!
 
 ---
 
-## 6. Safe Agent Deletion & Retirement
+## 6. Safe Persona Deletion & Retirement
 
-To keep the active agent roster clean without risking data loss, Sympose implements a **Defensive Soft-Delete Standard**:
+To keep the active persona roster clean without risking data loss, Sympose implements a **Defensive Soft-Delete Standard**:
 
-* **Archival Sandbox (`profiles/_archived/<handle>/`)**: When an agent is retired, their files (`.yaml`, `_soul.md`, `_memory.md`) are moved into `profiles/_archived/<handle>/`.
+* **Archival Sandbox (`profiles/_archived/<handle>/`)**: When a persona is retired, their files (`.yaml`, `_soul.md`, `_memory.md`) are moved into `profiles/_archived/<handle>/`.
 * **Vault Preservation**: Notes previously written into your Obsidian vault are never deleted.
 * **Protected Personas**: `@samantha` is the permanent master orchestrator and cannot be deleted.
 

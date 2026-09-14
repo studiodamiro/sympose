@@ -22,7 +22,7 @@ In Sympose, guessing is treated as a **critical system failure**.
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │ 1. THE AMNESIA BOUNDARY                                     │
-│    The agent is instructed that it has zero organic memory  │
+│    The persona is instructed that it has zero organic memory│
 │    outside of `### Persistent Working Memory:` and turns.   │
 ├─────────────────────────────────────────────────────────────┤
 │ 2. ZERO TOLERANCE FOR GUESSING                              │
@@ -33,7 +33,7 @@ In Sympose, guessing is treated as a **critical system failure**.
 │    Tell me what it is and I'll log it."                     │
 ├─────────────────────────────────────────────────────────────┤
 │ 4. TEMPERATURE DISCIPLINE                                   │
-│    Set `temperature: 0.1` for factual & engineering agents. │
+│    Set `temperature: 0.1` for factual & engineering personas.│
 ├─────────────────────────────────────────────────────────────┤
 │ 5. ASSUME INTERRUPTION (Write-Through State Persistence)    │
 │    Context windows are bounded & volatile. Proactively     │
@@ -45,7 +45,7 @@ In Sympose, guessing is treated as a **critical system failure**.
 
 ## 2. The Universal System Prompt Grounding Directive
 
-Every agent system prompt compiled by [`ProfileManager.build_system_prompt`](../../../sympose/profiles.py) carries the **Grounding & Anti-Hallucination** block from [`sympose/prompts/workspace_rules.md`](../../../sympose/prompts/workspace_rules.md) (packaged; the user-editable copy at `~/.sympose/prompts/workspace_rules.md` wins when present). It is non-negotiable:
+Every persona system prompt compiled by [`ProfileManager.build_system_prompt`](../../../sympose/profiles.py) carries the **Grounding & Anti-Hallucination** block from [`sympose/prompts/workspace_rules.md`](../../../sympose/prompts/workspace_rules.md) (packaged; the user-editable copy at `~/.sympose/prompts/workspace_rules.md` wins when present). It is non-negotiable:
 
 ```markdown
 ### Grounding & Anti-Hallucination

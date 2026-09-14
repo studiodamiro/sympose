@@ -11,7 +11,7 @@ tags:
 
 # ⚡ Action Tags Reference
 
-Agents act on the world by emitting declarative bracketed tags directly in
+Personas act on the world by emitting declarative bracketed tags directly in
 their response stream — `[TAG: args]`. `ActionProcessor` parses every tag
 **after** the model finishes streaming its answer to you, executes the
 side-effect, and strips the raw tag out of what you see, replacing it with a
@@ -35,8 +35,8 @@ generation happen in the same completion (see
 | `[REMEMBER: <fact>]` | Saves a durable bullet point to working memory | `[REMEMBER: Prefers vanilla CSS over Tailwind]` |
 | `[REACT: <emoji>]` | Adds an expressive emoji reaction to a Slack message | `[REACT: rocket]` |
 | `[CONFIG_SET: <key> \| <val>]` | Coerces and validates `<val>` against the [config schema](configuration.md), then persists a **global** runtime setting to `config.yaml`. A bad enum, out-of-range number, or persona-scoped key is rejected with a badge (persona knobs point at `/persona set`); an unknown key keeps permissive numeric/bool coercion. | `[CONFIG_SET: performance.max_context_turns \| 20]` |
-| `[CREATE_PERSONA: <handle> \| <yaml>]` | Autonomously creates a new agent. A `soul_content` field in the YAML becomes the agent's real soul directly ([ADR-075](../../journal/2026-09/2026-09-05_adr-075-persona-soul-content-in-create-persona.md)); without one, it falls back to a generic scaffold. | `[CREATE_PERSONA: archimedes \| name: Archimedes...\n soul_content: \|\n  # Archimedes...]` |
-| `[DELETE_PERSONA: <handle>]` | Safely archives a retired agent profile | `[DELETE_PERSONA: archimedes]` |
+| `[CREATE_PERSONA: <handle> \| <yaml>]` | Autonomously creates a new persona. A `soul_content` field in the YAML becomes the persona's real soul directly ([ADR-075](../../journal/2026-09/2026-09-05_adr-075-persona-soul-content-in-create-persona.md)); without one, it falls back to a generic scaffold. | `[CREATE_PERSONA: archimedes \| name: Archimedes...\n soul_content: \|\n  # Archimedes...]` |
+| `[DELETE_PERSONA: <handle>]` | Safely archives a retired persona profile | `[DELETE_PERSONA: archimedes]` |
 
 ---
 

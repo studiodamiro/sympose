@@ -1,18 +1,18 @@
 ---
-title: "Creating Custom Agents"
+title: "Creating Custom Personas"
 created: 2026-08-24
 type: wiki-guides
 parent: index
 tags:
   - sympose/guides
-  - custom-agents
+  - custom-personas
   - profiles
   - adr
 ---
 
-# 🛠️ Creating Custom Agents
+# 🛠️ Creating Custom Personas
 
-Sympose makes creating specialized domain agents zero-friction through **Autonomous Bootstrapping** combined with **Tiered Memory Sharing** and **Multi-Folder Vault Whitelists**.
+Sympose makes creating specialized domain personas zero-friction through **Autonomous Bootstrapping** combined with **Tiered Memory Sharing** and **Multi-Folder Vault Whitelists**.
 
 ---
 
@@ -27,7 +27,7 @@ title: "Minimalist Industrial Design & UX Master"
 model: "gemini/gemini-3.6-flash"
 ```
 
-Start Sympose or switch to the agent:
+Start Sympose or switch to the persona:
 ```bash
 /switch @designer
 ```
@@ -36,7 +36,7 @@ Sympose automatically generates:
 - `profiles/designer_soul.md` (Domain directives, tone, and heuristics).
 - `profiles/designer_memory.md` (Initial working memory).
 - Default UI status thinking phrases.
-- Automatically connects the agent to the **Universal User Profile** (`profiles/user_profile.md`).
+- Automatically connects the persona to the **Universal User Profile** (`profiles/user_profile.md`).
 
 ---
 
@@ -59,7 +59,7 @@ share_memory: true      # true = shares with team pool (_shared_memory.md); fals
 # Any folder listed here that doesn't already exist in your vault gets
 # created automatically on first use — so list folders you actually want,
 # not a guess. Use `vault_folders: ["*"]` for unrestricted full-vault access
-# instead (what @samantha ships with) if you don't want to sandbox this agent
+# instead (what @samantha ships with) if you don't want to sandbox this persona
 # to specific folders at all.
 vault_folders:
   - "Design"

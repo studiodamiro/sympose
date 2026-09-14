@@ -1,5 +1,5 @@
 ---
-title: "Sympose Wiki: Zero-Bloat Multi-Model AI Agent Hub"
+title: "Sympose Wiki: Zero-Bloat Multi-Model AI Persona Hub"
 created: 2026-08-24
 type: wiki-index
 parent: index
@@ -56,35 +56,35 @@ graph TD
 * **[Sub-Second Latency Engine](./architecture/sub-second-engine.md):** How Sympose achieves 0.75s TTFT on macOS by eliminating GCE metadata server hangs and managing warm connection pools.
 * **[MCP & Sub-Agent Workers](./architecture/mcp-and-workers.md):** Isolated, ephemeral worker sandboxes connecting to Model Context Protocol tool servers.
 * **[Sandboxed Obsidian Vault](./architecture/sandboxed-vault.md):** Defensive path validation, isolated domain folders, and note search tiers.
-* **[Web Dashboard & Standalone Vault Explorer](./architecture/dashboard-and-vault-explorer.md):** UI specification, interactive knowledge graph, multi-agent chat stream, and standalone vault explorer.
+* **[Web Dashboard & Standalone Vault Explorer](./architecture/dashboard-and-vault-explorer.md):** UI specification, interactive knowledge graph, multi-persona chat stream, and standalone vault explorer.
 
 ### 🧠 [Autonomous Memory System](./memory/shadow-extractor.md)
 * **[Memory Architecture Standard](./memory/architecture-standard.md):** The definitive triad memory standard — grounding pillars, shadow extraction, and Obsidian integration.
-* **[Selective Memory Sharing & Privacy Rings](./memory/selective-sharing.md):** Air-gapping private offline agents (Aurelius) while allowing cloud agents (Samantha & Grace) to share team project memory.
+* **[Selective Memory Sharing & Privacy Rings](./memory/selective-sharing.md):** Air-gapping private offline personas (Aurelius) while allowing cloud personas (Samantha & Grace) to share team project memory.
 * **[Heuristic Gated Shadow Extractor](./memory/shadow-extractor.md):** Frictionless, zero-keyword memory capture running in detached background daemon threads.
 * **[Anti-Hallucination & Grounding](./memory/anti-hallucination.md):** Eliminating sycophancy with the 4 grounding pillars and honest ignorance protocols.
 * **[Session Archival & Distillation](./memory/session-archival.md):** Working memory consolidation on exit and sovereign `.jsonl` conversation history.
 
-### 🎭 [Persona & Skills Ecosystem](./agents/profile-system.md)
-* **[Profile System & Dynamic Persona Genesis](./agents/profile-system.md):** Seeding Samantha on fresh slate and spinning up new domain specialists on-the-fly.
-* **[Modular Skills System (`SKILL.md`)](./agents/skills-system.md):** Reusable procedural heuristics, domain playbooks, and tool bindings.
-* **[@samantha](./agents/samantha.md):** Core Starter Master Orchestrator & Concierge.
-* **[Specialist Archetypes](./agents/grace.md):** Example blueprints for surgical engineering (`@grace`) and offline local agents (`@aurelius`).
+### 🎭 [Persona & Skills Ecosystem](./personas/profile-system.md)
+* **[Profile System & Dynamic Persona Genesis](./personas/profile-system.md):** Seeding Samantha on fresh slate and spinning up new domain specialists on-the-fly.
+* **[Modular Skills System (`SKILL.md`)](./personas/skills-system.md):** Reusable procedural heuristics, domain playbooks, and tool bindings.
+* **[@samantha](./personas/samantha.md):** Core Starter Master Orchestrator & Concierge.
+* **[Specialist Archetypes](./personas/grace.md):** Example blueprints for surgical engineering (`@grace`) and offline local personas (`@aurelius`).
 
 ### 🚀 [Guides & Getting Started](./guides/quickstart.md)
 * **[Installation, Upgrades & Onboarding](./guides/installation-and-onboarding.md):** 1-Line `pipx` install, upgrade protocols, and interactive setup wizard.
 * **[Quickstart Guide](./guides/quickstart.md):** Installation, API keys, and starting the interactive CLI.
 * **[Developer Workflows & Daemon Persistence](./guides/developer-workflows.md):** Pair-programming with Grace across Antigravity, VS Code, and background 24/7 Slack daemon.
-* **[Slack Integration & Setup](./guides/slack-integration.md):** 1-Click App Manifest, Socket Mode, and multi-agent Slack deployment.
+* **[Slack Integration & Setup](./guides/slack-integration.md):** 1-Click App Manifest, Socket Mode, and multi-persona Slack deployment.
 * **[Slack Socket Mode Setup Guide](./guides/slack-setup.md):** The full step-by-step app-manifest walkthrough.
 * **[Configuration](./guides/configuration.md):** Schema-defined knobs, `config.yaml`, and in-session `/config` / `/persona` tuning.
 * **[Latency & Performance Tuning Guide](./guides/latency-tuning.md):** The catalog of knobs, timeouts, context windows, and model configuration governing the sub-second SLA.
-* **[Creating Custom Agents](./guides/creating-agents.md):** Defining new persona models, prompts, and vault permissions.
+* **[Creating Custom Personas](./guides/creating-personas.md):** Defining new persona models, prompts, and vault permissions.
 
 ### 📖 [Reference](./reference/cli-commands.md)
 * **[CLI Commands & Shortcuts](./reference/cli-commands.md):** Complete guide to `/save`, `/config`, `/switch`, `/note`, `/daily`, and `/ask`.
 * **[Configuration Reference](./reference/configuration.md):** Every runtime knob — type, default, allowed values, live-vs-restart — generated from `config_schema.py`.
-* **[Action Tags Reference](./reference/action-tags.md):** Every `[TAG: args]` an agent can emit — `WRITE_NOTE`, `SPAWN_WORKER`, `CREATE_PERSONA`, and the rest — plus the malformed-tag warning contract.
+* **[Action Tags Reference](./reference/action-tags.md):** Every `[TAG: args]` a persona can emit — `WRITE_NOTE`, `SPAWN_WORKER`, `CREATE_PERSONA`, and the rest — plus the malformed-tag warning contract.
 * **[Python API Reference](./reference/python-api.md):** Package internals, class hierarchies, and integration hooks.
 * **[Web Dashboard UI Design Reference](./reference/ui-design-reference.md):** The flat "Sovereign Craft" design brief — theme presets, semantic tokens, layout shell, per-screen artboards.
 
@@ -150,7 +150,7 @@ list and is kept in sync per the
 | [ADR-074](../journal/2026-09/2026-09-05_adr-074-default-persona-vault-scope-and-onboarding-genesis-nudge.md) | Default Persona Vault Scope & Onboarding Persona-Genesis Nudge | Accepted | 2026-09-05 |
 | [ADR-073](../journal/2026-09/2026-09-04_adr-073-worker-native-shell-allowlisting.md) | Worker Native-Shell Command Allowlisting & Symlink-Safe Path Checks | Accepted | 2026-09-04 |
 | [ADR-072](../journal/2026-09/2026-09-04_adr-072-engine-concurrency-bounded-background-hygiene.md) | Engine Concurrency Model & Bounded Background Hygiene Pool | Accepted | 2026-09-04 |
-| [ADR-071](../journal/2026-09/2026-09-04_adr-071-primary-agent-action-dispatch-mechanism.md) | Primary-Agent Action Dispatch — Bracket-Tag DSL vs Native Function Calling | Accepted | 2026-09-04 |
+| [ADR-071](../journal/2026-09/2026-09-04_adr-071-primary-agent-action-dispatch-mechanism.md) | Primary-Agent Action Dispatch — Bracket-Tag DSL vs Native Function Calling | Accepted (revisited 2026-09-14, unchanged) | 2026-09-04 |
 | [ADR-070](../journal/2026-09/2026-09-04_adr-070-hot-path-retrieval-budget-trigger-discipline.md) | Hot-Path Vault Retrieval Budget, Trigger Discipline & Indexed Search Tier | Accepted | 2026-09-04 |
 | [ADR-065](../journal/2026-08/2026-08-30_adr-065-mcp-client-threading-logging-standard.md) | MCP Client Threading & Logging Standard | Accepted | 2026-08-30 |
 | [ADR-064](../journal/2026-08/2026-08-30_adr-064-dashboard-api-auth-plan.md) | Dashboard/API Gateway Security Design Gap & Zero-Dependency Auth Plan | Accepted | 2026-08-30 |

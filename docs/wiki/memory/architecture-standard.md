@@ -1,5 +1,5 @@
 ---
-title: "Autonomous Agent Memory Architecture Standard"
+title: "Autonomous Persona Memory Architecture Standard"
 created: 2026-08-24
 type: wiki-memory
 parent: index
@@ -8,9 +8,9 @@ tags:
   - engineering/standard
 ---
 
-# 🧠 Autonomous Agent Memory Architecture Standard
+# 🧠 Autonomous Persona Memory Architecture Standard
 
-> **A zero-bloat, sub-second, and self-grounding memory architecture for personal multi-agent hubs.**
+> **A zero-bloat, sub-second, and self-grounding memory architecture for personal multi-persona hubs.**
 
 ---
 
@@ -32,7 +32,7 @@ graph TD
     User([User Natural Input]) --> Gate{Heuristic Filter Gate}
 
     subgraph Fast Path [Sub-Second Streaming <0.8s]
-        User --> MainLLM[Active Agent LLM]
+        User --> MainLLM[Active Persona LLM]
         MainLLM --> Screen[60 FPS Terminal Output]
     end
 
@@ -58,7 +58,7 @@ graph TD
 | **Universal User Card**    | `profiles/user_profile.md`    | Universal user identity (`Name: <user>`, OS, workflow philosophy).                        | **All Personas**                   | ~40 tokens         |
 | **Shared Team Memory**     | `profiles/_shared_memory.md`  | Collaborative project stack, architecture decisions, and roadmap.                         | Personas with `share_memory: true` | ~100–250 tokens    |
 | **Persona Working Memory** | `profiles/{handle}_memory.md` | Persona-specific directives and private memories (Air-gapped when `share_memory: false`). | Assigned Persona                   | ~100–250 tokens    |
-| **Agent Soul**             | `profiles/{handle}_soul.md`   | Cognitive directives, domain heuristics, tone, and anti-hallucination rules.              | Assigned Persona                   | ~200 prompt tokens |
+| **Persona Soul**           | `profiles/{handle}_soul.md`   | Cognitive directives, domain heuristics, tone, and anti-hallucination rules.              | Assigned Persona                   | ~200 prompt tokens |
 
 ---
 
@@ -69,7 +69,7 @@ To guarantee **100% brutal honesty**, eliminate conversational guessing, and pre
 ```
 ┌─────────────────────────────────────────────────────────┐
 │ 1. THE AMNESIA BOUNDARY                                      │
-│    Agent is instructed that it possesses ZERO organic memory │
+│  Persona is instructed that it possesses ZERO organic memory │
 │    outside of `### Persistent Working Memory:` and turns.    │
 ├─────────────────────────────────────────────────────────┤
 │ 2. ZERO TOLERANCE FOR GUESSING                               │
@@ -80,7 +80,7 @@ To guarantee **100% brutal honesty**, eliminate conversational guessing, and pre
 │    Tell me what it is and I'll log it."                      │
 ├─────────────────────────────────────────────────────────┤
 │ 4. TEMPERATURE DISCIPLINE                                    │
-│    Set `temperature: 0.1` for factual & engineering agents.  │
+│    Set `temperature: 0.1` for factual & engineering personas.│
 ├─────────────────────────────────────────────────────────┤
 │ 5. ASSUME INTERRUPTION (Write-Through State Memory)          │
 │  5. Assume Interruption & Write-Through State                │
@@ -172,12 +172,12 @@ Session logs created on `/exit` follow structured YAML frontmatter:
 ```markdown
 ---
 type: session-log
-agent: samantha
+persona: samantha
 date: 2026-08-24 18:35
 model: gemini/gemini-3.6-flash
 tags:
   - sympose/session
-  - agent/samantha
+  - persona/samantha
 ---
 
 # Session Takeaways: 2026-08-24 18:35
@@ -225,7 +225,7 @@ To ensure universal portability across any operating system and vault layout:
 
 - **Separation of Logic from Environment**: Codebase modules (`sympose/`) contain zero hardcoded absolute directory paths. All locations are defined centrally in `.env` (`MASTER_VAULT_PATH`) and `config.yaml`.
 - **Worker & Tool Propagation (ADR-026)**: When sub-agents and tools (`run_command`, `read_file`) execute, the runtime dynamically passes the configured vault root, ensuring workers never get trapped in the application codebase.
-- **Inherited Worker Sandboxing (ADR-026)**: Sub-agent workers strictly inherit the parent agent's `vault_folders` whitelist. Unauthorized workers (e.g. spawned by `@samantha` or `@grace`) are hard-blocked from inspecting private reflection domains (`Daily/`) via `read_file` or shell tools (`run_command`).
+- **Inherited Worker Sandboxing (ADR-026)**: Sub-agent workers strictly inherit the parent persona's `vault_folders` whitelist. Unauthorized workers (e.g. spawned by `@samantha` or `@grace`) are hard-blocked from inspecting private reflection domains (`Daily/`) via `read_file` or shell tools (`run_command`).
 - **Universal Structure Compatibility**: Supports Flat, PARA (`01_Projects`, `02_Areas`), Johnny Decimal, and Zettelkasten systems seamlessly.
 
 ---
@@ -246,9 +246,9 @@ To maintain absolute data integrity during multi-threaded background distillatio
 
 - **Process-Wide File Mutexes**: Asynchronous background operations (such as `MemoryCompactor.check_and_compact_async`) must acquire process-wide locks (`get_file_lock()`) before snapshotting or writing to memory files.
 - **Snapshot Drift Reconciliation**: When background LLM compaction completes (typically after 1–3s), the compactor must re-read the file under lock, extract any newly appended bullet lines written by foreground user turns during distillation, and append them to the distilled output before saving.
-- **Session-Isolated History Routing**: Multi-agent daemons (e.g. Slack Socket Mode) must pass thread-scoped `session_id` tokens into `chat_stream` and `get_history`, guaranteeing zero history clobbering across concurrent conversations.
+- **Session-Isolated History Routing**: Multi-persona daemons (e.g. Slack Socket Mode) must pass thread-scoped `session_id` tokens into `chat_stream` and `get_history`, guaranteeing zero history clobbering across concurrent conversations.
 
 ---
 
-_Standard ratified on 2026-08-24. Updated with Ground-Truth Sovereignty & Inherited Sandboxing on 2026-08-25. Hardened with Discrete Bullet Formatting, Process Mutexes & Multi-Agent Concurrency on 2026-08-26 (ADR-038). Implemented in Sympose Core Package (`sympose/`)._
+_Standard ratified on 2026-08-24. Updated with Ground-Truth Sovereignty & Inherited Sandboxing on 2026-08-25. Hardened with Discrete Bullet Formatting, Process Mutexes & Multi-Persona Concurrency on 2026-08-26 (ADR-038). Implemented in Sympose Core Package (`sympose/`)._
 ```

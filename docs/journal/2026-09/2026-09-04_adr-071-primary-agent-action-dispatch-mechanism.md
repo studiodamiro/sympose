@@ -15,7 +15,9 @@ tags:
   DSL, not a migration to function calling. F6/F7 fixed 2026-09-04; malformed
   tags now surface a badge instead of failing silently, 2026-09-04. The
   fenced-delimiter half of option B (`⟦ACTION name⟧…⟦/ACTION⟧`) was not built —
-  no observed collision has forced it yet. See **Implementation Note** below.
+  no observed collision has forced it yet. Revisited 2026-09-14 ahead of the
+  agent-layer architectural review — still not triggered; see **Implementation
+  Note (2026-09-14)** below. See also **Implementation Note** below.
   Revisits
   [ADR-037](../2026-08/2026-08-26_adr-037-pure-declarative-markdown-prompting.md)
   (pure declarative markdown prompting) and
@@ -162,6 +164,46 @@ result the model must see *before* finishing its sentence), that is the
 narrow case worth spending a real round-trip on — evaluate it then, against
 this same frugality bar, rather than generalizing the whole dispatch
 mechanism to cover a case that doesn't exist yet.
+
+## Implementation Note (2026-09-14 — pre-agent-layer architectural review)
+
+Revisited deliberately, per the trigger condition above, ahead of building
+out an autonomous agent layer (see the 2026-09-14 pre-agent systems audit).
+Walked through several candidate capabilities with damiro; only one
+actually meets this ADR's own "answer-gating" test:
+
+- **Live multi-persona discussion** — personas reacting to each other in
+  real time (agreeing, disagreeing, building on a point), the way a Slack
+  channel thread works, where one persona's reply must incorporate another
+  persona's *actual* completed reply before it can respond. This is
+  genuinely answer-gating: it cannot be fire-and-forget, because there is
+  no answer to gate *until* the prior persona's full turn exists.
+- Every other capability discussed — routing cheap/simple requests (a
+  definition lookup, grammar correction, basic arithmetic) to a local
+  model instead of a cloud one; deepening the companion/journaling
+  experience; exposing session history inside Slack — turned out **not**
+  to need answer-gating at all. Model routing is a model-selection
+  question, not a dispatch-mechanism question; the rest are existing
+  capabilities that need deepening, not new tool-use architecture.
+
+**Decision: still not triggered.** Live multi-persona discussion is not
+being built right now — damiro wants the door left open for it, not the
+capability built ahead of need. ADR-071's original decision (bracket-tag
+DSL, fire-and-forget, no migration to function calling) stands unchanged
+for everything Sympose actually does today.
+
+**What this does change:** naming. Reopening this question surfaced that
+"agent" is currently overloaded — it means "persona" everywhere in the
+product today, which is exactly backward from the industry/textbook sense
+of the word (something that acts autonomously toward a goal, the way this
+live-discussion capability would). See ADR-122 for the resulting
+persona/agent/sub-agent naming decision, which proceeds independently of
+whether or when this trigger is actually pulled.
+
+**Revisit trigger, unchanged and now explicit:** the day live multi-persona
+discussion (or any other genuinely answer-gating capability) gets an actual
+build target, that is the moment to reopen this ADR again and choose the
+dispatch mechanism for it — not before.
 
 ## Alternatives rejected
 

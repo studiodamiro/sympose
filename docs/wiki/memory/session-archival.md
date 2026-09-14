@@ -50,12 +50,12 @@ Generated Obsidian session notes are written with full YAML metadata:
 ```markdown
 ---
 type: session-log
-agent: samantha
+persona: samantha
 date: 2026-08-24 18:35
 model: gemini/gemini-3.6-flash
 tags:
   - sympose/session
-  - agent/samantha
+  - persona/samantha
 ---
 
 # Session Takeaways: 2026-08-24 18:35

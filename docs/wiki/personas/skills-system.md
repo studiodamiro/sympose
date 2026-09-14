@@ -1,7 +1,7 @@
 ---
 title: "Modular Skills System & Playbook Specification"
 created: 2026-08-24
-type: wiki-agents
+type: wiki-personas
 parent: index
 tags:
   - sympose/skills
@@ -11,14 +11,14 @@ tags:
 
 # 🧠 Modular Skills System (`SKILL.md`)
 
-Sympose supports standardized, procedural **Skill Playbooks**. Skills allow agents to load domain heuristics, standard operating procedures (SOPs), and specialized rules without modifying the agent's core identity (`_soul.md`).
+Sympose supports standardized, procedural **Skill Playbooks**. Skills allow personas to load domain heuristics, standard operating procedures (SOPs), and specialized rules without modifying the persona's core identity (`_soul.md`).
 
 ---
 
 ## 1. What is a Skill?
 
-* **`_soul.md` (Who the agent is)**: Tone, core personality, values, and domain authority.
-* **`SKILL.md` (How the agent executes)**: Reusable, structured methodologies and checklists (e.g. *Git Hygiene*, *Code Review Guidelines*, *Stoic Decision Trees*).
+* **`_soul.md` (Who the persona is)**: Tone, core personality, values, and domain authority.
+* **`SKILL.md` (How the persona executes)**: Reusable, structured methodologies and checklists (e.g. *Git Hygiene*, *Code Review Guidelines*, *Stoic Decision Trees*).
 
 ---
 
@@ -79,9 +79,9 @@ When proposing git commits:
 
 ---
 
-## 4. Assigning Skills to Agents
+## 4. Assigning Skills to Personas
 
-To equip an agent with skills, add the `skills:` list to their manifest in `profiles/<agent>.yaml`:
+To equip a persona with skills, add the `skills:` list to their manifest in `profiles/<persona>.yaml`:
 
 ```yaml
 # profiles/grace.yaml

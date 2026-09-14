@@ -42,6 +42,14 @@ class ActionProcessor:
     # can't recurse unboundedly.
     MAX_ACTION_DEPTH = 1
 
+    # Retired tag names from before the Worker -> Sub-Agent rename. An
+    # unrecognized tag name isn't caught by any malformed-tag fallback — it
+    # just silently prints as inert literal text instead of running (seen in
+    # practice from weaker/local models reverting to the old spelling). This
+    # catches the known case and turns it into a visible warning instead of a
+    # silent no-op.
+    _LEGACY_TAG_RE = re.compile(r"\[(?:ACTION:)?SPAWN_WORKER:[^\]]*\]", re.IGNORECASE)
+
     @classmethod
     def parse_action_tags(cls, text: str) -> list[tuple[str, str, str]]:
         """Extracts all autonomic action tags supporting nested brackets while ignoring documentation template placeholders."""
@@ -114,6 +122,15 @@ class ActionProcessor:
 
         tags = cls.parse_action_tags(text)
         clean_text = text
+
+        legacy_matches = cls._LEGACY_TAG_RE.findall(clean_text)
+        if legacy_matches:
+            clean_text = cls._LEGACY_TAG_RE.sub("", clean_text)
+            badges.append(
+                f"> ⚠️ **{name} used the retired `[SPAWN_WORKER]` tag — nothing "
+                "was dispatched.** The current sub-agent tag is "
+                "`[SPAWN_SUB_AGENT: ...]`."
+            )
 
         # A model that repeats itself (common with weaker/local models) can
         # emit the exact same tag twice — the text strip below is already

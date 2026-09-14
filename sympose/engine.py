@@ -32,6 +32,20 @@ class PersonaEngine:
         r"\[(?:ACTION:)?(?:SEARCH|WEB_SEARCH|SPAWN_SUB_AGENT)\b", re.IGNORECASE
     )
 
+    # Cloud chat APIs enforce the assistant/user turn boundary server-side.
+    # Local backends only stop where the model's own template's stop token
+    # fires — a mismatched or broken template (seen on some community
+    # fine-tunes) lets generation run past the reply into a hallucinated
+    # continuation. These are model-agnostic markers for that continuation,
+    # applied as a `stop` list so it's cut regardless of the local model's
+    # own template correctness.
+    _LOCAL_RUNAWAY_STOP_SEQUENCES = (
+        "\n### User:",
+        "\n### Assistant:",
+        "\nUser:",
+        "\nYou (to",
+    )
+
     # Local inference backends: with `vault_grounding: auto`, a persona on one of
     # these gets `strict` grounding (the runtime forces `vault_recall` rather
     # than trusting the model to emit the tag). Cloud models get `trust`.
@@ -289,6 +303,7 @@ class PersonaEngine:
                 ka = self.config.get("performance.local_keep_alive")
             if ka is not None:
                 kwargs["keep_alive"] = ka
+            kwargs["stop"] = list(self._LOCAL_RUNAWAY_STOP_SEQUENCES)
         return kwargs
 
     def _select_turn_model(

@@ -625,7 +625,22 @@ class CommandInterceptor:
                 else:
                     new_model = sub
                     engine.set_model_override(handle, new_model)
-                    yield f"Model for {profile.get('name', handle)} temporarily set to `{new_model}`.\n*(Run `/model reset` to restore default)*"
+                    msg = (
+                        f"Model for {profile.get('name', handle)} temporarily "
+                        f"set to `{new_model}`.\n*(Run `/model reset` to "
+                        "restore default)*"
+                    )
+                    is_local_override = new_model.startswith(
+                        "ollama/"
+                    ) or ":11434" in str(profile.get("api_base", ""))
+                    if is_local_override and profile.get("vault_folders"):
+                        msg += (
+                            "\n\n⚠️ *Manual overrides aren't second-guessed — "
+                            "this persona's vault-recall/sub-agent grounding "
+                            "guard normally avoids routing that work to a "
+                            "local model, but this override skips it.*"
+                        )
+                    yield msg
 
             return _model()
 

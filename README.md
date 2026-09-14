@@ -3,7 +3,7 @@
 [![Tests](https://github.com/studiodamiro/sympose/actions/workflows/tests.yml/badge.svg)](https://github.com/studiodamiro/sympose/actions/workflows/tests.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-> **Sympose** (_from Symposium: a forum of gathering experts_) is a zero-bloat, sub-second latency (`<0.8s TTFT`), and local-first multi-persona ecosystem engineered for **macOS Terminal** and **Slack (Socket Mode)**.
+> **Sympose** (_from Symposium: a discourse where ideas are argued, tested, and built on together, not just presented_) gives your Obsidian vault a voice — a zero-bloat, sub-second latency (`<0.8s TTFT`), local-first persona that reasons *with* what you've already written, not just fetches it: connecting notes you never linked, arguing the other side of a decision you're journaling through, noticing a pattern across entries you didn't name yourself.
 
 ---
 

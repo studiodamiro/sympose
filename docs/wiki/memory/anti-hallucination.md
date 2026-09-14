@@ -55,12 +55,12 @@ Every claim about them is a verbatim quote or it is nothing.
 1. Your knowledge of the user is exactly {{sources}} plus the active turns — nothing else.
 2. State a fact about a note only from a payload given this turn — a
    `### Ground-Truth Sandboxed Vault Note`, `### Ground-Truth Vault Search Results`,
-   or a Sub-Agent Worker Report. Quote paths, dates, names, and wording exactly.
+   or a Sub-Agent Report. Quote paths, dates, names, and wording exactly.
    Never reconstruct a note from the topic, the conversation, or what sounds plausible.
 3. No payload → don't guess. Not shown the note: say so and emit
-   `[SPAWN_WORKER: vault_recall | <subject>]`. Retrieval empty: "I have no record
+   `[SPAWN_SUB_AGENT: vault_recall | <subject>]`. Retrieval empty: "I have no record
    of that in your vault." Never use `[SEARCH]` (web) for the user's own notes.
-4. Emit `[SEARCH]` / `[SPAWN_WORKER]`, then stop — you have not seen the result yet.
+4. Emit `[SEARCH]` / `[SPAWN_SUB_AGENT]`, then stop — you have not seen the result yet.
 ```
 
 Two layers back the prompt up so it holds on a weak/abliterated local model, not
@@ -70,7 +70,7 @@ only a strong cloud one:
   inject the **full verbatim note body** as the pre-turn `### Ground-Truth
   Sandboxed Vault Note` on a single/title hit, so rule 2 has real text to quote.
 - **Runtime enforcement** (`PersonaEngine._visible_stream`) cuts the user-visible
-  stream at the first `[SEARCH]` / `[SPAWN_WORKER]` tag — a model that "reads out"
+  stream at the first `[SEARCH]` / `[SPAWN_SUB_AGENT]` tag — a model that "reads out"
   a note it has not been shown yet never reaches the user; the runtime injects the
   real report instead. See
   [2026-09-07 Vault-Grounding Enforcement & Recall Phrasing](../../journal/2026-09/2026-09-07_vault-grounding-enforcement-and-recall-phrasing.md).

@@ -54,7 +54,7 @@ graph TD
 ### 📐 [Architecture](./architecture/overview.md)
 * **[System Overview](./architecture/overview.md):** The Triad pattern separating UI manifest, cognitive directives, and persistent memory.
 * **[Sub-Second Latency Engine](./architecture/sub-second-engine.md):** How Sympose achieves 0.75s TTFT on macOS by eliminating GCE metadata server hangs and managing warm connection pools.
-* **[MCP & Sub-Agent Workers](./architecture/mcp-and-workers.md):** Isolated, ephemeral worker sandboxes connecting to Model Context Protocol tool servers.
+* **[MCP & Sub-Agents](./architecture/mcp-and-sub-agents.md):** Isolated, ephemeral sub-agent sandboxes connecting to Model Context Protocol tool servers.
 * **[Sandboxed Obsidian Vault](./architecture/sandboxed-vault.md):** Defensive path validation, isolated domain folders, and note search tiers.
 * **[Web Dashboard & Standalone Vault Explorer](./architecture/dashboard-and-vault-explorer.md):** UI specification, interactive knowledge graph, multi-persona chat stream, and standalone vault explorer.
 
@@ -84,7 +84,7 @@ graph TD
 ### 📖 [Reference](./reference/cli-commands.md)
 * **[CLI Commands & Shortcuts](./reference/cli-commands.md):** Complete guide to `/save`, `/config`, `/switch`, `/note`, `/daily`, and `/ask`.
 * **[Configuration Reference](./reference/configuration.md):** Every runtime knob — type, default, allowed values, live-vs-restart — generated from `config_schema.py`.
-* **[Action Tags Reference](./reference/action-tags.md):** Every `[TAG: args]` a persona can emit — `WRITE_NOTE`, `SPAWN_WORKER`, `CREATE_PERSONA`, and the rest — plus the malformed-tag warning contract.
+* **[Action Tags Reference](./reference/action-tags.md):** Every `[TAG: args]` a persona can emit — `WRITE_NOTE`, `SPAWN_SUB_AGENT`, `CREATE_PERSONA`, and the rest — plus the malformed-tag warning contract.
 * **[Python API Reference](./reference/python-api.md):** Package internals, class hierarchies, and integration hooks.
 * **[Web Dashboard UI Design Reference](./reference/ui-design-reference.md):** The flat "Sovereign Craft" design brief — theme presets, semantic tokens, layout shell, per-screen artboards.
 

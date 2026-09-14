@@ -77,10 +77,10 @@ The Sympose codebase enforces a strict **Single Responsibility Principle (SRP)**
 | [`sympose/memory.py`](../../../sympose/memory.py) | 192 | Heuristic gated shadow extraction and session archival. |
 | [`sympose/skills.py`](../../../sympose/skills.py) | 145 | Modular procedural playbooks (`skills/`) and dynamic prompt injection. |
 | [`sympose/mcp.py`](../../../sympose/mcp.py) | 188 | Model Context Protocol JSON-RPC 2.0 stdio client and tool bridge. |
-| [`sympose/workers.py`](../../../sympose/workers.py) | 188 | Ephemeral sub-agent worker execution sandbox with skill model auto-resolution. |
+| [`sympose/sub_agents.py`](../../../sympose/sub_agents.py) | 188 | Ephemeral sub-agent execution sandbox with skill model auto-resolution. |
 | [`sympose/native_tools.py`](../../../sympose/native_tools.py) | 85 | Deterministic native execution tools (`run_command`, `read_file`). |
 | [`sympose/vault.py`](../../../sympose/vault.py) | 176 | Sandboxed file I/O, path traversal defenses, and multi-tier vault search. |
-| [`sympose/commands.py`](../../../sympose/commands.py) | 372 | Slash command interceptors (`/model`, `/compact`, `/worker`, `/save`, `/config`). |
+| [`sympose/commands.py`](../../../sympose/commands.py) | 372 | Slash command interceptors (`/model`, `/compact`, `/subagent`, `/save`, `/config`). |
 | [`sympose/completer.py`](../../../sympose/completer.py) | 195 | Interactive Readline Tab completion for commands, personas, models, and skills. |
 | [`sympose/cli.py`](../../../sympose/cli.py) | 168 | Interactive Rich streaming terminal REPL and exit workflows. |
 | [`sympose/ui.py`](../../../sympose/ui.py) | 77 | Rich visual components, persona selection table, and banners. |

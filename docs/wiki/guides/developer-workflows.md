@@ -38,12 +38,12 @@ graph LR
     subgraph Sympose Core Ecosystem
         Vault["Obsidian Master Vault<br/>(Projects, Architecture, Daily)"]
         Memory["Working & Shared Memory<br/>(profiles/*_memory.md)"]
-        Workers["Sub-Agent Workers & MCP<br/>(git_workflow, code_review)"]
+        SubAgents["Sub-Agents & MCP<br/>(git_workflow, code_review)"]
     end
 
     AGY --> Vault & Memory
-    CLI --> Vault & Memory & Workers
-    Daemon --> Vault & Memory & Workers
+    CLI --> Vault & Memory & SubAgents
+    Daemon --> Vault & Memory & SubAgents
     Mobile <== Socket Mode ==> Daemon
 ```
 
@@ -51,7 +51,7 @@ graph LR
 | :--- | :--- | :--- | :--- | :--- |
 | **Launch Command** | Native chat panel | `./chat.sh --persona grace` | `./chat.sh` in VS Code terminal | Open Slack App on phone |
 | **Primary Role** | Direct file editing, live diffs | Terminal REPL, deep reasoning | Code writing & side-by-side CLI | Remote check-in & spec query |
-| **Tool Execution** | Native IDE file / shell tools | WorkerEngine subprocess tools | Subprocess tools via CLI | Subprocess & MCP tools via Mac |
+| **Tool Execution** | Native IDE file / shell tools | SubAgentEngine subprocess tools | Subprocess tools via CLI | Subprocess & MCP tools via Mac |
 | **Memory Sync** | Read workspace context | Live read/write `grace_memory.md` | Live read/write `grace_memory.md` | Live read/write `grace_memory.md` |
 | **Vault Access** | Local files | Native `VaultManager` | Native `VaultManager` | Native `VaultManager` |
 | **Mobility** | Desktop only | Desktop only | Desktop only | **Anywhere (iOS / Android)** |

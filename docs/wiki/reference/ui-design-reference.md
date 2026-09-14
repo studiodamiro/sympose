@@ -332,7 +332,7 @@ separate native app. Produce these mobile artboards:
 | `[WRITE_NOTE]` / `[APPEND_NOTE]` | 📝 "Note saved — `Projects/…`" | click → open in editor (6.5) |
 | `[DAILY_NOTE]` | 📓 "Reflection added" + frontmatter-tag-sync chip | click → open today's daily note |
 | `[SEARCH]` | 🔎 "Web search: <query>" + citation count | expand → list retrieved sources |
-| `[SPAWN_WORKER]` | ⚙ "Sub-agent: <task>" progress row | expand → tool execution log drawer |
+| `[SPAWN_SUB_AGENT]` | ⚙ "Sub-agent: <task>" progress row | expand → tool execution log drawer |
 | `[REACT]` | line-icon reaction chip floated over the user bubble's bottom-left edge (Hugeicons, not emoji — keeps the set theme-aware and on-brand) | — |
 | `[CONFIG_SET]` | 🎛 "config.yaml updated: <key>" | — |
 | `[CREATE_PERSONA]` / `[DELETE_PERSONA]` | 🧬 / 🗄 persona lifecycle chip | — |

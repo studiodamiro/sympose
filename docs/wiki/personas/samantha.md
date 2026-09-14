@@ -85,7 +85,7 @@ Samantha can emit bracketed autonomic tags that the Sympose runtime parses and e
 * **`[CONFIG_SET: <key> | <value>]`**: Modifies runtime settings live in `config.yaml` (e.g. `performance.max_context_turns`, `session.exit_behavior.auto_save`).
 * **`[CREATE_PERSONA: <handle> | <yaml>]`**: Autonomously provisions a new specialist persona adhering to the 7-Point Prerequisite Standard.
 * **`[DELETE_PERSONA: <handle>]`**: Safely archives a retired persona to `profiles/_archived/<handle>/`.
-* **`[SPAWN_WORKER: <skill|mcp> | <task>]`**: Dispatches an ephemeral sub-agent worker for isolated file/tool operations.
+* **`[SPAWN_SUB_AGENT: <skill|mcp> | <task>]`**: Dispatches an ephemeral sub-agent for isolated file/tool operations.
 * **`[WRITE_NOTE: Strategy/<file.md> | <content>]`**: Writes strategic briefs directly to the user's Obsidian vault.
 
 ---

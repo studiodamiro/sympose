@@ -64,7 +64,7 @@ Sympose intercepts slash commands directly in the REPL execution loop, executing
 | `/skill add` | `<name> [@handle]` | Equips skill to active persona (or target `@handle`) and persists to YAML manifest (`/skill mount`, `/skill install`). |
 | `/skill remove` | `<name> [@handle]` | Unmounts skill from active persona (or target `@handle`) and persists to YAML (`/skill unmount`, `/skill rm`). |
 | `/skill show` | `<name>` | Previews markdown playbook directives and metadata for a skill (`/skill view`, `/skill info`). |
-| `/worker` | `<skill\|mcp> <task>` | Dispatches an ephemeral sub-agent worker sandbox with skills and MCP tools. |
+| `/subagent` | `<skill\|mcp> <task>` | Dispatches an ephemeral sub-agent sandbox with skills and MCP tools. |
 | `/ask` | `<@peer> <prompt>` | Spawns an isolated sub-agent task to a peer persona without polluting active context. |
 | `/help` | *(none)* | Displays command cheat sheet and active shortcuts. |
 

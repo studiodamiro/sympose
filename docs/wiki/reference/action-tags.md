@@ -31,7 +31,7 @@ generation happen in the same completion (see
 | `[WRITE_CANVAS: <path> \| <json>]` | Creates visual Obsidian `.canvas` diagrams and mindmaps | `[WRITE_CANVAS: architecture.canvas \| {...}]` |
 | `[READ_NOTE: <path>]` / `[VIEW_NOTE: <path>]` | Renders a vault note in-terminal | `[READ_NOTE: Projects/roadmap.md]` |
 | `[SEARCH: <query>]` / `[WEB_SEARCH: <query>]` | Executes real-time live internet search ($0 API key) | `[SEARCH: AXS price USD]` |
-| `[SPAWN_WORKER: <spec> \| <task>]` | Dispatches an ephemeral sub-agent with tools/skills | `[SPAWN_WORKER: web_search \| Research market trends]` |
+| `[SPAWN_SUB_AGENT: <spec> \| <task>]` | Dispatches an ephemeral sub-agent with tools/skills | `[SPAWN_SUB_AGENT: web_search \| Research market trends]` |
 | `[REMEMBER: <fact>]` | Saves a durable bullet point to working memory | `[REMEMBER: Prefers vanilla CSS over Tailwind]` |
 | `[REACT: <emoji>]` | Adds an expressive emoji reaction to a Slack message | `[REACT: rocket]` |
 | `[CONFIG_SET: <key> \| <val>]` | Coerces and validates `<val>` against the [config schema](configuration.md), then persists a **global** runtime setting to `config.yaml`. A bad enum, out-of-range number, or persona-scoped key is rejected with a badge (persona knobs point at `/persona set`); an unknown key keeps permissive numeric/bool coercion. | `[CONFIG_SET: performance.max_context_turns \| 20]` |
@@ -55,4 +55,4 @@ explicit `⚠️ Malformed [TAG] — ignored` badge instead, so the model — an
 
 - **[Sandboxed Obsidian Vault](../architecture/sandboxed-vault.md)** — path validation and domain-folder rules `WRITE_NOTE`/`APPEND_NOTE`/`DAILY_NOTE` run under.
 - **[Memory Architecture Standard](../memory/architecture-standard.md)** — how `REMEMBER` interacts with working memory and compaction.
-- **[MCP & Sub-Agent Workers](../architecture/mcp-and-workers.md)** — what `SPAWN_WORKER` can mount and run.
+- **[MCP & Sub-Agents](../architecture/mcp-and-sub-agents.md)** — what `SPAWN_SUB_AGENT` can mount and run.

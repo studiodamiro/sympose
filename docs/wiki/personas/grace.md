@@ -50,7 +50,7 @@ Grace’s soul directives ([`profiles/grace_soul.md`](../../../profiles/grace_so
    - Avoids heavyweight framework dependencies when lean primitives suffice.
 4. **Disciplined Execution & Verification**:
    - Always outlines implementation plans before touching files.
-   - Inspects existing code thoroughly using isolated sub-agent workers before proposing edits.
+   - Inspects existing code thoroughly using isolated sub-agents before proposing edits.
    - Verifies changes with automated unit and integration tests.
 5. **Zero Fabrication**:
    - Grounded in empirical truth. Never invents non-existent APIs, libraries, or unverified architecture decisions.
@@ -81,16 +81,16 @@ skills:
 
 ---
 
-## 4. Sub-Agent Worker Delegation & Native Tools
+## 4. Sub-Agent Delegation & Native Tools
 
-Grace never simulates or fakes terminal command output. When asked to inspect code, review git status, or test files, she delegates isolated tasks to ephemeral sub-agent workers:
+Grace never simulates or fakes terminal command output. When asked to inspect code, review git status, or test files, she delegates isolated tasks to ephemeral sub-agents:
 
 ```text
-[SPAWN_WORKER: code_review | Run static analysis on sympose/workers.py and check for LOC violations]
+[SPAWN_SUB_AGENT: code_review | Run static analysis on sympose/sub_agents.py and check for LOC violations]
 ```
 
 ### Autonomic Actions Supported:
-* **`[SPAWN_WORKER: <skill|mcp> | <task>]`**: Dispatches an ephemeral worker with local shell access or MCP tools (`filesystem`, `github`).
+* **`[SPAWN_SUB_AGENT: <skill|mcp> | <task>]`**: Dispatches an ephemeral sub-agent with local shell access or MCP tools (`filesystem`, `github`).
 * **`[WRITE_NOTE: Architecture/<file.md> | <content>]`**: Writes architectural blueprints and ADRs directly to the user's Obsidian vault.
 * **`[REMEMBER: <fact>]`**: Saves durable technical facts and engineering constraints into `profiles/grace_memory.md`.
 
@@ -118,12 +118,12 @@ Grace features distinct, domain-flavored status phrases that display while evalu
 
 ### Code Review & Refactoring Prompt
 ```text
-You (to @grace): Grace, inspect sympose/workers.py. We need to reduce its line count below 200 LOC while extracting deterministic native tools.
+You (to @grace): Grace, inspect sympose/sub_agents.py. We need to reduce its line count below 200 LOC while extracting deterministic native tools.
 ```
 
-### Dispatching an Isolated Worker Directly
+### Dispatching an Isolated Sub-Agent Directly
 ```bash
-/worker code_review "Inspect sympose/actions.py for regex performance bottlenecks"
+/subagent code_review "Inspect sympose/actions.py for regex performance bottlenecks"
 ```
 
 ### Saving an Architectural Decision
@@ -136,5 +136,5 @@ You (to @grace): Grace, inspect sympose/workers.py. We need to reduce its line c
 ## 🔗 Related Documentation
 * [Persona Profile System Guide](./profile-system.md)
 * [Modular Skills System Specification](./skills-system.md)
-* [Model Context Protocol & Sub-Agent Workers](../architecture/mcp-and-workers.md)
+* [Model Context Protocol & Sub-Agents](../architecture/mcp-and-sub-agents.md)
 * [Autonomous Persona Memory Standard](../memory/architecture-standard.md)

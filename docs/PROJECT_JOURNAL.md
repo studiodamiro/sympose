@@ -238,4 +238,4 @@ one in [`docs/wiki/index.md`](./wiki/index.md) are kept in sync per the
 - **[Slack Socket Mode Setup Guide](./wiki/guides/slack-setup.md):** 1-click app manifest, Socket Mode, and multi-persona Slack deployment.
 - **[Web Dashboard & Standalone Vault Explorer](./wiki/architecture/dashboard-and-vault-explorer.md):** architectural blueprint for the web dashboard, knowledge graph, chat stream, and vault explorer.
 - **[Web Dashboard UI Design Reference](./wiki/reference/ui-design-reference.md):** the flat "Sovereign Craft" design brief — theme presets, semantic tokens, layout shell, per-screen artboards — derived from ADR-047 and ADR-051–053.
-- **[Wiki Documentation Hub](./wiki/index.md):** skills, MCP workers, profile system, and command references.
+- **[Wiki Documentation Hub](./wiki/index.md):** skills, MCP sub-agents, profile system, and command references.

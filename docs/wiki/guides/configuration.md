@@ -20,7 +20,7 @@ Sympose separates system performance and exit policies from persona manifests us
 
 The authoritative list of every setting — key, type, default, allowed values, live-vs-restart, and a one-line description — is the generated **[Configuration Reference](../reference/configuration.md)**. It is rendered from the schema (`python -m sympose.config_reference`) and a test fails if it drifts, so it never goes stale. A fresh workspace's `config.yaml` is seeded from the same schema.
 
-Settings are grouped into sections: **Performance & Streaming**, **Session & Memory**, **Runtime**, **Vault**, **Worker Sandbox**, and **Persona** (the last set live in `profiles/<handle>.yaml`, not `config.yaml`). A representative slice:
+Settings are grouped into sections: **Performance & Streaming**, **Session & Memory**, **Runtime**, **Vault**, **Sub-Agent Sandbox**, and **Persona** (the last set live in `profiles/<handle>.yaml`, not `config.yaml`). A representative slice:
 
 ```yaml
 performance:
@@ -97,7 +97,7 @@ flowchart TD
     subgraph Execution["1. Primary Personas & Peer Specialists"]
         A["Persona Profile (profiles/handle.yaml)"] --> B["Active Session Override (/model name)"]
     end
-    subgraph Worker["2. Ephemeral Sub-Agent Workers"]
+    subgraph SubAgent["2. Ephemeral Sub-Agents"]
         C["Explicit Task Model (task.model)"] --> D["Skill Recommendation (SKILL.md frontmatter)"]
         D --> E["Global Environment (DEFAULT_MODEL in .env)"]
         E --> F["System Fallback (gemini/gemini-3.6-flash)"]
@@ -110,7 +110,7 @@ flowchart TD
 1. **Primary Personas (`@grace`, `@samantha`, `@aurelius`)**:
    - Specified via the `model:` attribute in [`profiles/<handle>.yaml`](../../../profiles/grace.yaml).
    - Can be temporarily swapped live in the terminal using `/model <model_name>`.
-2. **Ephemeral Sub-Agent Workers (`/worker` or `[SPAWN_WORKER]`)**:
+2. **Ephemeral Sub-Agents (`/subagent` or `[SPAWN_SUB_AGENT]`)**:
    - **Step 1:** Explicit `model` parameter if dispatched programmatically in code.
    - **Step 2:** `recommended_models` list declared in [`sympose/builtin_skills/<skill>/SKILL.md`](../../../sympose/builtin_skills/code_review/SKILL.md) frontmatter.
    - **Step 3:** `DEFAULT_MODEL` declared in `.env`.

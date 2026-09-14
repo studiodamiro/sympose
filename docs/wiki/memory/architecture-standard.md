@@ -204,7 +204,7 @@ Sympose strictly enforces **Vault Agnosticism**: it adapts to any user-chosen di
 To avoid burning frontier cloud tokens and leaking personal reflections, historical recall operates on a **3-Tier Funnel**:
 
 1. **Tier 0 (Deterministic Filter)**: Mechanical file/path matching and regex (`<0.005s`, 0 tokens).
-2. **Tier 1 (Local LLM Triage / $0.00)**: Sub-agent worker running `ollama/qwen2.5:14b` or `ollama/gemma2:9b` (or `gemini/gemini-3.6-flash`) executes `sympose/builtin_skills/vault_recall/SKILL.md` to parse YAML frontmatter and extract `## Key Decisions` and `## Action Items`.
+2. **Tier 1 (Local LLM Triage / $0.00)**: Sub-agent running `ollama/qwen2.5:14b` or `ollama/gemma2:9b` (or `gemini/gemini-3.6-flash`) executes `sympose/builtin_skills/vault_recall/SKILL.md` to parse YAML frontmatter and extract `## Key Decisions` and `## Action Items`.
 3. **Tier 2 (Frontier Deep Synthesis - Optional)**: Paid models (Claude Sonnet 4.5 / Gemini 3.7) receive only the isolated high-signal excerpts when complex code synthesis or architecture refactoring is required.
 
 ---
@@ -224,8 +224,8 @@ Markdown documents stored on physical disk are the **sovereign single source of 
 To ensure universal portability across any operating system and vault layout:
 
 - **Separation of Logic from Environment**: Codebase modules (`sympose/`) contain zero hardcoded absolute directory paths. All locations are defined centrally in `.env` (`MASTER_VAULT_PATH`) and `config.yaml`.
-- **Worker & Tool Propagation (ADR-026)**: When sub-agents and tools (`run_command`, `read_file`) execute, the runtime dynamically passes the configured vault root, ensuring workers never get trapped in the application codebase.
-- **Inherited Worker Sandboxing (ADR-026)**: Sub-agent workers strictly inherit the parent persona's `vault_folders` whitelist. Unauthorized workers (e.g. spawned by `@samantha` or `@grace`) are hard-blocked from inspecting private reflection domains (`Daily/`) via `read_file` or shell tools (`run_command`).
+- **Sub-Agent & Tool Propagation (ADR-026)**: When sub-agents and tools (`run_command`, `read_file`) execute, the runtime dynamically passes the configured vault root, ensuring sub-agents never get trapped in the application codebase.
+- **Inherited Sub-Agent Sandboxing (ADR-026)**: Sub-agents strictly inherit the parent persona's `vault_folders` whitelist. Unauthorized sub-agents (e.g. spawned by `@samantha` or `@grace`) are hard-blocked from inspecting private reflection domains (`Daily/`) via `read_file` or shell tools (`run_command`).
 - **Universal Structure Compatibility**: Supports Flat, PARA (`01_Projects`, `02_Areas`), Johnny Decimal, and Zettelkasten systems seamlessly.
 
 ---

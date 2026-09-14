@@ -153,7 +153,7 @@ An integrated appearance drawer providing instantaneous UI re-theming:
   * `[WRITE_NOTE]` / `[APPEND_NOTE]` $\to$ File saved badge with a direct link to open in the editor.
   * `[DAILY_NOTE]` $\to$ Reflection badge with frontmatter tag sync indicator.
   * `[SEARCH]` $\to$ Live web search badge displaying query and retrieved citations.
-  * `[SPAWN_WORKER]` $\to$ Sub-agent task progress drawer showing tool execution logs.
+  * `[SPAWN_SUB_AGENT]` $\to$ Sub-agent task progress drawer showing tool execution logs.
   * `[REACT]` $\to$ Expressive animated emoji reactions on chat bubbles.
 * **Active Nebula Synergy**: Referencing a note in chat is one of several triggers (alongside opening a note from the vault tree or a wikilink — see Module A's ADR-097) that fly the ambient background's camera to and highlight the corresponding node cluster.
 

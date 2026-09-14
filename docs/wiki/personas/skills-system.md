@@ -75,7 +75,7 @@ When proposing git commits:
 | `description` | `string` | Short 1-sentence summary of the skill's purpose. |
 | `tags` | `list` | Categorization tags. |
 | `mcp_servers` | `list` | *(Optional)* MCP tool servers automatically paired with this skill. |
-| `recommended_models` | `list` | *(Optional)* Priority model list for ephemeral sub-agent workers executing this skill. |
+| `recommended_models` | `list` | *(Optional)* Priority model list for ephemeral sub-agents executing this skill. |
 
 ---
 
@@ -113,7 +113,7 @@ Every strategic evaluation produced by this skill MUST include:
 4. Kill Criteria / Reversal Triggers (Measurable conditions to pivot or abort)
 ```
 
-When a worker executes this skill, the runtime forces the model to fill each mandatory section, completely eliminating vague hand-waving.
+When a sub-agent executes this skill, the runtime forces the model to fill each mandatory section, completely eliminating vague hand-waving.
 
 ---
 
@@ -131,4 +131,4 @@ When a worker executes this skill, the runtime forces the model to fill each man
 ## 7. Live Inspection & Commands
 
 * `/skills` (or `/tools`): View all indexed skills and active MCP servers in your workspace.
-* `/worker <skill_name> <task>`: Dispatch an isolated sub-agent worker loaded with a specific skill.
+* `/subagent <skill_name> <task>`: Dispatch an isolated sub-agent loaded with a specific skill.

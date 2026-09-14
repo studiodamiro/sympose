@@ -204,6 +204,17 @@ class TestExecuteActionsMalformedTags:
         assert not any("Malformed" in b for b in badges)
         assert any("saved note" in b for b in badges)
 
+    def test_spawn_worker_missing_pipe_produces_warning_badge(self):
+        """The audit's named example (a model omitting the `<skills> |` half
+        entirely) — already fixed 2026-09-04 by this same catch-all, before
+        the audit ran; this pins the specific tag down with its own test
+        rather than only the generic WRITE_NOTE/READ_NOTE cases above."""
+        pm = _FakeProfileManager()
+        _, badges = ActionProcessor.execute_actions(
+            pm, "test", "[SPAWN_WORKER: find my notes about Dylan]"
+        )
+        assert any("Malformed" in b and "SPAWN_WORKER" in b for b in badges)
+
 
 class TestWorkerReadNoteFoldsVerbatimContent:
     """Regression: a `vault_recall` worker that surfaced a note via `[READ_NOTE]`

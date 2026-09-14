@@ -47,6 +47,17 @@ def main():
         action="store_true",
         help="Launch interactive setup & onboarding wizard",
     )
+    parser.add_argument(
+        "--sync-skills",
+        action="store_true",
+        help="Sync packaged prompts/skills into the workspace, prompting "
+        "before overwriting anything that differs (run after an upgrade)",
+    )
+    parser.add_argument(
+        "--yes",
+        action="store_true",
+        help="With --sync-skills, overwrite differing files without prompting",
+    )
     args = parser.parse_args()
 
     from dotenv import load_dotenv
@@ -55,6 +66,7 @@ def main():
         ensure_workspace,
         resolve_workspace_dir,
         run_first_run_onboarding,
+        sync_builtin_content,
     )
 
     workspace_dir = resolve_workspace_dir()
@@ -62,6 +74,11 @@ def main():
     # sympose.config already loaded this same file at import time (before
     # DEFAULT_MODEL was resolved); this is a redundant, explicit no-op.
     load_dotenv(os.path.join(workspace_dir, ".env"))
+
+    if args.sync_skills:
+        report = sync_builtin_content(workspace_dir, auto_yes=args.yes)
+        print("\n".join(report) if report else "Already up to date.")
+        return
 
     # Run onboarding wizard if requested (--setup) or if fresh workspace
     if (args.setup or is_fresh) and not args.dashboard and not args.slack:

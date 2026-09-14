@@ -2,6 +2,7 @@
 Bootstrap, Workspace Resolver & First-Run Onboarding for Sympose.
 """
 
+import difflib
 import logging
 import os
 import sys
@@ -194,6 +195,74 @@ def ensure_workspace(workspace_dir: str) -> bool:
         log.warning("Failed to seed builtin skills into %s: %s", skills_dir, e)
 
     return is_fresh
+
+
+def sync_builtin_content(workspace_dir: str, auto_yes: bool = False) -> list[str]:
+    """Brings an existing workspace's copies of the packaged prompt/skill
+    files up to date with what's currently installed. `ensure_workspace`
+    above only ever seeds these once and never overwrites an existing file —
+    by design, so a hand-edited workspace_rules.md or SKILL.md survives a
+    reinstall — but that also means a packaged fix or rewrite (a rename, a
+    corrected tag, a rephrased playbook) never reaches an existing workspace
+    on its own, no matter how many times the package is upgraded. Run via
+    `sympose --sync-skills` after an upgrade. Prompts before overwriting
+    anything that differs, since the difference could be a real edit rather
+    than staleness; pass auto_yes to overwrite without asking."""
+    prompts_dir = os.path.join(workspace_dir, "prompts")
+    skills_dir = os.path.join(workspace_dir, "skills")
+    os.makedirs(prompts_dir, exist_ok=True)
+    os.makedirs(skills_dir, exist_ok=True)
+
+    candidates: list[tuple[str, str]] = [
+        (os.path.join(prompts_dir, "workspace_rules.md"), DEFAULT_RULES_MD)
+    ]
+    builtin_skills_dir = os.path.join(os.path.dirname(__file__), "builtin_skills")
+    if os.path.exists(builtin_skills_dir):
+        for item in sorted(os.listdir(builtin_skills_dir)):
+            src = os.path.join(builtin_skills_dir, item, "SKILL.md")
+            if os.path.isfile(src):
+                with open(src, "r", encoding="utf-8") as f:
+                    candidates.append(
+                        (os.path.join(skills_dir, item, "SKILL.md"), f.read())
+                    )
+
+    report: list[str] = []
+    for dst, packaged_text in candidates:
+        rel = os.path.relpath(dst, workspace_dir)
+        if not os.path.exists(dst):
+            os.makedirs(os.path.dirname(dst), exist_ok=True)
+            with open(dst, "w", encoding="utf-8") as f:
+                f.write(packaged_text)
+            report.append(f"seeded:     {rel}")
+            continue
+
+        with open(dst, "r", encoding="utf-8") as f:
+            current_text = f.read()
+        if current_text.strip() == packaged_text.strip():
+            continue
+
+        if not auto_yes:
+            diff = "".join(
+                difflib.unified_diff(
+                    current_text.splitlines(keepends=True),
+                    packaged_text.splitlines(keepends=True),
+                    fromfile=f"{rel} (yours)",
+                    tofile=f"{rel} (packaged)",
+                    n=1,
+                )
+            )
+            print(f"\n--- {rel} differs from the packaged version ---")
+            print(diff[:2000])
+            ans = input("Overwrite with the packaged version? [y/N] ").strip().lower()
+            if ans != "y":
+                report.append(f"kept local: {rel}")
+                continue
+
+        with open(dst, "w", encoding="utf-8") as f:
+            f.write(packaged_text)
+        report.append(f"updated:    {rel}")
+
+    return report
 
 
 def run_first_run_onboarding(workspace_dir: str, force: bool = False) -> None:

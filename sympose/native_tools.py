@@ -3,10 +3,13 @@ Built-in Deterministic Execution Tools for Sympose Workers.
 Provides safe local subprocess execution, file I/O, and tool schemas.
 """
 
+import logging
 import os
 import re
 import subprocess
-from typing import Dict, Any, Tuple, Optional, List
+from typing import Any, ClassVar
+
+log = logging.getLogger(__name__)
 
 
 class NativeTools:
@@ -17,14 +20,38 @@ class NativeTools:
     # previous guard) is trivially bypassed by rephrasing. Overridable via
     # `worker.shell_allowlist` in config.yaml; keep it read-only/inspection
     # commands unless you deliberately widen it.
-    DEFAULT_SHELL_ALLOWLIST = [
-        "ls", "cat", "grep", "egrep", "fgrep", "find", "git", "echo", "pwd",
-        "head", "tail", "wc", "sort", "uniq", "cut", "tree", "date", "which",
-        "env", "printf", "diff", "file", "stat", "du", "df", "basename",
-        "dirname", "realpath",
+    DEFAULT_SHELL_ALLOWLIST: ClassVar[list[str]] = [
+        "ls",
+        "cat",
+        "grep",
+        "egrep",
+        "fgrep",
+        "find",
+        "git",
+        "echo",
+        "pwd",
+        "head",
+        "tail",
+        "wc",
+        "sort",
+        "uniq",
+        "cut",
+        "tree",
+        "date",
+        "which",
+        "env",
+        "printf",
+        "diff",
+        "file",
+        "stat",
+        "du",
+        "df",
+        "basename",
+        "dirname",
+        "realpath",
     ]
 
-    NATIVE_SCHEMAS = [
+    NATIVE_SCHEMAS: ClassVar[list[dict[str, Any]]] = [
         {
             "type": "function",
             "function": {
@@ -74,7 +101,7 @@ class NativeTools:
                         "max_results": {
                             "type": "integer",
                             "description": "Number of results (default 5).",
-                        }
+                        },
                     },
                     "required": ["query"],
                 },
@@ -83,23 +110,26 @@ class NativeTools:
     ]
 
     @classmethod
-    def _shell_allowlist(cls) -> List[str]:
+    def _shell_allowlist(cls) -> list[str]:
         """Reads `worker.shell_allowlist` from config; falls back to the built-in
         read/inspect command set if unset or malformed."""
         try:
             from sympose.config import config_manager
+
             configured = config_manager.get("worker.shell_allowlist", None)
             if isinstance(configured, list) and configured:
                 return [str(c).strip().lower() for c in configured if str(c).strip()]
-        except Exception:
-            pass
+        except Exception as e:
+            log.debug("Failed to read worker.shell_allowlist, using default: %s", e)
         return cls.DEFAULT_SHELL_ALLOWLIST
 
     @staticmethod
-    def _segment_commands(cmd: str) -> List[str]:
+    def _segment_commands(cmd: str) -> list[str]:
         """Splits a shell command line on top-level `&& || ; |` operators (best-effort,
         ignoring operators inside quotes) and returns each segment's argv[0] lowercased."""
-        segments = re.split(r'(?:&&|\|\||;|\|)(?=(?:[^"\']*(?:"[^"]*"|\'[^\']*\'))*[^"\']*$)', cmd)
+        segments = re.split(
+            r'(?:&&|\|\||;|\|)(?=(?:[^"\']*(?:"[^"]*"|\'[^\']*\'))*[^"\']*$)', cmd
+        )
         words = []
         for seg in segments:
             seg = seg.strip().lstrip("(").strip()
@@ -115,25 +145,54 @@ class NativeTools:
     # to behave like a normal shell (PATH, locale, home dir, git identity) —
     # everything else, `*_API_KEY`/`*_TOKEN`/`AWS_*`/`SSH_*` credentials
     # included, is withheld regardless of an allowlisted command's own intent.
-    _ENV_PASSTHROUGH_KEYS = {"PATH", "HOME", "LANG", "LC_ALL", "USER", "SHELL", "TERM", "TMPDIR", "PWD"}
+    _ENV_PASSTHROUGH_KEYS: ClassVar[set[str]] = {
+        "PATH",
+        "HOME",
+        "LANG",
+        "LC_ALL",
+        "USER",
+        "SHELL",
+        "TERM",
+        "TMPDIR",
+        "PWD",
+    }
     _ENV_PASSTHROUGH_PREFIXES = ("GIT_",)
 
     @classmethod
-    def _scrubbed_env(cls) -> Dict[str, str]:
+    def _scrubbed_env(cls) -> dict[str, str]:
         """A minimal subprocess environment: no provider API keys, tokens, or
         cloud/SSH credentials leak into a model-directed shell command."""
         return {
-            k: v for k, v in os.environ.items()
-            if k in cls._ENV_PASSTHROUGH_KEYS or k.startswith(cls._ENV_PASSTHROUGH_PREFIXES)
+            k: v
+            for k, v in os.environ.items()
+            if k in cls._ENV_PASSTHROUGH_KEYS
+            or k.startswith(cls._ENV_PASSTHROUGH_PREFIXES)
         }
 
     @classmethod
-    def execute(cls, tool_name: str, args: Dict[str, Any], allowed_dirs: Optional[List[str]] = None) -> Tuple[bool, str]:
+    def execute(
+        cls,
+        tool_name: str,
+        args: dict[str, Any],
+        allowed_dirs: list[str] | None = None,
+    ) -> tuple[bool, str]:
         """Executes a built-in native tool and returns (success, output)."""
         if tool_name == "run_command":
             cmd = args.get("command", "").strip()
             if not cmd:
                 return False, "Error: No command provided."
+
+            # `_segment_commands`' quote-aware split (below) is only
+            # guaranteed correct when the command's quotes are evenly
+            # balanced overall — an odd count means it can no longer tell
+            # whether an operator is genuinely inside a quoted string, which
+            # is exactly the ambiguity a disallowed command could hide in.
+            # Fail closed rather than guess.
+            if cmd.count('"') % 2 or cmd.count("'") % 2:
+                return False, (
+                    "Security Error: Command has unbalanced quotes and can't be "
+                    "safely checked against the shell allowlist (ADR-073)."
+                )
 
             allowlist = cls._shell_allowlist()
             argv0s = cls._segment_commands(cmd)
@@ -150,12 +209,31 @@ class NativeTools:
                 if mv and os.path.exists(mv):
                     allowed_rel = {os.path.relpath(d, mv).lower() for d in allowed_dirs}
                     try:
-                        all_subdirs = [d for d in os.listdir(mv) if os.path.isdir(os.path.join(mv, d)) and not d.startswith(".")]
-                        for f_sub in [d for d in all_subdirs if d.lower() not in allowed_rel]:
-                            if re.search(rf"(?:^|[/\\s\"']){re.escape(f_sub.lower())}(?:[/\\s\"'\.]|$)", cmd.lower()):
-                                return False, f"Security Error: Command targets `{f_sub}/` which is outside assigned vault sandbox."
-                    except Exception:
-                        pass
+                        all_subdirs = [
+                            d
+                            for d in os.listdir(mv)
+                            if os.path.isdir(os.path.join(mv, d))
+                            and not d.startswith(".")
+                        ]
+                        for f_sub in [
+                            d for d in all_subdirs if d.lower() not in allowed_rel
+                        ]:
+                            if re.search(
+                                rf"(?:^|[/\\s\"']){re.escape(f_sub.lower())}(?:[/\\s\"'\.]|$)",
+                                cmd.lower(),
+                            ):
+                                return (
+                                    False,
+                                    f"Security Error: Command targets `{f_sub}/` which is outside assigned vault sandbox.",
+                                )
+                    except Exception as e:
+                        # Secondary, defense-in-depth check only — the primary
+                        # argv[0] allowlist above already gated this command,
+                        # so failing here fails open rather than blocking a
+                        # legitimate command over a transient os.listdir error.
+                        # Still worth a loud log: a security check silently
+                        # not running is worth knowing about.
+                        log.warning("Sibling-folder sandbox check failed, skipping it: %s", e)
 
             try:
                 res = subprocess.run(
@@ -166,12 +244,19 @@ class NativeTools:
                     timeout=20,
                     cwd=os.getcwd(),
                     env=cls._scrubbed_env(),
+                    check=False,  # deliberate — a non-zero exit is reported
+                    # back as output below, not raised (e.g. `grep` finding
+                    # nothing is exit 1, not a tool failure worth crashing on)
                 )
                 stdout = res.stdout.strip()
                 stderr = res.stderr.strip()
                 output = stdout
                 if stderr:
-                    output = (output + f"\n[stderr]:\n{stderr}").strip() if output else f"[stderr]:\n{stderr}"
+                    output = (
+                        (output + f"\n[stderr]:\n{stderr}").strip()
+                        if output
+                        else f"[stderr]:\n{stderr}"
+                    )
                 if not output:
                     output = "(Command executed successfully with no stdout output)"
                 return (res.returncode == 0), output
@@ -196,11 +281,17 @@ class NativeTools:
             # Check sandbox boundary if allowed_dirs is enforced
             if allowed_dirs:
                 from sympose.config import is_safe_path
+
                 target_abs = os.path.abspath(target)
                 is_in_workspace = is_safe_path(target_abs, os.getcwd())
-                is_in_allowed_vault = any(is_safe_path(target_abs, d) for d in allowed_dirs)
+                is_in_allowed_vault = any(
+                    is_safe_path(target_abs, d) for d in allowed_dirs
+                )
                 if not (is_in_workspace or is_in_allowed_vault):
-                    return False, f"Security Error: Access to `{raw_path}` is outside assigned vault sandbox."
+                    return (
+                        False,
+                        f"Security Error: Access to `{raw_path}` is outside assigned vault sandbox.",
+                    )
 
             try:
                 with open(target, "r", encoding="utf-8", errors="ignore") as f:
@@ -221,7 +312,10 @@ class NativeTools:
                 results = list(DDGS().text(query, max_results=max_results))
                 if not results:
                     return True, "No search results found."
-                formatted = [f"- **{r.get('title', 'Result')}**: {r.get('body', '')} (URL: {r.get('href', '')})" for r in results]
+                formatted = [
+                    f"- **{r.get('title', 'Result')}**: {r.get('body', '')} (URL: {r.get('href', '')})"
+                    for r in results
+                ]
                 return True, "\n".join(formatted)
             except Exception as e:
                 return False, f"Web search error: {e}"

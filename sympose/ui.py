@@ -2,24 +2,24 @@
 Terminal UI Presentation, Design System & Modals for Sympose.
 """
 
-import os
 import random
 import threading
 import time
-from typing import Optional, List, Dict, Any, Tuple, Union
+from typing import Any
 
 try:
+    from rich.box import ROUNDED
     from rich.console import Console, Group
+    from rich.live import Live
+    from rich.markdown import Heading, Markdown
     from rich.panel import Panel
     from rich.prompt import Prompt
+    from rich.rule import Rule
+    from rich.segment import Segment
     from rich.table import Table
     from rich.text import Text
-    from rich.segment import Segment
-    from rich.rule import Rule
-    from rich.box import ROUNDED
     from rich.theme import Theme
-    from rich.markdown import Markdown, Heading
-    from rich.live import Live
+
     if Heading and hasattr(Heading, "LEVEL_ALIGN"):
         Heading.LEVEL_ALIGN["h1"] = "left"
 except ImportError:
@@ -32,24 +32,30 @@ except ImportError:
     Heading = None
     Live = None
 
-SYMPOSE_THEME = Theme({
-    "sympose.brand": "bold cyan",
-    "sympose.user": "bold yellow",
-    "sympose.agent": "bold cyan",
-    "sympose.model": "bold green",
-    "sympose.path": "magenta",
-    "sympose.dim": "dim white",
-    "sympose.success": "bold green",
-    "sympose.error": "bold red",
-    "sympose.warning": "bold yellow",
-    "sympose.border": "dim cyan",
-    "markdown.h1": "bold cyan",
-    "markdown.h2": "bold white",
-    "markdown.h3": "bold yellow",
-    "markdown.code": "bright_yellow on grey11",
-    "markdown.bullet": "cyan",
-    "markdown.link": "underline magenta",
-}) if Theme else None
+SYMPOSE_THEME = (
+    Theme(
+        {
+            "sympose.brand": "bold cyan",
+            "sympose.user": "bold yellow",
+            "sympose.agent": "bold cyan",
+            "sympose.model": "bold green",
+            "sympose.path": "magenta",
+            "sympose.dim": "dim white",
+            "sympose.success": "bold green",
+            "sympose.error": "bold red",
+            "sympose.warning": "bold yellow",
+            "sympose.border": "dim cyan",
+            "markdown.h1": "bold cyan",
+            "markdown.h2": "bold white",
+            "markdown.h3": "bold yellow",
+            "markdown.code": "bright_yellow on grey11",
+            "markdown.bullet": "cyan",
+            "markdown.link": "underline magenta",
+        }
+    )
+    if Theme
+    else None
+)
 
 
 class AnimatedStatus:
@@ -63,11 +69,13 @@ class AnimatedStatus:
     `.stop()` interface so existing call sites don't need to change.
     """
 
-    def __init__(self, console, name: str, phrases: List[str], interval: float = 1.7):
+    def __init__(self, console, name: str, phrases: list[str], interval: float = 1.7):
         self._phrases = list(phrases) if phrases else ["Thinking..."]
         self._name = name
         self._interval = interval
-        self._status = console.status(self._render(random.choice(self._phrases)), spinner="dots")
+        self._status = console.status(
+            self._render(random.choice(self._phrases)), spinner="dots"
+        )
         self._stop_event = threading.Event()
         self._thread = threading.Thread(target=self._cycle, daemon=True)
 
@@ -102,9 +110,9 @@ class MultiSectionPanel:
     def __init__(
         self,
         title: str,
-        sections: List[Tuple[Optional[str], Any]],
+        sections: list[tuple[str | None, Any]],
         border_style: str = "cyan",
-        padding: Tuple[int, int] = (1, 2)
+        padding: tuple[int, int] = (1, 2),
     ):
         self.title = title
         self.sections = sections
@@ -156,7 +164,11 @@ class MultiSectionPanel:
             child_options = options.update_width(inner_width)
             lines = console.render_lines(s_renderable, child_options, pad=False)
             for line in lines:
-                line_len = Segment.get_line_length(line) if Segment else sum(len(s.text) for s in line)
+                line_len = (
+                    Segment.get_line_length(line)
+                    if Segment
+                    else sum(len(s.text) for s in line)
+                )
                 right_pad = max(inner_width - line_len, 0)
                 yield Segment("│" + pad_str, border_style)
                 for seg in line:
@@ -175,13 +187,13 @@ class TerminalUI:
     """Provides styled Rich UI panels, tables, and modal dialogs following the Sympose Design System."""
 
     @classmethod
-    def get_console(cls) -> Optional[Any]:
+    def get_console(cls) -> Any | None:
         if Console is None:
             return None
         return Console(theme=SYMPOSE_THEME)
 
     @staticmethod
-    def display_banner(console: Optional[Any]) -> None:
+    def display_banner(console: Any | None) -> None:
         if not console:
             print("=== <S> sympose // multi-model agent hub ===")
             return
@@ -192,11 +204,14 @@ class TerminalUI:
         banner.append("// multi-model agent hub  ", style="dim white")
         banner.append("[v0.2.26]\n", style="dim cyan")
         banner.append("minimalist runtime for macos & slack\n", style="dim white")
-        banner.append("commands: /help | /save | /config | switch: /switch | exit: /exit", style="dim cyan")
+        banner.append(
+            "commands: /help | /save | /config | switch: /switch | exit: /exit",
+            style="dim cyan",
+        )
         console.print(Panel(banner, box=ROUNDED, border_style="cyan", padding=(1, 2)))
 
     @staticmethod
-    def display_setup_banner(console: Optional[Any], workspace_dir: str) -> None:
+    def display_setup_banner(console: Any | None, workspace_dir: str) -> None:
         if not console:
             print(f"=== <S> sympose // setup wizard ({workspace_dir}) ===")
             return
@@ -206,7 +221,10 @@ class TerminalUI:
         banner.append("S Y M P O S E  ", style="bold white")
         banner.append("// interactive setup wizard  ", style="dim white")
         banner.append("[v0.2.26]\n", style="dim cyan")
-        banner.append("zero-bloat multi-model agent hub & sovereign vault explorer\n\n", style="dim white")
+        banner.append(
+            "zero-bloat multi-model agent hub & sovereign vault explorer\n\n",
+            style="dim white",
+        )
         banner.append("active workspace: ", style="green")
         banner.append(f"{workspace_dir}\n", style="bold yellow")
         banner.append("default persona: ", style="magenta")
@@ -215,7 +233,7 @@ class TerminalUI:
         console.print(Panel(banner, box=ROUNDED, border_style="cyan", padding=(1, 2)))
 
     @staticmethod
-    def render_markdown(console: Optional[Any], md_text: str) -> None:
+    def render_markdown(console: Any | None, md_text: str) -> None:
         if not console or Markdown is None:
             print(f"\n{md_text}")
             return
@@ -223,7 +241,12 @@ class TerminalUI:
         console.print(Markdown(md_text))
 
     @staticmethod
-    def render_markdown_typewriter(console: Optional[Any], md_text: str, duration: float = 1.4, min_len_for_effect: int = 24) -> None:
+    def render_markdown_typewriter(
+        console: Any | None,
+        md_text: str,
+        duration: float = 1.4,
+        min_len_for_effect: int = 24,
+    ) -> None:
         """Reveal a completed Markdown reply progressively instead of dumping
         it all at once — `buffered` render mode already holds the whole reply
         in memory before drawing anything, so the "wait, then everything at
@@ -238,7 +261,13 @@ class TerminalUI:
         available — the animation is cosmetic, never a dependency.
         """
         is_tty = bool(console and getattr(console, "is_terminal", False))
-        if not console or Markdown is None or Live is None or not is_tty or len(md_text) < min_len_for_effect:
+        if (
+            not console
+            or Markdown is None
+            or Live is None
+            or not is_tty
+            or len(md_text) < min_len_for_effect
+        ):
             TerminalUI.render_markdown(console, md_text)
             return
 
@@ -248,7 +277,9 @@ class TerminalUI:
         console.print()
         try:
             start = time.time()
-            with Live(Markdown(""), console=console, refresh_per_second=30, transient=False) as live:
+            with Live(
+                Markdown(""), console=console, refresh_per_second=30, transient=False
+            ) as live:
                 for step, i in enumerate(range(0, len(md_text), chunk_size), start=1):
                     live.update(Markdown(md_text[: i + chunk_size]))
                     # Sleep only enough to stay on the `duration` schedule —
@@ -265,13 +296,17 @@ class TerminalUI:
             console.print(Markdown(md_text))
 
     @staticmethod
-    def select_persona(console: Optional[Any], profiles: List[Dict[str, Any]], default_handle: str = "samantha") -> str:
+    def select_persona(
+        console: Any | None,
+        profiles: list[dict[str, Any]],
+        default_handle: str = "samantha",
+    ) -> str:
         if not profiles or not console:
             return default_handle
 
         options = []
-        index_map: Dict[str, str] = {}
-        handle_map: Dict[str, str] = {}
+        index_map: dict[str, str] = {}
+        handle_map: dict[str, str] = {}
         default_choice = default_handle
 
         for i, p in enumerate(profiles, start=1):
@@ -281,27 +316,38 @@ class TerminalUI:
             index_map[str(i)] = h
             handle_map[h] = h
             handle_map[f"@{h}"] = h
-            
+
             is_active = h == default_handle.lower()
             if is_active:
                 default_choice = str(i)
-                options.append(f"[bold yellow]@{h}[/bold yellow]  [bold white]{name}[/bold white] [dim]— {title}[/dim] [dim cyan][Active][/dim cyan]")
+                options.append(
+                    f"[bold yellow]@{h}[/bold yellow]  [bold white]{name}[/bold white] [dim]— {title}[/dim] [dim cyan][Active][/dim cyan]"
+                )
             else:
-                options.append(f"[bold yellow]@{h}[/bold yellow]  [bold white]{name}[/bold white] [dim]— {title}[/dim]")
+                options.append(
+                    f"[bold yellow]@{h}[/bold yellow]  [bold white]{name}[/bold white] [dim]— {title}[/dim]"
+                )
 
         TerminalUI.render_option_panel(
-            console,
-            title="👥  SELECT ACTIVE PERSONA",
-            options=options
+            console, title="👥  SELECT ACTIVE PERSONA", options=options
         )
 
         prompt_label = f"\n[bold cyan]Select persona[/bold cyan] [dim][1-{len(profiles)} or @handle, Enter for default][/dim]"
         try:
-            raw_choice = Prompt.ask(prompt_label, default=default_choice, show_choices=False, show_default=False)
+            raw_choice = Prompt.ask(
+                prompt_label,
+                default=default_choice,
+                show_choices=False,
+                show_default=False,
+            )
         except (KeyboardInterrupt, EOFError):
             return default_handle
 
-        cleaned = raw_choice.lower().replace("@", "").strip() if raw_choice else default_choice
+        cleaned = (
+            raw_choice.lower().replace("@", "").strip()
+            if raw_choice
+            else default_choice
+        )
 
         if cleaned in index_map:
             return index_map[cleaned]
@@ -311,10 +357,10 @@ class TerminalUI:
 
     @staticmethod
     def render_option_panel(
-        console: Optional[Any],
+        console: Any | None,
         title: str,
-        options: List[str],
-        subtitle: Optional[str] = None
+        options: list[str],
+        subtitle: str | None = None,
     ) -> None:
         """Renders a standardized rounded panel containing numbered options."""
         if not console:
@@ -328,36 +374,44 @@ class TerminalUI:
 
         panel_content = "\n".join(lines)
         console.print()
-        console.print(Panel(
-            panel_content,
-            box=ROUNDED,
-            title=title,
-            title_align="left",
-            border_style="cyan",
-            padding=(0, 2)
-        ))
+        console.print(
+            Panel(
+                panel_content,
+                box=ROUNDED,
+                title=title,
+                title_align="left",
+                border_style="cyan",
+                padding=(0, 2),
+            )
+        )
 
     @staticmethod
-    def prompt_exit_choice(console: Optional[Any], handle: str, default_target: str = "memory") -> Optional[str]:
+    def prompt_exit_choice(
+        console: Any | None, handle: str, default_target: str = "memory"
+    ) -> str | None:
         """Displays exit modal dialog for memory persistence."""
         if not console:
             return "memory" if default_target == "memory" else None
 
-        console.print(f"\n[bold yellow]Active session with @{handle} completed.[/bold yellow]")
+        console.print(
+            f"\n[bold yellow]Active session with @{handle} completed.[/bold yellow]"
+        )
         options = [
             "Extract durable facts to `_memory.md` [Default]",
-            "Skip (Preserve in `/history` only)"
+            "Skip (Preserve in `/history` only)",
         ]
         TerminalUI.render_option_panel(
-            console,
-            title="🧠  SAVE WORKING MEMORY?",
-            options=options
+            console, title="🧠  SAVE WORKING MEMORY?", options=options
         )
 
         def_opt = "1" if default_target == "memory" else "2"
-        prompt_label = f"\n[bold cyan]Select option[/bold cyan] [dim][1-2, Enter for [1]][/dim]"
+        prompt_label = (
+            "\n[bold cyan]Select option[/bold cyan] [dim][1-2, Enter for [1]][/dim]"
+        )
         try:
-            choice = Prompt.ask(prompt_label, default=def_opt, show_choices=False, show_default=False).strip()
+            choice = Prompt.ask(
+                prompt_label, default=def_opt, show_choices=False, show_default=False
+            ).strip()
         except (KeyboardInterrupt, EOFError):
             return "memory" if default_target == "memory" else None
 
@@ -365,31 +419,37 @@ class TerminalUI:
 
     @staticmethod
     def select_session(
-        console: Optional[Any],
-        sessions: List[Dict[str, Any]],
-        active_session_id: Optional[str] = None,
-        handle: Optional[str] = None,
-        show_handle: bool = False
-    ) -> Optional[str]:
+        console: Any | None,
+        sessions: list[dict[str, Any]],
+        active_session_id: str | None = None,
+        handle: str | None = None,
+        show_handle: bool = False,
+    ) -> str | None:
         """Renders an interactive session selector panel and returns chosen session_id or None."""
         if not sessions:
             if console:
-                console.print(f"[dim yellow]No past conversation sessions found{' for @' + handle if handle else ''}.[/dim yellow]")
+                console.print(
+                    f"[dim yellow]No past conversation sessions found{' for @' + handle if handle else ''}.[/dim yellow]"
+                )
             else:
-                print(f"No past conversation sessions found.")
+                print("No past conversation sessions found.")
             return None
 
         if not console:
             print("\n=== CONVERSATION HISTORY ===")
             for i, s in enumerate(sessions, start=1):
                 h_str = f"@{s.get('handle', '')} • " if show_handle else ""
-                print(f"[{i}] \"{s.get('title', 'Untitled')}\" ({h_str}{s.get('relative_time', '')}, {s.get('turns_count', 0)} turns)")
+                print(
+                    f'[{i}] "{s.get("title", "Untitled")}" ({h_str}{s.get("relative_time", "")}, {s.get("turns_count", 0)} turns)'
+                )
             raw = input(f"Select session [1-{len(sessions)} or Enter for 1]: ").strip()
-            idx = int(raw) - 1 if raw.isdigit() and 1 <= int(raw) <= len(sessions) else 0
+            idx = (
+                int(raw) - 1 if raw.isdigit() and 1 <= int(raw) <= len(sessions) else 0
+            )
             return sessions[idx]["session_id"]
 
         lines = []
-        index_map: Dict[str, str] = {}
+        index_map: dict[str, str] = {}
         for i, s in enumerate(sessions, start=1):
             sid = s.get("session_id", "")
             index_map[str(i)] = sid
@@ -398,17 +458,21 @@ class TerminalUI:
             title = s.get("title", "Untitled Session")
             r_time = s.get("relative_time", "Recent")
             turns_cnt = s.get("turns_count", 0)
-            is_active = (sid == active_session_id)
+            is_active = sid == active_session_id
             h_tag = s.get("handle", "")
 
             # Line 1: [i] "Title"
-            lines.append(f"[bold cyan][{i}][/bold cyan] [bold white]\"{title}\"[/bold white]")
+            lines.append(
+                f'[bold cyan][{i}][/bold cyan] [bold white]"{title}"[/bold white]'
+            )
 
             # Line 2: Details metadata indented
             meta_parts = []
             if show_handle and h_tag:
                 meta_parts.append(f"[bold cyan]@{h_tag}[/bold cyan]")
-            meta_parts.append(f"[dim]{r_time}  •  {turns_cnt} turn{'s' if turns_cnt != 1 else ''}[/dim]")
+            meta_parts.append(
+                f"[dim]{r_time}  •  {turns_cnt} turn{'s' if turns_cnt != 1 else ''}[/dim]"
+            )
             if is_active:
                 meta_parts.append("[bold cyan][Active][/bold cyan]")
 
@@ -417,21 +481,33 @@ class TerminalUI:
             if i < len(sessions):
                 lines.append("")
 
-        title_header = "📜  ALL CONVERSATIONS" if show_handle else (f"📜  CONVERSATION HISTORY (@{handle})" if handle else "📜  CONVERSATION HISTORY")
+        title_header = (
+            "📜  ALL CONVERSATIONS"
+            if show_handle
+            else (
+                f"📜  CONVERSATION HISTORY (@{handle})"
+                if handle
+                else "📜  CONVERSATION HISTORY"
+            )
+        )
         panel_content = "\n".join(lines)
         console.print()
-        console.print(Panel(
-            panel_content,
-            box=ROUNDED,
-            title=title_header,
-            title_align="left",
-            border_style="cyan",
-            padding=(1, 2)
-        ))
+        console.print(
+            Panel(
+                panel_content,
+                box=ROUNDED,
+                title=title_header,
+                title_align="left",
+                border_style="cyan",
+                padding=(1, 2),
+            )
+        )
 
         prompt_label = f"\n[bold cyan]Select session to resume[/bold cyan] [dim][1-{len(sessions)}, Enter for [1], 'q' to cancel][/dim]"
         try:
-            raw_choice = Prompt.ask(prompt_label, default="1", show_choices=False, show_default=False)
+            raw_choice = Prompt.ask(
+                prompt_label, default="1", show_choices=False, show_default=False
+            )
         except (KeyboardInterrupt, EOFError):
             return None
 
@@ -447,32 +523,59 @@ class TerminalUI:
 
     @staticmethod
     def select_render_mode(
-        console: Optional[Any],
-        current_mode: str = "hybrid"
-    ) -> Optional[str]:
+        console: Any | None, current_mode: str = "hybrid"
+    ) -> str | None:
         """Renders the standard render mode selection box and returns the chosen mode or None."""
         modes = [
-            ("1", "hybrid", "Smart Hybrid (Recommended)", "Prose streams word-by-word (<0.5s TTFT) • Sub-agent reports rendered with Rich Markdown"),
-            ("2", "buffered", "Full Buffered Markdown", "Waits 1-2s for completion • 100% pixel-perfect Rich Markdown everywhere"),
-            ("3", "raw", "Raw Terminal Transparency", "Direct stdout streaming • Zero formatting overhead")
+            (
+                "1",
+                "hybrid",
+                "Smart Hybrid (Recommended)",
+                "Prose streams word-by-word (<0.5s TTFT) • Sub-agent reports rendered with Rich Markdown",
+            ),
+            (
+                "2",
+                "buffered",
+                "Full Buffered Markdown",
+                "Waits 1-2s for completion • 100% pixel-perfect Rich Markdown everywhere",
+            ),
+            (
+                "3",
+                "raw",
+                "Raw Terminal Transparency",
+                "Direct stdout streaming • Zero formatting overhead",
+            ),
         ]
 
         if not console:
             print("\n=== TERMINAL RENDER MODE ===")
             for num, key, title, desc in modes:
                 is_active = " [Active]" if key == current_mode.lower() else ""
-                print(f"[{num}] \"{title}\"{is_active}\n    {desc}\n")
-            raw = input("Select render mode [1-3, Enter for 1, 'q' to cancel]: ").strip().lower()
+                print(f'[{num}] "{title}"{is_active}\n    {desc}\n')
+            raw = (
+                input("Select render mode [1-3, Enter for 1, 'q' to cancel]: ")
+                .strip()
+                .lower()
+            )
             if raw in ("q", "cancel"):
                 return None
-            mode_map = {"1": "hybrid", "2": "buffered", "3": "raw", "hybrid": "hybrid", "buffered": "buffered", "raw": "raw"}
+            mode_map = {
+                "1": "hybrid",
+                "2": "buffered",
+                "3": "raw",
+                "hybrid": "hybrid",
+                "buffered": "buffered",
+                "raw": "raw",
+            }
             return mode_map.get(raw, "hybrid")
 
         lines = []
         for num, key, title, desc in modes:
-            is_active = (key == current_mode.lower())
+            is_active = key == current_mode.lower()
             active_chip = "  [bold cyan][Active][/bold cyan]" if is_active else ""
-            lines.append(f"[bold cyan][{num}][/bold cyan] [bold white]\"{title}\"[/bold white]{active_chip}")
+            lines.append(
+                f'[bold cyan][{num}][/bold cyan] [bold white]"{title}"[/bold white]{active_chip}'
+            )
             lines.append(f"    [dim]{desc}[/dim]")
             if num != "3":
                 lines.append("")
@@ -483,14 +586,16 @@ class TerminalUI:
             title="🎨  TERMINAL RENDER MODE",
             title_align="left",
             border_style="cyan",
-            padding=(1, 2)
+            padding=(1, 2),
         )
         console.print()
         console.print(panel)
 
-        prompt_label = f"\n[bold cyan]Select render mode[/bold cyan] [dim][1-3, Enter for [1], 'q' to cancel][/dim]"
+        prompt_label = "\n[bold cyan]Select render mode[/bold cyan] [dim][1-3, Enter for [1], 'q' to cancel][/dim]"
         try:
-            raw_choice = Prompt.ask(prompt_label, default="1", show_choices=False, show_default=False)
+            raw_choice = Prompt.ask(
+                prompt_label, default="1", show_choices=False, show_default=False
+            )
         except (KeyboardInterrupt, EOFError):
             return None
 
@@ -499,22 +604,29 @@ class TerminalUI:
             return None
 
         mode_map = {
-            "1": "hybrid", "hybrid": "hybrid", "smart": "hybrid",
-            "2": "buffered", "buffered": "buffered", "full": "buffered", "markdown": "buffered",
-            "3": "raw", "raw": "raw", "plain": "raw"
+            "1": "hybrid",
+            "hybrid": "hybrid",
+            "smart": "hybrid",
+            "2": "buffered",
+            "buffered": "buffered",
+            "full": "buffered",
+            "markdown": "buffered",
+            "3": "raw",
+            "raw": "raw",
+            "plain": "raw",
         }
         return mode_map.get(cleaned, "hybrid")
 
     @staticmethod
     def render_session_resumed(
-        console: Optional[Any],
+        console: Any | None,
         session_title: str,
         handle: str,
-        replay_turns: List[Dict[str, Any]]
+        replay_turns: list[dict[str, Any]],
     ) -> None:
         """Renders the resumed session banner and past turns in dimmed Markdown."""
         if not console:
-            print(f"\n─── 🔄 Resumed Session: @{handle} (\"{session_title}\") ───")
+            print(f'\n─── 🔄 Resumed Session: @{handle} ("{session_title}") ───')
             for t in replay_turns:
                 print(f"You: {t.get('user', '')}")
                 print(f"@{handle}: {t.get('assistant', '')}\n")
@@ -522,37 +634,45 @@ class TerminalUI:
             return
 
         console.print()
-        banner_text = f"[dim cyan]─── 🔄 Resumed Session: [bold cyan]@{handle}[/bold cyan] [bold white]\"{session_title}\"[/bold white] ──────────────────────────[/dim cyan]"
+        banner_text = f'[dim cyan]─── 🔄 Resumed Session: [bold cyan]@{handle}[/bold cyan] [bold white]"{session_title}"[/bold white] ──────────────────────────[/dim cyan]'
         console.print(banner_text)
 
         for t in replay_turns:
             u_msg = t.get("user", "").strip()
             a_msg = t.get("assistant", "").strip()
             if u_msg:
-                console.print(f"\n[bold yellow]You[/bold yellow]: [dim white]{u_msg}[/dim white]")
+                console.print(
+                    f"\n[bold yellow]You[/bold yellow]: [dim white]{u_msg}[/dim white]"
+                )
             if a_msg:
                 console.print(f"\n[bold cyan]@{handle}[/bold cyan]:")
                 console.print(Markdown(a_msg))
 
-        console.print("\n[dim cyan]──────────────────────────────────────────────────────────────────────────[/dim cyan]\n")
+        console.print(
+            "\n[dim cyan]──────────────────────────────────────────────────────────────────────────[/dim cyan]\n"
+        )
 
     @staticmethod
     def render_vault_search_panel(
-        console: Optional[Any],
+        console: Any | None,
         query: str,
-        results: List[Dict[str, Any]],
-        show_nav_hint: bool = True
+        results: list[dict[str, Any]],
+        show_nav_hint: bool = True,
     ) -> None:
         """Renders an orderly, high-density Rich panel containing vault search results."""
         if not results:
             if console:
-                console.print(f"\n[dim yellow]No notes found matching \"{query}\" in allowed vault folders.[/dim yellow]\n")
+                console.print(
+                    f'\n[dim yellow]No notes found matching "{query}" in allowed vault folders.[/dim yellow]\n'
+                )
             else:
-                print(f"\nNo notes found matching \"{query}\" in allowed vault folders.\n")
+                print(
+                    f'\nNo notes found matching "{query}" in allowed vault folders.\n'
+                )
             return
 
         if not console:
-            print(f"\n=== VAULT SEARCH: \"{query}\" ({len(results)} matches) ===")
+            print(f'\n=== VAULT SEARCH: "{query}" ({len(results)} matches) ===')
             for r in results:
                 idx = r.get("index", 1)
                 rel = r.get("rel_path", r.get("file_name", ""))
@@ -572,47 +692,61 @@ class TerminalUI:
             snippet = r.get("snippet", "")
             tags = r.get("tags", [])
 
-            badge_str = f"[bold cyan][{i}][/bold cyan] [bold white]\"{rel}\"[/bold white]"
-            type_str = "[bold green]Title Match[/bold green]" if mtype == "title" else f"[dim yellow]Line {line_no}[/dim yellow]"
+            badge_str = f'[bold cyan][{i}][/bold cyan] [bold white]"{rel}"[/bold white]'
+            type_str = (
+                "[bold green]Title Match[/bold green]"
+                if mtype == "title"
+                else f"[dim yellow]Line {line_no}[/dim yellow]"
+            )
 
             lines.append(f"{badge_str}  [dim]({type_str})[/dim]")
 
             if tags:
-                chips = [f"[bold yellow]#{t.lstrip('#')}[/bold yellow]" for t in tags[:6]]
+                chips = [
+                    f"[bold yellow]#{t.lstrip('#')}[/bold yellow]" for t in tags[:6]
+                ]
                 lines.append(f"    {' '.join(chips)}")
 
             if snippet:
                 clean_snip = " ".join(snippet.split())
                 if len(clean_snip) > 70:
                     clean_snip = clean_snip[:67].rstrip() + "..."
-                lines.append(f"    [dim cyan]>[/dim cyan] [dim white]{clean_snip}[/dim white]")
+                lines.append(
+                    f"    [dim cyan]>[/dim cyan] [dim white]{clean_snip}[/dim white]"
+                )
 
             if i < len(results):
                 lines.append("")
 
         if show_nav_hint:
             lines.append("")
-            lines.append("[dim cyan]──────────────────────────────────────────────────────────────────────────[/dim cyan]")
-            lines.append(f"[dim]Quick Nav: [bold cyan]1-{len(results)}[/bold cyan] to view in terminal  •  [bold cyan]o <#>[/bold cyan] to open in Obsidian  •  [bold cyan]q[/bold cyan] to exit[/dim]")
+            lines.append(
+                "[dim cyan]──────────────────────────────────────────────────────────────────────────[/dim cyan]"
+            )
+            lines.append(
+                f"[dim]Quick Nav: [bold cyan]1-{len(results)}[/bold cyan] to view in terminal  •  [bold cyan]o <#>[/bold cyan] to open in Obsidian  •  [bold cyan]q[/bold cyan] to exit[/dim]"
+            )
 
         panel_content = "\n".join(lines)
         console.print()
-        console.print(Panel(
-            panel_content,
-            box=ROUNDED,
-            title=f"🔍  VAULT SEARCH: \"{query}\" ({len(results)} match{'es' if len(results) != 1 else ''})",
-            title_align="left",
-            border_style="cyan",
-            padding=(1, 2)
-        ))
+        console.print(
+            Panel(
+                panel_content,
+                box=ROUNDED,
+                title=f'🔍  VAULT SEARCH: "{query}" ({len(results)} match{"es" if len(results) != 1 else ""})',
+                title_align="left",
+                border_style="cyan",
+                padding=(1, 2),
+            )
+        )
 
     @staticmethod
     def render_worker_report_panel(
-        console: Optional[Any],
+        console: Any | None,
         task: str,
-        skills: List[str],
-        tool_calls: List[str],
-        deliverables: str
+        skills: list[str],
+        tool_calls: list[str],
+        deliverables: str,
     ) -> None:
         """Renders Sub-Agent Worker Report inside a vibrant styled Rich panel."""
         if not console or Markdown is None:
@@ -626,15 +760,25 @@ class TerminalUI:
             print("=" * 60 + "\n")
             return
 
-        skill_chips = " ".join([f"[bold cyan]#{s}[/bold cyan]" for s in skills]) if skills else "[dim]default[/dim]"
+        skill_chips = (
+            " ".join([f"[bold cyan]#{s}[/bold cyan]" for s in skills])
+            if skills
+            else "[dim]default[/dim]"
+        )
         body_lines = []
         if tool_calls:
             for tc in tool_calls:
-                body_lines.append(f"[dim]⚙️  [dim yellow]Tool:[/dim yellow] [bold white]{tc}[/bold white][/dim]")
+                body_lines.append(
+                    f"[dim]⚙️  [dim yellow]Tool:[/dim yellow] [bold white]{tc}[/bold white][/dim]"
+                )
             body_lines.append("")
 
         panel_title = f"[bold yellow]🛠️  SUB-AGENT WORKER REPORT[/bold yellow]  [dim]•[/dim]  {skill_chips}"
-        content = f"[bold white]Task:[/bold white] [italic]{task}[/italic]\n\n" + ("\n".join(body_lines) if body_lines else "") + deliverables.strip()
+        content = (
+            f"[bold white]Task:[/bold white] [italic]{task}[/italic]\n\n"
+            + ("\n".join(body_lines) if body_lines else "")
+            + deliverables.strip()
+        )
 
         panel = Panel(
             content,
@@ -642,20 +786,21 @@ class TerminalUI:
             title=panel_title,
             title_align="left",
             border_style="yellow",
-            padding=(1, 2)
+            padding=(1, 2),
         )
         console.print()
         console.print(panel)
 
     @staticmethod
     def render_vault_note_panel(
-        console: Optional[Any],
+        console: Any | None,
         rel_path: str,
         full_content: str,
-        abs_path: Optional[str] = None
+        abs_path: str | None = None,
     ) -> None:
         """Renders note content inside a styled Rich box with inline T-junction headers and colorized YAML frontmatter."""
         from sympose.vault import VaultManager
+
         meta, body = VaultManager.parse_frontmatter(full_content)
 
         if not console or Markdown is None:
@@ -671,12 +816,16 @@ class TerminalUI:
 
         lines_count = len(full_content.splitlines())
         size_bytes = len(full_content.encode("utf-8"))
-        size_str = f"{size_bytes / 1024:.1f} KB" if size_bytes >= 1024 else f"{size_bytes} B"
+        size_str = (
+            f"{size_bytes / 1024:.1f} KB" if size_bytes >= 1024 else f"{size_bytes} B"
+        )
 
         sections = []
 
         # Section 1: Stats Bar
-        s1 = Text.from_markup(f"[dim cyan]Path:[/dim cyan] [bold white]{rel_path}[/bold white]  [dim]•[/dim]  [dim cyan]Lines:[/dim cyan] [dim]{lines_count}[/dim]  [dim]•[/dim]  [dim cyan]Size:[/dim cyan] [dim]{size_str}[/dim]")
+        s1 = Text.from_markup(
+            f"[dim cyan]Path:[/dim cyan] [bold white]{rel_path}[/bold white]  [dim]•[/dim]  [dim cyan]Lines:[/dim cyan] [dim]{lines_count}[/dim]  [dim]•[/dim]  [dim cyan]Size:[/dim cyan] [dim]{size_str}[/dim]"
+        )
         sections.append((None, s1))
 
         # Section 2: Frontmatter (with ├─ 🏷️ FRONTMATTER ────┤ divider)
@@ -684,23 +833,36 @@ class TerminalUI:
             fm_lines = []
             title_val = meta.get("title") or meta.get("name")
             if title_val:
-                fm_lines.append(f"[bold cyan]Title:[/bold cyan] [bold white]{title_val}[/bold white]")
+                fm_lines.append(
+                    f"[bold cyan]Title:[/bold cyan] [bold white]{title_val}[/bold white]"
+                )
 
             tags_val = meta.get("tags")
             if tags_val:
                 if isinstance(tags_val, str):
-                    tag_list = [t.strip() for t in tags_val.replace(",", " ").split() if t.strip()]
+                    tag_list = [
+                        t.strip()
+                        for t in tags_val.replace(",", " ").split()
+                        if t.strip()
+                    ]
                 elif isinstance(tags_val, list):
                     tag_list = [str(t).strip() for t in tags_val if str(t).strip()]
                 else:
                     tag_list = [str(tags_val)]
-                chips = " ".join([f"[bold yellow]#{t.lstrip('#')}[/bold yellow]" for t in tag_list])
+                chips = " ".join(
+                    [f"[bold yellow]#{t.lstrip('#')}[/bold yellow]" for t in tag_list]
+                )
                 fm_lines.append(f"[bold cyan]Tags:[/bold cyan] {chips}")
 
             for k, v in meta.items():
                 if k.lower() in ("title", "name", "tags"):
                     continue
-                if v is None or v == "" or v == [] or str(v).lower() in ("none", "null", "[]"):
+                if (
+                    v is None
+                    or v == ""
+                    or v == []
+                    or str(v).lower() in ("none", "null", "[]")
+                ):
                     continue
                 if isinstance(v, list):
                     v_str = ", ".join(str(x) for x in v if str(x).strip())
@@ -709,7 +871,9 @@ class TerminalUI:
                 if not v_str:
                     continue
                 k_label = k.replace("_", " ").capitalize()
-                fm_lines.append(f"[bold cyan]{k_label}:[/bold cyan] [dim white]{v_str}[/dim white]")
+                fm_lines.append(
+                    f"[bold cyan]{k_label}:[/bold cyan] [dim white]{v_str}[/dim white]"
+                )
 
             s2 = Text.from_markup("\n".join(fm_lines))
             sections.append(("[bold yellow]🏷️  FRONTMATTER[/bold yellow]", s2))
@@ -722,7 +886,7 @@ class TerminalUI:
             title=f"[bold cyan]📄  NOTE:[/bold cyan] [bold white]{rel_path}[/bold white]",
             sections=sections,
             border_style="cyan",
-            padding=(1, 2)
+            padding=(1, 2),
         )
 
         console.print()
@@ -731,20 +895,22 @@ class TerminalUI:
     @classmethod
     def interactive_vault_browser(
         cls,
-        console: Optional[Any],
-        profile: Dict[str, Any],
+        console: Any | None,
+        profile: dict[str, Any],
         query: str,
-        results: List[Dict[str, Any]],
-        initial_index: Optional[int] = None
+        results: list[dict[str, Any]],
+        initial_index: int | None = None,
     ) -> None:
         """Interactive browser loop for navigating search results, viewing notes, and opening in Obsidian."""
         from sympose.vault import VaultManager
 
         if not results:
             if console:
-                console.print(f"\n[dim yellow]No notes found matching \"{query}\" in allowed vault folders.[/dim yellow]\n")
+                console.print(
+                    f'\n[dim yellow]No notes found matching "{query}" in allowed vault folders.[/dim yellow]\n'
+                )
             else:
-                print(f"\nNo notes found matching \"{query}\".\n")
+                print(f'\nNo notes found matching "{query}".\n')
             return
 
         if not console or Prompt is None:
@@ -757,11 +923,22 @@ class TerminalUI:
 
         while True:
             if view_mode == "list":
-                cls.render_vault_search_panel(console, query, results, show_nav_hint=False)
+                cls.render_vault_search_panel(
+                    console, query, results, show_nav_hint=False
+                )
                 prompt_label = f"\n[bold cyan]Select note[/bold cyan] [dim][1-{num_results}, 'o <#>' to open in Obsidian, 'q' to exit][/dim]"
 
                 try:
-                    raw = Prompt.ask(prompt_label, default="1", show_choices=False, show_default=False).strip().lower()
+                    raw = (
+                        Prompt.ask(
+                            prompt_label,
+                            default="1",
+                            show_choices=False,
+                            show_default=False,
+                        )
+                        .strip()
+                        .lower()
+                    )
                 except (KeyboardInterrupt, EOFError):
                     break
 
@@ -778,10 +955,18 @@ class TerminalUI:
 
                     if 1 <= target_idx <= num_results:
                         target_item = results[target_idx - 1]
-                        ok, msg = VaultManager.open_in_obsidian(profile, target_item["rel_path"])
-                        console.print(f"\n[bold green]✓ {msg}[/bold green]\n" if ok else f"\n[bold red]⚠️ {msg}[/bold red]\n")
+                        ok, msg = VaultManager.open_in_obsidian(
+                            profile, target_item["rel_path"]
+                        )
+                        console.print(
+                            f"\n[bold green]✓ {msg}[/bold green]\n"
+                            if ok
+                            else f"\n[bold red]⚠️ {msg}[/bold red]\n"
+                        )
                     else:
-                        console.print(f"\n[dim yellow]Invalid note index. Please select 1-{num_results}.[/dim yellow]\n")
+                        console.print(
+                            f"\n[dim yellow]Invalid note index. Please select 1-{num_results}.[/dim yellow]\n"
+                        )
                     continue
 
                 if raw.isdigit():
@@ -791,26 +976,44 @@ class TerminalUI:
                         view_mode = "note"
                         continue
                     else:
-                        console.print(f"\n[dim yellow]Invalid note index. Please select 1-{num_results}.[/dim yellow]\n")
+                        console.print(
+                            f"\n[dim yellow]Invalid note index. Please select 1-{num_results}.[/dim yellow]\n"
+                        )
                         continue
                 elif not raw:
                     current_index = 1
                     view_mode = "note"
                     continue
                 else:
-                    console.print(f"\n[dim yellow]Unrecognized input. Enter 1-{num_results}, 'o <#>', or 'q'.[/dim yellow]\n")
+                    console.print(
+                        f"\n[dim yellow]Unrecognized input. Enter 1-{num_results}, 'o <#>', or 'q'.[/dim yellow]\n"
+                    )
                     continue
 
             elif view_mode == "note":
                 target_item = results[current_index - 1]
                 rel_path = target_item["rel_path"]
                 full_content = VaultManager.read_note(profile, rel_path)
-                cls.render_vault_note_panel(console, rel_path, full_content, abs_path=target_item.get("abs_path"))
+                cls.render_vault_note_panel(
+                    console,
+                    rel_path,
+                    full_content,
+                    abs_path=target_item.get("abs_path"),
+                )
 
                 prompt_label = f"\n[bold cyan]Select[/bold cyan] [dim][1-{num_results}: jump | o: open in Obsidian | b: back to list | q: exit][/dim]"
 
                 try:
-                    raw = Prompt.ask(prompt_label, default="b", show_choices=False, show_default=False).strip().lower()
+                    raw = (
+                        Prompt.ask(
+                            prompt_label,
+                            default="b",
+                            show_choices=False,
+                            show_default=False,
+                        )
+                        .strip()
+                        .lower()
+                    )
                 except (KeyboardInterrupt, EOFError):
                     break
 
@@ -821,7 +1024,11 @@ class TerminalUI:
                     continue
                 if raw in ("o", "open"):
                     ok, msg = VaultManager.open_in_obsidian(profile, rel_path)
-                    console.print(f"\n[bold green]✓ {msg}[/bold green]\n" if ok else f"\n[bold red]⚠️ {msg}[/bold red]\n")
+                    console.print(
+                        f"\n[bold green]✓ {msg}[/bold green]\n"
+                        if ok
+                        else f"\n[bold red]⚠️ {msg}[/bold red]\n"
+                    )
                     continue
                 if raw.isdigit():
                     idx = int(raw)
@@ -829,12 +1036,15 @@ class TerminalUI:
                         current_index = idx
                         continue
                     else:
-                        console.print(f"\n[dim yellow]Invalid note index. Please select 1-{num_results}.[/dim yellow]\n")
+                        console.print(
+                            f"\n[dim yellow]Invalid note index. Please select 1-{num_results}.[/dim yellow]\n"
+                        )
                         continue
                 elif not raw:
                     view_mode = "list"
                     continue
                 else:
-                    console.print(f"\n[dim yellow]Unrecognized input. Enter 1-{num_results}, 'o', 'b', or 'q'.[/dim yellow]\n")
+                    console.print(
+                        f"\n[dim yellow]Unrecognized input. Enter 1-{num_results}, 'o', 'b', or 'q'.[/dim yellow]\n"
+                    )
                     continue
-

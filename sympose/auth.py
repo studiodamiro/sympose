@@ -14,10 +14,9 @@ See ADR-064's Implementation Note for the full rationale (the same kind of
 deliberate deviation as ADR-072.3's semaphore pool vs. `ThreadPoolExecutor`).
 """
 
+import logging
 import os
 import secrets
-import logging
-from typing import Optional, Tuple
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
@@ -46,18 +45,23 @@ def ensure_dashboard_password(workspace_dir: str) -> str:
         log.warning(
             "[auth] Generated a dashboard password but could not persist it to %s "
             "(a new one will generate next boot). Password for this session: %s",
-            env_file, pw,
+            env_file,
+            pw,
         )
     log.info("[auth] Dashboard login — user: %s  password: %s", DASHBOARD_USER, pw)
     return pw
 
 
-def require_dashboard_auth(credentials: HTTPBasicCredentials = Depends(_security)) -> None:
+def require_dashboard_auth(
+    credentials: HTTPBasicCredentials = Depends(_security),
+) -> None:
     """FastAPI dependency gating a route behind the dashboard password.
     Constant-time comparison on both fields to avoid a username/password timing
     oracle; raises 401 with a WWW-Authenticate challenge on any mismatch."""
     expected_pw = os.getenv("DASHBOARD_PASSWORD", "")
-    user_ok = secrets.compare_digest(credentials.username.encode("utf-8"), DASHBOARD_USER.encode("utf-8"))
+    user_ok = secrets.compare_digest(
+        credentials.username.encode("utf-8"), DASHBOARD_USER.encode("utf-8")
+    )
     pass_ok = bool(expected_pw) and secrets.compare_digest(
         credentials.password.encode("utf-8"), expected_pw.encode("utf-8")
     )

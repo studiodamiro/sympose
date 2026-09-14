@@ -10,11 +10,10 @@ rejected). If `cryptography` isn't installed, TLS is silently skipped and the
 dashboard falls back to plain HTTP rather than failing to boot.
 """
 
-import os
-import sys
 import datetime
 import logging
-from typing import Optional, Tuple
+import os
+import sys
 
 log = logging.getLogger(__name__)
 
@@ -61,7 +60,7 @@ def ensure_dashboard_tls_choice(workspace_dir: str) -> bool:
     return use_tls
 
 
-def ensure_self_signed_cert(workspace_dir: str) -> Optional[Tuple[str, str]]:
+def ensure_self_signed_cert(workspace_dir: str) -> tuple[str, str] | None:
     """Returns (certfile, keyfile) paths, generating them on first boot if missing.
     Returns None if the `cryptography` package isn't available."""
     cert_dir = os.path.join(workspace_dir, ".certs")
@@ -71,11 +70,12 @@ def ensure_self_signed_cert(workspace_dir: str) -> Optional[Tuple[str, str]]:
         return certfile, keyfile
 
     try:
+        import ipaddress
+
         from cryptography import x509
         from cryptography.hazmat.primitives import hashes, serialization
         from cryptography.hazmat.primitives.asymmetric import rsa
         from cryptography.x509.oid import NameOID
-        import ipaddress
     except ImportError:
         log.warning(
             "[tls] `cryptography` not installed; dashboard will serve over plain "
@@ -86,7 +86,9 @@ def ensure_self_signed_cert(workspace_dir: str) -> Optional[Tuple[str, str]]:
     try:
         os.makedirs(cert_dir, exist_ok=True)
         key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
-        subject = issuer = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "sympose.local")])
+        subject = issuer = x509.Name(
+            [x509.NameAttribute(NameOID.COMMON_NAME, "sympose.local")]
+        )
         now = datetime.datetime.now(datetime.timezone.utc)
         cert = (
             x509.CertificateBuilder()
@@ -97,11 +99,13 @@ def ensure_self_signed_cert(workspace_dir: str) -> Optional[Tuple[str, str]]:
             .not_valid_before(now - datetime.timedelta(days=1))
             .not_valid_after(now + datetime.timedelta(days=3650))
             .add_extension(
-                x509.SubjectAlternativeName([
-                    x509.DNSName("localhost"),
-                    x509.DNSName("sympose.local"),
-                    x509.IPAddress(ipaddress.ip_address("127.0.0.1")),
-                ]),
+                x509.SubjectAlternativeName(
+                    [
+                        x509.DNSName("localhost"),
+                        x509.DNSName("sympose.local"),
+                        x509.IPAddress(ipaddress.ip_address("127.0.0.1")),
+                    ]
+                ),
                 critical=False,
             )
             .sign(key, hashes.SHA256())
@@ -109,17 +113,22 @@ def ensure_self_signed_cert(workspace_dir: str) -> Optional[Tuple[str, str]]:
         with open(certfile, "wb") as f:
             f.write(cert.public_bytes(serialization.Encoding.PEM))
         with open(keyfile, "wb") as f:
-            f.write(key.private_bytes(
-                encoding=serialization.Encoding.PEM,
-                format=serialization.PrivateFormat.TraditionalOpenSSL,
-                encryption_algorithm=serialization.NoEncryption(),
-            ))
+            f.write(
+                key.private_bytes(
+                    encoding=serialization.Encoding.PEM,
+                    format=serialization.PrivateFormat.TraditionalOpenSSL,
+                    encryption_algorithm=serialization.NoEncryption(),
+                )
+            )
         try:
             os.chmod(keyfile, 0o600)
-        except Exception:
-            pass
+        except Exception as e:
+            log.warning("[tls] Failed to restrict private key permissions on %s: %s", keyfile, e)
         log.info("[tls] Generated self-signed dashboard certificate in %s", cert_dir)
         return certfile, keyfile
     except Exception:
-        log.warning("[tls] Failed to generate self-signed certificate; falling back to plain HTTP.", exc_info=True)
+        log.warning(
+            "[tls] Failed to generate self-signed certificate; falling back to plain HTTP.",
+            exc_info=True,
+        )
         return None

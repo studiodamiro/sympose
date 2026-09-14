@@ -19,6 +19,8 @@ def resolve_workspace_dir() -> str:
     cwd = os.path.abspath(os.getcwd())
     home = os.path.abspath(os.path.expanduser("~"))
     if cwd not in (home, "/", os.path.abspath(os.sep)):
-        if os.path.exists(os.path.join(cwd, "profiles")) or os.path.exists(os.path.join(cwd, "config.yaml")):
+        if os.path.exists(os.path.join(cwd, "profiles")) or os.path.exists(
+            os.path.join(cwd, "config.yaml")
+        ):
             return cwd
     return os.path.join(home, ".sympose")

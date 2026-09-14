@@ -11,7 +11,7 @@ own — no PID tracking, no cleanup contract to get wrong.
 import json
 import os
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 HEARTBEAT_FILENAME = ".slack_heartbeat.json"
 
@@ -28,7 +28,7 @@ def heartbeat_path(workspace_dir: str) -> str:
     return os.path.join(workspace_dir, HEARTBEAT_FILENAME)
 
 
-def write_heartbeat(workspace_dir: str, personas: List[str]) -> None:
+def write_heartbeat(workspace_dir: str, personas: list[str]) -> None:
     """Stamp the heartbeat file with the current time, this pid, and the live
     persona handles. Atomic (write-temp-then-rename) so a concurrent read never
     sees a half-written file. Best-effort — a write failure is not worth
@@ -56,7 +56,7 @@ def clear_heartbeat(workspace_dir: str) -> None:
         pass
 
 
-def read_status(workspace_dir: str, *, now: Optional[float] = None) -> Dict[str, Any]:
+def read_status(workspace_dir: str, *, now: float | None = None) -> dict[str, Any]:
     """Project the heartbeat file into `{state, last_seen, age_seconds,
     personas, pid}` for `GET /api/slack/status`.
 

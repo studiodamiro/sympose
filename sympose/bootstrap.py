@@ -2,17 +2,19 @@
 Bootstrap, Workspace Resolver & First-Run Onboarding for Sympose.
 """
 
+import logging
 import os
 import sys
+
 import yaml
-from pathlib import Path
-from typing import Dict, Any, Optional
+
+log = logging.getLogger(__name__)
 
 try:
-    from rich.console import Console
-    from rich.prompt import Prompt
-    from rich.panel import Panel
     from rich.box import ROUNDED
+    from rich.console import Console
+    from rich.panel import Panel
+    from rich.prompt import Prompt
 except ImportError:
     Console = None
     ROUNDED = None
@@ -20,8 +22,9 @@ except ImportError:
 from sympose.config import DEFAULT_CHAT_MODEL
 from sympose.config_schema import build_default_config
 from sympose.prompt_assets import load_prompt
-from sympose.workspace import resolve_workspace_dir  # noqa: F401  (re-exported for existing callers)
-
+from sympose.workspace import (
+    resolve_workspace_dir,  # noqa: F401  (re-exported for existing callers)
+)
 
 _CONFIG_SEED_HEADER = (
     "# Sympose Master Configuration\n"
@@ -39,6 +42,7 @@ def render_seed_config() -> str:
     return _CONFIG_SEED_HEADER + yaml.safe_dump(
         build_default_config(), sort_keys=False, default_flow_style=False
     )
+
 
 SAMANTHA_YAML = f"""name: "Samantha"
 handle: "samantha"
@@ -114,7 +118,6 @@ _RULES_MD_FALLBACK = """# 🏛️ Sympose: Universal Workspace & Action Rules
 DEFAULT_RULES_MD = load_prompt("workspace_rules.md", _RULES_MD_FALLBACK)
 
 
-
 def ensure_workspace(workspace_dir: str) -> bool:
     """
     Ensures that the workspace directory exists and contains starter assets (Samantha only).
@@ -156,12 +159,16 @@ def ensure_workspace(workspace_dir: str) -> bool:
     user_card = os.path.join(profiles_dir, "user_profile.md")
     if not os.path.exists(user_card):
         with open(user_card, "w", encoding="utf-8") as f:
-            f.write(f"# Universal User Profile\n\n- **Primary User**: {os.getenv('USER', 'User')}\n- **Environment**: {sys.platform}\n")
+            f.write(
+                f"# Universal User Profile\n\n- **Primary User**: {os.getenv('USER', 'User')}\n- **Environment**: {sys.platform}\n"
+            )
 
     shared_mem = os.path.join(profiles_dir, "_shared_memory.md")
     if not os.path.exists(shared_mem):
         with open(shared_mem, "w", encoding="utf-8") as f:
-            f.write("# Shared Team Working Memory\n\n- **Active Workspace**: Initialized\n")
+            f.write(
+                "# Shared Team Working Memory\n\n- **Active Workspace**: Initialized\n"
+            )
 
     # 4. Workspace Rules prompt
     rules_file = os.path.join(prompts_dir, "workspace_rules.md")
@@ -172,6 +179,7 @@ def ensure_workspace(workspace_dir: str) -> bool:
     # 5. Seed built-in skills into workspace skills directory
     try:
         import shutil
+
         builtin_skills_dir = os.path.join(os.path.dirname(__file__), "builtin_skills")
         if os.path.exists(builtin_skills_dir):
             for item in os.listdir(builtin_skills_dir):
@@ -182,8 +190,8 @@ def ensure_workspace(workspace_dir: str) -> bool:
                         shutil.copytree(s_src, s_dst)
                     elif os.path.isfile(s_src) and s_src.endswith(".md"):
                         shutil.copy2(s_src, s_dst)
-    except Exception:
-        pass
+    except Exception as e:
+        log.warning("Failed to seed builtin skills into %s: %s", skills_dir, e)
 
     return is_fresh
 
@@ -191,57 +199,83 @@ def ensure_workspace(workspace_dir: str) -> bool:
 def run_first_run_onboarding(workspace_dir: str, force: bool = False) -> None:
     """Interactive setup & onboarding wizard (runs on first launch or via sympose --setup)."""
     env_file = os.path.join(workspace_dir, ".env")
-    
+
     # Check if any provider API key already exists in environment
-    has_key = any(os.getenv(k) for k in ["OPENROUTER_API_KEY", "GEMINI_API_KEY", "ANTHROPIC_API_KEY", "OPENAI_API_KEY"])
+    has_key = any(
+        os.getenv(k)
+        for k in [
+            "OPENROUTER_API_KEY",
+            "GEMINI_API_KEY",
+            "ANTHROPIC_API_KEY",
+            "OPENAI_API_KEY",
+        ]
+    )
     if not force and (has_key or not sys.stdin.isatty()):
         return
 
     console = Console() if Console else None
     if console:
         from sympose.ui import TerminalUI
+
         TerminalUI.display_setup_banner(console, workspace_dir)
-        
+
         # Display existing keys if any
         if force:
             existing = []
-            for k in ["GEMINI_API_KEY", "OPENROUTER_API_KEY", "ANTHROPIC_API_KEY", "OPENAI_API_KEY", "MASTER_VAULT_PATH"]:
+            for k in [
+                "GEMINI_API_KEY",
+                "OPENROUTER_API_KEY",
+                "ANTHROPIC_API_KEY",
+                "OPENAI_API_KEY",
+                "MASTER_VAULT_PATH",
+            ]:
                 if val := os.getenv(k):
                     masked = val[:6] + "..." + val[-4:] if len(val) > 12 else "********"
                     existing.append(f"  • [bold]{k}[/bold]: [green]{masked}[/green]")
             if existing:
-                console.print("\n[dim]Current Environment Variables:[/dim]\n" + "\n".join(existing))
+                console.print(
+                    "\n[dim]Current Environment Variables:[/dim]\n"
+                    + "\n".join(existing)
+                )
 
         # Step 1: AI Provider Selection Panel
         provider_options = [
             "Google Gemini  [dim](Sub-second latency & free tier available — recommended)[/dim]",
             "OpenRouter     [dim](Unified access to Claude 3.5, Sonnet, DeepSeek, Qwen)[/dim]",
             "Anthropic      [dim](Direct Claude 3.5 Sonnet API key)[/dim]",
-            "Skip / Custom  [dim](Keep current .env or local Ollama execution)[/dim]"
+            "Skip / Custom  [dim](Keep current .env or local Ollama execution)[/dim]",
         ]
         TerminalUI.render_option_panel(
             console,
             title="🔑  STEP 1/3: CONNECT YOUR AI PROVIDER",
-            options=provider_options
+            options=provider_options,
         )
-        
-        prompt_label = "\n[bold cyan]Select provider[/bold cyan] [dim][1-4, Enter for [1]][/dim]"
-        choice = Prompt.ask(prompt_label, default="1", show_choices=False, show_default=False).strip()
+
+        prompt_label = (
+            "\n[bold cyan]Select provider[/bold cyan] [dim][1-4, Enter for [1]][/dim]"
+        )
+        choice = Prompt.ask(
+            prompt_label, default="1", show_choices=False, show_default=False
+        ).strip()
         provider_map = {
             "1": ("GEMINI_API_KEY", DEFAULT_CHAT_MODEL),
             "2": ("OPENROUTER_API_KEY", "openrouter/google/gemini-2.5-flash"),
             "3": ("ANTHROPIC_API_KEY", "anthropic/claude-3-5-sonnet-20241022"),
         }
-        
+
         if choice in provider_map:
             key_var, default_m = provider_map[choice]
-            api_key = Prompt.ask(f"Paste your {key_var.split('_')[0].title()} API Key", password=True).strip()
+            api_key = Prompt.ask(
+                f"Paste your {key_var.split('_')[0].title()} API Key", password=True
+            ).strip()
             if api_key:
                 os.environ[key_var] = api_key
                 os.environ["DEFAULT_MODEL"] = default_m
                 with open(env_file, "a", encoding="utf-8") as f:
-                    f.write(f"\n{key_var}=\"{api_key}\"\nDEFAULT_MODEL=\"{default_m}\"\n")
-                console.print(f"\n[bold green]✓ Saved {key_var} and default model `{default_m}` to {env_file}[/bold green]")
+                    f.write(f'\n{key_var}="{api_key}"\nDEFAULT_MODEL="{default_m}"\n')
+                console.print(
+                    f"\n[bold green]✓ Saved {key_var} and default model `{default_m}` to {env_file}[/bold green]"
+                )
 
         # Step 2: Obsidian Vault Selection Panel
         vault_panel_text = (
@@ -249,14 +283,16 @@ def run_first_run_onboarding(workspace_dir: str, force: bool = False) -> None:
             "[dim]Press Enter without typing to keep standalone sandboxed storage.[/dim]"
         )
         console.print()
-        console.print(Panel(
-            vault_panel_text,
-            box=ROUNDED,
-            title="📁  STEP 2/3: OBSIDIAN VAULT CONNECTION (OPTIONAL)",
-            title_align="left",
-            border_style="cyan",
-            padding=(0, 2)
-        ))
+        console.print(
+            Panel(
+                vault_panel_text,
+                box=ROUNDED,
+                title="📁  STEP 2/3: OBSIDIAN VAULT CONNECTION (OPTIONAL)",
+                title_align="left",
+                border_style="cyan",
+                padding=(0, 2),
+            )
+        )
 
         current_vault = os.getenv("MASTER_VAULT_PATH", "")
         vault_prompt = "Enter path to Obsidian Vault / Notes folder"
@@ -264,25 +300,29 @@ def run_first_run_onboarding(workspace_dir: str, force: bool = False) -> None:
         if vault_path:
             os.environ["MASTER_VAULT_PATH"] = vault_path
             with open(env_file, "a", encoding="utf-8") as f:
-                f.write(f"\nMASTER_VAULT_PATH=\"{vault_path}\"\n")
+                f.write(f'\nMASTER_VAULT_PATH="{vault_path}"\n')
             console.print(f"\n[bold green]✓ Linked vault: {vault_path}[/bold green]")
 
         # Step 3: Persona Genesis nudge — Samantha is the only persona that
         # ships. Without this, a first-run user has no in-app signal that
         # spawning their own companion is a thing, let alone how.
         console.print()
-        console.print(Panel(
-            "[bold]@samantha[/bold] is your only agent out of the box. Want a companion "
-            "for something specific — engineering, journaling, a domain specialist?\n\n"
-            "[dim]Just ask her, in plain language, once you're chatting:[/dim]\n"
-            '  [cyan]"Create an agent modeled after Grace Hopper for surgical code reviews."[/cyan]\n\n'
-            "[dim]She writes the new persona to disk and switches you to it immediately — "
-            "no YAML required. `/switch @samantha` to come back anytime.[/dim]",
-            box=ROUNDED,
-            title="🧬  STEP 3/3: MEET YOUR ORCHESTRATOR",
-            title_align="left",
-            border_style="cyan",
-            padding=(0, 2)
-        ))
+        console.print(
+            Panel(
+                "[bold]@samantha[/bold] is your only agent out of the box. Want a companion "
+                "for something specific — engineering, journaling, a domain specialist?\n\n"
+                "[dim]Just ask her, in plain language, once you're chatting:[/dim]\n"
+                '  [cyan]"Create an agent modeled after Grace Hopper for surgical code reviews."[/cyan]\n\n'
+                "[dim]She writes the new persona to disk and switches you to it immediately — "
+                "no YAML required. `/switch @samantha` to come back anytime.[/dim]",
+                box=ROUNDED,
+                title="🧬  STEP 3/3: MEET YOUR ORCHESTRATOR",
+                title_align="left",
+                border_style="cyan",
+                padding=(0, 2),
+            )
+        )
 
-        console.print("\n[bold green]🎉 Setup completed! Launching @samantha...[/bold green]\n")
+        console.print(
+            "\n[bold green]🎉 Setup completed! Launching @samantha...[/bold green]\n"
+        )

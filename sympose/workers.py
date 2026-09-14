@@ -3,18 +3,20 @@ Ephemeral Sub-Agent Worker Engine & Multi-Turn Tool Execution Loop for Sympose.
 Executes isolated worker tasks loaded with specific skills and MCP servers without polluting main agent context.
 """
 
-import os
 import json
 import logging
-from typing import Dict, List, Any, Optional, Generator, Tuple
+import os
+from collections.abc import Generator
+from typing import Any
+
 import litellm
 
-from sympose.config import config_manager, DEFAULT_WORKER_MODEL
-from sympose.prompt_assets import load_prompt
-from sympose.skills import skill_manager
-from sympose.mcp import mcp_registry, MCPClient
+from sympose.config import DEFAULT_WORKER_MODEL, config_manager
+from sympose.mcp import MCPClient, mcp_registry
 from sympose.native_tools import NativeTools
 from sympose.profiles import ProfileManager
+from sympose.prompt_assets import load_prompt
+from sympose.skills import skill_manager
 from sympose.vault import VaultManager
 
 log = logging.getLogger(__name__)
@@ -28,11 +30,11 @@ class WorkerTask:
     def __init__(
         self,
         task_prompt: str,
-        skills: Optional[List[str]] = None,
-        mcp_servers: Optional[List[str]] = None,
-        model: Optional[str] = None,
+        skills: list[str] | None = None,
+        mcp_servers: list[str] | None = None,
+        model: str | None = None,
         temperature: float = 0.1,
-        max_tool_turns: Optional[int] = None,
+        max_tool_turns: int | None = None,
         parent_agent: str = "orchestrator",
     ):
         self.task_prompt = task_prompt.strip()
@@ -41,7 +43,9 @@ class WorkerTask:
         self.model = model
         self.temperature = temperature
         default_turns = int(config_manager.get("performance.max_worker_tool_turns", 8))
-        self.max_tool_turns = max_tool_turns if max_tool_turns is not None else default_turns
+        self.max_tool_turns = (
+            max_tool_turns if max_tool_turns is not None else default_turns
+        )
         self.parent_agent = parent_agent
 
 
@@ -53,26 +57,30 @@ class WorkerEngine:
     # ------------------------------------------------------------------ #
 
     @classmethod
-    def _build_worker_context(cls, task: WorkerTask) -> Tuple[
-        str,           # system_prompt
-        str,           # target_model
-        List[Dict[str, Any]],   # initial messages
-        Dict[str, MCPClient],   # active_clients
-        Dict[str, MCPClient],   # tool_to_client
-        List[Dict[str, Any]],   # all_litellm_tools
-        Optional[List[str]],    # allowed_dirs
+    def _build_worker_context(
+        cls, task: WorkerTask
+    ) -> tuple[
+        str,  # system_prompt
+        str,  # target_model
+        list[dict[str, Any]],  # initial messages
+        dict[str, MCPClient],  # active_clients
+        dict[str, MCPClient],  # tool_to_client
+        list[dict[str, Any]],  # all_litellm_tools
+        list[str] | None,  # allowed_dirs
     ]:
         """Builds the shared execution context for both streaming and non-streaming workers."""
         skills_text = skill_manager.format_skills_for_prompt(task.skills)
 
         # Resolve parent agent sandbox whitelist
         parent_prof = ProfileManager().get_profile(task.parent_agent)
-        allowed_dirs = VaultManager.get_allowed_dirs(parent_prof) if parent_prof else None
+        allowed_dirs = (
+            VaultManager.get_allowed_dirs(parent_prof) if parent_prof else None
+        )
 
         # Resolve MCP Clients & Tools + Native Built-in Tools
-        active_clients: Dict[str, MCPClient] = {}
-        tool_to_client: Dict[str, MCPClient] = {}
-        all_litellm_tools: List[Dict[str, Any]] = list(NativeTools.NATIVE_SCHEMAS)
+        active_clients: dict[str, MCPClient] = {}
+        tool_to_client: dict[str, MCPClient] = {}
+        all_litellm_tools: list[dict[str, Any]] = list(NativeTools.NATIVE_SCHEMAS)
 
         resolved_mcp_servers = list(task.mcp_servers)
         for s_name in task.skills:
@@ -91,11 +99,15 @@ class WorkerEngine:
                     tool_to_client[tool_name] = client
                     all_litellm_tools.append(t)
             elif server_name not in ("shell", "git", "native"):
-                log.debug("WorkerEngine: could not connect to MCP server [%s]", server_name)
+                log.debug(
+                    "WorkerEngine: could not connect to MCP server [%s]", server_name
+                )
 
         # Load system prompt template
         mv = os.getenv("MASTER_VAULT_PATH")
-        env_lines = [f"- Workspace Directory: `{os.getcwd()}`"] + ([f"- Obsidian Vault Directory: `{mv}`"] if mv else [])
+        env_lines = [f"- Workspace Directory: `{os.getcwd()}`"] + (
+            [f"- Obsidian Vault Directory: `{mv}`"] if mv else []
+        )
         tmpl = load_prompt(
             "worker_system.md",
             "You are an ephemeral Sub-Agent Worker in Sympose on macOS dispatched by parent agent @{{parent_agent}}.\n\n"
@@ -106,7 +118,9 @@ class WorkerEngine:
             "3. RAPID COMPLETION.",
         )
 
-        system_prompt = tmpl.replace("{{parent_agent}}", task.parent_agent).replace("{{environment}}", "\n".join(env_lines))
+        system_prompt = tmpl.replace("{{parent_agent}}", task.parent_agent).replace(
+            "{{environment}}", "\n".join(env_lines)
+        )
         if skills_text:
             system_prompt += f"\n\n{skills_text}"
 
@@ -117,9 +131,13 @@ class WorkerEngine:
             try:
                 manifest = VaultManager.get_manifest()
                 if manifest and manifest.get("nodes"):
-                    system_prompt += "\n\n" + VaultManager.format_manifest_digest(manifest)
+                    system_prompt += "\n\n" + VaultManager.format_manifest_digest(
+                        manifest
+                    )
             except Exception:
-                log.debug("WorkerEngine: manifest digest injection failed", exc_info=True)
+                log.debug(
+                    "WorkerEngine: manifest digest injection failed", exc_info=True
+                )
 
         # Resolve model: task override → skill recommendation → env default
         target_model = task.model
@@ -131,15 +149,23 @@ class WorkerEngine:
                     break
         target_model = target_model or DEFAULT_WORKER_MODEL
 
-        messages: List[Dict[str, Any]] = [
+        messages: list[dict[str, Any]] = [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": task.task_prompt},
         ]
 
-        return system_prompt, target_model, messages, active_clients, tool_to_client, all_litellm_tools, allowed_dirs
+        return (
+            system_prompt,
+            target_model,
+            messages,
+            active_clients,
+            tool_to_client,
+            all_litellm_tools,
+            allowed_dirs,
+        )
 
     @staticmethod
-    def _inject_api_key(kwargs: Dict[str, Any], target_model: str) -> None:
+    def _inject_api_key(kwargs: dict[str, Any], target_model: str) -> None:
         """Injects the correct API key into litellm kwargs based on model provider prefix."""
         for pfx, key in (
             ("gemini/", "GEMINI_API_KEY"),
@@ -154,9 +180,9 @@ class WorkerEngine:
     @staticmethod
     def _dispatch_tool_call(
         tc: Any,
-        tool_to_client: Dict[str, MCPClient],
-        allowed_dirs: Optional[List[str]],
-    ) -> Tuple[str, str, str, bool, str]:
+        tool_to_client: dict[str, MCPClient],
+        allowed_dirs: list[str] | None,
+    ) -> tuple[str, str, str, bool, str]:
         """Parses a tool_call object and executes it. Returns (call_id, t_name, arg_summary, ok, tool_res)."""
         fn = tc.function if hasattr(tc, "function") else tc.get("function", {})
         call_id = tc.id if hasattr(tc, "id") else tc.get("id", "call_1")
@@ -174,19 +200,31 @@ class WorkerEngine:
         if not isinstance(args_dict, dict):
             args_dict = {}
 
-        arg_summary = ", ".join(f"{k}={v}" for k, v in args_dict.items() if k in ("path", "query", "command", "file_path"))
+        arg_summary = ", ".join(
+            f"{k}={v}"
+            for k, v in args_dict.items()
+            if k in ("path", "query", "command", "file_path")
+        )
 
         if t_name in ("run_command", "read_file", "web_search"):
-            ok, tool_res = NativeTools.execute(t_name, args_dict, allowed_dirs=allowed_dirs)
+            ok, tool_res = NativeTools.execute(
+                t_name, args_dict, allowed_dirs=allowed_dirs
+            )
         else:
             client = tool_to_client.get(t_name)
             if client:
                 ok, tool_res = client.call_tool(t_name, args_dict)
             else:
-                ok, tool_res = False, f"Tool `{t_name}` not registered with active MCP servers."
+                ok, tool_res = (
+                    False,
+                    f"Tool `{t_name}` not registered with active MCP servers.",
+                )
 
         if len(tool_res) > MAX_TOOL_OUTPUT_CHARS:
-            tool_res = tool_res[:MAX_TOOL_OUTPUT_CHARS] + "\n...[Output truncated for brevity]..."
+            tool_res = (
+                tool_res[:MAX_TOOL_OUTPUT_CHARS]
+                + "\n...[Output truncated for brevity]..."
+            )
 
         return call_id, t_name, arg_summary, ok, tool_res
 
@@ -199,20 +237,25 @@ class WorkerEngine:
     )
 
     @classmethod
-    def _forced_synthesis(cls, messages: List[Dict[str, Any]], target_model: str, task: "WorkerTask") -> str:
+    def _forced_synthesis(
+        cls, messages: list[dict[str, Any]], target_model: str, task: "WorkerTask"
+    ) -> str:
         """Backstop when the tool loop exhausts its budget mid-search: one more
         call with tools disabled, so the notes already read (they are in the
         transcript) still produce a grounded answer instead of a bare failure."""
         try:
-            kwargs: Dict[str, Any] = {
+            kwargs: dict[str, Any] = {
                 "model": target_model,
-                "messages": messages + [{"role": "user", "content": cls._LAST_TURN_NUDGE}],
+                "messages": messages
+                + [{"role": "user", "content": cls._LAST_TURN_NUDGE}],
                 "temperature": task.temperature,
                 "stream": False,
                 "tool_choice": "none",
             }
             cls._inject_api_key(kwargs, target_model)
-            return (litellm.completion(**kwargs).choices[0].message.content or "").strip()
+            return (
+                litellm.completion(**kwargs).choices[0].message.content or ""
+            ).strip()
         except Exception:
             return ""
 
@@ -223,11 +266,28 @@ class WorkerEngine:
     @classmethod
     def execute_worker_stream(cls, task: WorkerTask) -> Generator[str, None, None]:
         """Streams the worker execution, tool calling status, and final synthesized output."""
-        _, target_model, messages, active_clients, tool_to_client, all_litellm_tools, allowed_dirs = cls._build_worker_context(task)
+        (
+            _,
+            target_model,
+            messages,
+            active_clients,
+            tool_to_client,
+            all_litellm_tools,
+            allowed_dirs,
+        ) = cls._build_worker_context(task)
 
         # Emit MCP connection warnings for stream consumers
-        for s_name in list(task.mcp_servers) + [s for sk in task.skills if (sk_obj := skill_manager.get_skill(sk)) and sk_obj.mcp_servers for s in sk_obj.mcp_servers]:
-            if s_name not in active_clients and s_name not in ("shell", "git", "native"):
+        for s_name in list(task.mcp_servers) + [
+            s
+            for sk in task.skills
+            if (sk_obj := skill_manager.get_skill(sk)) and sk_obj.mcp_servers
+            for s in sk_obj.mcp_servers
+        ]:
+            if s_name not in active_clients and s_name not in (
+                "shell",
+                "git",
+                "native",
+            ):
                 yield f"> ⚠️ Could not connect to MCP server `[{s_name}]`.\n"
 
         turn_count = 0
@@ -236,9 +296,14 @@ class WorkerEngine:
             while turn_count < task.max_tool_turns:
                 turn_count += 1
                 last_turn = turn_count >= task.max_tool_turns
-                kwargs: Dict[str, Any] = {
+                kwargs: dict[str, Any] = {
                     "model": target_model,
-                    "messages": messages + ([{"role": "user", "content": cls._LAST_TURN_NUDGE}] if last_turn else []),
+                    "messages": messages
+                    + (
+                        [{"role": "user", "content": cls._LAST_TURN_NUDGE}]
+                        if last_turn
+                        else []
+                    ),
                     "temperature": task.temperature,
                     "stream": False,
                 }
@@ -253,18 +318,33 @@ class WorkerEngine:
                 tool_calls = getattr(message, "tool_calls", None)
 
                 if tool_calls and not last_turn:
-                    messages.append(message.to_dict() if hasattr(message, "to_dict") else dict(message))
+                    messages.append(
+                        message.to_dict()
+                        if hasattr(message, "to_dict")
+                        else dict(message)
+                    )
                     for tc in tool_calls:
-                        call_id, t_name, _, ok, tool_res = cls._dispatch_tool_call(tc, tool_to_client, allowed_dirs)
+                        call_id, t_name, _, ok, tool_res = cls._dispatch_tool_call(
+                            tc, tool_to_client, allowed_dirs
+                        )
                         yield f"> ⚙️ *Worker calling tool:* `{t_name}`...\n"
-                        messages.append({"role": "tool", "tool_call_id": call_id, "name": t_name, "content": tool_res})
+                        messages.append(
+                            {
+                                "role": "tool",
+                                "tool_call_id": call_id,
+                                "name": t_name,
+                                "content": tool_res,
+                            }
+                        )
                     continue
                 else:
                     final_synthesis = message.content or ""
                     break
 
             if not final_synthesis and turn_count >= task.max_tool_turns:
-                final_synthesis = cls._forced_synthesis(messages, target_model, task) or (
+                final_synthesis = cls._forced_synthesis(
+                    messages, target_model, task
+                ) or (
                     "⚠️ Worker hit its tool budget before finishing; retry with a narrower ask."
                 )
             yield final_synthesis
@@ -273,21 +353,34 @@ class WorkerEngine:
             yield f"\n⚠️ **Worker Execution Error ({target_model}):** {e}"
 
     @classmethod
-    def execute_worker_task(cls, task: WorkerTask) -> Tuple[str, List[str]]:
+    def execute_worker_task(cls, task: WorkerTask) -> tuple[str, list[str]]:
         """Executes worker task and returns (final_deliverable_text, tool_calls_summary_list)."""
-        _, target_model, messages, active_clients, tool_to_client, all_litellm_tools, allowed_dirs = cls._build_worker_context(task)
+        (
+            _,
+            target_model,
+            messages,
+            active_clients,
+            tool_to_client,
+            all_litellm_tools,
+            allowed_dirs,
+        ) = cls._build_worker_context(task)
 
         turn_count = 0
         final_synthesis = ""
-        tool_calls_executed: List[str] = []
+        tool_calls_executed: list[str] = []
 
         try:
             while turn_count < task.max_tool_turns:
                 turn_count += 1
                 last_turn = turn_count >= task.max_tool_turns
-                kwargs: Dict[str, Any] = {
+                kwargs: dict[str, Any] = {
                     "model": target_model,
-                    "messages": messages + ([{"role": "user", "content": cls._LAST_TURN_NUDGE}] if last_turn else []),
+                    "messages": messages
+                    + (
+                        [{"role": "user", "content": cls._LAST_TURN_NUDGE}]
+                        if last_turn
+                        else []
+                    ),
                     "temperature": task.temperature,
                     "stream": False,
                 }
@@ -302,24 +395,44 @@ class WorkerEngine:
                 tool_calls = getattr(message, "tool_calls", None)
 
                 if tool_calls and not last_turn:
-                    messages.append(message.to_dict() if hasattr(message, "to_dict") else dict(message))
+                    messages.append(
+                        message.to_dict()
+                        if hasattr(message, "to_dict")
+                        else dict(message)
+                    )
                     for tc in tool_calls:
-                        call_id, t_name, arg_summary, ok, tool_res = cls._dispatch_tool_call(tc, tool_to_client, allowed_dirs)
-                        tool_calls_executed.append(f"{t_name}({arg_summary})" if arg_summary else f"{t_name}()")
-                        messages.append({"role": "tool", "tool_call_id": call_id, "name": t_name, "content": tool_res})
+                        call_id, t_name, arg_summary, ok, tool_res = (
+                            cls._dispatch_tool_call(tc, tool_to_client, allowed_dirs)
+                        )
+                        tool_calls_executed.append(
+                            f"{t_name}({arg_summary})" if arg_summary else f"{t_name}()"
+                        )
+                        messages.append(
+                            {
+                                "role": "tool",
+                                "tool_call_id": call_id,
+                                "name": t_name,
+                                "content": tool_res,
+                            }
+                        )
                     continue
                 else:
                     final_synthesis = message.content or ""
                     break
 
             if not final_synthesis and turn_count >= task.max_tool_turns:
-                final_synthesis = cls._forced_synthesis(messages, target_model, task) or (
+                final_synthesis = cls._forced_synthesis(
+                    messages, target_model, task
+                ) or (
                     "⚠️ Worker hit its tool budget before finishing; retry with a narrower ask."
                 )
 
             return final_synthesis, tool_calls_executed
         except Exception as e:
-            return f"⚠️ **Worker Execution Error ({target_model}):** {e}", tool_calls_executed
+            return (
+                f"⚠️ **Worker Execution Error ({target_model}):** {e}",
+                tool_calls_executed,
+            )
 
 
 # Singleton worker engine

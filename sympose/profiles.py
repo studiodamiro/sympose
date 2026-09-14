@@ -2,35 +2,45 @@
 Dynamic Profile, Soul & Tiered Memory Manager for Sympose.
 """
 
-import os, sys, glob, re, datetime, logging
-from typing import Dict, List, Optional, Any, Tuple
+import datetime
+import glob
+import logging
+import os
+import re
+from typing import Any, ClassVar
+
 import yaml
 
 log = logging.getLogger(__name__)
 
-from sympose.skills import skill_manager
 from sympose.config import DEFAULT_CHAT_MODEL
 from sympose.prompt_assets import load_prompt
+from sympose.skills import skill_manager
 
 
 class ProfileManager:
     """Dynamically loads agent profiles, souls, universal user cards, and tiered memory pools."""
 
-    def __init__(self, profiles_dir: Optional[str] = None):
+    def __init__(self, profiles_dir: str | None = None):
         if profiles_dir:
             self.profiles_dir = os.path.abspath(profiles_dir)
         else:
             from sympose.bootstrap import resolve_workspace_dir
-            self.profiles_dir = os.path.abspath(os.path.join(resolve_workspace_dir(), "profiles"))
-        self.profiles: Dict[str, Dict[str, Any]] = {}
+
+            self.profiles_dir = os.path.abspath(
+                os.path.join(resolve_workspace_dir(), "profiles")
+            )
+        self.profiles: dict[str, dict[str, Any]] = {}
         self._profiles_mtime: float = 0.0
         # mtime-keyed cache for _read_file_safe — build_system_prompt re-reads the
         # soul, user card, shared/persona memory, and workspace rules every turn;
         # this skips the disk read when the resolved file hasn't changed.
-        self._file_cache: Dict[str, Tuple[float, str]] = {}
+        self._file_cache: dict[str, tuple[float, str]] = {}
         self.reload_profiles()
 
-    def update_persona_skills(self, handle: str, skill_name: str, action: str = "add") -> Tuple[bool, str]:
+    def update_persona_skills(
+        self, handle: str, skill_name: str, action: str = "add"
+    ) -> tuple[bool, str]:
         """Adds or removes a skill from a persona's YAML manifest and reloads profiles."""
         h = handle.lower().replace("@", "").strip()
         yaml_file = os.path.join(self.profiles_dir, f"{h}.yaml")
@@ -72,7 +82,9 @@ class ProfileManager:
         except Exception as e:
             return False, f"Failed to update `{yaml_file}`: {e}"
 
-    def set_persona_field(self, handle: str, key: str, raw_value: str) -> Tuple[bool, str]:
+    def set_persona_field(
+        self, handle: str, key: str, raw_value: str
+    ) -> tuple[bool, str]:
         """Writes one persona-scoped config knob into `profiles/<handle>.yaml`.
 
         Only keys declared `scope="persona"` in `config_schema` are writable —
@@ -80,7 +92,7 @@ class ProfileManager:
         uses. Global keys are refused with a pointer to `/config`. Comments in
         the manifest are not preserved (plain `yaml.dump` round-trip, matching
         `update_persona_skills`)."""
-        from sympose.config_schema import get_setting, coerce, validate
+        from sympose.config_schema import coerce, get_setting, validate
 
         s = get_setting(key)
         if s is None:
@@ -115,9 +127,13 @@ class ProfileManager:
         except Exception as e:
             return False, f"Failed to update `{yaml_file}`: {e}"
 
-    def bootstrap_missing_artifacts(self, profile: Dict[str, Any]) -> None:
+    def bootstrap_missing_artifacts(self, profile: dict[str, Any]) -> None:
         """Generates soul, memory, universal user card, and shared team memory from .example templates if absent."""
-        handle, name, title = profile.get("handle", "agent").lower(), profile.get("name", "Agent"), profile.get("title", "Specialist Advisor")
+        handle, name, title = (
+            profile.get("handle", "agent").lower(),
+            profile.get("name", "Agent"),
+            profile.get("title", "Specialist Advisor"),
+        )
         os.makedirs(self.profiles_dir, exist_ok=True)
         soul_name = os.path.basename(profile.get("soul_file") or f"{handle}_soul.md")
         mem_name = os.path.basename(profile.get("memory_file") or f"{handle}_memory.md")
@@ -142,21 +158,33 @@ class ProfileManager:
         )
 
         for path, default_content in [
-            (os.path.join(self.profiles_dir, "user_profile.md"), "# Universal User Profile\n\n- **Primary User**: user\n- **Environment**: macOS / Linux\n"),
-            (os.path.join(self.profiles_dir, "_shared_memory.md"), "# Shared Team Working Memory\n\n- **Active Project**: Sympose Agent Hub\n"),
+            (
+                os.path.join(self.profiles_dir, "user_profile.md"),
+                "# Universal User Profile\n\n- **Primary User**: user\n- **Environment**: macOS / Linux\n",
+            ),
+            (
+                os.path.join(self.profiles_dir, "_shared_memory.md"),
+                "# Shared Team Working Memory\n\n- **Active Project**: Sympose Agent Hub\n",
+            ),
             (soul_path, fallback_soul),
-            (mem_path, f"# {name}: Working Memory\n\n- **Role**: {title}\n")
+            (mem_path, f"# {name}: Working Memory\n\n- **Role**: {title}\n"),
         ]:
             if not os.path.exists(path):
                 content = default_content
                 ex_path = f"{path}.example"
                 if os.path.exists(ex_path):
                     try:
-                        with open(ex_path, "r", encoding="utf-8") as ef: content = ef.read()
-                    except Exception as e: log.debug("[scaffold] failed to read template %s: %s", ex_path, e)
+                        with open(ex_path, "r", encoding="utf-8") as ef:
+                            content = ef.read()
+                    except Exception as e:
+                        log.debug(
+                            "[scaffold] failed to read template %s: %s", ex_path, e
+                        )
                 try:
-                    with open(path, "w", encoding="utf-8") as f: f.write(content)
-                except Exception as e: log.debug("[scaffold] failed to write %s: %s", path, e)
+                    with open(path, "w", encoding="utf-8") as f:
+                        f.write(content)
+                except Exception as e:
+                    log.debug("[scaffold] failed to write %s: %s", path, e)
 
         profile["soul_file"] = soul_path
         profile["memory_file"] = mem_path
@@ -165,9 +193,13 @@ class ProfileManager:
         if "skills" not in profile or profile.get("skills") is None:
             profile["skills"] = []
         if not profile.get("thinking_phrases"):
-            profile["thinking_phrases"] = [f"Consulting {name}...", "Distilling insights...", "Formulating plan..."]
+            profile["thinking_phrases"] = [
+                f"Consulting {name}...",
+                "Distilling insights...",
+                "Formulating plan...",
+            ]
 
-    DEFAULT_STARTER_PROFILES: Dict[str, Dict[str, Any]] = {
+    DEFAULT_STARTER_PROFILES: ClassVar[dict[str, dict[str, Any]]] = {
         "samantha": {
             "name": "Samantha",
             "handle": "samantha",
@@ -176,12 +208,22 @@ class ProfileManager:
             "icon_emoji": ":brain:",
             "vault_folders": ["General", "Projects", "Thoughts", "Templates"],
             "share_memory": True,
-            "skills": ["sympose_mastery", "strategic_analysis", "vault_recall", "vault_write", "web_search"],
-            "thinking_phrases": ["Connecting high-level dots...", "Synthesizing strategic options...", "Distilling signal from noise..."]
+            "skills": [
+                "sympose_mastery",
+                "strategic_analysis",
+                "vault_recall",
+                "vault_write",
+                "web_search",
+            ],
+            "thinking_phrases": [
+                "Connecting high-level dots...",
+                "Synthesizing strategic options...",
+                "Distilling signal from noise...",
+            ],
         }
     }
 
-    def reload_profiles(self) -> Dict[str, Dict[str, Any]]:
+    def reload_profiles(self) -> dict[str, dict[str, Any]]:
         self.profiles.clear()
         os.makedirs(self.profiles_dir, exist_ok=True)
         yaml_files = glob.glob(os.path.join(self.profiles_dir, "*.yaml"))
@@ -193,8 +235,8 @@ class ProfileManager:
                 try:
                     with open(p_file, "w", encoding="utf-8") as f:
                         yaml.dump(pdata, f, default_flow_style=False)
-                except Exception:
-                    pass
+                except Exception as e:
+                    log.warning("Failed to seed starter profile %s: %s", p_file, e)
             yaml_files = glob.glob(os.path.join(self.profiles_dir, "*.yaml"))
 
         for filepath in yaml_files:
@@ -213,10 +255,10 @@ class ProfileManager:
             self._profiles_mtime = 0.0
         return self.profiles
 
-    def get_profile(self, handle: str) -> Optional[Dict[str, Any]]:
+    def get_profile(self, handle: str) -> dict[str, Any] | None:
         return self.profiles.get(handle.lower())
 
-    def list_personas(self) -> List[Dict[str, Any]]:
+    def list_personas(self) -> list[dict[str, Any]]:
         """Returns all loaded personas, reloading from disk only when the profiles directory has changed."""
         try:
             current_mtime = os.path.getmtime(self.profiles_dir)
@@ -226,7 +268,7 @@ class ProfileManager:
             self.reload_profiles()
         return list(self.profiles.values())
 
-    def _read_file_safe(self, path: Optional[str]) -> str:
+    def _read_file_safe(self, path: str | None) -> str:
         if not path:
             return ""
         # Try direct path
@@ -247,32 +289,63 @@ class ProfileManager:
                         content = f.read().strip()
                     self._file_cache[c] = (current_mtime, content)
                     return content
-                except Exception:
-                    pass
+                except Exception as e:
+                    log.debug("Failed to read profile file %s: %s", c, e)
         return ""
 
-    def build_system_prompt(self, profile: Dict[str, Any]) -> str:
-        handle, name = profile.get("handle", "agent"), profile.get("name", profile.get("handle", "agent"))
-        user_card = self._read_file_safe(os.path.join(self.profiles_dir, "user_profile.md"))
-        m = re.search(r"[-*]?\s*(?:\*\*|__)?(?:Primary\s+User|User|Name)(?:\*\*|__)?\s*:\s*([^\n\r]+)", user_card, re.I)
-        primary_user = m.group(1).strip().strip("*_`") if m and m.group(1).strip() else (os.getenv("USER") or "User")
+    def build_system_prompt(self, profile: dict[str, Any]) -> str:
+        handle, name = (
+            profile.get("handle", "agent"),
+            profile.get("name", profile.get("handle", "agent")),
+        )
+        user_card = self._read_file_safe(
+            os.path.join(self.profiles_dir, "user_profile.md")
+        )
+        m = re.search(
+            r"[-*]?\s*(?:\*\*|__)?(?:Primary\s+User|User|Name)(?:\*\*|__)?\s*:\s*([^\n\r]+)",
+            user_card,
+            re.IGNORECASE,
+        )
+        primary_user = (
+            m.group(1).strip().strip("*_`")
+            if m and m.group(1).strip()
+            else (os.getenv("USER") or "User")
+        )
 
-        v_folders = profile.get("vault_folders") or [profile.get("vault_folder", "General")]
-        vf_desc = "Root Vault (All Folders)" if ("" in v_folders or "*" in v_folders) else ", ".join(f"`{f}/`" for f in v_folders)
+        v_folders = profile.get("vault_folders") or [
+            profile.get("vault_folder", "General")
+        ]
+        vf_desc = (
+            "Root Vault (All Folders)"
+            if ("" in v_folders or "*" in v_folders)
+            else ", ".join(f"`{f}/`" for f in v_folders)
+        )
         is_shared = profile.get("share_memory", False)
-        sharing_desc = "Shared Team Pool (`_shared_memory.md`)" if is_shared else "Air-Gapped Private Memory"
+        sharing_desc = (
+            "Shared Team Pool (`_shared_memory.md`)"
+            if is_shared
+            else "Air-Gapped Private Memory"
+        )
         mv = os.getenv("MASTER_VAULT_PATH", "Local Workspace")
         sources = f"Core User Profile, {'Shared Team Working Memory, ' if is_shared else ''}Persona Working Memory, and Allowed Obsidian Vault Folders ({vf_desc})"
 
-        prompt_parts: List[str] = []
+        prompt_parts: list[str] = []
         soul_txt = self._read_file_safe(profile.get("soul_file"))
         if soul_txt:
-            prompt_parts.append(soul_txt.replace("{{user}}", primary_user).replace("{{handle}}", handle).replace("{{name}}", name))
+            prompt_parts.append(
+                soul_txt.replace("{{user}}", primary_user)
+                .replace("{{handle}}", handle)
+                .replace("{{name}}", name)
+            )
 
         if user_card:
             prompt_parts.append(f"### Core User Profile & Identity:\n{user_card}")
 
-        if is_shared and (shared_mem := self._read_file_safe(os.path.join(self.profiles_dir, "_shared_memory.md"))):
+        if is_shared and (
+            shared_mem := self._read_file_safe(
+                os.path.join(self.profiles_dir, "_shared_memory.md")
+            )
+        ):
             prompt_parts.append(f"### Shared Team Working Memory:\n{shared_mem}")
 
         if persona_mem := self._read_file_safe(profile.get("memory_file")):
@@ -283,7 +356,9 @@ class ProfileManager:
         # fall back to the packaged sympose/prompts/workspace_rules.md so a wheel
         # install with no seeded copy still gets the full ruleset.
         rules_txt = (
-            self._read_file_safe(os.path.join(workspace_parent, "prompts", "workspace_rules.md"))
+            self._read_file_safe(
+                os.path.join(workspace_parent, "prompts", "workspace_rules.md")
+            )
             or load_prompt("workspace_rules.md")
             or "### Directives:\n- Think systematically and provide crisp analysis.\n- Save durable insights to memory."
         )
@@ -291,12 +366,17 @@ class ProfileManager:
             rules_txt.replace("{{workspace_root}}", workspace_parent)
             .replace("{{master_vault_path}}", mv)
             .replace("{{sandboxed_vault}}", vf_desc)
-            .replace("{{memory_mode}}", f"{sharing_desc} (File: `{profile.get('memory_file')}`)")
+            .replace(
+                "{{memory_mode}}",
+                f"{sharing_desc} (File: `{profile.get('memory_file')}`)",
+            )
             # Date only (no %H:%M): a per-minute token this early in the system
             # prompt invalidates the local-model prompt-cache prefix every turn,
             # forcing a full re-prefill. Write-time timestamps (daily notes,
             # session logs) use their own datetime.now() and are unaffected.
-            .replace("{{current_datetime}}", datetime.datetime.now().strftime("%Y-%m-%d %A"))
+            .replace(
+                "{{current_datetime}}", datetime.datetime.now().astimezone().strftime("%Y-%m-%d %A")
+            )
             .replace("{{sources}}", sources)
             .replace("{{user}}", primary_user)
             .replace("{{handle}}", handle)
@@ -305,25 +385,41 @@ class ProfileManager:
         prompt_parts.append(rules_formatted)
 
         if active_skills := profile.get("skills", []):
-            if isinstance(active_skills, list) and (skills_txt := skill_manager.format_skills_for_prompt(active_skills)):
+            if isinstance(active_skills, list) and (
+                skills_txt := skill_manager.format_skills_for_prompt(active_skills)
+            ):
                 prompt_parts.append(skills_txt)
 
-        peers = [f"- @{p['handle']}: {p.get('name', p['handle'])} ({p.get('title', 'Specialist')})" for p in self.profiles.values() if p["handle"] != profile["handle"]]
-        if peers: prompt_parts.append("### Available Specialist Peers in Sympose:\n" + "\n".join(peers))
+        peers = [
+            f"- @{p['handle']}: {p.get('name', p['handle'])} ({p.get('title', 'Specialist')})"
+            for p in self.profiles.values()
+            if p["handle"] != profile["handle"]
+        ]
+        if peers:
+            prompt_parts.append(
+                "### Available Specialist Peers in Sympose:\n" + "\n".join(peers)
+            )
 
         return "\n\n".join(prompt_parts)
 
     def _append_to_file(self, file_path: str, fact: str) -> bool:
         try:
             from sympose.compactor import get_file_lock
+
             lock = get_file_lock(file_path)
             with lock:
                 os.makedirs(os.path.dirname(os.path.abspath(file_path)), exist_ok=True)
                 existing = self._read_file_safe(file_path).lower()
-                lines = [l.strip() for l in fact.strip().split("\n") if l.strip()]
+                lines = [
+                    line.strip() for line in fact.strip().split("\n") if line.strip()
+                ]
                 new_lines = []
-                for l in lines:
-                    clean = l[2:].strip() if (l.startswith("- ") or l.startswith("* ")) else l
+                for line in lines:
+                    clean = (
+                        line[2:].strip()
+                        if (line.startswith("- ") or line.startswith("* "))
+                        else line
+                    )
                     if clean.lower() not in existing:
                         new_lines.append(f"- {clean}")
                 if new_lines:
@@ -333,29 +429,35 @@ class ProfileManager:
         except Exception:
             return False
 
-    def append_memory(self, handle: str, fact: str, force_shared: Optional[bool] = None) -> bool:
+    def append_memory(
+        self, handle: str, fact: str, force_shared: bool | None = None
+    ) -> bool:
         """Appends facts to persona memory and optionally shared memory if share_memory is active."""
         profile = self.get_profile(handle)
         if not profile:
             return False
 
-        is_shared = profile.get("share_memory", False) if force_shared is None else force_shared
+        is_shared = (
+            profile.get("share_memory", False) if force_shared is None else force_shared
+        )
         mem_file = profile.get("memory_file", f"profiles/{handle}_memory.md")
         ok = self._append_to_file(mem_file, fact)
 
         try:
             from sympose.compactor import MemoryCompactor
+
             MemoryCompactor.check_and_compact_async(mem_file, is_shared=False)
-        except Exception:
-            pass
+        except Exception as e:
+            log.debug("Failed to trigger memory compaction for %s: %s", mem_file, e)
 
         if is_shared:
             shared_file = os.path.join(self.profiles_dir, "_shared_memory.md")
             self._append_to_file(shared_file, fact)
             try:
                 from sympose.compactor import MemoryCompactor
+
                 MemoryCompactor.check_and_compact_async(shared_file, is_shared=True)
-            except Exception:
-                pass
+            except Exception as e:
+                log.debug("Failed to trigger memory compaction for %s: %s", shared_file, e)
 
         return ok

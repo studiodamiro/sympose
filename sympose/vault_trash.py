@@ -13,10 +13,10 @@ comes back as a typed sentinel, not a 500. `.trash` ships in the default
 manifest, or a persona's grounding while they sit here.
 """
 
+import logging
 import os
 import re
-import logging
-from typing import Any, Dict, List
+from typing import Any
 
 from sympose.config import is_safe_path
 
@@ -56,7 +56,7 @@ def _prune_empty_dirs(root: str, start: str) -> None:
         pass
 
 
-def list_trashed(mv: str, allowed_dirs: List[str]) -> List[Dict[str, Any]]:
+def list_trashed(mv: str, allowed_dirs: list[str]) -> list[dict[str, Any]]:
     """Recoverable notes under `<mv>/.trash`, newest deletion first. Each row:
     `{trash_path, original_path, deleted_at (mtime epoch), size}`. Scoped to the
     persona — an entry whose original location sits outside `allowed_dirs` is
@@ -64,7 +64,7 @@ def list_trashed(mv: str, allowed_dirs: List[str]) -> List[Dict[str, Any]]:
     troot = os.path.join(mv, TRASH_DIRNAME)
     if not os.path.isdir(troot):
         return []
-    rows: List[Dict[str, Any]] = []
+    rows: list[dict[str, Any]] = []
     for cur, dirs, files in os.walk(troot):
         dirs[:] = [d for d in dirs if not d.startswith(".")]
         for fn in files:
@@ -82,12 +82,14 @@ def list_trashed(mv: str, allowed_dirs: List[str]) -> List[Dict[str, Any]]:
                 st = os.stat(fp)
             except OSError:
                 continue
-            rows.append({
-                "trash_path": trash_rel,
-                "original_path": orig_rel,
-                "deleted_at": st.st_mtime,
-                "size": st.st_size,
-            })
+            rows.append(
+                {
+                    "trash_path": trash_rel,
+                    "original_path": orig_rel,
+                    "deleted_at": st.st_mtime,
+                    "size": st.st_size,
+                }
+            )
     rows.sort(key=lambda r: r["deleted_at"], reverse=True)
     return rows
 
@@ -104,7 +106,7 @@ def _resolve_in_trash(mv: str, trash_rel: str) -> Any:
     return src
 
 
-def restore(mv: str, allowed_dirs: List[str], trash_rel: str) -> str:
+def restore(mv: str, allowed_dirs: list[str], trash_rel: str) -> str:
     """Move a trashed note back to its original vault-relative path. Returns that
     path on success, or `NOT_IN_TRASH` / `TARGET_EXISTS` (something occupies the
     original spot now) / `DENIED` / `"Error: …"`."""
@@ -128,7 +130,7 @@ def restore(mv: str, allowed_dirs: List[str], trash_rel: str) -> str:
     return os.path.relpath(dst, mv).replace(os.sep, "/")
 
 
-def purge(mv: str, allowed_dirs: List[str], trash_rel: str) -> str:
+def purge(mv: str, allowed_dirs: list[str], trash_rel: str) -> str:
     """Permanently unlink one trashed note. Returns `""` on success, or
     `NOT_IN_TRASH` / `DENIED` / `"Error: …"`. Scoped: an entry whose original
     location is outside `allowed_dirs` cannot be purged through this persona."""
@@ -148,7 +150,7 @@ def purge(mv: str, allowed_dirs: List[str], trash_rel: str) -> str:
     return ""
 
 
-def purge_all(mv: str, allowed_dirs: List[str]) -> int:
+def purge_all(mv: str, allowed_dirs: list[str]) -> int:
     """Empty the trash of every in-scope note. Returns the count removed."""
     removed = 0
     for row in list_trashed(mv, allowed_dirs):

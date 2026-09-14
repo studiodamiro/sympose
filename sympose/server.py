@@ -2,18 +2,19 @@
 FastAPI Server & Dashboard API Gateway for Sympose.
 """
 
-import os
 import logging
-from typing import Dict, Any, Optional
-from fastapi import FastAPI, Query, HTTPException, Depends
+import os
+from typing import Any
+
+from fastapi import Depends, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
+from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
-from sympose.vault import VaultManager
-from sympose.config import config_manager
-from sympose.auth import require_dashboard_auth
+
 from sympose import slack_heartbeat
+from sympose.auth import require_dashboard_auth
+from sympose.vault import VaultManager
 from sympose.workspace import resolve_workspace_dir
 
 log = logging.getLogger(__name__)
@@ -22,6 +23,7 @@ log = logging.getLogger(__name__)
 class NoteWrite(BaseModel):
     """Body of `PUT /api/vault/note` — the dashboard editor saving an *existing*
     note back to the vault verbatim, frontmatter included (ADR-081)."""
+
     path: str = Field(..., min_length=1)
     content: str
     persona: str = "samantha"
@@ -31,14 +33,16 @@ class NoteCreate(BaseModel):
     """Body of `POST /api/vault/note` — create a *new* note at `path` (relative
     to the vault, e.g. `Projects/Idea`). `content` is optional; omitted, the
     backend seeds a frontmatter + title stub (ADR-083)."""
+
     path: str = Field(..., min_length=1)
-    content: Optional[str] = None
+    content: str | None = None
     persona: str = "samantha"
 
 
 class FolderCreate(BaseModel):
     """Body of `POST /api/vault/folder` — create a new *empty* folder at `path`
     (relative to the vault, e.g. `Projects/Archive`) (ADR-095)."""
+
     path: str = Field(..., min_length=1)
     persona: str = "samantha"
 
@@ -47,6 +51,7 @@ class NoteRename(BaseModel):
     """Body of `PATCH /api/vault/note` — rename `path` to `new_path` and rewrite
     every `[[wikilink]]` that referenced it (ADR-084). `new_path` stays in the
     same folder unless it carries a separator."""
+
     path: str = Field(..., min_length=1)
     new_path: str = Field(..., min_length=1)
     persona: str = "samantha"
@@ -56,6 +61,7 @@ class TrashRestore(BaseModel):
     """Body of `POST /api/vault/trash/restore` — move the trashed note at
     `path` (a `.trash`-relative path from `GET /api/vault/trash`) back to where
     it was deleted from (ADR-085)."""
+
     path: str = Field(..., min_length=1)
     persona: str = "samantha"
 
@@ -63,10 +69,11 @@ class TrashRestore(BaseModel):
 class TrashEmpty(BaseModel):
     """Body of `POST /api/vault/trash/empty` — permanently delete every in-scope
     trashed note (ADR-085)."""
+
     persona: str = "samantha"
 
 
-def create_app(engine: Any, workspace_dir: Optional[str] = None) -> FastAPI:
+def create_app(engine: Any, workspace_dir: str | None = None) -> FastAPI:
     """Factory creating the FastAPI application bound to a PersonaEngine instance.
     Every route (including `/`, `/docs`, and the vault/config API) sits behind the
     ADR-064.1 password guard — call `ensure_dashboard_password()` before this so
@@ -85,7 +92,11 @@ def create_app(engine: Any, workspace_dir: Optional[str] = None) -> FastAPI:
 
     # Restrict allowed origins via env var; defaults to localhost-only for safety
     allowed_origins = [
-        o.strip() for o in os.getenv("ALLOWED_ORIGINS", "http://localhost:3000,http://localhost:5173,http://localhost:8080").split(",")
+        o.strip()
+        for o in os.getenv(
+            "ALLOWED_ORIGINS",
+            "http://localhost:3000,http://localhost:5173,http://localhost:8080",
+        ).split(",")
         if o.strip()
     ]
     app.add_middleware(
@@ -97,7 +108,7 @@ def create_app(engine: Any, workspace_dir: Optional[str] = None) -> FastAPI:
     )
 
     @app.get("/health", tags=["System"])
-    def health_check() -> Dict[str, Any]:
+    def health_check() -> dict[str, Any]:
         return {
             "status": "healthy",
             "version": "0.2.26",
@@ -106,7 +117,7 @@ def create_app(engine: Any, workspace_dir: Optional[str] = None) -> FastAPI:
         }
 
     @app.get("/api/personas")
-    def list_personas() -> Dict[str, Any]:
+    def list_personas() -> dict[str, Any]:
         """Roster for the dashboard agent picker — a trimmed projection of each
         profile (never the raw manifest: no `soul_file` / `memory_file` paths,
         no `thinking_phrases`)."""
@@ -127,11 +138,11 @@ def create_app(engine: Any, workspace_dir: Optional[str] = None) -> FastAPI:
         }
 
     @app.get("/api/config")
-    def get_config() -> Dict[str, Any]:
+    def get_config() -> dict[str, Any]:
         return {"config": engine.config.data}
 
     @app.get("/api/slack/status")
-    def slack_status() -> Dict[str, Any]:
+    def slack_status() -> dict[str, Any]:
         """Liveness of the `sympose --slack` daemon, read from its workspace
         heartbeat file (ADR-082): `state` is `connected` / `stale` / `offline`,
         with `last_seen` and the live persona handles. Read-only — the dashboard
@@ -141,8 +152,10 @@ def create_app(engine: Any, workspace_dir: Optional[str] = None) -> FastAPI:
     @app.get("/api/vault/backlinks")
     def get_backlinks(
         note: str = Query(..., description="Target note name or wikilink stem"),
-        persona: Optional[str] = Query("samantha", description="Persona handle for sandbox scoping")
-    ) -> Dict[str, Any]:
+        persona: str | None = Query(
+            "samantha", description="Persona handle for sandbox scoping"
+        ),
+    ) -> dict[str, Any]:
         profile = engine.pm.get_profile(persona) or engine.pm.get_profile("samantha")
         backlinks = VaultManager.get_backlinks(profile, note)
         digest = VaultManager.get_backlinks_digest(profile, note)
@@ -154,15 +167,17 @@ def create_app(engine: Any, workspace_dir: Optional[str] = None) -> FastAPI:
         }
 
     @app.get("/api/vault/graph")
-    def get_vault_graph() -> Dict[str, Any]:
+    def get_vault_graph() -> dict[str, Any]:
         """Whole-vault knowledge graph (ADR-078) for the dashboard nebula:
         `{nodes: [{id, label, folder, tags, val, exists}], links: [{source, target}]}`."""
         return VaultManager.get_vault_graph()
 
     @app.get("/api/vault/tree")
     def get_vault_tree(
-        persona: Optional[str] = Query("samantha", description="Persona handle for sandbox scoping")
-    ) -> Dict[str, Any]:
+        persona: str | None = Query(
+            "samantha", description="Persona handle for sandbox scoping"
+        ),
+    ) -> dict[str, Any]:
         """Nested `VaultNode` directory tree (ADR-078 manifest projection) for
         the dashboard browser, scoped to the persona's allowed vault folders."""
         profile = engine.pm.get_profile(persona) or engine.pm.get_profile("samantha")
@@ -175,8 +190,10 @@ def create_app(engine: Any, workspace_dir: Optional[str] = None) -> FastAPI:
     @app.get("/api/vault/search")
     def search_vault(
         q: str = Query(..., min_length=1, description="Search query"),
-        persona: Optional[str] = Query("samantha", description="Persona handle for sandbox scoping"),
-    ) -> Dict[str, Any]:
+        persona: str | None = Query(
+            "samantha", description="Persona handle for sandbox scoping"
+        ),
+    ) -> dict[str, Any]:
         """Full-text vault search (ADR-057 structured results — title + content
         matches with snippets) for the dashboard search field's content tier,
         behind the tree's instant client-side name/tag/link filter. Whole-vault
@@ -188,8 +205,12 @@ def create_app(engine: Any, workspace_dir: Optional[str] = None) -> FastAPI:
 
     @app.get("/api/vault/asset")
     def get_vault_asset(
-        path: str = Query(..., description="Relative path of the vault asset (image, etc.)"),
-        persona: Optional[str] = Query("samantha", description="Persona handle for sandbox scoping")
+        path: str = Query(
+            ..., description="Relative path of the vault asset (image, etc.)"
+        ),
+        persona: str | None = Query(
+            "samantha", description="Persona handle for sandbox scoping"
+        ),
     ) -> FileResponse:
         """Raw file bytes for one vault asset — backs stylo's `![[ref]]` image
         embeds (the `embedSource` prop), scoped to the persona's allowed vault
@@ -197,14 +218,17 @@ def create_app(engine: Any, workspace_dir: Optional[str] = None) -> FastAPI:
         profile = engine.pm.get_profile(persona) or engine.pm.get_profile("samantha")
         resolved = VaultManager.resolve_asset_path(profile, path)
         if not resolved:
-            raise HTTPException(status_code=404, detail=f"Asset `{path}` not found in allowed vault folders.")
+            raise HTTPException(
+                status_code=404,
+                detail=f"Asset `{path}` not found in allowed vault folders.",
+            )
         return FileResponse(resolved)
 
     @app.get("/api/vault/note")
     def read_note(
         path: str = Query(..., description="Relative path of note"),
-        persona: Optional[str] = Query("samantha")
-    ) -> Dict[str, Any]:
+        persona: str | None = Query("samantha"),
+    ) -> dict[str, Any]:
         profile = engine.pm.get_profile(persona) or engine.pm.get_profile("samantha")
         content = VaultManager.read_note(profile, path)
         if content.startswith("Note `") and "not found" in content:
@@ -212,80 +236,121 @@ def create_app(engine: Any, workspace_dir: Optional[str] = None) -> FastAPI:
         return {"path": path, "content": content}
 
     @app.put("/api/vault/note")
-    def write_note(body: NoteWrite) -> Dict[str, Any]:
+    def write_note(body: NoteWrite) -> dict[str, Any]:
         """Save the dashboard editor's contents back to an existing vault note.
         404 when the note doesn't exist (no create), 403 when the path resolves
         outside the persona's sandbox."""
-        profile = engine.pm.get_profile(body.persona) or engine.pm.get_profile("samantha")
+        profile = engine.pm.get_profile(body.persona) or engine.pm.get_profile(
+            "samantha"
+        )
         result = VaultManager.overwrite_note(profile, body.path, body.content)
         if result == VaultManager.NOTE_NOT_FOUND:
-            raise HTTPException(status_code=404, detail=f"Note `{body.path}` not found in allowed vault folders.")
+            raise HTTPException(
+                status_code=404,
+                detail=f"Note `{body.path}` not found in allowed vault folders.",
+            )
         if result == VaultManager.NOTE_DENIED:
-            raise HTTPException(status_code=403, detail=f"Path `{body.path}` is outside the assigned sandbox.")
+            raise HTTPException(
+                status_code=403,
+                detail=f"Path `{body.path}` is outside the assigned sandbox.",
+            )
         if result.startswith("Error:"):
             raise HTTPException(status_code=500, detail=result)
         return {"path": body.path, "detail": result}
 
     @app.post("/api/vault/note", status_code=201)
-    def create_note(body: NoteCreate) -> Dict[str, Any]:
+    def create_note(body: NoteCreate) -> dict[str, Any]:
         """Create a new vault note (ADR-083). 409 if a file already exists at
         that path, 403 if it resolves outside the persona's sandbox."""
-        profile = engine.pm.get_profile(body.persona) or engine.pm.get_profile("samantha")
+        profile = engine.pm.get_profile(body.persona) or engine.pm.get_profile(
+            "samantha"
+        )
         result = VaultManager.create_note(profile, body.path, body.content)
         if result == VaultManager.NOTE_EXISTS:
-            raise HTTPException(status_code=409, detail=f"A note already exists at `{body.path}`.")
+            raise HTTPException(
+                status_code=409, detail=f"A note already exists at `{body.path}`."
+            )
         if result == VaultManager.NOTE_DENIED:
-            raise HTTPException(status_code=403, detail=f"Path `{body.path}` is outside the assigned sandbox.")
+            raise HTTPException(
+                status_code=403,
+                detail=f"Path `{body.path}` is outside the assigned sandbox.",
+            )
         if result.startswith("Error:"):
             raise HTTPException(status_code=500, detail=result)
         return {"path": body.path, "detail": result}
 
     @app.post("/api/vault/folder", status_code=201)
-    def create_folder(body: FolderCreate) -> Dict[str, Any]:
+    def create_folder(body: FolderCreate) -> dict[str, Any]:
         """Create a new empty vault folder (ADR-095). 409 if a file or folder
         already exists at that path, 403 if it resolves outside the persona's
         sandbox."""
-        profile = engine.pm.get_profile(body.persona) or engine.pm.get_profile("samantha")
+        profile = engine.pm.get_profile(body.persona) or engine.pm.get_profile(
+            "samantha"
+        )
         result = VaultManager.create_folder(profile, body.path)
         if result == VaultManager.NOTE_EXISTS:
-            raise HTTPException(status_code=409, detail=f"A file or folder already exists at `{body.path}`.")
+            raise HTTPException(
+                status_code=409,
+                detail=f"A file or folder already exists at `{body.path}`.",
+            )
         if result == VaultManager.NOTE_DENIED:
-            raise HTTPException(status_code=403, detail=f"Path `{body.path}` is outside the assigned sandbox.")
+            raise HTTPException(
+                status_code=403,
+                detail=f"Path `{body.path}` is outside the assigned sandbox.",
+            )
         if result.startswith("Error:"):
             raise HTTPException(status_code=500, detail=result)
         return {"path": body.path, "detail": result}
 
     @app.delete("/api/vault/folder")
     def delete_folder(
-        path: str = Query(..., description="Vault-relative path of the folder to delete"),
-        persona: Optional[str] = Query("samantha"),
-    ) -> Dict[str, Any]:
+        path: str = Query(
+            ..., description="Vault-relative path of the folder to delete"
+        ),
+        persona: str | None = Query("samantha"),
+    ) -> dict[str, Any]:
         """Delete a vault folder (ADR-099): an empty one is removed outright,
         a non-empty one moves to `<vault>/.trash/` like a note (ADR-084). 404
         if it doesn't exist, 403 if it resolves outside the persona's sandbox."""
         profile = engine.pm.get_profile(persona) or engine.pm.get_profile("samantha")
         result = VaultManager.delete_folder(profile, path)
         if result == VaultManager.NOTE_NOT_FOUND:
-            raise HTTPException(status_code=404, detail=f"Folder `{path}` not found in allowed vault folders.")
+            raise HTTPException(
+                status_code=404,
+                detail=f"Folder `{path}` not found in allowed vault folders.",
+            )
         if result == VaultManager.NOTE_DENIED:
-            raise HTTPException(status_code=403, detail=f"Path `{path}` is outside the assigned sandbox.")
+            raise HTTPException(
+                status_code=403,
+                detail=f"Path `{path}` is outside the assigned sandbox.",
+            )
         if result.startswith("Error:"):
             raise HTTPException(status_code=500, detail=result)
         return {"path": path, "detail": result}
 
     @app.patch("/api/vault/note")
-    def rename_note(body: NoteRename) -> Dict[str, Any]:
+    def rename_note(body: NoteRename) -> dict[str, Any]:
         """Rename a note and rewrite the `[[wikilinks]]` that pointed at it
         (ADR-084). 404 if the source is gone, 409 if the target exists, 403
         outside the sandbox."""
-        profile = engine.pm.get_profile(body.persona) or engine.pm.get_profile("samantha")
+        profile = engine.pm.get_profile(body.persona) or engine.pm.get_profile(
+            "samantha"
+        )
         result = VaultManager.rename_note(profile, body.path, body.new_path)
         if result == VaultManager.NOTE_NOT_FOUND:
-            raise HTTPException(status_code=404, detail=f"Note `{body.path}` not found in allowed vault folders.")
+            raise HTTPException(
+                status_code=404,
+                detail=f"Note `{body.path}` not found in allowed vault folders.",
+            )
         if result == VaultManager.NOTE_EXISTS:
-            raise HTTPException(status_code=409, detail=f"A note already exists at `{body.new_path}`.")
+            raise HTTPException(
+                status_code=409, detail=f"A note already exists at `{body.new_path}`."
+            )
         if result == VaultManager.NOTE_DENIED:
-            raise HTTPException(status_code=403, detail=f"Path `{body.new_path}` is outside the assigned sandbox.")
+            raise HTTPException(
+                status_code=403,
+                detail=f"Path `{body.new_path}` is outside the assigned sandbox.",
+            )
         if result.startswith("Error:"):
             raise HTTPException(status_code=500, detail=result)
         return {"path": body.new_path, "detail": result}
@@ -293,24 +358,30 @@ def create_app(engine: Any, workspace_dir: Optional[str] = None) -> FastAPI:
     @app.delete("/api/vault/note")
     def delete_note(
         path: str = Query(..., description="Relative path of the note to delete"),
-        persona: Optional[str] = Query("samantha"),
-    ) -> Dict[str, Any]:
+        persona: str | None = Query("samantha"),
+    ) -> dict[str, Any]:
         """Move a note to `<vault>/.trash/` (ADR-084). 404 if it doesn't exist,
         403 if it resolves outside the persona's sandbox."""
         profile = engine.pm.get_profile(persona) or engine.pm.get_profile("samantha")
         result = VaultManager.delete_note(profile, path)
         if result == VaultManager.NOTE_NOT_FOUND:
-            raise HTTPException(status_code=404, detail=f"Note `{path}` not found in allowed vault folders.")
+            raise HTTPException(
+                status_code=404,
+                detail=f"Note `{path}` not found in allowed vault folders.",
+            )
         if result == VaultManager.NOTE_DENIED:
-            raise HTTPException(status_code=403, detail=f"Path `{path}` is outside the assigned sandbox.")
+            raise HTTPException(
+                status_code=403,
+                detail=f"Path `{path}` is outside the assigned sandbox.",
+            )
         if result.startswith("Error:"):
             raise HTTPException(status_code=500, detail=result)
         return {"path": path, "detail": result}
 
     @app.get("/api/vault/trash")
     def list_trash(
-        persona: Optional[str] = Query("samantha"),
-    ) -> Dict[str, Any]:
+        persona: str | None = Query("samantha"),
+    ) -> dict[str, Any]:
         """Recoverable notes in `<vault>/.trash` (ADR-085), scoped to the
         persona, newest deletion first."""
         profile = engine.pm.get_profile(persona) or engine.pm.get_profile("samantha")
@@ -318,27 +389,38 @@ def create_app(engine: Any, workspace_dir: Optional[str] = None) -> FastAPI:
         return {"count": len(items), "items": items}
 
     @app.post("/api/vault/trash/restore")
-    def restore_trash(body: TrashRestore) -> Dict[str, Any]:
+    def restore_trash(body: TrashRestore) -> dict[str, Any]:
         """Move a trashed note back to its original path (ADR-085). 404 if it's
         not in the trash, 409 if something occupies the original path now, 403
         outside the sandbox."""
-        profile = engine.pm.get_profile(body.persona) or engine.pm.get_profile("samantha")
+        profile = engine.pm.get_profile(body.persona) or engine.pm.get_profile(
+            "samantha"
+        )
         result = VaultManager.restore_from_trash(profile, body.path)
         if result == VaultManager.NOTE_NOT_FOUND:
-            raise HTTPException(status_code=404, detail=f"`{body.path}` is not in the bin.")
+            raise HTTPException(
+                status_code=404, detail=f"`{body.path}` is not in the bin."
+            )
         if result == VaultManager.NOTE_EXISTS:
-            raise HTTPException(status_code=409, detail="A note already exists at the original path.")
+            raise HTTPException(
+                status_code=409, detail="A note already exists at the original path."
+            )
         if result == VaultManager.NOTE_DENIED:
-            raise HTTPException(status_code=403, detail=f"Path `{body.path}` is outside the assigned sandbox.")
+            raise HTTPException(
+                status_code=403,
+                detail=f"Path `{body.path}` is outside the assigned sandbox.",
+            )
         if result.startswith("Error:"):
             raise HTTPException(status_code=500, detail=result)
         return {"path": body.path, "detail": result}
 
     @app.delete("/api/vault/trash")
     def purge_trash(
-        path: str = Query(..., description="`.trash`-relative path of the note to delete forever"),
-        persona: Optional[str] = Query("samantha"),
-    ) -> Dict[str, Any]:
+        path: str = Query(
+            ..., description="`.trash`-relative path of the note to delete forever"
+        ),
+        persona: str | None = Query("samantha"),
+    ) -> dict[str, Any]:
         """Permanently delete one trashed note (ADR-085). 404 if it's not in the
         trash, 403 outside the sandbox."""
         profile = engine.pm.get_profile(persona) or engine.pm.get_profile("samantha")
@@ -346,18 +428,25 @@ def create_app(engine: Any, workspace_dir: Optional[str] = None) -> FastAPI:
         if result == VaultManager.NOTE_NOT_FOUND:
             raise HTTPException(status_code=404, detail=f"`{path}` is not in the bin.")
         if result == VaultManager.NOTE_DENIED:
-            raise HTTPException(status_code=403, detail=f"Path `{path}` is outside the assigned sandbox.")
+            raise HTTPException(
+                status_code=403,
+                detail=f"Path `{path}` is outside the assigned sandbox.",
+            )
         if result.startswith("Error:"):
             raise HTTPException(status_code=500, detail=result)
         return {"path": path, "detail": result}
 
     @app.post("/api/vault/trash/empty")
-    def empty_trash(body: TrashEmpty) -> Dict[str, Any]:
+    def empty_trash(body: TrashEmpty) -> dict[str, Any]:
         """Permanently delete every in-scope trashed note (ADR-085)."""
-        profile = engine.pm.get_profile(body.persona) or engine.pm.get_profile("samantha")
+        profile = engine.pm.get_profile(body.persona) or engine.pm.get_profile(
+            "samantha"
+        )
         result = VaultManager.empty_trash(profile)
         if result == VaultManager.NOTE_DENIED:
-            raise HTTPException(status_code=403, detail="Vault access denied for this persona.")
+            raise HTTPException(
+                status_code=403, detail="Vault access denied for this persona."
+            )
         if result.startswith("Error:"):
             raise HTTPException(status_code=500, detail=result)
         return {"detail": result}
@@ -376,7 +465,10 @@ def create_app(engine: Any, workspace_dir: Optional[str] = None) -> FastAPI:
         os.path.join(_pkg_root, "ui"),
         os.path.join(os.getcwd(), "ui"),
     ]
-    ui_root = next((p for p in ui_candidates if os.path.isfile(os.path.join(p, "index.html"))), None)
+    ui_root = next(
+        (p for p in ui_candidates if os.path.isfile(os.path.join(p, "index.html"))),
+        None,
+    )
     if ui_root:
         log.info("[server] dashboard frontend: %s", ui_root)
     else:
@@ -394,6 +486,7 @@ def create_app(engine: Any, workspace_dir: Optional[str] = None) -> FastAPI:
 
         try:
             from importlib.metadata import version as pkg_version
+
             _version = pkg_version("sympose")
         except Exception:
             _version = "0.2.26"
@@ -462,25 +555,36 @@ def create_app(engine: Any, workspace_dir: Optional[str] = None) -> FastAPI:
     return app
 
 
-def run_server(engine: Any, workspace_dir: str, host: str = "127.0.0.1", port: int = 8000, tls: bool = True) -> None:
+def run_server(
+    engine: Any,
+    workspace_dir: str,
+    host: str = "127.0.0.1",
+    port: int = 8000,
+    tls: bool = True,
+) -> None:
     """Launches the Uvicorn ASGI server hosting the Sympose Dashboard API.
     Generates/loads the ADR-064.1 dashboard password and, unless `tls=False` or
     `cryptography` isn't installed, the ADR-064.2 self-signed certificate,
     before the app (and its global auth dependency) is constructed."""
     import uvicorn
-    from sympose.auth import ensure_dashboard_password, DASHBOARD_USER
+
+    from sympose.auth import DASHBOARD_USER, ensure_dashboard_password
 
     password = ensure_dashboard_password(workspace_dir)
     app = create_app(engine, workspace_dir=workspace_dir)
 
-    ssl_kwargs: Dict[str, Any] = {}
+    ssl_kwargs: dict[str, Any] = {}
     if tls:
         from sympose.tls import ensure_self_signed_cert
+
         cert_pair = ensure_self_signed_cert(workspace_dir)
         if cert_pair:
             ssl_kwargs = {"ssl_certfile": cert_pair[0], "ssl_keyfile": cert_pair[1]}
 
     scheme = "https" if ssl_kwargs else "http"
     print(f"\nSympose Dashboard running at: {scheme}://{host}:{port}", flush=True)
-    print(f"Login — user: {DASHBOARD_USER}  password: {password}  (see workspace .env)\n", flush=True)
+    print(
+        f"Login — user: {DASHBOARD_USER}  password: {password}  (see workspace .env)\n",
+        flush=True,
+    )
     uvicorn.run(app, host=host, port=port, log_level="info", **ssl_kwargs)

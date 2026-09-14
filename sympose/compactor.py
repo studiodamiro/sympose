@@ -6,19 +6,19 @@ single-flight background-thread primitives shared by memory extraction,
 session titling, and compaction itself.
 """
 
-import os
-import re
 import logging
+import os
 import threading
-from typing import Optional, Dict, Any, Callable, Set
+from collections.abc import Callable
+from typing import Any
+
 import litellm
 
 log = logging.getLogger(__name__)
 
-from sympose.config import config_manager, DEFAULT_WORKER_MODEL
+from sympose.config import DEFAULT_WORKER_MODEL, config_manager
 
-
-_FILE_LOCKS: Dict[str, threading.Lock] = {}
+_FILE_LOCKS: dict[str, threading.Lock] = {}
 _GLOBAL_LOCK = threading.Lock()
 
 
@@ -39,16 +39,19 @@ def get_file_lock(filepath: str) -> threading.Lock:
 # `quit` block on any in-flight background LLM call. This keeps process exit
 # instant while still capping concurrent background calls under load.
 # ---------------------------------------------------------------------------
-_HYGIENE_SEMAPHORE = threading.Semaphore(max(1, int(config_manager.get("performance.hygiene_workers", 2))))
+_HYGIENE_SEMAPHORE = threading.Semaphore(
+    max(1, int(config_manager.get("performance.hygiene_workers", 2)))
+)
 
 # In-flight compaction targets, guarded by _GLOBAL_LOCK — single-flight per file
 # so a burst of turns crossing the compaction threshold before the first pass
 # completes queues at most one compaction run per file, not one per turn.
-_INFLIGHT_COMPACTIONS: Set[str] = set()
+_INFLIGHT_COMPACTIONS: set[str] = set()
 
 
 def run_hygiene_task(target: Callable[..., Any], *args: Any, **kwargs: Any) -> None:
     """Runs a best-effort background hygiene callable on the bounded hygiene pool."""
+
     def _run() -> None:
         with _HYGIENE_SEMAPHORE:
             try:
@@ -70,22 +73,30 @@ class MemoryCompactor:
         try:
             with open(filepath, "r", encoding="utf-8") as f:
                 lines = f.readlines()
-            return sum(1 for l in lines if l.strip().startswith(("- ", "* ")) and not l.strip().startswith(("- ---", "* ---")))
+            return sum(
+                1
+                for line in lines
+                if line.strip().startswith(("- ", "* "))
+                and not line.strip().startswith(("- ---", "* ---"))
+            )
         except Exception:
             return 0
 
     @classmethod
-    def compact_file(cls, filepath: str, is_shared: bool = False, model: Optional[str] = None) -> bool:
+    def compact_file(
+        cls, filepath: str, is_shared: bool = False, model: str | None = None
+    ) -> bool:
         """Executes an LLM distillation pass to clean and deduplicate a memory file."""
         if not filepath or not os.path.exists(filepath):
             return False
 
         lock = get_file_lock(filepath)
         try:
-            with lock:
-                with open(filepath, "r", encoding="utf-8") as f:
-                    content = f.read().strip()
-                    initial_lines = [l.strip() for l in content.split("\n") if l.strip()]
+            with lock, open(filepath, "r", encoding="utf-8") as f:
+                content = f.read().strip()
+                initial_lines = [
+                    line.strip() for line in content.split("\n") if line.strip()
+                ]
         except Exception:
             return False
 
@@ -93,11 +104,17 @@ class MemoryCompactor:
             return False
 
         target_model = model or config_manager.get(
-            "session.exit_behavior.summarization_model",
-            DEFAULT_WORKER_MODEL
+            "session.exit_behavior.summarization_model", DEFAULT_WORKER_MODEL
         )
 
-        title = "Shared Team Working Memory" if is_shared else os.path.splitext(os.path.basename(filepath))[0].replace("_memory", "").title() + " Working Memory"
+        title = (
+            "Shared Team Working Memory"
+            if is_shared
+            else os.path.splitext(os.path.basename(filepath))[0]
+            .replace("_memory", "")
+            .title()
+            + " Working Memory"
+        )
 
         prompt = (
             f"You are the Surgical Memory Compactor for Sympose AI.\n"
@@ -112,35 +129,51 @@ class MemoryCompactor:
         )
 
         try:
-            kwargs: Dict[str, Any] = {
+            kwargs: dict[str, Any] = {
                 "model": target_model,
                 "messages": [{"role": "user", "content": prompt}],
                 "stream": False,
-                "timeout": float(config_manager.get("performance.request_timeout", 30.0)),
+                "timeout": float(
+                    config_manager.get("performance.request_timeout", 30.0)
+                ),
             }
             if target_model.startswith("gemini/") and os.getenv("GEMINI_API_KEY"):
                 kwargs["api_key"] = os.getenv("GEMINI_API_KEY")
-            elif target_model.startswith("anthropic/") and os.getenv("ANTHROPIC_API_KEY"):
+            elif target_model.startswith("anthropic/") and os.getenv(
+                "ANTHROPIC_API_KEY"
+            ):
                 kwargs["api_key"] = os.getenv("ANTHROPIC_API_KEY")
             elif target_model.startswith("openai/") and os.getenv("OPENAI_API_KEY"):
                 kwargs["api_key"] = os.getenv("OPENAI_API_KEY")
-            elif target_model.startswith("openrouter/") and os.getenv("OPENROUTER_API_KEY"):
+            elif target_model.startswith("openrouter/") and os.getenv(
+                "OPENROUTER_API_KEY"
+            ):
                 kwargs["api_key"] = os.getenv("OPENROUTER_API_KEY")
 
             resp = litellm.completion(**kwargs)
             distilled = (resp.choices[0].message.content or "").strip()
 
-            if distilled and ("#" in distilled or "- " in distilled) and len(distilled) > 20:
+            if (
+                distilled
+                and ("#" in distilled or "- " in distilled)
+                and len(distilled) > 20
+            ):
                 with lock:
                     # Reconcile any lines appended while LLM was processing
                     try:
                         with open(filepath, "r", encoding="utf-8") as f:
                             current_content = f.read().strip()
-                            current_lines = [l.strip() for l in current_content.split("\n") if l.strip()]
+                            current_lines = [
+                                line.strip()
+                                for line in current_content.split("\n")
+                                if line.strip()
+                            ]
                     except Exception:
                         current_lines = []
 
-                    appended_lines = [l for l in current_lines if l not in initial_lines]
+                    appended_lines = [
+                        line for line in current_lines if line not in initial_lines
+                    ]
                     final_text = distilled.rstrip() + "\n"
                     if appended_lines:
                         final_text += "\n" + "\n".join(appended_lines) + "\n"
@@ -154,7 +187,9 @@ class MemoryCompactor:
         return False
 
     @classmethod
-    def check_and_compact_async(cls, filepath: str, is_shared: bool = False, threshold: Optional[int] = None) -> None:
+    def check_and_compact_async(
+        cls, filepath: str, is_shared: bool = False, threshold: int | None = None
+    ) -> None:
         """Checks if line count exceeds threshold and runs compaction on the shared
         hygiene pool — single-flight per file, so repeated turns crossing the
         threshold before the first pass completes don't each queue their own run."""

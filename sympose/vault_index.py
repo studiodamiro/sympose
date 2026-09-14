@@ -20,17 +20,18 @@ degrades to "index unusable" so callers fall back to `direct` with no
 visible error.
 """
 
+import hashlib
+import logging
 import os
 import re
 import sqlite3
-import hashlib
-import logging
-from typing import Any, Callable, Dict, List, Optional
+from collections.abc import Callable
+from typing import Any
 
 log = logging.getLogger(__name__)
 
 # db_path -> whether CREATE VIRTUAL TABLE succeeded on this Python's sqlite3
-_FTS5_OK: Dict[str, bool] = {}
+_FTS5_OK: dict[str, bool] = {}
 
 
 def index_path(workspace_dir: str, mv: str) -> str:
@@ -40,7 +41,7 @@ def index_path(workspace_dir: str, mv: str) -> str:
     return os.path.join(index_dir, f"{digest}.sqlite3")
 
 
-def _connect(db_path: str) -> Optional[sqlite3.Connection]:
+def _connect(db_path: str) -> sqlite3.Connection | None:
     """Opens the index db, creating its FTS5 table on first use. Never raises —
     returns None if this Python's sqlite3 lacks the FTS5 extension."""
     if _FTS5_OK.get(db_path) is False:
@@ -51,26 +52,30 @@ def _connect(db_path: str) -> Optional[sqlite3.Connection]:
         conn.execute(
             "CREATE VIRTUAL TABLE IF NOT EXISTS notes USING fts5("
             "rel_path UNINDEXED, file_name, title, body, tags, "
-            "tokenize=\"porter unicode61\")"
+            'tokenize="porter unicode61")'
         )
-        conn.execute("CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT)")
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT)"
+        )
         conn.commit()
         _FTS5_OK[db_path] = True
         return conn
     except sqlite3.OperationalError:
         _FTS5_OK[db_path] = False
-        log.warning("[vault_index] sqlite3 FTS5 extension unavailable; `vault.search_mode: sqlite_fts` will fall back to `direct`.")
+        log.warning(
+            "[vault_index] sqlite3 FTS5 extension unavailable; `vault.search_mode: sqlite_fts` will fall back to `direct`."
+        )
         return None
     except Exception:
         log.debug("[vault_index] failed to open index db %s", db_path, exc_info=True)
         return None
 
 
-def _title_of(meta: Dict[str, Any], file_name: str) -> str:
+def _title_of(meta: dict[str, Any], file_name: str) -> str:
     return str(meta.get("title") or meta.get("name") or os.path.splitext(file_name)[0])
 
 
-def _tags_of(meta: Dict[str, Any]) -> str:
+def _tags_of(meta: dict[str, Any]) -> str:
     tags = meta.get("tags", [])
     if isinstance(tags, str):
         return tags
@@ -79,7 +84,14 @@ def _tags_of(meta: Dict[str, Any]) -> str:
     return ""
 
 
-def upsert_note(workspace_dir: str, mv: str, rel_path: str, file_name: str, meta: Dict[str, Any], body: str) -> None:
+def upsert_note(
+    workspace_dir: str,
+    mv: str,
+    rel_path: str,
+    file_name: str,
+    meta: dict[str, Any],
+    body: str,
+) -> None:
     """Single-row insert/replace, called right after a Sympose-driven write so
     the note is searchable on the very next query. Best-effort: never raises."""
     conn = _connect(index_path(workspace_dir, mv))
@@ -114,7 +126,9 @@ def remove_note(workspace_dir: str, mv: str, rel_path: str) -> None:
         conn.close()
 
 
-def ensure_fresh(workspace_dir: str, mv: str, snapshot_provider: Callable[[], List[Dict[str, Any]]]) -> bool:
+def ensure_fresh(
+    workspace_dir: str, mv: str, snapshot_provider: Callable[[], list[dict[str, Any]]]
+) -> bool:
     """Full rebuild if the tracked mtime watermark drifted since the last
     rebuild. `snapshot_provider()` returns VaultManager._get_vault_snapshot's
     flat note list — the caller already knows how to walk the vault; this
@@ -127,7 +141,8 @@ def ensure_fresh(workspace_dir: str, mv: str, snapshot_provider: Callable[[], Li
 
     try:
         watched = [mv] + [
-            os.path.join(mv, d) for d in os.listdir(mv)
+            os.path.join(mv, d)
+            for d in os.listdir(mv)
             if os.path.isdir(os.path.join(mv, d)) and not d.startswith(".")
         ]
     except OSError:
@@ -150,7 +165,13 @@ def ensure_fresh(workspace_dir: str, mv: str, snapshot_provider: Callable[[], Li
         conn.executemany(
             "INSERT INTO notes (rel_path, file_name, title, body, tags) VALUES (?, ?, ?, ?, ?)",
             [
-                (e["rel_path"], e["file_name"], _title_of(e["meta"], e["file_name"]), e["body"], _tags_of(e["meta"]))
+                (
+                    e["rel_path"],
+                    e["file_name"],
+                    _title_of(e["meta"], e["file_name"]),
+                    e["body"],
+                    _tags_of(e["meta"]),
+                )
                 for e in snapshot
             ],
         )
@@ -168,7 +189,13 @@ def ensure_fresh(workspace_dir: str, mv: str, snapshot_provider: Callable[[], Li
         conn.close()
 
 
-def query(workspace_dir: str, mv: str, query_text: str, scope_dirs: List[str], max_results: int) -> Optional[List[Dict[str, Any]]]:
+def query(
+    workspace_dir: str,
+    mv: str,
+    query_text: str,
+    scope_dirs: list[str],
+    max_results: int,
+) -> list[dict[str, Any]] | None:
     """BM25-ranked full-text search, prefix-matched per query token, title
     weighted above body. Each hit is classified `title` / `tag` / `content`
     by where the raw query substring actually lands (file name + path, tags,
@@ -203,10 +230,11 @@ def query(workspace_dir: str, mv: str, query_text: str, scope_dirs: List[str], m
     finally:
         conn.close()
 
-    results: List[Dict[str, Any]] = []
+    results: list[dict[str, Any]] = []
     for rel_path, file_name, title, tags, body_snip in rows:
         if not full_vault_access and not any(
-            rel_path == p or rel_path.startswith(p.rstrip("/") + "/") for p in rel_prefixes
+            rel_path == p or rel_path.startswith(p.rstrip("/") + "/")
+            for p in rel_prefixes
         ):
             continue
         tag_list = tags.split() if tags else []
@@ -220,14 +248,16 @@ def query(workspace_dir: str, mv: str, query_text: str, scope_dirs: List[str], m
             match_type, snippet = "tag", " ".join(f"#{t}" for t in matched_tags)
         else:
             match_type, snippet = "content", (body_snip or "").strip() or "Match found"
-        results.append({
-            "file_name": file_name,
-            "rel_path": rel_path,
-            "title": title,
-            "match_type": match_type,
-            "snippet": snippet,
-            "tags": tag_list,
-        })
+        results.append(
+            {
+                "file_name": file_name,
+                "rel_path": rel_path,
+                "title": title,
+                "match_type": match_type,
+                "snippet": snippet,
+                "tags": tag_list,
+            }
+        )
         if len(results) >= max_results:
             break
     return results

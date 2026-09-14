@@ -3,17 +3,23 @@ Model Discovery and OpenRouter Catalog Manager for Sympose.
 Provides fast local caching, catalog search, and dynamic tab-completion candidates.
 """
 
-import os
 import json
+import logging
+import os
 import time
 import urllib.request
-from typing import List, Dict, Any, Optional
+from typing import Any, ClassVar
+
+log = logging.getLogger(__name__)
+
 
 def get_cache_file() -> str:
     from sympose.bootstrap import resolve_workspace_dir
+
     ws = resolve_workspace_dir()
     os.makedirs(ws, exist_ok=True)
     return os.path.join(ws, ".models_cache.json")
+
 
 CACHE_TTL_SECONDS = 86400  # 24 hours
 
@@ -21,16 +27,41 @@ CACHE_TTL_SECONDS = 86400  # 24 hours
 class ModelCatalog:
     """Manages cached model discovery from OpenRouter and local presets."""
 
-    DEFAULT_RECOMMENDATIONS = [
-        {"id": "anthropic/claude-sonnet-4.5", "name": "Claude Sonnet 4.5", "context_length": 1_000_000, "desc": "Surgical coding & architecture"},
-        {"id": "~anthropic/claude-sonnet-latest", "name": "Claude Sonnet (Latest)", "context_length": 1_000_000, "desc": "Auto-tracking latest Sonnet"},
-        {"id": "deepseek/deepseek-v4-pro", "name": "DeepSeek V4 Pro", "context_length": 1_000_000, "desc": "Deep reasoning & fullstack"},
-        {"id": "google/gemini-3.7-flash", "name": "Gemini 3.7 Flash", "context_length": 1_000_000, "desc": "Fast multimodal agentic worker"},
-        {"id": "qwen/qwen3.8-27b", "name": "Qwen 3.8 27B", "context_length": 1_000_000, "desc": "High-density coding & tool calling"},
+    DEFAULT_RECOMMENDATIONS: ClassVar[list[dict[str, Any]]] = [
+        {
+            "id": "anthropic/claude-sonnet-4.5",
+            "name": "Claude Sonnet 4.5",
+            "context_length": 1_000_000,
+            "desc": "Surgical coding & architecture",
+        },
+        {
+            "id": "~anthropic/claude-sonnet-latest",
+            "name": "Claude Sonnet (Latest)",
+            "context_length": 1_000_000,
+            "desc": "Auto-tracking latest Sonnet",
+        },
+        {
+            "id": "deepseek/deepseek-v4-pro",
+            "name": "DeepSeek V4 Pro",
+            "context_length": 1_000_000,
+            "desc": "Deep reasoning & fullstack",
+        },
+        {
+            "id": "google/gemini-3.7-flash",
+            "name": "Gemini 3.7 Flash",
+            "context_length": 1_000_000,
+            "desc": "Fast multimodal agentic worker",
+        },
+        {
+            "id": "qwen/qwen3.8-27b",
+            "name": "Qwen 3.8 27B",
+            "context_length": 1_000_000,
+            "desc": "High-density coding & tool calling",
+        },
     ]
 
     @classmethod
-    def get_cached_models(cls, force_refresh: bool = False) -> List[Dict[str, Any]]:
+    def get_cached_models(cls, force_refresh: bool = False) -> list[dict[str, Any]]:
         """Loads models from local cache, or fetches from OpenRouter if expired/forced."""
         now = time.time()
         existing_cached_models = []
@@ -41,10 +72,14 @@ class ModelCatalog:
                 with open(cache_file, "r", encoding="utf-8") as f:
                     cached = json.load(f)
                 existing_cached_models = cached.get("models", [])
-                if not force_refresh and now - cached.get("timestamp", 0) < CACHE_TTL_SECONDS and existing_cached_models:
+                if (
+                    not force_refresh
+                    and now - cached.get("timestamp", 0) < CACHE_TTL_SECONDS
+                    and existing_cached_models
+                ):
                     return existing_cached_models
-            except Exception:
-                pass
+            except Exception as e:
+                log.debug("Failed to read model catalog cache %s: %s", cache_file, e)
 
         # Fetch fresh catalog if API key exists or public API is accessible
         fetched = cls.fetch_openrouter_catalog()
@@ -52,8 +87,8 @@ class ModelCatalog:
             try:
                 with open(cache_file, "w", encoding="utf-8") as f:
                     json.dump({"timestamp": now, "models": fetched}, f)
-            except Exception:
-                pass
+            except Exception as e:
+                log.debug("Failed to write model catalog cache %s: %s", cache_file, e)
             return fetched
 
         # Graceful fallback: return existing cached models (even if expired) or the
@@ -61,38 +96,46 @@ class ModelCatalog:
         return existing_cached_models or list(cls.DEFAULT_RECOMMENDATIONS)
 
     @classmethod
-    def fetch_openrouter_catalog(cls) -> List[Dict[str, Any]]:
+    def fetch_openrouter_catalog(cls) -> list[dict[str, Any]]:
         """Fetches the live model catalog from OpenRouter with a short timeout."""
         api_key = os.getenv("OPENROUTER_API_KEY")
         headers = {"User-Agent": "Sympose-CLI"}
         if api_key:
             headers["Authorization"] = f"Bearer {api_key}"
 
-        req = urllib.request.Request("https://openrouter.ai/api/v1/models", headers=headers)
+        req = urllib.request.Request(
+            "https://openrouter.ai/api/v1/models", headers=headers
+        )
         try:
             with urllib.request.urlopen(req, timeout=3.5) as resp:
                 data = json.loads(resp.read().decode("utf-8"))
                 models_raw = data.get("data", [])
                 catalog = []
                 for m in models_raw:
-                    catalog.append({
-                        "id": m.get("id", ""),
-                        "name": m.get("name", m.get("id", "")),
-                        "context_length": m.get("context_length", 0),
-                        "description": (m.get("description") or "")[:120],
-                    })
+                    catalog.append(
+                        {
+                            "id": m.get("id", ""),
+                            "name": m.get("name", m.get("id", "")),
+                            "context_length": m.get("context_length", 0),
+                            "description": (m.get("description") or "")[:120],
+                        }
+                    )
                 return catalog
         except Exception:
             return []
 
     @classmethod
-    def search_models(cls, query: str, limit: int = 8) -> List[Dict[str, Any]]:
+    def search_models(cls, query: str, limit: int = 8) -> list[dict[str, Any]]:
         """Searches cached OpenRouter catalog by substring query."""
         q = query.lower().strip()
         models = cls.get_cached_models()
         if not models:
             # Fallback to local default recommendations
-            return [m for m in cls.DEFAULT_RECOMMENDATIONS if q in m["id"].lower() or q in m["name"].lower()]
+            return [
+                m
+                for m in cls.DEFAULT_RECOMMENDATIONS
+                if q in m["id"].lower() or q in m["name"].lower()
+            ]
 
         matches = []
         for m in models:
@@ -105,7 +148,7 @@ class ModelCatalog:
         return matches
 
     @classmethod
-    def get_completion_candidates(cls, prefix: str = "") -> List[str]:
+    def get_completion_candidates(cls, prefix: str = "") -> list[str]:
         """Returns model slugs matching the prefix for tab auto-completion."""
         models = cls.get_cached_models()
         candidates = []

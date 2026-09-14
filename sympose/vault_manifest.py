@@ -13,19 +13,31 @@ The pure projection (`build`) and the ADR-078.4 delta core (`_delta_rebuild`)
 live in `vault_manifest_build.py`; this module owns the on-disk lifecycle.
 """
 
-import os, json, time, hashlib, logging, threading
-from typing import Any, Callable, Dict, List, Optional
+import hashlib
+import json
+import logging
+import os
+import threading
+import time
+from collections.abc import Callable
+from typing import Any
 
-from sympose.vault_manifest_build import (  # noqa: F401 — `build` re-exported for callers
-    SCHEMA_VERSION, build, _delta_rebuild, _mtime_of, _node, _stem, _targets_in,
+from sympose.vault_manifest_build import (
+    SCHEMA_VERSION,
+    _delta_rebuild,
+    _mtime_of,
+    _node,
+    _stem,
+    _targets_in,
+    build,
 )
 
 log = logging.getLogger(__name__)
 
 _locks_guard = threading.Lock()
-_locks: Dict[str, threading.Lock] = {}
-_mem_cache: Dict[str, dict] = {}
-_last_check: Dict[str, float] = {}
+_locks: dict[str, threading.Lock] = {}
+_mem_cache: dict[str, dict] = {}
+_last_check: dict[str, float] = {}
 
 
 def _lock_for(path: str) -> threading.Lock:
@@ -43,14 +55,19 @@ def manifest_path(workspace_dir: str, mv: str) -> str:
 def _top_level_watermark(mv: str, ignore: set) -> float:
     dirs = [mv]
     try:
-        dirs += [e.path for e in os.scandir(mv)
-                 if e.is_dir() and not e.name.startswith(".") and e.name.lower() not in ignore]
+        dirs += [
+            e.path
+            for e in os.scandir(mv)
+            if e.is_dir()
+            and not e.name.startswith(".")
+            and e.name.lower() not in ignore
+        ]
     except OSError:
         pass
     return max((_mtime_of(d) for d in dirs), default=0.0)
 
 
-def _load_file(path: str) -> Optional[dict]:
+def _load_file(path: str) -> dict | None:
     try:
         with open(path, "r", encoding="utf-8") as f:
             return json.load(f)
@@ -72,17 +89,22 @@ def _write_atomic(path: str, manifest: dict) -> None:
             pass
 
 
-def load(workspace_dir: str, mv: str) -> Optional[dict]:
+def load(workspace_dir: str, mv: str) -> dict | None:
     """Last-written manifest, no freshness check. None if never built."""
     path = manifest_path(workspace_dir, mv)
     return _mem_cache.get(path) or _load_file(path)
 
 
 def ensure_fresh(
-    workspace_dir: str, mv: str, snapshot_provider: Callable[[], List[Dict[str, Any]]],
-    *, read_notes: Optional[Callable[[List[str]], List[Dict[str, Any]]]] = None,
-    ignore_folders: Optional[List[str]] = None, debounce: float = 2.0, max_nodes: int = 0,
-) -> Optional[dict]:
+    workspace_dir: str,
+    mv: str,
+    snapshot_provider: Callable[[], list[dict[str, Any]]],
+    *,
+    read_notes: Callable[[list[str]], list[dict[str, Any]]] | None = None,
+    ignore_folders: list[str] | None = None,
+    debounce: float = 2.0,
+    max_nodes: int = 0,
+) -> dict | None:
     """The manifest, refreshed only on top-level mtime drift. With a prior
     manifest and a `read_notes` reader, the refresh is an ADR-078.4 delta — a
     stat-only walk plus a re-parse of just the changed notes; otherwise a full
@@ -92,7 +114,11 @@ def ensure_fresh(
     now = time.time()
 
     cached = _mem_cache.get(path)
-    if cached is not None and debounce > 0 and (now - _last_check.get(path, 0.0)) < debounce:
+    if (
+        cached is not None
+        and debounce > 0
+        and (now - _last_check.get(path, 0.0)) < debounce
+    ):
         return cached
     _last_check[path] = now
 
@@ -108,13 +134,20 @@ def ensure_fresh(
             _mem_cache[path] = current
             return current
 
-        manifest: Optional[dict] = None
-        if (read_notes is not None and current is not None
-                and current.get("meta", {}).get("schema_version") == SCHEMA_VERSION):
+        manifest: dict | None = None
+        if (
+            read_notes is not None
+            and current is not None
+            and current.get("meta", {}).get("schema_version") == SCHEMA_VERSION
+        ):
             try:
                 manifest = _delta_rebuild(mv, current, ignore, read_notes)
             except Exception:
-                log.debug("[vault_manifest] delta rebuild failed for %s; full rebuild", mv, exc_info=True)
+                log.debug(
+                    "[vault_manifest] delta rebuild failed for %s; full rebuild",
+                    mv,
+                    exc_info=True,
+                )
                 manifest = None
         if manifest is None:
             try:
@@ -132,8 +165,13 @@ def ensure_fresh(
 
 
 def patch_note(
-    workspace_dir: str, mv: str, rel_path: str, meta: Dict[str, Any], full_content: str,
-    *, ignore_folders: Optional[List[str]] = None,
+    workspace_dir: str,
+    mv: str,
+    rel_path: str,
+    meta: dict[str, Any],
+    full_content: str,
+    *,
+    ignore_folders: list[str] | None = None,
 ) -> None:
     """Single-node upsert after a Sympose write, re-stamping the watermark so
     the next `ensure_fresh` skips the walk. No-op until a manifest exists."""
@@ -144,17 +182,35 @@ def patch_note(
         if m is None:
             return
         st = _stem(rel_path)
-        m["nodes"] = [n for n in m["nodes"] if n["id"] != st]  # drop prior real node or ghost
-        m["nodes"].append(_node(rel_path, meta or {}, full_content,
-                                _mtime_of(os.path.join(mv, rel_path), time.time())))
-        m["links"] = [l for l in m["links"] if l["source"] != st]
+        m["nodes"] = [
+            n for n in m["nodes"] if n["id"] != st
+        ]  # drop prior real node or ghost
+        m["nodes"].append(
+            _node(
+                rel_path,
+                meta or {},
+                full_content,
+                _mtime_of(os.path.join(mv, rel_path), time.time()),
+            )
+        )
+        m["links"] = [link for link in m["links"] if link["source"] != st]
         m["links"] += [{"source": st, "target": t} for t in _targets_in(full_content)]
         have = {n["id"] for n in m["nodes"]}
-        for l in m["links"]:
-            if l["target"] not in have:
-                m["nodes"].append({"id": l["target"], "rel_path": "", "folder": "", "tags": [],
-                                   "title": l["target"], "bytes": 0, "mtime": 0.0, "exists": False})
-                have.add(l["target"])
+        for link in m["links"]:
+            if link["target"] not in have:
+                m["nodes"].append(
+                    {
+                        "id": link["target"],
+                        "rel_path": "",
+                        "folder": "",
+                        "tags": [],
+                        "title": link["target"],
+                        "bytes": 0,
+                        "mtime": 0.0,
+                        "exists": False,
+                    }
+                )
+                have.add(link["target"])
         m["meta"]["note_count"] = sum(1 for n in m["nodes"] if n.get("exists"))
         m["meta"]["generated_at"] = time.time()
         m["meta"]["watermark"] = _top_level_watermark(mv, ignore)
@@ -163,8 +219,11 @@ def patch_note(
 
 
 def remove_note(
-    workspace_dir: str, mv: str, rel_path: str,
-    *, ignore_folders: Optional[List[str]] = None,
+    workspace_dir: str,
+    mv: str,
+    rel_path: str,
+    *,
+    ignore_folders: list[str] | None = None,
 ) -> None:
     """Drop a note's node and its outgoing links after the file is deleted or
     renamed away. Incoming links from other notes are left as-is — they resolve
@@ -179,9 +238,11 @@ def remove_note(
             return
         st = _stem(rel_path)
         m["nodes"] = [n for n in m["nodes"] if n["id"] != st]
-        m["links"] = [l for l in m["links"] if l["source"] != st]
+        m["links"] = [link for link in m["links"] if link["source"] != st]
         # keep a bare id only while something still points at it
-        referenced = {l["source"] for l in m["links"]} | {l["target"] for l in m["links"]}
+        referenced = {link["source"] for link in m["links"]} | {
+            link["target"] for link in m["links"]
+        }
         m["nodes"] = [n for n in m["nodes"] if n.get("exists") or n["id"] in referenced]
         m["meta"]["note_count"] = sum(1 for n in m["nodes"] if n.get("exists"))
         m["meta"]["generated_at"] = time.time()

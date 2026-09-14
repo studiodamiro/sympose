@@ -3,10 +3,11 @@ Model Context Protocol (MCP) Server Registry & Manager.
 Auto-discovers server configs from mcp/ directory and master config.yaml.
 """
 
-import os
 import json
 import logging
-from typing import Dict, List, Any, Optional
+import os
+from typing import Any
+
 from sympose.mcp_client import MCPClient
 
 log = logging.getLogger(__name__)
@@ -17,17 +18,17 @@ class MCPRegistry:
 
     def __init__(self, mcp_dir: str = "mcp"):
         self.mcp_dir = mcp_dir
-        self.servers: Dict[str, Dict[str, Any]] = {}
-        self.active_clients: Dict[str, MCPClient] = {}
+        self.servers: dict[str, dict[str, Any]] = {}
+        self.active_clients: dict[str, MCPClient] = {}
         self.auto_discover()
 
     def register_server(
         self,
         name: str,
         command: str,
-        args: Optional[List[str]] = None,
-        env: Optional[Dict[str, str]] = None,
-        cwd: Optional[str] = None,
+        args: list[str] | None = None,
+        env: dict[str, str] | None = None,
+        cwd: str | None = None,
     ) -> None:
         self.servers[name.lower()] = {
             "name": name.lower(),
@@ -64,7 +65,7 @@ class MCPRegistry:
                 except Exception as e:
                     log.warning("Error parsing MCP config [%s]: %s", c, e)
 
-    def load_from_config(self, config_data: Dict[str, Any]) -> None:
+    def load_from_config(self, config_data: dict[str, Any]) -> None:
         """Loads fallback server configurations from sympose config.yaml."""
         mcp_cfg = config_data.get("mcp_servers", {})
         if isinstance(mcp_cfg, dict):
@@ -78,7 +79,7 @@ class MCPRegistry:
                         cwd=s.get("cwd"),
                     )
 
-    def get_client(self, name: str) -> Optional[MCPClient]:
+    def get_client(self, name: str) -> MCPClient | None:
         name_key = name.lower()
         if name_key in self.active_clients:
             client = self.active_clients[name_key]

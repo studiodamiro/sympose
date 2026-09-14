@@ -2,19 +2,21 @@
 Slash Command Interceptor & Natural Intent Parser for Sympose.
 """
 
-import os
-import shutil
-import re
 import logging
-from typing import Any, Dict, Optional, Generator
-from sympose.vault import VaultManager
-from sympose.skills import skill_manager
-from sympose.workers import WorkerEngine, WorkerTask
+import os
+import re
+import shutil
+from collections.abc import Generator
+from typing import Any
+
+from sympose.config import DEFAULT_CHAT_MODEL
 from sympose.mcp import mcp_registry
 from sympose.models import ModelCatalog
 from sympose.sessions import SessionManager
+from sympose.skills import skill_manager
 from sympose.ui import TerminalUI
-from sympose.config import DEFAULT_CHAT_MODEL
+from sympose.vault import VaultManager
+from sympose.workers import WorkerEngine, WorkerTask
 
 log = logging.getLogger(__name__)
 
@@ -23,7 +25,9 @@ class CommandInterceptor:
     """Intercepts tactical slash commands and natural memory capture."""
 
     @staticmethod
-    def intercept(engine: Any, handle: str, clean_input: str) -> Optional[Generator[str, None, None]]:
+    def intercept(
+        engine: Any, handle: str, clean_input: str
+    ) -> Generator[str, None, None] | None:
         """Checks if input matches a slash/exclamation command or natural intent, returning a generator if so."""
         profile = engine.pm.get_profile(handle)
         if not profile:
@@ -34,15 +38,22 @@ class CommandInterceptor:
 
         # 0. Setup & Onboarding Wizard
         if clean_input in ("/setup", "/onboard", "/wizard"):
+
             def _setup():
-                from sympose.bootstrap import resolve_workspace_dir, run_first_run_onboarding
+                from sympose.bootstrap import (
+                    resolve_workspace_dir,
+                    run_first_run_onboarding,
+                )
+
                 workspace_dir = resolve_workspace_dir()
                 run_first_run_onboarding(workspace_dir, force=True)
                 yield "✨ Setup configuration updated."
+
             return _setup()
 
         # 0b. Conversation History & Session Resumption (/history, /sessions)
         if clean_input.startswith(("/history", "/sessions")):
+
             def _history():
                 parts = clean_input.split()
                 subcmd = parts[1].lower() if len(parts) > 1 else "list"
@@ -56,7 +67,15 @@ class CommandInterceptor:
                 if subcmd in ("delete", "remove", "rm") and len(parts) > 2:
                     target_id = parts[2]
                     all_s = SessionManager.list_sessions(limit=50)
-                    match = next((s["session_id"] for s in all_s if s["session_id"].startswith(target_id) or target_id in s["session_id"]), target_id)
+                    match = next(
+                        (
+                            s["session_id"]
+                            for s in all_s
+                            if s["session_id"].startswith(target_id)
+                            or target_id in s["session_id"]
+                        ),
+                        target_id,
+                    )
                     if SessionManager.delete_session(match):
                         yield f"🗑️ Deleted session `{match}`."
                     else:
@@ -66,7 +85,15 @@ class CommandInterceptor:
                 if subcmd in ("view", "show") and len(parts) > 2:
                     target_id = parts[2]
                     all_s = SessionManager.list_sessions(limit=50)
-                    match = next((s["session_id"] for s in all_s if s["session_id"].startswith(target_id) or target_id in s["session_id"]), target_id)
+                    match = next(
+                        (
+                            s["session_id"]
+                            for s in all_s
+                            if s["session_id"].startswith(target_id)
+                            or target_id in s["session_id"]
+                        ),
+                        target_id,
+                    )
                     session = SessionManager.load_session(match)
                     if not session:
                         yield f"⚠️ Session `{target_id}` not found."
@@ -74,14 +101,27 @@ class CommandInterceptor:
                     show_all = "--all" in parts
                     turns = session.get("turns", [])
                     disp_turns = turns if show_all else turns[-6:]
-                    TerminalUI.render_session_resumed(console, session.get("title", ""), session.get("handle", handle), disp_turns)
+                    TerminalUI.render_session_resumed(
+                        console,
+                        session.get("title", ""),
+                        session.get("handle", handle),
+                        disp_turns,
+                    )
                     yield ""
                     return
 
                 if subcmd in ("resume", "load") and len(parts) > 2:
                     target_id = parts[2]
                     all_s = SessionManager.list_sessions(limit=50)
-                    match = next((s["session_id"] for s in all_s if s["session_id"].startswith(target_id) or target_id in s["session_id"]), target_id)
+                    match = next(
+                        (
+                            s["session_id"]
+                            for s in all_s
+                            if s["session_id"].startswith(target_id)
+                            or target_id in s["session_id"]
+                        ),
+                        target_id,
+                    )
                     session = engine.resume_session(handle, match)
                     if not session:
                         yield f"⚠️ Session `{target_id}` not found."
@@ -89,15 +129,24 @@ class CommandInterceptor:
                     turns = session.get("turns", [])
                     k_turns = int(engine.config.get("performance.resume_context_turns"))
                     disp_turns = turns[-k_turns:] if k_turns > 0 else turns
-                    TerminalUI.render_session_resumed(console, session.get("title", ""), session.get("handle", handle), disp_turns)
+                    TerminalUI.render_session_resumed(
+                        console,
+                        session.get("title", ""),
+                        session.get("handle", handle),
+                        disp_turns,
+                    )
                     yield ""
                     return
 
                 # Interactive listing: /history, /history list, /history all
-                is_all = (subcmd in ("all", "--all") or (len(parts) > 2 and parts[2] in ("all", "--all")))
+                is_all = subcmd in ("all", "--all") or (
+                    len(parts) > 2 and parts[2] in ("all", "--all")
+                )
                 target_handle = None if is_all else handle
                 active_sid = engine.active_sessions.get(handle.lower())
-                sessions = SessionManager.list_sessions(handle=target_handle, limit=15, active_session_id=active_sid)
+                sessions = SessionManager.list_sessions(
+                    handle=target_handle, limit=15, active_session_id=active_sid
+                )
 
                 if not sessions:
                     yield f"No past conversations found{' for @' + handle if not is_all else ''}."
@@ -108,7 +157,7 @@ class CommandInterceptor:
                     sessions,
                     active_session_id=engine.active_sessions.get(handle.lower()),
                     handle=handle if not is_all else None,
-                    show_handle=is_all
+                    show_handle=is_all,
                 )
 
                 if not chosen_id:
@@ -120,28 +169,47 @@ class CommandInterceptor:
                     turns = session.get("turns", [])
                     k_turns = int(engine.config.get("performance.resume_context_turns"))
                     disp_turns = turns[-k_turns:] if k_turns > 0 else turns
-                    TerminalUI.render_session_resumed(console, session.get("title", ""), session.get("handle", handle), disp_turns)
+                    TerminalUI.render_session_resumed(
+                        console,
+                        session.get("title", ""),
+                        session.get("handle", handle),
+                        disp_turns,
+                    )
                     yield ""
                 else:
                     yield f"⚠️ Could not load session `{chosen_id}`."
+
             return _history()
 
         # 1. Reset / New Session / Delete Conversation
-        if clean_input in ("/reset", "/new") or re.search(r"^(?:please\s+)?(?:delete|clear|reset|wipe|start\s+a\s+new)\s+(?:our\s+|the\s+|this\s+)?(?:chat|conversation|history|session)$", clean_input, re.I):
+        if clean_input in ("/reset", "/new") or re.search(
+            r"^(?:please\s+)?(?:delete|clear|reset|wipe|start\s+a\s+new)\s+(?:our\s+|the\s+|this\s+)?(?:chat|conversation|history|session)$",
+            clean_input,
+            re.IGNORECASE,
+        ):
+
             def _reset():
                 engine.reset_history(handle)
                 yield f"🧹 Conversation history deleted for {profile.get('name', handle)}. Context refreshed."
+
             return _reset()
 
         # 2. Clear Screen & Terminal Session
         if clean_input in ("/clear", "/cls"):
+
             def _clear():
                 engine.reset_history(handle)
                 yield "CLEARED_SESSION"
+
             return _clear()
 
         # 2b. Reset / Wipe Working Memory
-        if clean_input in ("/reset memory", "/clear memory") or re.search(r"^(?:please\s+)?(?:delete|clear|wipe|reset)\s+(?:your\s+|all\s+)?memory$", clean_input, re.I):
+        if clean_input in ("/reset memory", "/clear memory") or re.search(
+            r"^(?:please\s+)?(?:delete|clear|wipe|reset)\s+(?:your\s+|all\s+)?memory$",
+            clean_input,
+            re.IGNORECASE,
+        ):
+
             def _reset_mem():
                 mem_file = profile.get("memory_file", f"profiles/{handle}_memory.md")
                 p_name = profile.get("name", handle)
@@ -149,15 +217,24 @@ class CommandInterceptor:
                 initial_content = f"# {p_name}: Persistent Working Memory\n\n"
                 if os.path.exists(template_file):
                     try:
-                        with open(template_file, "r", encoding="utf-8") as tf: initial_content = tf.read()
-                    except Exception as e: log.debug("[reset memory] failed to read template %s: %s", template_file, e)
-                with open(mem_file, "w", encoding="utf-8") as f: f.write(initial_content)
+                        with open(template_file, "r", encoding="utf-8") as tf:
+                            initial_content = tf.read()
+                    except Exception as e:
+                        log.debug(
+                            "[reset memory] failed to read template %s: %s",
+                            template_file,
+                            e,
+                        )
+                with open(mem_file, "w", encoding="utf-8") as f:
+                    f.write(initial_content)
                 engine.reset_history(handle)
                 yield f"🧠 Persistent working memory and active conversation deleted for {p_name}. Reset to clean template."
+
             return _reset_mem()
 
         # 3. On-Demand Session Save
         if clean_input.startswith("/save"):
+
             def _save():
                 parts = clean_input.split()
                 def_t = engine.config.get("session.exit_behavior.default_target")
@@ -167,18 +244,27 @@ class CommandInterceptor:
                 yield f"Synthesizing and saving session to `{target}`..."
                 res = engine.summarize_session(handle, target=target)
                 if res.get("status") == "success":
-                    saved_str = "\n".join([f"- {s}" for s in res.get("targets_saved", [])])
+                    saved_str = "\n".join(
+                        [f"- {s}" for s in res.get("targets_saved", [])]
+                    )
                     yield f"\n\n**Session Saved Successfully:**\n{saved_str}"
                 else:
                     yield f"\n\n⚠️ {res.get('message', 'Failed to save session.')}"
+
             return _save()
 
         # 4. Master Configuration (/config) — schema-driven (see config_schema.py)
         if clean_input.startswith("/config"):
+
             def _config():
                 from sympose.config_schema import (
-                    SECTIONS, get_setting, global_settings, coerce, validate,
+                    SECTIONS,
+                    coerce,
+                    get_setting,
+                    global_settings,
+                    validate,
                 )
+
                 cfg = engine.config
                 parts = clean_input.split(maxsplit=3)
                 sub = parts[1].lower() if len(parts) > 1 else ""
@@ -192,10 +278,15 @@ class CommandInterceptor:
                         out.append(f"\n### {section}")
                         for s in rows:
                             cur = cfg.get(s.key)
-                            shown = "(chat model)" if s.key.endswith("summarization_model") and not cur else (
-                                "''" if cur == "" else cur)
+                            shown = (
+                                "(chat model)"
+                                if s.key.endswith("summarization_model") and not cur
+                                else ("''" if cur == "" else cur)
+                            )
                             lock = "" if s.live else "  _(restart)_"
-                            out.append(f"- `{s.key}` = `{shown}` — {s.description}{lock}")
+                            out.append(
+                                f"- `{s.key}` = `{shown}` — {s.description}{lock}"
+                            )
                     out.append(
                         "\n### 💡  Tuning\n"
                         "- `/config set <key> <value>` — change a live knob (persisted to disk)\n"
@@ -232,8 +323,10 @@ class CommandInterceptor:
                         yield f"⚠️ Unknown config key `{key}`. Run `/config` to list valid keys."
                         return
                     if s.scope == "persona":
-                        yield (f"⚠️ `{key}` is a **per-persona** setting — use "
-                               f"`/persona set @<handle> {key} <value>`, not `/config`.")
+                        yield (
+                            f"⚠️ `{key}` is a **per-persona** setting — use "
+                            f"`/persona set @<handle> {key} <value>`, not `/config`."
+                        )
                         return
                     try:
                         val = coerce(s, raw_val)
@@ -252,48 +345,73 @@ class CommandInterceptor:
                     yield f"✅ `{key}` = `{val}` — persisted to disk.{restart}"
                     return
 
-                yield ("Usage:\n"
-                       "- `/config` — show all settings\n"
-                       "- `/config get <key>` — inspect one\n"
-                       "- `/config set <key> <value>` — change a live knob")
+                yield (
+                    "Usage:\n"
+                    "- `/config` — show all settings\n"
+                    "- `/config get <key>` — inspect one\n"
+                    "- `/config set <key> <value>` — change a live knob"
+                )
+
             return _config()
 
         # 4a-bis. Per-persona knob editor (/persona)
         if clean_input == "/persona" or clean_input.startswith("/persona "):
+
             def _persona():
                 from sympose.config_schema import persona_settings
+
                 parts = clean_input.split(maxsplit=4)
                 sub = parts[1].lower() if len(parts) > 1 else "show"
 
                 if sub in ("show", "list", ""):
-                    t_handle = parts[2].replace("@", "").lower() if len(parts) > 2 else handle.lower()
+                    t_handle = (
+                        parts[2].replace("@", "").lower()
+                        if len(parts) > 2
+                        else handle.lower()
+                    )
                     prof = engine.pm.get_profile(t_handle)
                     if not prof:
                         yield f"⚠️ Persona `@{t_handle}` not found."
                         return
-                    out = [f"# 🎭  PER-PERSONA KNOBS — {prof.get('name', t_handle)} (`@{t_handle}`)\n"]
+                    out = [
+                        f"# 🎭  PER-PERSONA KNOBS — {prof.get('name', t_handle)} (`@{t_handle}`)\n"
+                    ]
                     for s in persona_settings():
                         cur = prof.get(s.key, s.default)
                         shown = "(inherit)" if cur in (None, "") else cur
-                        allowed = f"  _{', '.join(map(str, s.choices))}_" if s.choices else ""
-                        out.append(f"- `{s.key}` = `{shown}` — {s.description}{allowed}")
-                    out.append(f"\n💡 `/persona set @{t_handle} <key> <value>` — writes `profiles/{t_handle}.yaml`")
+                        allowed = (
+                            f"  _{', '.join(map(str, s.choices))}_" if s.choices else ""
+                        )
+                        out.append(
+                            f"- `{s.key}` = `{shown}` — {s.description}{allowed}"
+                        )
+                    out.append(
+                        f"\n💡 `/persona set @{t_handle} <key> <value>` — writes `profiles/{t_handle}.yaml`"
+                    )
                     yield "\n".join(out)
                     return
 
                 if sub == "set" and len(parts) >= 5:
-                    t_handle, key, raw_val = parts[2].replace("@", "").lower(), parts[3], parts[4]
+                    t_handle, key, raw_val = (
+                        parts[2].replace("@", "").lower(),
+                        parts[3],
+                        parts[4],
+                    )
                     ok, msg = engine.pm.set_persona_field(t_handle, key, raw_val)
                     yield f"✅ {msg}" if ok else f"⚠️ {msg}"
                     return
 
-                yield ("Usage:\n"
-                       "- `/persona show [@handle]` — list a persona's knobs\n"
-                       "- `/persona set @handle <key> <value>` — change one (e.g. `/persona set @sam temperature 0.6`)")
+                yield (
+                    "Usage:\n"
+                    "- `/persona show [@handle]` — list a persona's knobs\n"
+                    "- `/persona set @handle <key> <value>` — change one (e.g. `/persona set @sam temperature 0.6`)"
+                )
+
             return _persona()
 
         # 4b. Render Mode Switcher (/render)
         if clean_input == "/render" or clean_input.startswith("/render "):
+
             def _render():
                 parts = clean_input.split()
                 sub = parts[1].lower() if len(parts) > 1 else ""
@@ -311,9 +429,16 @@ class CommandInterceptor:
                     return
 
                 mode_map = {
-                    "1": "hybrid", "hybrid": "hybrid", "smart": "hybrid",
-                    "2": "buffered", "buffered": "buffered", "full": "buffered", "markdown": "buffered",
-                    "3": "raw", "raw": "raw", "plain": "raw"
+                    "1": "hybrid",
+                    "hybrid": "hybrid",
+                    "smart": "hybrid",
+                    "2": "buffered",
+                    "buffered": "buffered",
+                    "full": "buffered",
+                    "markdown": "buffered",
+                    "3": "raw",
+                    "raw": "raw",
+                    "plain": "raw",
                 }
                 if sub in mode_map:
                     target_mode = mode_map[sub]
@@ -322,10 +447,12 @@ class CommandInterceptor:
                     yield f"✅ Terminal render mode updated to **`{target_mode}`** (persisted to config.yaml)."
                 else:
                     yield "⚠️ Invalid render mode. Available options: `hybrid`, `buffered`, `raw`."
+
             return _render()
 
         # 5. Explicit /remember
         if clean_input.startswith("/remember "):
+
             def _rem():
                 fact = clean_input[10:].strip()
                 if not fact:
@@ -335,17 +462,26 @@ class CommandInterceptor:
                     yield f"Saved to {profile.get('name', handle)}'s memory:\n> {fact}"
                 else:
                     yield f"Error: Failed to save memory to {profile.get('name', handle)}."
+
             return _rem()
 
         # 5b. Memory Compactor (/compact)
         if clean_input == "/compact" or clean_input.startswith("/compact "):
+
             def _compact():
                 parts = clean_input.split()
-                target_arg = parts[1].lower().replace("@", "") if len(parts) > 1 else handle.lower()
+                target_arg = (
+                    parts[1].lower().replace("@", "")
+                    if len(parts) > 1
+                    else handle.lower()
+                )
                 from sympose.compactor import MemoryCompactor
 
                 if target_arg in ("shared", "all", "team"):
-                    shared_file = os.path.join(getattr(engine.pm, "profiles_dir", "profiles"), "_shared_memory.md")
+                    shared_file = os.path.join(
+                        getattr(engine.pm, "profiles_dir", "profiles"),
+                        "_shared_memory.md",
+                    )
                     before_count = MemoryCompactor.count_bullet_lines(shared_file)
                     yield f"🧹 **Compacting Shared Team Working Memory** (`{shared_file}`, {before_count} entries)..."
                     ok = MemoryCompactor.compact_file(shared_file, is_shared=True)
@@ -353,13 +489,15 @@ class CommandInterceptor:
                         after_count = MemoryCompactor.count_bullet_lines(shared_file)
                         yield f"\n\n✅ **Compaction Complete:** Shared memory consolidated from {before_count} to {after_count} high-density bullets."
                     else:
-                        yield f"\n\n⚠️ Compaction failed or memory file is empty."
+                        yield "\n\n⚠️ Compaction failed or memory file is empty."
                 else:
                     t_prof = engine.pm.get_profile(target_arg)
                     if not t_prof:
                         yield f"⚠️ Persona `@{target_arg}` not found. Usage: `/compact` or `/compact shared`."
                         return
-                    mem_file = t_prof.get("memory_file", f"profiles/{target_arg}_memory.md")
+                    mem_file = t_prof.get(
+                        "memory_file", f"profiles/{target_arg}_memory.md"
+                    )
                     before_count = MemoryCompactor.count_bullet_lines(mem_file)
                     p_name = t_prof.get("name", target_arg)
                     yield f"🧹 **Compacting {p_name}'s Working Memory** (`{mem_file}`, {before_count} entries)..."
@@ -368,11 +506,13 @@ class CommandInterceptor:
                         after_count = MemoryCompactor.count_bullet_lines(mem_file)
                         yield f"\n\n✅ **Compaction Complete:** {p_name}'s memory consolidated from {before_count} to {after_count} high-density bullets."
                     else:
-                        yield f"\n\n⚠️ Compaction failed or memory file is empty."
+                        yield "\n\n⚠️ Compaction failed or memory file is empty."
+
             return _compact()
 
         # 6. Model & Vault Handlers
         if clean_input == "/model" or clean_input.startswith("/model "):
+
             def _model():
                 parts = clean_input.split(maxsplit=1)
                 sub = parts[1].strip() if len(parts) > 1 else ""
@@ -382,12 +522,32 @@ class CommandInterceptor:
                 current_model = active_override or default_model
 
                 if not sub or sub_lower in ("list", "help", "status", "ls"):
-                    or_key = "✅ Configured" if os.getenv("OPENROUTER_API_KEY") else "❌ Missing (add OPENROUTER_API_KEY to .env)"
-                    gem_key = "✅ Configured" if os.getenv("GEMINI_API_KEY") else "❌ Missing (add GEMINI_API_KEY to .env)"
-                    ant_key = "✅ Configured" if os.getenv("ANTHROPIC_API_KEY") else "❌ Missing (add ANTHROPIC_API_KEY to .env)"
-                    oai_key = "✅ Configured" if os.getenv("OPENAI_API_KEY") else "❌ Missing (add OPENAI_API_KEY to .env)"
+                    or_key = (
+                        "✅ Configured"
+                        if os.getenv("OPENROUTER_API_KEY")
+                        else "❌ Missing (add OPENROUTER_API_KEY to .env)"
+                    )
+                    gem_key = (
+                        "✅ Configured"
+                        if os.getenv("GEMINI_API_KEY")
+                        else "❌ Missing (add GEMINI_API_KEY to .env)"
+                    )
+                    ant_key = (
+                        "✅ Configured"
+                        if os.getenv("ANTHROPIC_API_KEY")
+                        else "❌ Missing (add ANTHROPIC_API_KEY to .env)"
+                    )
+                    oai_key = (
+                        "✅ Configured"
+                        if os.getenv("OPENAI_API_KEY")
+                        else "❌ Missing (add OPENAI_API_KEY to .env)"
+                    )
 
-                    state_tag = f"`{current_model}` (Live Session Override)" if active_override else f"`{current_model}` (Profile Default)"
+                    state_tag = (
+                        f"`{current_model}` (Live Session Override)"
+                        if active_override
+                        else f"`{current_model}` (Profile Default)"
+                    )
 
                     lines = [
                         "# 🤖  MODEL & PROVIDER CONFIGURATION\n",
@@ -419,7 +579,9 @@ class CommandInterceptor:
                     ]
                     yield "\n".join(lines)
                 elif sub_lower.startswith(("find ", "search ")):
-                    query = sub.split(maxsplit=1)[1].strip() if len(sub.split()) > 1 else ""
+                    query = (
+                        sub.split(maxsplit=1)[1].strip() if len(sub.split()) > 1 else ""
+                    )
                     if not query:
                         yield "Usage: `/model find <keyword>` (e.g. `/model find sonnet`, `/model find deepseek`)"
                         return
@@ -427,9 +589,17 @@ class CommandInterceptor:
                     if matches:
                         res = [f"**OpenRouter Models Matching '{query}':**"]
                         for m in matches:
-                            ctx_str = f"({m.get('context_length', 0) // 1000}k ctx)" if m.get("context_length") else ""
-                            res.append(f"- **`openrouter/{m['id']}`** {ctx_str} — *{m.get('name', '')}*")
-                        res.append(f"\n*To switch:* `/model openrouter/{matches[0]['id']}`")
+                            ctx_str = (
+                                f"({m.get('context_length', 0) // 1000}k ctx)"
+                                if m.get("context_length")
+                                else ""
+                            )
+                            res.append(
+                                f"- **`openrouter/{m['id']}`** {ctx_str} — *{m.get('name', '')}*"
+                            )
+                        res.append(
+                            f"\n*To switch:* `/model openrouter/{matches[0]['id']}`"
+                        )
                         yield "\n".join(res)
                     else:
                         yield f"No models found matching `{query}` in OpenRouter catalog. Run `/model refresh` to update."
@@ -443,17 +613,23 @@ class CommandInterceptor:
                     new_model = sub
                     engine.set_model_override(handle, new_model)
                     yield f"Model for {profile.get('name', handle)} temporarily set to `{new_model}`.\n*(Run `/model reset` to restore default)*"
+
             return _model()
 
         # 6. Sandboxed Vault & Markdown Explorer (/vault, /read, /view, /open, /backlinks)
         if clean_input.startswith(("/vault", "/backlinks", "/read", "/view", "/open")):
+
             def _vault_ops():
                 raw = clean_input.strip()
                 console = TerminalUI.get_console()
 
                 # 6a. Backlinks lookup
                 if raw.startswith("/vault backlinks") or raw.startswith("/backlinks"):
-                    target = raw[16:].strip() if raw.startswith("/vault backlinks") else raw[10:].strip()
+                    target = (
+                        raw[16:].strip()
+                        if raw.startswith("/vault backlinks")
+                        else raw[10:].strip()
+                    )
                     if not target:
                         yield "Usage: `/vault backlinks <note_name>` or `/backlinks <note_name>`"
                         return
@@ -462,7 +638,11 @@ class CommandInterceptor:
 
                 # 6b. Open in Obsidian / system editor (/open <#|note> or /vault open <#|note>)
                 if raw.startswith("/vault open ") or raw.startswith("/open "):
-                    target = raw[12:].strip() if raw.startswith("/vault open ") else raw[6:].strip()
+                    target = (
+                        raw[12:].strip()
+                        if raw.startswith("/vault open ")
+                        else raw[6:].strip()
+                    )
                     if not target:
                         yield "Usage: `/open <#|note_name>` or `/vault open <#|note_name>`"
                         return
@@ -483,7 +663,9 @@ class CommandInterceptor:
                         yield "Usage: `/read <#|note_name>` or `/view <#|note_name>`"
                         return
 
-                    rel_path, abs_path = VaultManager.resolve_note_target(profile, target)
+                    rel_path, abs_path = VaultManager.resolve_note_target(
+                        profile, target
+                    )
                     if not rel_path:
                         yield f"⚠️ Note `{target}` not found in allowed vault folders."
                         return
@@ -491,34 +673,60 @@ class CommandInterceptor:
                     content = VaultManager.read_note(profile, rel_path)
                     cached = VaultManager.get_last_search(profile)
                     if console:
-                        if cached and target.isdigit() and 1 <= int(target) <= len(cached):
-                            TerminalUI.interactive_vault_browser(console, profile, "Search", cached, initial_index=int(target))
+                        if (
+                            cached
+                            and target.isdigit()
+                            and 1 <= int(target) <= len(cached)
+                        ):
+                            TerminalUI.interactive_vault_browser(
+                                console,
+                                profile,
+                                "Search",
+                                cached,
+                                initial_index=int(target),
+                            )
                         else:
-                            TerminalUI.render_vault_note_panel(console, rel_path, content, abs_path=abs_path)
+                            TerminalUI.render_vault_note_panel(
+                                console, rel_path, content, abs_path=abs_path
+                            )
                         yield ""
                     else:
                         yield f"### 📄 Note: `{rel_path}`\n\n{content}"
                     return
 
                 # 6d. Re-display previous search results (/vault, /vault back, /vault list, /vaults)
-                if raw in ("/vault", "/vaults", "/vault back", "/vault list", "/vault prev"):
+                if raw in (
+                    "/vault",
+                    "/vaults",
+                    "/vault back",
+                    "/vault list",
+                    "/vault prev",
+                ):
                     cached = VaultManager.get_last_search(profile)
                     if not cached:
                         yield "No previous search results found in session. Run `/vault <query>` to search."
                         return
                     if console:
-                        TerminalUI.interactive_vault_browser(console, profile, "Previous Search", cached)
+                        TerminalUI.interactive_vault_browser(
+                            console, profile, "Previous Search", cached
+                        )
                         yield ""
                     else:
-                        yield VaultManager.format_search_digest("Previous Search", cached)
+                        yield VaultManager.format_search_digest(
+                            "Previous Search", cached
+                        )
                     return
 
                 # 6e. Direct search query or number selection (/vault <query> or /vault <#>)
-                query = raw[7:].strip() if raw.startswith("/vault ") else raw[6:].strip()
+                query = (
+                    raw[7:].strip() if raw.startswith("/vault ") else raw[6:].strip()
+                )
                 if not query:
                     cached = VaultManager.get_last_search(profile)
                     if cached and console:
-                        TerminalUI.interactive_vault_browser(console, profile, "Previous Search", cached)
+                        TerminalUI.interactive_vault_browser(
+                            console, profile, "Previous Search", cached
+                        )
                         yield ""
                     else:
                         yield "Usage: `/vault <query>` or `/vault backlinks <note>` or `/vault back`"
@@ -529,7 +737,9 @@ class CommandInterceptor:
                     idx = int(query)
                     if 1 <= idx <= len(cached):
                         if console:
-                            TerminalUI.interactive_vault_browser(console, profile, "Search", cached, initial_index=idx)
+                            TerminalUI.interactive_vault_browser(
+                                console, profile, "Search", cached, initial_index=idx
+                            )
                             yield ""
                         else:
                             item = cached[idx - 1]
@@ -539,7 +749,9 @@ class CommandInterceptor:
 
                 results = VaultManager.search_structured(profile, query)
                 if console:
-                    TerminalUI.interactive_vault_browser(console, profile, query, results)
+                    TerminalUI.interactive_vault_browser(
+                        console, profile, query, results
+                    )
                     yield ""
                 else:
                     yield VaultManager.format_search_digest(query, results)
@@ -547,17 +759,30 @@ class CommandInterceptor:
             return _vault_ops()
 
         if clean_input.startswith("/note "):
+
             def _note():
                 parts = clean_input[6:].strip().split(maxsplit=1)
-                yield VaultManager.write_note(profile, parts[0], parts[1]) if len(parts) >= 2 else "Usage: `/note <file.md> <content>`"
+                yield (
+                    VaultManager.write_note(profile, parts[0], parts[1])
+                    if len(parts) >= 2
+                    else "Usage: `/note <file.md> <content>`"
+                )
+
             return _note()
 
         if clean_input.startswith("/daily "):
+
             def _daily():
-                yield VaultManager.write_daily_note(profile, clean_input[7:].strip()) if clean_input[7:].strip() else "Usage: `/daily <reflection>`"
+                yield (
+                    VaultManager.write_daily_note(profile, clean_input[7:].strip())
+                    if clean_input[7:].strip()
+                    else "Usage: `/daily <reflection>`"
+                )
+
             return _daily()
 
         if clean_input.startswith("/ask "):
+
             def _ask():
                 parts = clean_input[5:].strip().split(maxsplit=1)
                 if len(parts) < 2:
@@ -571,10 +796,12 @@ class CommandInterceptor:
                 yield f"[Delegating to {target_p.get('name', target)} ({target_p.get('title', 'Specialist')}):]\n\n"
                 for chunk in engine.spawn_sub_agent(target, parts[1]):
                     yield chunk
+
             return _ask()
 
         # 7. Skills & MCP Inspection & Management (/skill, /skills, /tools)
         if clean_input.startswith(("/skill", "/skills", "/tools")):
+
             def _skills():
                 parts = clean_input.split()
                 sub = parts[1].lower() if len(parts) > 1 else "list"
@@ -589,9 +816,19 @@ class CommandInterceptor:
                     if not skill:
                         yield f"⚠️ Skill `{s_name}` not found. Run `/skill list` to see all available skills."
                         return
-                    tags_str = f"- **Tags:** `{', '.join(skill.tags)}`\n" if skill.tags else ""
-                    mcp_str = f"- **MCP Dependencies:** `{', '.join(skill.mcp_servers)}`\n" if skill.mcp_servers else ""
-                    models_str = f"- **Recommended Models:** `{', '.join(skill.recommended_models)}`\n" if skill.recommended_models else ""
+                    tags_str = (
+                        f"- **Tags:** `{', '.join(skill.tags)}`\n" if skill.tags else ""
+                    )
+                    mcp_str = (
+                        f"- **MCP Dependencies:** `{', '.join(skill.mcp_servers)}`\n"
+                        if skill.mcp_servers
+                        else ""
+                    )
+                    models_str = (
+                        f"- **Recommended Models:** `{', '.join(skill.recommended_models)}`\n"
+                        if skill.recommended_models
+                        else ""
+                    )
                     yield (
                         f"# 📦  SKILL: {skill.title.upper()} (`{skill.name}`)\n\n"
                         f"- **Description:** *{skill.description or 'No description'}*\n"
@@ -612,11 +849,17 @@ class CommandInterceptor:
                         yield "Usage: `/skill add <skill_name> [@handle]`\nExample: `/skill add git_workflow @rosalind`"
                         return
                     s_name = parts[2].lower()
-                    t_handle = parts[3].replace("@", "").lower() if len(parts) > 3 else handle.lower()
+                    t_handle = (
+                        parts[3].replace("@", "").lower()
+                        if len(parts) > 3
+                        else handle.lower()
+                    )
                     skill = skill_manager.get_skill(s_name)
                     if not skill:
                         yield f"⚠️ Warning: Skill `{s_name}` is not indexed in `skills/` or builtin skills. (Run `/skill list` to view available skills)."
-                    ok, msg = engine.pm.update_persona_skills(t_handle, s_name, action="add")
+                    ok, msg = engine.pm.update_persona_skills(
+                        t_handle, s_name, action="add"
+                    )
                     yield f"✅ {msg}" if ok else f"⚠️ {msg}"
                     return
 
@@ -626,14 +869,26 @@ class CommandInterceptor:
                         yield "Usage: `/skill remove <skill_name> [@handle]`\nExample: `/skill remove git_workflow @rosalind`"
                         return
                     s_name = parts[2].lower()
-                    t_handle = parts[3].replace("@", "").lower() if len(parts) > 3 else handle.lower()
-                    ok, msg = engine.pm.update_persona_skills(t_handle, s_name, action="remove")
+                    t_handle = (
+                        parts[3].replace("@", "").lower()
+                        if len(parts) > 3
+                        else handle.lower()
+                    )
+                    ok, msg = engine.pm.update_persona_skills(
+                        t_handle, s_name, action="remove"
+                    )
                     yield f"✅ {msg}" if ok else f"⚠️ {msg}"
                     return
 
                 # 7d. Shortcut: Direct skill name lookup (e.g. `/skill git_workflow`)
-                if sub not in ("list", "ls") and (direct_skill := skill_manager.get_skill(sub)):
-                    tags_str = f"- **Tags:** `{', '.join(direct_skill.tags)}`\n" if direct_skill.tags else ""
+                if sub not in ("list", "ls") and (
+                    direct_skill := skill_manager.get_skill(sub)
+                ):
+                    tags_str = (
+                        f"- **Tags:** `{', '.join(direct_skill.tags)}`\n"
+                        if direct_skill.tags
+                        else ""
+                    )
                     yield (
                         f"# 📦  SKILL: {direct_skill.title.upper()} (`{direct_skill.name}`)\n\n"
                         f"- **Description:** *{direct_skill.description or 'No description'}*\n"
@@ -651,25 +906,33 @@ class CommandInterceptor:
                 # 7e. Default: List all skills and active personas
                 loaded_skills = skill_manager.list_skills()
                 engine.pm.reload_profiles()
-                equipped_map: Dict[str, list] = {}
+                equipped_map: dict[str, list] = {}
                 for p_h, p_data in engine.pm.profiles.items():
-                    for sk in (p_data.get("skills") or []):
+                    for sk in p_data.get("skills") or []:
                         equipped_map.setdefault(sk.lower(), []).append(f"@{p_h}")
 
                 curr_skills = profile.get("skills") or []
-                curr_sk_str = ", ".join(f"`{s}`" for s in curr_skills) if curr_skills else "*None*"
+                curr_sk_str = (
+                    ", ".join(f"`{s}`" for s in curr_skills)
+                    if curr_skills
+                    else "*None*"
+                )
 
                 lines = [
                     "# 🛠️  INSTALLED SKILLS & MCP TOOL SERVERS\n",
                     f"### 👤  ACTIVE PERSONA: {profile.get('name', handle)} (`@{handle}`)",
                     f"- **Equipped Skills:** {curr_sk_str}\n",
-                    "### 📦  AVAILABLE PROCEDURAL SKILL PLAYBOOKS (`skills/`)"
+                    "### 📦  AVAILABLE PROCEDURAL SKILL PLAYBOOKS (`skills/`)",
                 ]
                 if loaded_skills:
                     for s in loaded_skills:
                         eq_list = equipped_map.get(s["name"].lower(), [])
-                        eq_str = f" *(Equipped: {', '.join(eq_list)})*" if eq_list else ""
-                        lines.append(f"- **`{s['name']}`**: {s['title']} — *{s['description'] or 'No description'}*{eq_str}")
+                        eq_str = (
+                            f" *(Equipped: {', '.join(eq_list)})*" if eq_list else ""
+                        )
+                        lines.append(
+                            f"- **`{s['name']}`**: {s['title']} — *{s['description'] or 'No description'}*{eq_str}"
+                        )
                 else:
                     lines.append("- *No skill playbooks found in `skills/`.*")
 
@@ -683,23 +946,35 @@ class CommandInterceptor:
 
                 lines.append("\n### 💡  SKILL MANAGEMENT COMMANDS")
                 lines.append("- Mount skill to active agent: `/skill add <skill_name>`")
-                lines.append("- Mount skill to specific agent: `/skill add <skill_name> @<handle>`")
-                lines.append("- Unmount skill from agent: `/skill remove <skill_name> [@handle]`")
-                lines.append("- Inspect playbook directives: `/skill show <skill_name>`")
-                lines.append("- Run one-off task with skill: `/worker <skill_name> <task prompt>`")
+                lines.append(
+                    "- Mount skill to specific agent: `/skill add <skill_name> @<handle>`"
+                )
+                lines.append(
+                    "- Unmount skill from agent: `/skill remove <skill_name> [@handle]`"
+                )
+                lines.append(
+                    "- Inspect playbook directives: `/skill show <skill_name>`"
+                )
+                lines.append(
+                    "- Run one-off task with skill: `/worker <skill_name> <task prompt>`"
+                )
 
                 yield "\n".join(lines)
+
             return _skills()
 
         # 8. Ephemeral Sub-Agent Worker Dispatch (/worker)
         if clean_input.startswith("/worker "):
+
             def _worker():
                 parts = clean_input[8:].strip().split(maxsplit=1)
                 if len(parts) < 2:
                     yield "Usage: `/worker <skill_or_mcp> <task prompt>`\nExample: `/worker git_workflow summarize uncommitted git diffs`"
                     return
                 spec, task_prompt = parts[0], parts[1]
-                tokens = [t.strip() for t in spec.replace(";", ",").split(",") if t.strip()]
+                tokens = [
+                    t.strip() for t in spec.replace(";", ",").split(",") if t.strip()
+                ]
                 skills_to_load = []
                 mcp_to_load = []
                 for tok in tokens:
@@ -719,23 +994,29 @@ class CommandInterceptor:
                 yield f"🛠️ **Dispatching Ephemeral Sub-Agent Worker** (Skills: `{skills_to_load}`, MCP: `{mcp_to_load}`)...\n\n"
                 for chunk in WorkerEngine.execute_worker_stream(task):
                     yield chunk
+
             return _worker()
 
         # 9. Explicit @mention delegation (must start with @<handle>)
-        mention_match = re.match(r"^\s*@(\w+)(?:\s*[:,]?\s*(.*))?$", clean_input, re.DOTALL)
+        mention_match = re.match(
+            r"^\s*@(\w+)(?:\s*[:,]?\s*(.*))?$", clean_input, re.DOTALL
+        )
         if mention_match:
             target_tag = mention_match.group(1).lower()
             delegated_prompt = (mention_match.group(2) or "").strip() or clean_input
             if target_tag in engine.pm.profiles and target_tag != handle.lower():
+
                 def _mention():
                     target_p = engine.pm.get_profile(target_tag)
                     yield f"[Delegating to {target_p.get('name', target_tag)} ({target_p.get('title', 'Specialist')}):]\n\n"
                     for chunk in engine.spawn_sub_agent(target_tag, delegated_prompt):
                         yield chunk
+
                 return _mention()
 
         # 10. Delete / Retire Persona
         if clean_input.startswith(("/delete", "/retire")):
+
             def _delete():
                 parts = clean_input.split()
                 if len(parts) < 2:
@@ -752,15 +1033,17 @@ class CommandInterceptor:
                 for ext in (".yaml", "_soul.md", "_memory.md"):
                     src = os.path.join(p_dir, f"{t_handle}{ext}")
                     if os.path.exists(src):
-                        files_to_move.append((src, os.path.join(arch_dir, f"{t_handle}{ext}")))
+                        files_to_move.append(
+                            (src, os.path.join(arch_dir, f"{t_handle}{ext}"))
+                        )
 
                 if files_to_move:
                     os.makedirs(arch_dir, exist_ok=True)
                     for src, dst in files_to_move:
                         try:
                             shutil.move(src, dst)
-                        except Exception:
-                            pass
+                        except Exception as e:
+                            log.debug("Failed to archive %s to %s: %s", src, dst, e)
                     engine.pm.reload_profiles()
                     if engine.config.get("runtime.default_persona") == t_handle:
                         engine.config.set("runtime.default_persona", "samantha")
@@ -769,10 +1052,12 @@ class CommandInterceptor:
                 else:
                     engine.pm.reload_profiles()
                     yield f"⚠️ Persona `@{t_handle}` not found in `{p_dir}/`."
+
             return _delete()
 
         # 11. Help Menu
         if clean_input in ("/help", "/commands", "/cmds", "/?"):
+
             def _help():
                 yield (
                     "# 🏛️  SYMPOSE HUB COMMANDS\n\n"
@@ -808,18 +1093,26 @@ class CommandInterceptor:
                     "- `/delete @<handle>` — Safely archive & retire an agent persona\n"
                     "- `/help` or `/commands` — Show this command reference"
                 )
+
             return _help()
 
         # 12. Unknown slash command → a helper line, not a prompt to the model.
         if clean_input.startswith("/"):
             token = clean_input.split(maxsplit=1)[0].lower()
             from sympose.completer import SymposeCompleter
-            known = sorted(c for c in SymposeCompleter.ROOT_COMMANDS if c.startswith("/"))
+
+            known = sorted(
+                c for c in SymposeCompleter.ROOT_COMMANDS if c.startswith("/")
+            )
             if token not in known:
+
                 def _unknown():
-                    near = [c for c in known if len(token) >= 2 and c.startswith(token[:3])]
+                    near = [
+                        c for c in known if len(token) >= 2 and c.startswith(token[:3])
+                    ]
                     hint = f" Did you mean: {', '.join(near)}?" if near else ""
                     yield f"⚠️ Unknown command `{token}`.{hint}  Run `/commands` for the full list."
+
                 return _unknown()
 
         return None

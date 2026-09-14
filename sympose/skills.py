@@ -3,11 +3,12 @@ Modular Skill Playbook Manager for Sympose.
 Parses, indexes, and formats standard SKILL.md playbooks for agents and workers.
 """
 
-import os
-import re
 import glob
 import logging
-from typing import Dict, List, Optional, Any
+import os
+import re
+from typing import Any
+
 import yaml
 
 log = logging.getLogger(__name__)
@@ -22,9 +23,9 @@ class Skill:
         title: str,
         description: str,
         content: str,
-        tags: Optional[List[str]] = None,
-        mcp_servers: Optional[List[str]] = None,
-        recommended_models: Optional[List[str]] = None,
+        tags: list[str] | None = None,
+        mcp_servers: list[str] | None = None,
+        recommended_models: list[str] | None = None,
         filepath: str = "",
     ):
         self.name = name.lower()
@@ -36,7 +37,7 @@ class Skill:
         self.recommended_models = recommended_models or []
         self.filepath = filepath
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "name": self.name,
             "title": self.title,
@@ -51,19 +52,20 @@ class Skill:
 class SkillManager:
     """Discovers, indexes, and compiles modular skill playbooks from the skills/ directory."""
 
-    def __init__(self, skills_dir: Optional[str] = None):
+    def __init__(self, skills_dir: str | None = None):
         if skills_dir:
             self.skills_dir = skills_dir
         else:
             from sympose.bootstrap import resolve_workspace_dir
+
             self.skills_dir = os.path.join(resolve_workspace_dir(), "skills")
-        self.skills: Dict[str, Skill] = {}
+        self.skills: dict[str, Skill] = {}
         self.reload_skills()
 
-    def reload_skills(self) -> Dict[str, Skill]:
+    def reload_skills(self) -> dict[str, Skill]:
         """Scans the skills directory and loads all valid SKILL.md and standalone markdown playbooks."""
         self.skills.clear()
-        
+
         search_dirs = [self.skills_dir]
         builtin_dir = os.path.join(os.path.dirname(__file__), "builtin_skills")
         if os.path.exists(builtin_dir) and builtin_dir not in search_dirs:
@@ -93,7 +95,7 @@ class SkillManager:
 
         return self.skills
 
-    def _parse_skill_file(self, filepath: str) -> Optional[Skill]:
+    def _parse_skill_file(self, filepath: str) -> Skill | None:
         """Parses a markdown file with optional YAML frontmatter into a Skill object."""
         with open(filepath, "r", encoding="utf-8", errors="ignore") as f:
             raw_text = f.read()
@@ -105,7 +107,7 @@ class SkillManager:
         else:
             default_name = os.path.splitext(os.path.basename(filepath))[0]
 
-        metadata: Dict[str, Any] = {}
+        metadata: dict[str, Any] = {}
         body = raw_text
 
         # Extract YAML frontmatter if present
@@ -124,8 +126,16 @@ class SkillManager:
         title = str(metadata.get("title") or name.replace("_", " ").title()).strip()
         description = str(metadata.get("description") or "").strip()
         tags = metadata.get("tags") if isinstance(metadata.get("tags"), list) else []
-        mcp_servers = metadata.get("mcp_servers") if isinstance(metadata.get("mcp_servers"), list) else []
-        recommended_models = metadata.get("recommended_models") if isinstance(metadata.get("recommended_models"), list) else []
+        mcp_servers = (
+            metadata.get("mcp_servers")
+            if isinstance(metadata.get("mcp_servers"), list)
+            else []
+        )
+        recommended_models = (
+            metadata.get("recommended_models")
+            if isinstance(metadata.get("recommended_models"), list)
+            else []
+        )
 
         return Skill(
             name=name,
@@ -138,7 +148,7 @@ class SkillManager:
             filepath=filepath,
         )
 
-    def get_skill(self, name: str) -> Optional[Skill]:
+    def get_skill(self, name: str) -> Skill | None:
         """Retrieves a skill by name (case-insensitive and tolerant of naming variations)."""
         raw = name.lower().strip()
         if raw in self.skills:
@@ -147,7 +157,10 @@ class SkillManager:
         for s_name, skill in self.skills.items():
             if re.sub(r"[_\-\s]", "", s_name) == clean:
                 return skill
-            if clean in re.sub(r"[_\-\s]", "", skill.title.lower()) or re.sub(r"[_\-\s]", "", s_name) in clean:
+            if (
+                clean in re.sub(r"[_\-\s]", "", skill.title.lower())
+                or re.sub(r"[_\-\s]", "", s_name) in clean
+            ):
                 return skill
 
         # Dynamic hot-reload check if new skill was added at runtime
@@ -157,15 +170,18 @@ class SkillManager:
         for s_name, skill in self.skills.items():
             if re.sub(r"[_\-\s]", "", s_name) == clean:
                 return skill
-            if clean in re.sub(r"[_\-\s]", "", skill.title.lower()) or re.sub(r"[_\-\s]", "", s_name) in clean:
+            if (
+                clean in re.sub(r"[_\-\s]", "", skill.title.lower())
+                or re.sub(r"[_\-\s]", "", s_name) in clean
+            ):
                 return skill
         return None
 
-    def list_skills(self) -> List[Dict[str, Any]]:
+    def list_skills(self) -> list[dict[str, Any]]:
         """Returns a list of all indexed skill summaries."""
         return [skill.to_dict() for skill in self.skills.values()]
 
-    def format_skills_for_prompt(self, skill_names: List[str]) -> str:
+    def format_skills_for_prompt(self, skill_names: list[str]) -> str:
         """Formats the requested skills into a structured markdown prompt section."""
         if not skill_names:
             return ""
@@ -182,7 +198,9 @@ class SkillManager:
         if not sections:
             return ""
 
-        return "### Specialized Skill Playbooks & Heuristics:\n" + "\n\n---\n\n".join(sections)
+        return "### Specialized Skill Playbooks & Heuristics:\n" + "\n\n---\n\n".join(
+            sections
+        )
 
 
 # Singleton skill manager

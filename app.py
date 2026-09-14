@@ -4,29 +4,58 @@
 Main Entry Point
 """
 
-import sys
-import os
 import argparse
-from sympose.config import ConfigManager
-from sympose.profiles import ProfileManager
-from sympose.engine import PersonaEngine
+import os
+
 from sympose.cli import TerminalInterface
+from sympose.config import ConfigManager
+from sympose.engine import PersonaEngine
+from sympose.profiles import ProfileManager
 from sympose.slack import MultiAgentSlackRunner
 
 
 def main():
     parser = argparse.ArgumentParser(description="Sympose Multi-Model Agent Hub")
     parser.add_argument("-v", "--version", action="version", version="%(prog)s 0.2.26")
-    parser.add_argument("--cli", action="store_true", help="Launch interactive Terminal CLI Hub")
-    parser.add_argument("--persona", type=str, default=None, help="Initial persona handle (e.g. samantha)")
-    parser.add_argument("--config", type=str, default="config.yaml", help="Path to master config YAML file")
-    parser.add_argument("--slack", action="store_true", help="Launch Slack Socket Mode Daemon")
-    parser.add_argument("--dashboard", "--web", action="store_true", help="Launch Web Dashboard & Standalone Vault Explorer")
-    parser.add_argument("--setup", "--onboard", action="store_true", help="Launch interactive setup & onboarding wizard")
+    parser.add_argument(
+        "--cli", action="store_true", help="Launch interactive Terminal CLI Hub"
+    )
+    parser.add_argument(
+        "--persona",
+        type=str,
+        default=None,
+        help="Initial persona handle (e.g. samantha)",
+    )
+    parser.add_argument(
+        "--config",
+        type=str,
+        default="config.yaml",
+        help="Path to master config YAML file",
+    )
+    parser.add_argument(
+        "--slack", action="store_true", help="Launch Slack Socket Mode Daemon"
+    )
+    parser.add_argument(
+        "--dashboard",
+        "--web",
+        action="store_true",
+        help="Launch Web Dashboard & Standalone Vault Explorer",
+    )
+    parser.add_argument(
+        "--setup",
+        "--onboard",
+        action="store_true",
+        help="Launch interactive setup & onboarding wizard",
+    )
     args = parser.parse_args()
 
-    from sympose.bootstrap import resolve_workspace_dir, ensure_workspace, run_first_run_onboarding
     from dotenv import load_dotenv
+
+    from sympose.bootstrap import (
+        ensure_workspace,
+        resolve_workspace_dir,
+        run_first_run_onboarding,
+    )
 
     workspace_dir = resolve_workspace_dir()
     is_fresh = ensure_workspace(workspace_dir)
@@ -39,9 +68,13 @@ def main():
         run_first_run_onboarding(workspace_dir, force=args.setup)
 
     # Initialize configuration & profile managers
-    config_path = args.config if os.path.isabs(args.config) else os.path.join(workspace_dir, args.config)
+    config_path = (
+        args.config
+        if os.path.isabs(args.config)
+        else os.path.join(workspace_dir, args.config)
+    )
     config = ConfigManager(config_path)
-    
+
     profiles_dir = config.get("runtime.profiles_dir", "profiles")
     if not os.path.isabs(profiles_dir):
         profiles_dir = os.path.join(workspace_dir, profiles_dir)
@@ -54,6 +87,7 @@ def main():
     if args.dashboard:
         from sympose.server import run_server
         from sympose.tls import ensure_dashboard_tls_choice
+
         # Defaults to localhost-only; set SYMPOSE_DASHBOARD_HOST=0.0.0.0 to opt into
         # LAN exposure explicitly. Every route requires the ADR-064.1 dashboard
         # password (auto-generated into .env on first boot if unset). HTTPS vs
@@ -68,7 +102,9 @@ def main():
             tls=tls_enabled,
         )
     elif args.slack:
-        MultiAgentSlackRunner.run_all(engine, persona_override=args.persona, workspace_dir=workspace_dir)
+        MultiAgentSlackRunner.run_all(
+            engine, persona_override=args.persona, workspace_dir=workspace_dir
+        )
     else:
         cli = TerminalInterface(engine)
         cli.run(initial_handle=default_persona)

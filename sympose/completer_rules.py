@@ -6,12 +6,15 @@ model catalog) stay on `SymposeCompleter`, which delegates here once a command
 word plus a space has been typed.
 """
 
-from typing import Any, List
+import logging
+from typing import Any
+
+log = logging.getLogger(__name__)
 
 from sympose.models import ModelCatalog
 
 
-def command_completions(comp: Any, line_l: str, text: str) -> List[str]:
+def command_completions(comp: Any, line_l: str, text: str) -> list[str]:
     """Candidates for the active word once `line_l` carries a command and an
     argument position. `comp` is the `SymposeCompleter` — used for its dynamic
     lookups (`get_personas`, `get_skills`, ...) and schema-derived key lists."""
@@ -32,7 +35,9 @@ def command_completions(comp: Any, line_l: str, text: str) -> List[str]:
     # /switch, /delete, /retire, /ask -> @persona handles
     if cmd in ("/switch", "/delete", "/retire", "/ask"):
         personas = comp.get_personas()
-        return [p for p in personas if p.startswith(text) or p.lstrip("@").startswith(text)]
+        return [
+            p for p in personas if p.startswith(text) or p.lstrip("@").startswith(text)
+        ]
 
     # /worker -> skills and mcp servers
     if cmd == "/worker":
@@ -53,12 +58,35 @@ def command_completions(comp: Any, line_l: str, text: str) -> List[str]:
         sub = tokens[1].lower() if len(tokens) > 1 else ""
 
         # Skill name completion: "/skill add ", "/skill show ", "/skill remove "
-        if sub in ("add", "mount", "install", "show", "view", "info", "remove", "unmount", "uninstall", "rm"):
+        if sub in (
+            "add",
+            "mount",
+            "install",
+            "show",
+            "view",
+            "info",
+            "remove",
+            "unmount",
+            "uninstall",
+            "rm",
+        ):
             if len(tokens) == 2 or (len(tokens) == 3 and not line_l.endswith(" ")):
                 return [s for s in all_skills if s.startswith(text)]
             # Persona handle completion: "/skill add git_workflow @"
-            if len(tokens) >= 3 and sub in ("add", "mount", "install", "remove", "unmount", "uninstall", "rm"):
-                return [p for p in comp.get_personas() if p.startswith(text) or p.lstrip("@").startswith(text)]
+            if len(tokens) >= 3 and sub in (
+                "add",
+                "mount",
+                "install",
+                "remove",
+                "unmount",
+                "uninstall",
+                "rm",
+            ):
+                return [
+                    p
+                    for p in comp.get_personas()
+                    if p.startswith(text) or p.lstrip("@").startswith(text)
+                ]
 
     # /vault -> back, list, backlinks, open, read
     if cmd == "/vault":
@@ -78,7 +106,9 @@ def command_completions(comp: Any, line_l: str, text: str) -> List[str]:
 
     # /help -> available commands
     if cmd == "/help":
-        help_topics = [c.lstrip("/") for c in comp.ROOT_COMMANDS if c.startswith("/")] + [c for c in comp.ROOT_COMMANDS if c.startswith("/")]
+        help_topics = [
+            c.lstrip("/") for c in comp.ROOT_COMMANDS if c.startswith("/")
+        ] + [c for c in comp.ROOT_COMMANDS if c.startswith("/")]
         return [t for t in help_topics if t.startswith(text)]
 
     # /config -> get|set subcommand, then a config key (also leniently
@@ -89,7 +119,9 @@ def command_completions(comp: Any, line_l: str, text: str) -> List[str]:
         if on_first:
             return [o for o in (list(subs) + comp.CONFIG_KEYS) if o.startswith(text)]
         sub = tokens[1].lower()
-        on_key = (len(tokens) == 2 and line_l.endswith(" ")) or (len(tokens) == 3 and not line_l.endswith(" "))
+        on_key = (len(tokens) == 2 and line_l.endswith(" ")) or (
+            len(tokens) == 3 and not line_l.endswith(" ")
+        )
         if sub in subs and on_key:
             return [k for k in comp.CONFIG_KEYS if k.startswith(text)]
         return []
@@ -98,7 +130,9 @@ def command_completions(comp: Any, line_l: str, text: str) -> List[str]:
     if cmd == "/persona":
         if len(tokens) < 2 or (len(tokens) == 2 and not line_l.endswith(" ")):
             return [s for s in ("show", "set") if s.startswith(text)]
-        if text.startswith("@") or (len(tokens) >= 2 and tokens[-1] in ("show", "set") and line_l.endswith(" ")):
+        if text.startswith("@") or (
+            len(tokens) >= 2 and tokens[-1] in ("show", "set") and line_l.endswith(" ")
+        ):
             return [p for p in comp.get_personas() if p.startswith(text)]
         if "set" in tokens:
             return [k for k in comp.PERSONA_KEYS if k.startswith(text)]
@@ -106,23 +140,38 @@ def command_completions(comp: Any, line_l: str, text: str) -> List[str]:
     # /compact -> shared, @personas
     if cmd == "/compact":
         compact_targets = ["shared"] + comp.get_personas()
-        return [t for t in compact_targets if t.startswith(text) or t.lstrip("@").startswith(text)]
+        return [
+            t
+            for t in compact_targets
+            if t.startswith(text) or t.lstrip("@").startswith(text)
+        ]
 
     # /model -> model presets, actions, and dynamic candidates
     if cmd == "/model":
         if len(tokens) >= 2 and tokens[1].lower() == "find":
-            common_terms = ["sonnet", "deepseek", "flash", "qwen", "llama", "haiku", "opus", "gpt"]
+            common_terms = [
+                "sonnet",
+                "deepseek",
+                "flash",
+                "qwen",
+                "llama",
+                "haiku",
+                "opus",
+                "gpt",
+            ]
             return [t for t in common_terms if t.startswith(text)]
 
         candidates = list(comp.COMMON_MODELS)
-        if text.startswith("openrouter/") or (len(tokens) >= 2 and tokens[1].startswith("openrouter/")):
+        if text.startswith("openrouter/") or (
+            len(tokens) >= 2 and tokens[1].startswith("openrouter/")
+        ):
             try:
                 dyn = ModelCatalog.get_completion_candidates(text)
                 for d in dyn:
                     if d not in candidates:
                         candidates.append(d)
-            except Exception:
-                pass
+            except Exception as e:
+                log.debug("Dynamic model-catalog completion failed: %s", e)
         return [m for m in candidates if m.startswith(text)]
 
     # Inline @mention completion

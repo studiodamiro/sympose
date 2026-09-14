@@ -2,15 +2,16 @@
 Configuration, Security & Utility Helpers for Sympose.
 """
 
+import logging
 import os
 import re
-import logging
-from typing import Any, Dict
+from typing import Any
+
 import yaml
 from dotenv import load_dotenv
 
-from sympose.workspace import resolve_workspace_dir
 from sympose.config_schema import build_default_config, default_for
+from sympose.workspace import resolve_workspace_dir
 
 # Suppress verbose LiteLLM and external logs
 logging.getLogger("LiteLLM").setLevel(logging.ERROR)
@@ -35,6 +36,7 @@ os.environ.pop("GCP_PROJECT", None)
 
 try:
     import litellm
+
     litellm.suppress_debug_info = True
     litellm.drop_params = True
     litellm.request_timeout = 30.0
@@ -58,10 +60,10 @@ class ConfigManager:
 
     def __init__(self, config_path: str = "config.yaml"):
         self.config_path = config_path
-        self.data: Dict[str, Any] = {}
+        self.data: dict[str, Any] = {}
         self.reload()
 
-    def reload(self) -> Dict[str, Any]:
+    def reload(self) -> dict[str, Any]:
         """Reloads configuration from YAML file and merges it over the schema
         defaults. `build_default_config()` returns a fresh, independently-owned
         dict each call, so `set()` / `_deep_merge()` cannot corrupt anything
@@ -96,9 +98,10 @@ class ConfigManager:
 
         try:
             from sympose.mcp import mcp_registry
+
             mcp_registry.load_from_config(self.data)
-        except Exception:
-            pass
+        except Exception as e:
+            logging.warning("Failed to load MCP servers from config: %s", e)
 
     def get(self, dotpath: str, default: Any = None) -> Any:
         """Gets a configuration value using dot notation (e.g. 'performance.request_timeout').

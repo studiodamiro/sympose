@@ -4,23 +4,22 @@
 
 # Guarantee environment optimization and GCE metadata bypass execute first
 import sympose.config  # noqa: F401
-
-from sympose.config import config_manager, ConfigManager
-from sympose.profiles import ProfileManager
-from sympose.vault import VaultManager
 from sympose.actions import ActionProcessor
-from sympose.engine import PersonaEngine
 from sympose.cli import TerminalInterface
-from sympose.slack import SlackDaemon, MultiAgentSlackRunner
+from sympose.config import ConfigManager, config_manager
+from sympose.engine import PersonaEngine
+from sympose.profiles import ProfileManager
+from sympose.slack import MultiAgentSlackRunner, SlackDaemon
+from sympose.vault import VaultManager
 
 __all__ = [
-    "config_manager",
-    "ConfigManager",
-    "ProfileManager",
-    "VaultManager",
     "ActionProcessor",
-    "PersonaEngine",
-    "TerminalInterface",
-    "SlackDaemon",
+    "ConfigManager",
     "MultiAgentSlackRunner",
+    "PersonaEngine",
+    "ProfileManager",
+    "SlackDaemon",
+    "TerminalInterface",
+    "VaultManager",
+    "config_manager",
 ]

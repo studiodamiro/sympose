@@ -2,13 +2,14 @@
 Model Context Protocol (MCP) stdio JSON-RPC 2.0 Client.
 """
 
-import os
 import json
 import logging
+import os
 import subprocess
 import threading
-from concurrent.futures import Future, TimeoutError as FutureTimeoutError
-from typing import Dict, List, Any, Optional, Tuple
+from concurrent.futures import Future
+from concurrent.futures import TimeoutError as FutureTimeoutError
+from typing import Any
 
 log = logging.getLogger(__name__)
 
@@ -20,9 +21,9 @@ class MCPClient:
         self,
         name: str,
         command: str,
-        args: Optional[List[str]] = None,
-        env: Optional[Dict[str, str]] = None,
-        cwd: Optional[str] = None,
+        args: list[str] | None = None,
+        env: dict[str, str] | None = None,
+        cwd: str | None = None,
         timeout: float = 15.0,
     ):
         self.name, self.command = name, command
@@ -30,19 +31,19 @@ class MCPClient:
         self.custom_env = env or {}
         self.cwd = cwd or os.getcwd()
         self.timeout = timeout
-        self.process: Optional[subprocess.Popen] = None
+        self.process: subprocess.Popen | None = None
         self._request_id = 0
-        self._lock = threading.Lock()        # guards _request_id increments
+        self._lock = threading.Lock()  # guards _request_id increments
         self._write_lock = threading.Lock()  # serialises stdin writes only
         # A background reader thread resolves each request's Future as its
         # response line arrives, keyed by JSON-RPC id — so concurrent requests
         # no longer block each other, and a response that arrives out of order
         # (or for someone else's request) is routed correctly instead of being
         # silently dropped by the old "read a line, discard if id mismatches" loop.
-        self._pending: Dict[Any, "Future[Optional[Dict[str, Any]]]"] = {}
+        self._pending: dict[Any, Future[dict[str, Any] | None]] = {}
         self._pending_lock = threading.Lock()
-        self._reader_thread: Optional[threading.Thread] = None
-        self.tools: List[Dict[str, Any]] = []
+        self._reader_thread: threading.Thread | None = None
+        self.tools: list[dict[str, Any]] = []
         self.is_connected = False
 
     def _next_id(self) -> int:
@@ -50,11 +51,18 @@ class MCPClient:
             self._request_id += 1
             return self._request_id
 
-    def _build_env(self) -> Dict[str, str]:
+    def _build_env(self) -> dict[str, str]:
         full_env = os.environ.copy()
         import glob
-        nvm_paths = sorted(glob.glob(os.path.expanduser("~/.nvm/versions/node/*/bin")), reverse=True)
-        paths = ["/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin"] + nvm_paths + [full_env.get("PATH", "")]
+
+        nvm_paths = sorted(
+            glob.glob(os.path.expanduser("~/.nvm/versions/node/*/bin")), reverse=True
+        )
+        paths = (
+            ["/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin"]
+            + nvm_paths
+            + [full_env.get("PATH", "")]
+        )
         full_env["PATH"] = ":".join([p for p in paths if p])
         for k, v in self.custom_env.items():
             if isinstance(v, str) and v.startswith("env:"):
@@ -72,8 +80,8 @@ class MCPClient:
             for line in self.process.stderr:
                 if line.strip():
                     log.debug("[MCP:%s stderr] %s", self.name, line.strip())
-        except Exception:
-            pass
+        except Exception as e:
+            log.debug("[MCP:%s] stderr drain thread stopped: %s", self.name, e)
 
     def _read_loop(self) -> None:
         """Background reader for the process lifetime: parses every stdout line and
@@ -88,7 +96,8 @@ class MCPClient:
                         continue
                     try:
                         msg = json.loads(clean)
-                    except Exception:
+                    except Exception as e:
+                        log.debug("[MCP:%s] non-JSON stdout line dropped: %s", self.name, e)
                         continue
                     if not isinstance(msg, dict) or msg.get("id") is None:
                         continue  # not a response to any pending request (e.g. a notification)
@@ -96,8 +105,8 @@ class MCPClient:
                         fut = self._pending.pop(msg.get("id"), None)
                     if fut and not fut.done():
                         fut.set_result(msg)
-            except Exception:
-                pass
+            except Exception as e:
+                log.debug("[MCP:%s] read loop stopped: %s", self.name, e)
 
         with self._pending_lock:
             leftover, self._pending = self._pending, {}
@@ -110,7 +119,11 @@ class MCPClient:
             return True
         try:
             import shutil
-            cmd_bin = shutil.which(self.command, path=self._build_env().get("PATH")) or self.command
+
+            cmd_bin = (
+                shutil.which(self.command, path=self._build_env().get("PATH"))
+                or self.command
+            )
             self.process = subprocess.Popen(
                 [cmd_bin] + self.args,
                 stdin=subprocess.PIPE,
@@ -133,7 +146,11 @@ class MCPClient:
             "jsonrpc": "2.0",
             "id": self._next_id(),
             "method": "initialize",
-            "params": {"protocolVersion": "2024-11-05", "capabilities": {}, "clientInfo": {"name": "sympose", "version": "1.0.0"}},
+            "params": {
+                "protocolVersion": "2024-11-05",
+                "capabilities": {},
+                "clientInfo": {"name": "sympose", "version": "1.0.0"},
+            },
         }
         resp = self._send_request(init_req)
         if not resp or "error" in resp:
@@ -141,30 +158,40 @@ class MCPClient:
             self.stop()
             return False
 
-        self._send_notification({"jsonrpc": "2.0", "method": "notifications/initialized"})
+        self._send_notification(
+            {"jsonrpc": "2.0", "method": "notifications/initialized"}
+        )
         self.is_connected = True
         self.tools = self.fetch_tools()
         return True
 
-    def _send_notification(self, payload: Dict[str, Any]) -> None:
-        if not self.process or self.process.poll() is not None or not self.process.stdin:
+    def _send_notification(self, payload: dict[str, Any]) -> None:
+        if (
+            not self.process
+            or self.process.poll() is not None
+            or not self.process.stdin
+        ):
             return
         try:
             with self._write_lock:
                 self.process.stdin.write(json.dumps(payload) + "\n")
                 self.process.stdin.flush()
-        except Exception:
-            pass
+        except Exception as e:
+            log.debug("[MCP:%s] failed to send notification: %s", self.name, e)
 
-    def _send_request(self, payload: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    def _send_request(self, payload: dict[str, Any]) -> dict[str, Any] | None:
         """Registers a Future for this request's id, writes it, and waits for the
         background reader thread (_read_loop) to resolve it. Concurrent calls no
         longer block each other — each gets its own Future regardless of arrival
         order or how many other requests are in flight."""
-        if not self.process or self.process.poll() is not None or not self.process.stdin:
+        if (
+            not self.process
+            or self.process.poll() is not None
+            or not self.process.stdin
+        ):
             return None
         req_id = payload.get("id")
-        fut: "Future[Optional[Dict[str, Any]]]" = Future()
+        fut: Future[dict[str, Any] | None] = Future()
         with self._pending_lock:
             self._pending[req_id] = fut
         try:
@@ -184,25 +211,43 @@ class MCPClient:
             with self._pending_lock:
                 self._pending.pop(req_id, None)
 
-    def fetch_tools(self) -> List[Dict[str, Any]]:
-        req = {"jsonrpc": "2.0", "id": self._next_id(), "method": "tools/list", "params": {}}
+    def fetch_tools(self) -> list[dict[str, Any]]:
+        req = {
+            "jsonrpc": "2.0",
+            "id": self._next_id(),
+            "method": "tools/list",
+            "params": {},
+        }
         resp = self._send_request(req)
         if resp and "result" in resp and "tools" in resp["result"]:
             self.tools = resp["result"]["tools"]
             return self.tools
         return []
 
-    def call_tool(self, tool_name: str, arguments: Optional[Dict[str, Any]] = None) -> Tuple[bool, str]:
+    def call_tool(
+        self, tool_name: str, arguments: dict[str, Any] | None = None
+    ) -> tuple[bool, str]:
         if not self.is_connected and not self.start():
             return False, f"Failed to start MCP server [{self.name}]."
 
-        req = {"jsonrpc": "2.0", "id": self._next_id(), "method": "tools/call", "params": {"name": tool_name, "arguments": arguments or {}}}
+        req = {
+            "jsonrpc": "2.0",
+            "id": self._next_id(),
+            "method": "tools/call",
+            "params": {"name": tool_name, "arguments": arguments or {}},
+        }
         resp = self._send_request(req)
         if not resp:
-            return False, f"MCP server [{self.name}] timed out executing tool `{tool_name}`."
+            return (
+                False,
+                f"MCP server [{self.name}] timed out executing tool `{tool_name}`.",
+            )
         if "error" in resp:
             err = resp["error"]
-            return False, f"Tool error ({tool_name}): {err.get('message', str(err)) if isinstance(err, dict) else str(err)}"
+            return (
+                False,
+                f"Tool error ({tool_name}): {err.get('message', str(err)) if isinstance(err, dict) else str(err)}",
+            )
 
         res = resp.get("result", {})
         text_outputs = []
@@ -211,17 +256,24 @@ class MCPClient:
                 text_outputs.append(item.get("text", ""))
             else:
                 text_outputs.append(str(item))
-        return (not bool(res.get("isError", False))), ("\n".join(text_outputs).strip() or "Tool executed with no output.")
+        return (not bool(res.get("isError", False))), (
+            "\n".join(text_outputs).strip() or "Tool executed with no output."
+        )
 
-    def get_litellm_tools(self) -> List[Dict[str, Any]]:
-        return [{
-            "type": "function",
-            "function": {
-                "name": t.get("name"),
-                "description": t.get("description", ""),
-                "parameters": t.get("inputSchema", {"type": "object", "properties": {}}),
-            },
-        } for t in self.tools]
+    def get_litellm_tools(self) -> list[dict[str, Any]]:
+        return [
+            {
+                "type": "function",
+                "function": {
+                    "name": t.get("name"),
+                    "description": t.get("description", ""),
+                    "parameters": t.get(
+                        "inputSchema", {"type": "object", "properties": {}}
+                    ),
+                },
+            }
+            for t in self.tools
+        ]
 
     def stop(self) -> None:
         self.is_connected = False
@@ -234,8 +286,8 @@ class MCPClient:
             except Exception:
                 try:
                     self.process.kill()
-                except Exception:
-                    pass
+                except Exception as e:
+                    log.debug("[MCP:%s] failed to kill process during stop(): %s", self.name, e)
             finally:
                 self.process = None
         # Defensive: _read_loop's own cleanup already resolves these once stdout

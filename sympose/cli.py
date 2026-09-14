@@ -2,22 +2,21 @@
 Interactive Terminal UI for Sympose.
 """
 
-import sys
 import os
+import sys
 import time
-from typing import Optional
 
 try:
     from rich.console import Console
-    from rich.prompt import Prompt
     from rich.markdown import Markdown
+    from rich.prompt import Prompt
 except ImportError:
     Console = None
     Markdown = None
 
-from sympose.engine import PersonaEngine
-from sympose.ui import TerminalUI, AnimatedStatus
 from sympose.completer import SymposeCompleter
+from sympose.engine import PersonaEngine
+from sympose.ui import AnimatedStatus, TerminalUI
 
 
 class TerminalInterface:
@@ -35,7 +34,9 @@ class TerminalInterface:
 
     def select_persona(self, default_handle: str = "samantha") -> str:
         self.pm.reload_profiles()
-        return TerminalUI.select_persona(self.console, self.pm.list_personas(), default_handle=default_handle)
+        return TerminalUI.select_persona(
+            self.console, self.pm.list_personas(), default_handle=default_handle
+        )
 
     def handle_exit(self, handle: str) -> None:
         """Handles session exit: offers summarization, saves memory/obsidian, and clears terminal."""
@@ -44,15 +45,24 @@ class TerminalInterface:
         name = profile.get("name", handle) if profile else handle
 
         auto_save = bool(self.config.get("session.exit_behavior.auto_save"))
-        default_target = str(self.config.get("session.exit_behavior.default_target")).lower()
+        default_target = str(
+            self.config.get("session.exit_behavior.default_target")
+        ).lower()
         clear_term = bool(self.config.get("session.exit_behavior.clear_terminal"))
 
         if history:
-            target_to_save = default_target if auto_save else TerminalUI.prompt_exit_choice(self.console, handle, default_target)
+            target_to_save = (
+                default_target
+                if auto_save
+                else TerminalUI.prompt_exit_choice(self.console, handle, default_target)
+            )
             if target_to_save:
                 status = None
                 if self.console:
-                    status = self.console.status(f"[dim italic cyan]{name} is synthesizing session takeaways...[/dim italic cyan]", spinner="dots")
+                    status = self.console.status(
+                        f"[dim italic cyan]{name} is synthesizing session takeaways...[/dim italic cyan]",
+                        spinner="dots",
+                    )
                     status.start()
 
                 try:
@@ -62,7 +72,9 @@ class TerminalInterface:
                         status.stop()
 
                 if self.console and res.get("status") == "success":
-                    self.console.print("\n[bold green]✓ Session successfully archived:[/bold green]")
+                    self.console.print(
+                        "\n[bold green]✓ Session successfully archived:[/bold green]"
+                    )
                     for saved in res.get("targets_saved", []):
                         self.console.print(f"  • {saved}")
 
@@ -72,7 +84,9 @@ class TerminalInterface:
             time.sleep(0.8)
             if self.console:
                 self.console.clear()
-                self.console.print("[dim cyan]sympose • session ended cleanly[/dim cyan]")
+                self.console.print(
+                    "[dim cyan]sympose • session ended cleanly[/dim cyan]"
+                )
             else:
                 os.system("clear")
                 print("=== sympose session ended cleanly ===")
@@ -89,17 +103,29 @@ class TerminalInterface:
         while True:
             profile = self.pm.get_profile(current_handle)
             name = profile.get("name", current_handle) if profile else current_handle
-            model = self.engine.model_overrides.get(current_handle, profile.get("model", "")) if profile else ""
+            model = (
+                self.engine.model_overrides.get(
+                    current_handle, profile.get("model", "")
+                )
+                if profile
+                else ""
+            )
             prompt_label = f"\n[bold yellow]You[/bold yellow] (to [bold cyan]@{current_handle}[/bold cyan] | [dim]{model}[/dim])"
 
             try:
-                user_input = Prompt.ask(prompt_label).strip() if self.console else input(f"\nYou (to @{current_handle}): ").strip()
+                user_input = (
+                    Prompt.ask(prompt_label).strip()
+                    if self.console
+                    else input(f"\nYou (to @{current_handle}): ").strip()
+                )
             except EOFError:
                 self.handle_exit(current_handle)
                 break
             except KeyboardInterrupt:
                 if self.console:
-                    self.console.print("\n[dim](Type /exit or press Ctrl+D to quit)[/dim]")
+                    self.console.print(
+                        "\n[dim](Type /exit or press Ctrl+D to quit)[/dim]"
+                    )
                 else:
                     print("\n(Type /exit or press Ctrl+D to quit)")
                 continue
@@ -111,9 +137,15 @@ class TerminalInterface:
                 self.handle_exit(current_handle)
                 break
 
-            if user_input.startswith("/switch") or (user_input.startswith("@") and len(user_input.split()) == 1):
+            if user_input.startswith("/switch") or (
+                user_input.startswith("@") and len(user_input.split()) == 1
+            ):
                 self.pm.reload_profiles()
-                target = user_input.split()[1].replace("@", "").lower() if user_input.startswith("/switch") and len(user_input.split()) > 1 else user_input.replace("@", "").lower()
+                target = (
+                    user_input.split()[1].replace("@", "").lower()
+                    if user_input.startswith("/switch") and len(user_input.split()) > 1
+                    else user_input.replace("@", "").lower()
+                )
                 if target.isdigit():
                     plist = self.pm.list_personas()
                     idx = int(target) - 1
@@ -123,11 +155,15 @@ class TerminalInterface:
                 if target in self.pm.profiles:
                     current_handle = target
                     if self.console:
-                        self.console.print(f"\n[bold green]✓ Switched active persona to @{current_handle}[/bold green]")
+                        self.console.print(
+                            f"\n[bold green]✓ Switched active persona to @{current_handle}[/bold green]"
+                        )
                 else:
                     current_handle = self.select_persona(default_handle=current_handle)
                     if self.console:
-                        self.console.print(f"\n[bold green]✓ Active persona: @{current_handle}[/bold green]")
+                        self.console.print(
+                            f"\n[bold green]✓ Active persona: @{current_handle}[/bold green]"
+                        )
                 continue
 
             is_command = user_input.startswith("/")
@@ -145,12 +181,16 @@ class TerminalInterface:
                                 os.system("clear")
                             self.display_banner()
                             if self.console:
-                                self.console.print(f"\n[bold green]✓ Context cleared for @{current_handle}.[/bold green]")
+                                self.console.print(
+                                    f"\n[bold green]✓ Context cleared for @{current_handle}.[/bold green]"
+                                )
                             break
                         output_chunks.append(chunk)
                 except KeyboardInterrupt:
                     if self.console:
-                        self.console.print(f"\n\n[dim yellow]^C [Command cancelled][/dim yellow]")
+                        self.console.print(
+                            "\n\n[dim yellow]^C [Command cancelled][/dim yellow]"
+                        )
                     else:
                         print("\n\n^C [Command cancelled]")
                     continue
@@ -167,11 +207,17 @@ class TerminalInterface:
             status = None
 
             if self.console:
-                phrases = profile.get("thinking_phrases", ["Thinking..."]) if profile else ["Thinking..."]
+                phrases = (
+                    profile.get("thinking_phrases", ["Thinking..."])
+                    if profile
+                    else ["Thinking..."]
+                )
                 status = AnimatedStatus(self.console, name, phrases).start()
 
             first_chunk, first_time, cleared = False, 0.0, False
-            render_mode = str(self.engine.config.get("performance.render_mode")).lower().strip()
+            render_mode = (
+                str(self.engine.config.get("performance.render_mode")).lower().strip()
+            )
             buffered_chunks = []
 
             try:
@@ -184,7 +230,9 @@ class TerminalInterface:
                             os.system("clear")
                         self.display_banner()
                         if self.console:
-                            self.console.print(f"\n[bold green]✓ Context cleared for @{current_handle}.[/bold green]")
+                            self.console.print(
+                                f"\n[bold green]✓ Context cleared for @{current_handle}.[/bold green]"
+                            )
                         break
 
                     if not first_chunk:
@@ -205,7 +253,11 @@ class TerminalInterface:
                         sys.stdout.write(chunk)
                         sys.stdout.flush()
                     else:  # "hybrid" default
-                        if chunk.startswith("\n\n>") or "\n> " in chunk or chunk.startswith("> "):
+                        if (
+                            chunk.startswith("\n\n>")
+                            or "\n> " in chunk
+                            or chunk.startswith("> ")
+                        ):
                             if self.console:
                                 self.console.print()
                                 TerminalUI.render_markdown(self.console, chunk.strip())
@@ -222,7 +274,9 @@ class TerminalInterface:
                         status = None
                     if self.console:
                         self.console.print(f"\n[bold cyan]{name}:[/bold cyan]")
-                        TerminalUI.render_markdown_typewriter(self.console, "".join(buffered_chunks).strip())
+                        TerminalUI.render_markdown_typewriter(
+                            self.console, "".join(buffered_chunks).strip()
+                        )
                     else:
                         print(f"\n{name}:")
                         print("".join(buffered_chunks).strip())
@@ -231,7 +285,9 @@ class TerminalInterface:
                     status.stop()
                     status = None
                 if self.console:
-                    self.console.print(f"\n\n[dim yellow]^C [Interrupted @{current_handle}][/dim yellow]")
+                    self.console.print(
+                        f"\n\n[dim yellow]^C [Interrupted @{current_handle}][/dim yellow]"
+                    )
                 else:
                     print(f"\n\n^C [Interrupted @{current_handle}]")
                 continue
@@ -249,4 +305,6 @@ class TerminalInterface:
                 if self.console:
                     self.console.print(badge)
                 else:
-                    print(f"\n[{first_time:.2f}s TTFT | {elapsed:.2f}s total | {short_m}]")
+                    print(
+                        f"\n[{first_time:.2f}s TTFT | {elapsed:.2f}s total | {short_m}]"
+                    )

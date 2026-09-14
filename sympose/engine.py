@@ -458,7 +458,13 @@ class PersonaEngine:
                 # or say it has no record).
                 self.active_vault_ctx[h_key] = None
             elif self.active_vault_ctx.get(h_key):
-                vault_ctx = self.active_vault_ctx[h_key]
+                # Reusing a prior turn's resolved context — re-read a
+                # single-note reference fresh rather than replaying a frozen
+                # copy that may no longer match the file on disk.
+                vault_ctx = VaultManager.refresh_note_context(
+                    profile, self.active_vault_ctx[h_key]
+                )
+                self.active_vault_ctx[h_key] = vault_ctx
 
         system_prompt = self.pm.build_system_prompt(profile)
         if vault_ctx:

@@ -1229,6 +1229,33 @@ class VaultManager:
         loc = f" in `{target_folder}/`" if target_folder else ""
         return f"### Ground-Truth Vault Search Results for '{cand}'{loc}:\n{digest}"
 
+    # Matches the label on a single-file "Ground-Truth ... Exact Content" block
+    # built by resolve_turn_context below. Used only to re-read that same note
+    # fresh before reusing it on a later turn — see refresh_note_context.
+    _SANDBOXED_NOTE_RE = re.compile(
+        r"^### Ground-Truth Sandboxed Vault Note \(`([^`]+)` - Exact Content\):\n"
+    )
+
+    @classmethod
+    def refresh_note_context(cls, profile: dict[str, Any], cached_text: str) -> str:
+        """Re-reads a cached single-note vault context from disk before reuse
+        on a later turn. `active_vault_ctx` in the engine carries a resolved
+        context forward across turns that don't themselves trigger a fresh
+        recall — but the note may have been edited since it was first read,
+        and replaying the frozen text would silently contradict the
+        "Ground-Truth"/"Exact Content" label it carries. Falls back to the
+        cached text unchanged for anything that isn't a single-note read
+        (manifest/backlink/search digests span multiple notes and are lower
+        risk) or if the re-read fails."""
+        m = cls._SANDBOXED_NOTE_RE.match(cached_text)
+        if not m:
+            return cached_text
+        note_ref = m.group(1)
+        fresh = cls.read_note(profile, note_ref)
+        if not fresh or fresh.startswith("Note `") or fresh.startswith("⚠️") or fresh.startswith("Error reading"):
+            return cached_text
+        return f"### Ground-Truth Sandboxed Vault Note (`{note_ref}` - Exact Content):\n{fresh}"
+
     @classmethod
     def resolve_turn_context(cls, profile: dict[str, Any], message: str) -> str | None:
         """Skill-gated, structure-agnostic pre-inference retrieval conforming to skills/vault_recall."""

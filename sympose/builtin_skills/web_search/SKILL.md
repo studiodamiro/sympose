@@ -1,7 +1,7 @@
 ---
 name: "web_search"
 title: "Live Internet Search & Real-Time Intelligence"
-description: "Fetching live prices, news, docs, and online research via the [SEARCH] and [SPAWN_WORKER: web_search] action tags."
+description: "Fetching live prices, news, docs, and online research via the [SEARCH] and [SPAWN_SUB_AGENT: web_search] action tags."
 tags:
   - web-search
   - internet
@@ -18,7 +18,7 @@ use and the flow.
 
 - **`[SEARCH: <query>]`** — quick lookups: a current price, a fact, a headline, a
   spec.
-- **`[SPAWN_WORKER: web_search | <task>]`** — deeper work: multi-query research,
+- **`[SPAWN_SUB_AGENT: web_search | <task>]`** — deeper work: multi-query research,
   cross-referencing, anything that would otherwise spill many tokens of
   intermediate results into the main thread.
 

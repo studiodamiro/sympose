@@ -22,7 +22,7 @@ topic, the conversation, or what sounds plausible; never invent a date, quote, o
 reflection.
 
 - Answer not already in your pre-turn context → emit
-  `[SPAWN_WORKER: vault_recall | <what to find>]` and stop; wait for the report.
+  `[SPAWN_SUB_AGENT: vault_recall | <what to find>]` and stop; wait for the report.
 - Never fall back to web `[SEARCH]` for the user's own notes, journal, or history.
 - Retrieval comes back empty → "I have no record of that in your vault." Nothing more.
 

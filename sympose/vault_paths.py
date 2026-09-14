@@ -65,3 +65,17 @@ def get_primary_dir(profile: dict[str, Any]) -> str | None:
     note name is created, as opposed to an explicit `Folder/Note` path."""
     dirs = get_allowed_dirs(profile)
     return dirs[0] if dirs else None
+
+
+def dirs_mtime(dirs: list[str]) -> float:
+    """Shallow top-level mtime watermark shared by every mtime-keyed vault
+    cache (the backlink index, the vault content snapshot, ...): touches to
+    a direct child dir invalidate; a write several levels deep only bubbles
+    up as far as its immediate parent's mtime."""
+    mtime = 0.0
+    for d in dirs:
+        try:
+            mtime = max(mtime, os.path.getmtime(d))
+        except OSError:
+            pass
+    return mtime

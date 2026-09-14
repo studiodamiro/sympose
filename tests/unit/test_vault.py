@@ -15,6 +15,7 @@ from sympose.config import is_safe_path
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def write_note(path, content: str):
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w", encoding="utf-8") as f:
@@ -25,15 +26,18 @@ def write_note(path, content: str):
 # VaultManager.get_allowed_dirs (sandboxing)
 # ---------------------------------------------------------------------------
 
+
 class TestGetAllowedDirs:
     def test_returns_empty_when_no_vault_env(self):
         from sympose.vault import VaultManager
+
         with patch.dict(os.environ, {"MASTER_VAULT_PATH": ""}, clear=False):
             dirs = VaultManager.get_allowed_dirs({"vault_folders": ["Notes"]})
             assert dirs == []
 
     def test_returns_vault_root_for_wildcard(self, tmp_vault_dir, monkeypatch):
         from sympose.vault import VaultManager
+
         monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
         dirs = VaultManager.get_allowed_dirs({"vault_folders": ["*"]})
         assert len(dirs) == 1
@@ -41,6 +45,7 @@ class TestGetAllowedDirs:
 
     def test_returns_subfolder_for_named_folder(self, tmp_vault_dir, monkeypatch):
         from sympose.vault import VaultManager
+
         (tmp_vault_dir / "Notes").mkdir()
         monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
         dirs = VaultManager.get_allowed_dirs({"vault_folders": ["Notes"]})
@@ -49,6 +54,7 @@ class TestGetAllowedDirs:
     def test_traversal_in_folder_name_rejected(self, tmp_vault_dir, monkeypatch):
         """A vault_folder containing ../ should not escape the vault root."""
         from sympose.vault import VaultManager
+
         monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
         dirs = VaultManager.get_allowed_dirs({"vault_folders": ["../../etc"]})
         # Either empty or constrained within vault root
@@ -60,9 +66,11 @@ class TestGetAllowedDirs:
 # VaultManager.read_note
 # ---------------------------------------------------------------------------
 
+
 class TestReadNote:
     def test_read_existing_note(self, tmp_vault_dir, monkeypatch):
         from sympose.vault import VaultManager
+
         note_path = str(tmp_vault_dir / "hello.md")
         write_note(note_path, "# Hello\nThis is a note.")
         monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
@@ -72,6 +80,7 @@ class TestReadNote:
 
     def test_read_missing_note_returns_error_msg(self, tmp_vault_dir, monkeypatch):
         from sympose.vault import VaultManager
+
         monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
         profile = {"vault_folders": ["*"]}
         content = VaultManager.read_note(profile, "nonexistent_note_xyz")
@@ -79,9 +88,12 @@ class TestReadNote:
         assert isinstance(content, str)
         assert len(content) > 0
 
-    def test_read_note_outside_sandbox_denied(self, tmp_vault_dir, monkeypatch, tmp_path):
+    def test_read_note_outside_sandbox_denied(
+        self, tmp_vault_dir, monkeypatch, tmp_path
+    ):
         """Attempting to read a note outside the vault root should be denied."""
         from sympose.vault import VaultManager
+
         # Write a note outside the vault
         outside_note = tmp_path / "secret.md"
         outside_note.write_text("TOP SECRET")
@@ -93,6 +105,7 @@ class TestReadNote:
 
     def test_read_note_with_md_extension(self, tmp_vault_dir, monkeypatch):
         from sympose.vault import VaultManager
+
         note_path = str(tmp_vault_dir / "test_note.md")
         write_note(note_path, "Test content")
         monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
@@ -108,9 +121,11 @@ class TestReadNote:
 # VaultManager.resolve_asset_path
 # ---------------------------------------------------------------------------
 
+
 class TestResolveAssetPath:
     def test_resolves_direct_path(self, tmp_vault_dir, monkeypatch):
         from sympose.vault import VaultManager
+
         asset_path = tmp_vault_dir / "diagram.png"
         asset_path.write_bytes(b"fake-png-bytes")
         monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
@@ -123,6 +138,7 @@ class TestResolveAssetPath:
         an allowed dir, the same way an Obsidian `![[pic.png]]` embed carries
         no path — mirrors read_note's recursive stem fallback."""
         from sympose.vault import VaultManager
+
         nested = tmp_vault_dir / "Projects" / "Nested"
         nested.mkdir(parents=True)
         (nested / "pic.PNG").write_bytes(b"fake-bytes")
@@ -137,6 +153,7 @@ class TestResolveAssetPath:
         so asset resolution must not apply that same exclusion (regression
         guard for the resolver reusing read_note's ignore list by mistake)."""
         from sympose.vault import VaultManager
+
         attachments = tmp_vault_dir / "Attachments"
         attachments.mkdir()
         (attachments / "photo.jpg").write_bytes(b"fake-jpeg")
@@ -147,12 +164,14 @@ class TestResolveAssetPath:
 
     def test_missing_asset_returns_none(self, tmp_vault_dir, monkeypatch):
         from sympose.vault import VaultManager
+
         monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
         profile = {"vault_folders": ["*"]}
         assert VaultManager.resolve_asset_path(profile, "nope.png") is None
 
     def test_asset_outside_sandbox_denied(self, tmp_vault_dir, monkeypatch, tmp_path):
         from sympose.vault import VaultManager
+
         outside_asset = tmp_path / "secret.png"
         outside_asset.write_bytes(b"TOP SECRET BYTES")
         monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
@@ -165,9 +184,11 @@ class TestResolveAssetPath:
 # VaultManager.parse_frontmatter
 # ---------------------------------------------------------------------------
 
+
 class TestParseFrontmatter:
     def test_valid_frontmatter_parsed(self):
         from sympose.vault import VaultManager
+
         content = "---\ntitle: My Note\ntags: [python, test]\n---\n# Body"
         fm, body = VaultManager.parse_frontmatter(content)
         assert fm.get("title") == "My Note"
@@ -175,6 +196,7 @@ class TestParseFrontmatter:
 
     def test_no_frontmatter_returns_empty_dict(self):
         from sympose.vault import VaultManager
+
         content = "# Just content, no frontmatter"
         fm, body = VaultManager.parse_frontmatter(content)
         assert fm == {}
@@ -182,6 +204,7 @@ class TestParseFrontmatter:
 
     def test_missing_frontmatter_content_is_body(self):
         from sympose.vault import VaultManager
+
         content = "Plain text note."
         fm, body = VaultManager.parse_frontmatter(content)
         assert fm == {}
@@ -189,6 +212,7 @@ class TestParseFrontmatter:
 
     def test_frontmatter_body_stripped(self):
         from sympose.vault import VaultManager
+
         content = "---\nauthor: damiro\n---\nBody text here"
         fm, body = VaultManager.parse_frontmatter(content)
         assert fm.get("author") == "damiro"
@@ -198,7 +222,8 @@ class TestParseFrontmatter:
         """People/Templates notes are often 100% frontmatter with the closing
         `---` as the last line and no trailing newline — must still parse."""
         from sympose.vault import VaultManager
-        content = "---\naka:\n  - Dylan\nname: Dylan Cosmo\ntags:\n  - \"#person\"\n  - son\n---"
+
+        content = '---\naka:\n  - Dylan\nname: Dylan Cosmo\ntags:\n  - "#person"\n  - son\n---'
         fm, body = VaultManager.parse_frontmatter(content)
         assert fm.get("name") == "Dylan Cosmo"
         assert fm.get("aka") == ["Dylan"]
@@ -207,11 +232,13 @@ class TestParseFrontmatter:
 
     def test_frontmatter_only_note_with_trailing_newline(self):
         from sympose.vault import VaultManager
+
         fm, body = VaultManager.parse_frontmatter("---\nname: X\n---\n")
         assert fm.get("name") == "X" and body == ""
 
     def test_closing_delimiter_with_trailing_spaces(self):
         from sympose.vault import VaultManager
+
         fm, body = VaultManager.parse_frontmatter("---\nname: X\n---  \nBody")
         assert fm.get("name") == "X" and "Body" in body
 
@@ -220,9 +247,11 @@ class TestParseFrontmatter:
 # VaultManager.write_note (sandbox enforcement)
 # ---------------------------------------------------------------------------
 
+
 class TestWriteNote:
     def test_write_note_creates_file(self, tmp_vault_dir, monkeypatch):
         from sympose.vault import VaultManager
+
         monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
         profile = {"vault_folders": ["*"]}
         result = VaultManager.write_note(profile, "new_note", "# Created by test")
@@ -230,8 +259,11 @@ class TestWriteNote:
         note_path = tmp_vault_dir / "new_note.md"
         assert note_path.exists()
 
-    def test_write_note_outside_sandbox_denied(self, tmp_vault_dir, tmp_path, monkeypatch):
+    def test_write_note_outside_sandbox_denied(
+        self, tmp_vault_dir, tmp_path, monkeypatch
+    ):
         from sympose.vault import VaultManager
+
         monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
         profile = {"vault_folders": ["*"]}
         outside_path = str(tmp_path / "evil.md")
@@ -244,10 +276,13 @@ class TestWriteNote:
         else:
             assert isinstance(result, str)
 
-    def test_write_note_applies_matching_folder_template(self, tmp_vault_dir, monkeypatch):
+    def test_write_note_applies_matching_folder_template(
+        self, tmp_vault_dir, monkeypatch
+    ):
         """A [WRITE_NOTE] payload with no frontmatter of its own gets the vault's
         real per-folder template (ADR-113) — not a generic tags/type/created block."""
         from sympose.vault import VaultManager
+
         tmpl_dir = tmp_vault_dir / "Templates"
         tmpl_dir.mkdir()
         (tmpl_dir / "People template.md").write_text(
@@ -258,15 +293,20 @@ class TestWriteNote:
         )
         monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
         profile = {"vault_folders": ["*"]}
-        VaultManager.write_note(profile, "People/jane_doe", "Met her at the conference.")
+        VaultManager.write_note(
+            profile, "People/jane_doe", "Met her at the conference."
+        )
         content = (tmp_vault_dir / "People" / "jane_doe.md").read_text()
         assert "aka: Jane Doe" in content
         assert "birthday:" in content
 
-    def test_write_note_with_own_frontmatter_bypasses_template(self, tmp_vault_dir, monkeypatch):
+    def test_write_note_with_own_frontmatter_bypasses_template(
+        self, tmp_vault_dir, monkeypatch
+    ):
         """A model that supplies its own frontmatter block wins verbatim, even if
         it skips the folder's real template — intentional, but the exception."""
         from sympose.vault import VaultManager
+
         tmpl_dir = tmp_vault_dir / "Templates"
         tmpl_dir.mkdir()
         (tmpl_dir / "People template.md").write_text(
@@ -274,7 +314,9 @@ class TestWriteNote:
         )
         monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
         profile = {"vault_folders": ["*"]}
-        VaultManager.write_note(profile, "People/jane_doe", "---\ncustom: field\n---\n\nBody")
+        VaultManager.write_note(
+            profile, "People/jane_doe", "---\ncustom: field\n---\n\nBody"
+        )
         content = (tmp_vault_dir / "People" / "jane_doe.md").read_text()
         assert "custom: field" in content
         assert "aka:" not in content
@@ -283,6 +325,7 @@ class TestWriteNote:
 # ---------------------------------------------------------------------------
 # VaultManager.get_template_for_path (folder <-> template matching — ADR-113)
 # ---------------------------------------------------------------------------
+
 
 class TestGetTemplateForPath:
     def _make_templates(self, tmp_vault_dir, files):
@@ -294,43 +337,70 @@ class TestGetTemplateForPath:
 
     def test_exact_folder_name_match(self, tmp_vault_dir):
         from sympose.vault import VaultManager
-        self._make_templates(tmp_vault_dir, {
-            "People template.md": "---\naka: {{title}}\n---\n",
-            "Note template.md": "---\ntitle: {{title}}\n---\n",
-        })
-        result = VaultManager.get_template_for_path(str(tmp_vault_dir), "People/jane.md")
+
+        self._make_templates(
+            tmp_vault_dir,
+            {
+                "People template.md": "---\naka: {{title}}\n---\n",
+                "Note template.md": "---\ntitle: {{title}}\n---\n",
+            },
+        )
+        result = VaultManager.get_template_for_path(
+            str(tmp_vault_dir), "People/jane.md"
+        )
         assert "aka:" in result
 
     def test_plural_folder_matches_singular_template_name(self, tmp_vault_dir):
         from sympose.vault import VaultManager
-        self._make_templates(tmp_vault_dir, {
-            "Movie template.md": "---\nrelease: {{date:YYYY}}\n---\n",
-            "Note template.md": "---\ntitle: {{title}}\n---\n",
-        })
-        result = VaultManager.get_template_for_path(str(tmp_vault_dir), "Movies/dune.md")
+
+        self._make_templates(
+            tmp_vault_dir,
+            {
+                "Movie template.md": "---\nrelease: {{date:YYYY}}\n---\n",
+                "Note template.md": "---\ntitle: {{title}}\n---\n",
+            },
+        )
+        result = VaultManager.get_template_for_path(
+            str(tmp_vault_dir), "Movies/dune.md"
+        )
         assert "release:" in result
 
     def test_unmapped_folder_falls_back_to_note_template(self, tmp_vault_dir):
         from sympose.vault import VaultManager
-        self._make_templates(tmp_vault_dir, {
-            "Movie template.md": "---\nrelease: {{date:YYYY}}\n---\n",
-            "Note template.md": "---\ntitle: {{title}}\n---\n",
-        })
-        result = VaultManager.get_template_for_path(str(tmp_vault_dir), "Recipes/soup.md")
+
+        self._make_templates(
+            tmp_vault_dir,
+            {
+                "Movie template.md": "---\nrelease: {{date:YYYY}}\n---\n",
+                "Note template.md": "---\ntitle: {{title}}\n---\n",
+            },
+        )
+        result = VaultManager.get_template_for_path(
+            str(tmp_vault_dir), "Recipes/soup.md"
+        )
         assert "title:" in result and "release:" not in result
 
     def test_new_template_file_matched_without_a_code_change(self, tmp_vault_dir):
         from sympose.vault import VaultManager
-        self._make_templates(tmp_vault_dir, {
-            "Recipe template.md": "---\ningredients: []\n---\n",
-            "Note template.md": "---\ntitle: {{title}}\n---\n",
-        })
-        result = VaultManager.get_template_for_path(str(tmp_vault_dir), "Recipes/soup.md")
+
+        self._make_templates(
+            tmp_vault_dir,
+            {
+                "Recipe template.md": "---\ningredients: []\n---\n",
+                "Note template.md": "---\ntitle: {{title}}\n---\n",
+            },
+        )
+        result = VaultManager.get_template_for_path(
+            str(tmp_vault_dir), "Recipes/soup.md"
+        )
         assert "ingredients:" in result
 
     def test_no_templates_folder_returns_none(self, tmp_vault_dir):
         from sympose.vault import VaultManager
-        result = VaultManager.get_template_for_path(str(tmp_vault_dir), "People/jane.md")
+
+        result = VaultManager.get_template_for_path(
+            str(tmp_vault_dir), "People/jane.md"
+        )
         assert result is None
 
 
@@ -338,9 +408,11 @@ class TestGetTemplateForPath:
 # VaultManager.overwrite_note (dashboard editor save — ADR-081)
 # ---------------------------------------------------------------------------
 
+
 class TestOverwriteNote:
     def test_overwrites_existing_verbatim(self, tmp_vault_dir, monkeypatch):
         from sympose.vault import VaultManager
+
         note_path = tmp_vault_dir / "Notes" / "diary.md"
         write_note(str(note_path), "---\ntitle: Diary\n---\n\nold body\n")
         monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
@@ -355,6 +427,7 @@ class TestOverwriteNote:
 
     def test_missing_note_is_not_created(self, tmp_vault_dir, monkeypatch):
         from sympose.vault import VaultManager
+
         monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
         profile = {"vault_folders": ["*"]}
 
@@ -365,6 +438,7 @@ class TestOverwriteNote:
 
     def test_outside_sandbox_denied(self, tmp_vault_dir, tmp_path, monkeypatch):
         from sympose.vault import VaultManager
+
         outside = tmp_path / "outside" / "secret.md"
         write_note(str(outside), "before")
         monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
@@ -372,7 +446,9 @@ class TestOverwriteNote:
 
         result = VaultManager.overwrite_note(profile, "../outside/secret", "after")
 
-        assert result == VaultManager.NOTE_NOT_FOUND or result == VaultManager.NOTE_DENIED
+        assert (
+            result == VaultManager.NOTE_NOT_FOUND or result == VaultManager.NOTE_DENIED
+        )
         assert outside.read_text() == "before"
 
 
@@ -380,9 +456,11 @@ class TestOverwriteNote:
 # VaultManager.create_note (dashboard new-note — ADR-083)
 # ---------------------------------------------------------------------------
 
+
 class TestCreateNote:
     def test_creates_with_seeded_stub(self, tmp_vault_dir, monkeypatch):
         from sympose.vault import VaultManager
+
         monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
         profile = {"vault_folders": ["*"]}
 
@@ -394,15 +472,19 @@ class TestCreateNote:
         assert "title: Rocket Stove" in body
         assert "# Rocket Stove" in body
 
-    def test_seeds_from_matching_folder_template_when_present(self, tmp_vault_dir, monkeypatch):
+    def test_seeds_from_matching_folder_template_when_present(
+        self, tmp_vault_dir, monkeypatch
+    ):
         """The dashboard's 'new note' buttons (POST /api/vault/note, empty
         content) get the same real per-folder template write_note applies for
         persona-written notes — ADR-113."""
         from sympose.vault import VaultManager
+
         tmpl_dir = tmp_vault_dir / "Templates"
         tmpl_dir.mkdir()
         (tmpl_dir / "Movie template.md").write_text(
-            "---\ntitle: {{title}}\nrelease: {{date:YYYY}}\nrating: \n---\n", encoding="utf-8"
+            "---\ntitle: {{title}}\nrelease: {{date:YYYY}}\nrating: \n---\n",
+            encoding="utf-8",
         )
         (tmpl_dir / "Note template.md").write_text(
             "---\ntitle: {{title}}\ntags: []\n---\n", encoding="utf-8"
@@ -419,6 +501,7 @@ class TestCreateNote:
 
     def test_honours_supplied_content(self, tmp_vault_dir, monkeypatch):
         from sympose.vault import VaultManager
+
         monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
         profile = {"vault_folders": ["*"]}
 
@@ -428,6 +511,7 @@ class TestCreateNote:
 
     def test_refuses_to_clobber_existing(self, tmp_vault_dir, monkeypatch):
         from sympose.vault import VaultManager
+
         note = tmp_vault_dir / "Notes" / "taken.md"
         write_note(str(note), "original")
         monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
@@ -440,6 +524,7 @@ class TestCreateNote:
 
     def test_outside_sandbox_denied(self, tmp_vault_dir, tmp_path, monkeypatch):
         from sympose.vault import VaultManager
+
         monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
         profile = {"vault_folders": ["*"]}
 
@@ -453,9 +538,11 @@ class TestCreateNote:
 # VaultManager.create_folder (content-panel toolbar — ADR-095)
 # ---------------------------------------------------------------------------
 
+
 class TestCreateFolder:
     def test_creates_empty_folder(self, tmp_vault_dir, monkeypatch):
         from sympose.vault import VaultManager
+
         monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
         profile = {"vault_folders": ["*"]}
 
@@ -466,6 +553,7 @@ class TestCreateFolder:
 
     def test_refuses_when_path_already_exists(self, tmp_vault_dir, monkeypatch):
         from sympose.vault import VaultManager
+
         note = tmp_vault_dir / "Notes" / "taken.md"
         write_note(str(note), "original")
         monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
@@ -477,6 +565,7 @@ class TestCreateFolder:
 
     def test_outside_sandbox_denied(self, tmp_vault_dir, tmp_path, monkeypatch):
         from sympose.vault import VaultManager
+
         monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
         profile = {"vault_folders": ["*"]}
 
@@ -485,11 +574,14 @@ class TestCreateFolder:
         assert result == VaultManager.NOTE_DENIED
         assert not (tmp_path / "escapee").exists()
 
-    def test_new_empty_folder_shows_up_in_the_vault_tree(self, tmp_vault_dir, monkeypatch):
+    def test_new_empty_folder_shows_up_in_the_vault_tree(
+        self, tmp_vault_dir, monkeypatch
+    ):
         # ADR-098 regression: creating a folder used to succeed on disk but
         # never appear in GET /api/vault/tree, since the tree was a pure
         # projection of the (note-only) manifest.
         from sympose.vault import VaultManager
+
         monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
         profile = {"vault_folders": ["*"]}
 
@@ -503,13 +595,18 @@ class TestCreateFolder:
         assert archive["type"] == "folder"
         assert archive["children"] == []
 
-    def test_list_real_folders_ignores_dotfolders_and_configured_ignores(self, tmp_vault_dir, monkeypatch):
+    def test_list_real_folders_ignores_dotfolders_and_configured_ignores(
+        self, tmp_vault_dir, monkeypatch
+    ):
         from sympose.vault import VaultManager
+
         (tmp_vault_dir / "Kept").mkdir()
         (tmp_vault_dir / ".obsidian").mkdir()
         (tmp_vault_dir / ".hidden").mkdir()
 
-        real_folders = VaultManager._list_real_folders(str(tmp_vault_dir), [str(tmp_vault_dir)])
+        real_folders = VaultManager._list_real_folders(
+            str(tmp_vault_dir), [str(tmp_vault_dir)]
+        )
 
         assert "Kept" in real_folders
         assert not any(f.startswith(".") or ".obsidian" in f for f in real_folders)
@@ -519,8 +616,11 @@ class TestDeleteFolder:
     """ADR-099: an empty folder is unlinked outright, a non-empty one moves
     as one unit to `<vault>/.trash/` and its notes are de-indexed."""
 
-    def test_empty_folder_removed_outright_not_trashed(self, tmp_vault_dir, monkeypatch):
+    def test_empty_folder_removed_outright_not_trashed(
+        self, tmp_vault_dir, monkeypatch
+    ):
         from sympose.vault import VaultManager
+
         (tmp_vault_dir / "Empty").mkdir()
         monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
 
@@ -530,8 +630,11 @@ class TestDeleteFolder:
         assert not (tmp_vault_dir / "Empty").exists()
         assert not (tmp_vault_dir / ".trash").exists()
 
-    def test_non_empty_folder_moves_to_trash_with_notes_intact(self, tmp_vault_dir, monkeypatch):
+    def test_non_empty_folder_moves_to_trash_with_notes_intact(
+        self, tmp_vault_dir, monkeypatch
+    ):
         from sympose.vault import VaultManager
+
         write_note(str(tmp_vault_dir / "Ideas" / "a.md"), "first")
         write_note(str(tmp_vault_dir / "Ideas" / "Sub" / "b.md"), "second")
         monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
@@ -541,10 +644,15 @@ class TestDeleteFolder:
         assert result == "Moved folder to the bin: `.trash/Ideas` (2 notes)"
         assert not (tmp_vault_dir / "Ideas").exists()
         assert (tmp_vault_dir / ".trash" / "Ideas" / "a.md").read_text() == "first"
-        assert (tmp_vault_dir / ".trash" / "Ideas" / "Sub" / "b.md").read_text() == "second"
+        assert (
+            tmp_vault_dir / ".trash" / "Ideas" / "Sub" / "b.md"
+        ).read_text() == "second"
 
-    def test_deleted_folder_notes_are_individually_restorable(self, tmp_vault_dir, monkeypatch):
+    def test_deleted_folder_notes_are_individually_restorable(
+        self, tmp_vault_dir, monkeypatch
+    ):
         from sympose.vault import VaultManager
+
         write_note(str(tmp_vault_dir / "Ideas" / "a.md"), "first")
         monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
         profile = {"vault_folders": ["*"]}
@@ -559,6 +667,7 @@ class TestDeleteFolder:
 
     def test_trash_name_clash_gets_suffix(self, tmp_vault_dir, monkeypatch):
         from sympose.vault import VaultManager
+
         write_note(str(tmp_vault_dir / ".trash" / "Ideas" / "old.md"), "old trash")
         write_note(str(tmp_vault_dir / "Ideas" / "new.md"), "new")
         monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
@@ -567,16 +676,20 @@ class TestDeleteFolder:
 
         assert result.startswith("Moved folder to the bin: `.trash/Ideas-")
         # the pre-existing trash entry for a different, earlier deletion is untouched
-        assert (tmp_vault_dir / ".trash" / "Ideas" / "old.md").read_text() == "old trash"
+        assert (
+            tmp_vault_dir / ".trash" / "Ideas" / "old.md"
+        ).read_text() == "old trash"
 
     def test_missing_folder_not_found(self, tmp_vault_dir, monkeypatch):
         from sympose.vault import VaultManager
+
         monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
         result = VaultManager.delete_folder({"vault_folders": ["*"]}, "Ghost")
         assert result == VaultManager.NOTE_NOT_FOUND
 
     def test_a_file_path_is_not_a_folder(self, tmp_vault_dir, monkeypatch):
         from sympose.vault import VaultManager
+
         write_note(str(tmp_vault_dir / "note.md"), "hi")
         monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
         result = VaultManager.delete_folder({"vault_folders": ["*"]}, "note.md")
@@ -584,6 +697,7 @@ class TestDeleteFolder:
 
     def test_outside_sandbox_denied(self, tmp_vault_dir, tmp_path, monkeypatch):
         from sympose.vault import VaultManager
+
         (tmp_path / "escapee").mkdir()
         monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
 
@@ -592,8 +706,11 @@ class TestDeleteFolder:
         assert result == VaultManager.NOTE_DENIED
         assert (tmp_path / "escapee").exists()
 
-    def test_deleted_folder_disappears_from_the_vault_tree(self, tmp_vault_dir, monkeypatch):
+    def test_deleted_folder_disappears_from_the_vault_tree(
+        self, tmp_vault_dir, monkeypatch
+    ):
         from sympose.vault import VaultManager
+
         write_note(str(tmp_vault_dir / "Ideas" / "a.md"), "first")
         monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
         profile = {"vault_folders": ["*"]}
@@ -608,9 +725,11 @@ class TestDeleteFolder:
 # VaultManager.rename_note / delete_note (dashboard editor — ADR-084)
 # ---------------------------------------------------------------------------
 
+
 class TestRenameNote:
     def test_renames_and_rewrites_wikilinks(self, tmp_vault_dir, monkeypatch):
         from sympose.vault import VaultManager
+
         (tmp_vault_dir / "Notes").mkdir()
         write_note(str(tmp_vault_dir / "Notes" / "alpha.md"), "# Alpha\n")
         write_note(
@@ -633,12 +752,14 @@ class TestRenameNote:
 
     def test_missing_source_not_found(self, tmp_vault_dir, monkeypatch):
         from sympose.vault import VaultManager
+
         monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
         result = VaultManager.rename_note({"vault_folders": ["*"]}, "ghost", "x")
         assert result == VaultManager.NOTE_NOT_FOUND
 
     def test_target_exists_refused(self, tmp_vault_dir, monkeypatch):
         from sympose.vault import VaultManager
+
         (tmp_vault_dir / "N").mkdir()
         write_note(str(tmp_vault_dir / "N" / "a.md"), "a")
         write_note(str(tmp_vault_dir / "N" / "b.md"), "b")
@@ -649,9 +770,12 @@ class TestRenameNote:
 
     def test_target_outside_sandbox_denied(self, tmp_vault_dir, monkeypatch):
         from sympose.vault import VaultManager
+
         write_note(str(tmp_vault_dir / "keep.md"), "x")
         monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
-        result = VaultManager.rename_note({"vault_folders": ["*"]}, "keep", "../escaped")
+        result = VaultManager.rename_note(
+            {"vault_folders": ["*"]}, "keep", "../escaped"
+        )
         assert result == VaultManager.NOTE_DENIED
         assert (tmp_vault_dir / "keep.md").exists()
 
@@ -659,6 +783,7 @@ class TestRenameNote:
 class TestDeleteNote:
     def test_moves_to_trash(self, tmp_vault_dir, monkeypatch):
         from sympose.vault import VaultManager
+
         (tmp_vault_dir / "Notes").mkdir()
         write_note(str(tmp_vault_dir / "Notes" / "scrap.md"), "junk")
         monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
@@ -671,6 +796,7 @@ class TestDeleteNote:
 
     def test_trash_name_clash_gets_suffix(self, tmp_vault_dir, monkeypatch):
         from sympose.vault import VaultManager
+
         (tmp_vault_dir / ".trash").mkdir()
         write_note(str(tmp_vault_dir / ".trash" / "dupe.md"), "old trash")
         write_note(str(tmp_vault_dir / "dupe.md"), "new")
@@ -683,6 +809,7 @@ class TestDeleteNote:
 
     def test_missing_not_found(self, tmp_vault_dir, monkeypatch):
         from sympose.vault import VaultManager
+
         monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
         result = VaultManager.delete_note({"vault_folders": ["*"]}, "ghost")
         assert result == VaultManager.NOTE_NOT_FOUND
@@ -692,54 +819,13 @@ class TestDeleteNote:
 # Backlink cache — mtime invalidation
 # ---------------------------------------------------------------------------
 
-class TestBacklinkCache:
-    def test_cache_populated_on_first_call(self, tmp_vault_dir, monkeypatch):
-        import sympose.vault as vault_mod
-        from sympose.vault import VaultManager
-        # Clear the cache
-        vault_mod._BACKLINK_CACHE.clear()
-        monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
-        profile = {"vault_folders": ["*"]}
-        # Write a note with a [[backlink]]
-        note_path = str(tmp_vault_dir / "source.md")
-        write_note(note_path, "# Source\nSee [[target]] for details.")
-        VaultManager.build_backlink_index(profile)
-        assert len(vault_mod._BACKLINK_CACHE) >= 1
-
-    def test_cache_hit_on_second_call(self, tmp_vault_dir, monkeypatch):
-        import sympose.vault as vault_mod
-        from sympose.vault import VaultManager
-        vault_mod._BACKLINK_CACHE.clear()
-        monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
-        profile = {"vault_folders": ["*"]}
-        note_path = str(tmp_vault_dir / "doc.md")
-        write_note(note_path, "[[linked]]")
-        result1 = VaultManager.build_backlink_index(profile)
-        result2 = VaultManager.build_backlink_index(profile)
-        # Both calls should return identical index (cache hit)
-        assert result1 == result2
-
-    def test_cache_invalidated_after_file_change(self, tmp_vault_dir, monkeypatch):
-        import time
-        import sympose.vault as vault_mod
-        from sympose.vault import VaultManager
-        vault_mod._BACKLINK_CACHE.clear()
-        monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
-        profile = {"vault_folders": ["*"]}
-        note_path = str(tmp_vault_dir / "changing.md")
-        write_note(note_path, "[[link_one]]")
-        result1 = VaultManager.build_backlink_index(profile)
-        # Wait briefly and modify the directory mtime by adding a new file
-        time.sleep(0.05)
-        write_note(str(tmp_vault_dir / "new_file.md"), "new")
-        result2 = VaultManager.build_backlink_index(profile)
-        # We just verify it runs without error and returns a dict
-        assert isinstance(result2, dict)
-
+# Backlink-cache behavior moved to test_vault_links.py alongside the module
+# it now actually lives in (sympose.vault_links).
 
 # ---------------------------------------------------------------------------
 # VaultManager._extract_recall_subject — conversational-phrasing -> search term
 # ---------------------------------------------------------------------------
+
 
 class TestExtractRecallSubject:
     """Regression: 'pull up my notes on Rilke' used to be stripped to 'up my notes
@@ -749,22 +835,32 @@ class TestExtractRecallSubject:
 
     def _subj(self, msg):
         from sympose.vault import VaultManager
+
         return VaultManager._extract_recall_subject(msg)
 
     def test_pull_up_leadin(self):
         assert self._subj("pull up my notes on Rilke") == ("rilke", True)
 
     def test_what_did_i_write_about_plus_trailing_journal_clause(self):
-        assert self._subj("what did I write about grief in my journal") == ("grief", True)
+        assert self._subj("what did I write about grief in my journal") == (
+            "grief",
+            True,
+        )
 
     def test_do_i_have_notes_about(self):
         assert self._subj("do I have any notes about If I Stay") == ("if i stay", True)
 
     def test_about_object_extraction(self):
-        assert self._subj("recall our past conversations about longing") == ("longing", True)
+        assert self._subj("recall our past conversations about longing") == (
+            "longing",
+            True,
+        )
 
     def test_greeting_is_stripped(self):
-        assert self._subj("hey anais, remind me about the Meridian project") == ("meridian project", True)
+        assert self._subj("hey anais, remind me about the Meridian project") == (
+            "meridian project",
+            True,
+        )
 
     def test_no_leadin_flag_when_plain(self):
         subj, had_leadin = self._subj("what's the weather in Tokyo")
@@ -776,7 +872,10 @@ class TestExtractRecallSubject:
 
     def test_politeness_wrapper_stripped_before_leadin(self):
         # "can you" used to block the "pull up" lead-in from ever matching.
-        assert self._subj("can you pull up Dylan's people entry from our vault") == ("dylan people", True)
+        assert self._subj("can you pull up Dylan's people entry from our vault") == (
+            "dylan people",
+            True,
+        )
 
     def test_apostrophe_possessive_normalised(self):
         assert self._subj("what's in my note on Rilke's elegies")[0] == "rilke elegies"
@@ -798,53 +897,96 @@ class TestResolveTurnContextConversational:
     def _profile(self):
         return {"handle": "anais", "skills": ["vault_recall"], "vault_folders": ["*"]}
 
-    def test_conversational_query_surfaces_matching_note(self, tmp_vault_dir, monkeypatch):
+    def test_conversational_query_surfaces_matching_note(
+        self, tmp_vault_dir, monkeypatch
+    ):
         from sympose.vault import VaultManager
-        monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
-        write_note(str(tmp_vault_dir / "People" / "Rilke.md"), "# Rilke\n\nNotes on Rilke and the Duino Elegies.\n")
 
-        ctx = VaultManager.resolve_turn_context(self._profile(), "pull up my notes on Rilke")
+        monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
+        write_note(
+            str(tmp_vault_dir / "People" / "Rilke.md"),
+            "# Rilke\n\nNotes on Rilke and the Duino Elegies.\n",
+        )
+
+        ctx = VaultManager.resolve_turn_context(
+            self._profile(), "pull up my notes on Rilke"
+        )
         assert ctx is not None
         assert "Rilke" in ctx
 
-    def test_conversational_query_with_no_match_returns_none(self, tmp_vault_dir, monkeypatch):
+    def test_conversational_query_with_no_match_returns_none(
+        self, tmp_vault_dir, monkeypatch
+    ):
         from sympose.vault import VaultManager
+
         monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
         write_note(str(tmp_vault_dir / "People" / "Rilke.md"), "# Rilke\n")
 
-        assert VaultManager.resolve_turn_context(self._profile(), "pull up my notes on Nonexistent Topic Xyz") is None
+        assert (
+            VaultManager.resolve_turn_context(
+                self._profile(), "pull up my notes on Nonexistent Topic Xyz"
+            )
+            is None
+        )
 
-    def test_gate_blocks_persona_without_vault_recall_skill(self, tmp_vault_dir, monkeypatch):
+    def test_gate_blocks_persona_without_vault_recall_skill(
+        self, tmp_vault_dir, monkeypatch
+    ):
         from sympose.vault import VaultManager
+
         monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
         write_note(str(tmp_vault_dir / "People" / "Rilke.md"), "# Rilke\n")
         no_skill = {"handle": "x", "skills": ["web_search"], "vault_folders": ["*"]}
-        assert VaultManager.resolve_turn_context(no_skill, "pull up my notes on Rilke") is None
+        assert (
+            VaultManager.resolve_turn_context(no_skill, "pull up my notes on Rilke")
+            is None
+        )
 
-    def test_named_person_entry_hits_that_note_not_a_random_one(self, tmp_vault_dir, monkeypatch):
+    def test_named_person_entry_hits_that_note_not_a_random_one(
+        self, tmp_vault_dir, monkeypatch
+    ):
         """Regression: "can you pull up Dylan's people entry" tripped the random
         daily-note sampler ("entry" + "pull") and injected an unrelated journal
         note stamped as Ground-Truth, which the model then "read out" as Dylan's."""
         from sympose.vault import VaultManager
+
         monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
-        write_note(str(tmp_vault_dir / "People" / "Dylan.md"), "# Dylan\n\nson, born 2015-09-08, links to [[Tin]].\n")
-        write_note(str(tmp_vault_dir / "Daily" / "2025-02-05.md"), "# Day\n\nBought life insurance today.\n")
+        write_note(
+            str(tmp_vault_dir / "People" / "Dylan.md"),
+            "# Dylan\n\nson, born 2015-09-08, links to [[Tin]].\n",
+        )
+        write_note(
+            str(tmp_vault_dir / "Daily" / "2025-02-05.md"),
+            "# Day\n\nBought life insurance today.\n",
+        )
 
         ctx = VaultManager.resolve_turn_context(
-            self._profile(), "can you pull up Dylan's people entry from our vault and see if my memory's right?"
+            self._profile(),
+            "can you pull up Dylan's people entry from our vault and see if my memory's right?",
         )
         assert ctx is not None
         assert "2015-09-08" in ctx and "insurance" not in ctx
 
-    def test_random_daily_sampler_still_fires_without_a_named_subject(self, tmp_vault_dir, monkeypatch):
+    def test_random_daily_sampler_still_fires_without_a_named_subject(
+        self, tmp_vault_dir, monkeypatch
+    ):
         from sympose.vault import VaultManager
-        monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
-        write_note(str(tmp_vault_dir / "Daily" / "2025-02-05.md"), "# Day\n\nA quiet morning.\n")
 
-        ctx = VaultManager.resolve_turn_context(self._profile(), "pull up a random daily entry")
+        monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
+        write_note(
+            str(tmp_vault_dir / "Daily" / "2025-02-05.md"),
+            "# Day\n\nA quiet morning.\n",
+        )
+
+        ctx = VaultManager.resolve_turn_context(
+            self._profile(), "pull up a random daily entry"
+        )
         assert ctx is not None and "quiet morning" in ctx
 
     def test_fresh_recall_intent_detected(self):
         from sympose.vault import VaultManager
-        assert VaultManager.has_recall_intent("can you pull up my note on grief") is True
+
+        assert (
+            VaultManager.has_recall_intent("can you pull up my note on grief") is True
+        )
         assert VaultManager.has_recall_intent("what's the btc price right now") is False

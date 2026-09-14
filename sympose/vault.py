@@ -5,13 +5,13 @@ Sandboxed Vault & Markdown Note Manager for Sympose.
 import logging
 import os
 import re
-from collections import defaultdict
 from typing import Any, ClassVar
 
 import yaml
 
 from sympose import (
     vault_index,
+    vault_links,
     vault_manifest,
     vault_paths,
     vault_trash,
@@ -23,35 +23,12 @@ from sympose.config import config_manager, is_safe_path
 log = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
-# Backlink index cache — avoids a full vault walk on every message
-# Key: tuple of allowed_dirs paths → (combined_mtime, index_dict)
-# ---------------------------------------------------------------------------
-_BACKLINK_CACHE: dict[
-    tuple[str, ...], tuple[float, dict[str, list[dict[str, Any]]]]
-] = {}
-
-# ---------------------------------------------------------------------------
 # Vault content snapshot cache — avoids re-walking + re-reading every note on
 # every search_structured() / get_folder_digest() call. Same mtime-keyed
-# invalidation strategy as _BACKLINK_CACHE.
+# invalidation strategy as vault_links' own backlink cache.
 # Key: tuple of scanned dir paths → (combined_mtime, flat list of parsed notes)
 # ---------------------------------------------------------------------------
 _VAULT_SNAPSHOT_CACHE: dict[tuple[str, ...], tuple[float, list[dict[str, Any]]]] = {}
-
-
-def _dirs_mtime(dirs: list[str]) -> float:
-    """Shallow top-level mtime watermark shared by the backlink index and the
-    vault snapshot cache — matches the invalidation granularity already
-    accepted by _BACKLINK_CACHE (touches to a direct child dir invalidate;
-    a write several levels deep only bubbles up as far as its immediate
-    parent's mtime, same as before)."""
-    mtime = 0.0
-    for d in dirs:
-        try:
-            mtime = max(mtime, os.path.getmtime(d))
-        except OSError:
-            pass
-    return mtime
 
 
 class VaultManager:
@@ -619,7 +596,7 @@ class VaultManager:
         Shared by search_structured() and get_folder_digest() so neither has to
         re-walk + re-read the vault from disk on every call."""
         cache_key = tuple(sorted(dirs))
-        current_mtime = _dirs_mtime(dirs)
+        current_mtime = vault_paths.dirs_mtime(dirs)
         cached_mtime, cached_snapshot = _VAULT_SNAPSHOT_CACHE.get(cache_key, (0.0, []))
         if current_mtime == cached_mtime and cached_snapshot:
             return cached_snapshot
@@ -1220,170 +1197,45 @@ class VaultManager:
         except Exception as e:
             return False, f"⚠️ Failed to open note: {e}"
 
+    # ------------------------------------------------------------------
+    # Wikilinks & backlinks — thin wrappers over `vault_links`, which owns
+    # the inverted index and its cache.
+    # ------------------------------------------------------------------
+
     @staticmethod
     def extract_wikilinks(content: str) -> list[dict[str, Any]]:
         """Extracts structured wikilink metadata from text content, supporting aliases and heading anchors."""
-        pattern = re.compile(r"\[\[([^\]\|#]+)(?:#([^\]\|]+))?(?:\|([^\]]+))?\]\]")
-        links = []
-        for match in pattern.finditer(content):
-            target = match.group(1).strip()
-            heading = match.group(2).strip() if match.group(2) else None
-            alias = match.group(3).strip() if match.group(3) else None
-            stem = os.path.splitext(os.path.basename(target))[0].lower().strip()
-            links.append(
-                {
-                    "target": target,
-                    "stem": stem,
-                    "heading": heading,
-                    "alias": alias,
-                    "raw": match.group(0),
-                }
-            )
-        return links
+        return vault_links.extract_wikilinks(content)
 
     @classmethod
     def get_forward_links(
         cls, profile: dict[str, Any], note_name: str
     ) -> list[dict[str, Any]]:
         """Extracts all outgoing wikilinks from a given note within allowed vault folders."""
-        content = cls.read_note(profile, note_name)
-        if not content or content.startswith("Note `") or content.startswith("⚠️"):
-            return []
-        return cls.extract_wikilinks(content)
+        return vault_links.get_forward_links(
+            profile, note_name, read_note_fn=cls.read_note
+        )
 
     @classmethod
     def build_backlink_index(
         cls, profile: dict[str, Any]
     ) -> dict[str, list[dict[str, Any]]]:
         """Constructs an inverted backlink index, using a mtime cache to skip re-walks on unchanged vaults."""
-        mv, allowed_dirs = cls._get_master_vault(), cls.get_allowed_dirs(profile)
-        if not mv or not allowed_dirs:
-            return {}
-
-        cache_key = tuple(sorted(allowed_dirs))
-        current_mtime = _dirs_mtime(allowed_dirs)
-        cached_mtime, cached_index = _BACKLINK_CACHE.get(cache_key, (0.0, {}))
-        if current_mtime == cached_mtime and cached_index:
-            return cached_index
-
-        inverted_index: dict[str, list[dict[str, Any]]] = defaultdict(list)
-        raw_ignore = config_manager.get("vault.ignore_folders") or [
-            ".obsidian",
-            ".git",
-            "Attachments",
-            ".trash",
-        ]
-        ignore_dirs = {str(d).lower().strip() for d in raw_ignore}
-        pattern = re.compile(r"\[\[([^\]\|#]+)(?:#([^\]\|]+))?(?:\|([^\]]+))?\]\]")
-
-        try:
-            for allowed in allowed_dirs:
-                if not os.path.exists(allowed):
-                    continue
-                for root, dirs, files in os.walk(allowed):
-                    dirs[:] = [
-                        d
-                        for d in dirs
-                        if d.lower() not in ignore_dirs and not d.startswith(".")
-                    ]
-                    for fn in sorted(files):
-                        if fn.endswith((".md", ".markdown", ".txt")):
-                            fp = os.path.join(root, fn)
-                            if not is_safe_path(fp, allowed):
-                                continue
-                            rel_path = os.path.relpath(fp, mv)
-                            try:
-                                with open(
-                                    fp, "r", encoding="utf-8", errors="ignore"
-                                ) as f:
-                                    for line_idx, line in enumerate(f, start=1):
-                                        for match in pattern.finditer(line):
-                                            target = match.group(1).strip()
-                                            heading = (
-                                                match.group(2).strip()
-                                                if match.group(2)
-                                                else None
-                                            )
-                                            alias = (
-                                                match.group(3).strip()
-                                                if match.group(3)
-                                                else None
-                                            )
-                                            stem = (
-                                                os.path.splitext(
-                                                    os.path.basename(target)
-                                                )[0]
-                                                .lower()
-                                                .strip()
-                                            )
-                                            inverted_index[stem].append(
-                                                {
-                                                    "source_file": fn,
-                                                    "rel_path": rel_path,
-                                                    "target": target,
-                                                    "target_stem": stem,
-                                                    "heading": heading,
-                                                    "alias": alias,
-                                                    "line_no": line_idx,
-                                                    "context_snippet": line.strip(),
-                                                }
-                                            )
-                            except Exception as e:
-                                log.debug(
-                                    "Skipping unreadable file in backlink index %s: %s",
-                                    rel_path,
-                                    e,
-                                )
-        except Exception as e:
-            log.debug("Backlink index build ended early: %s", e)
-
-        result = dict(inverted_index)
-        _BACKLINK_CACHE[cache_key] = (current_mtime, result)
-        return result
+        return vault_links.build_backlink_index(profile)
 
     @classmethod
     def get_backlinks(
         cls, profile: dict[str, Any], note_name: str
     ) -> list[dict[str, Any]]:
         """Queries the in-memory inverted index for all incoming references to note_name."""
-        clean_target = (
-            note_name.strip().strip("\"'").replace("[[", "").replace("]]", "")
-        )
-        stem = os.path.splitext(os.path.basename(clean_target))[0].lower().strip()
-        index = cls.build_backlink_index(profile)
-        return index.get(stem, [])
+        return vault_links.get_backlinks(profile, note_name)
 
     @classmethod
     def get_backlinks_digest(
         cls, profile: dict[str, Any], note_name: str, max_entries: int = 15
     ) -> str:
         """Generates a high-density Markdown summary of backlinks for note_name."""
-        clean_target = (
-            note_name.strip().strip("\"'").replace("[[", "").replace("]]", "")
-        )
-        backlinks = cls.get_backlinks(profile, clean_target)
-        if not backlinks:
-            return f"No backlinks found referencing `[[{clean_target}]]` in allowed vault folders."
-
-        lines = [
-            f"### ◀ Backlinks for `[[{clean_target}]]` ({len(backlinks)} reference(s) found):"
-        ]
-        for b in backlinks[:max_entries]:
-            rel = b.get("rel_path", b.get("source_file", "unknown"))
-            line_no = b.get("line_no", "")
-            line_str = f" (Line {line_no})" if line_no else ""
-            ctx = b.get("context_snippet", "")
-            if ctx:
-                lines.append(f"- **`{rel}`**{line_str}:\n  > {ctx[:200]}")
-            else:
-                lines.append(f"- **`{rel}`**{line_str}")
-
-        if len(backlinks) > max_entries:
-            lines.append(
-                f"\n*(+ {len(backlinks) - max_entries} more references in vault)*"
-            )
-
-        return "\n".join(lines)
+        return vault_links.get_backlinks_digest(profile, note_name, max_entries)
 
     @staticmethod
     def format_manifest_digest(
@@ -1395,57 +1247,9 @@ class VaultManager:
         """Compact, disk-true structural map from an ADR-078 manifest — folder
         counts, top tags, most-linked notes, unresolved links. Structure only:
         no note text, so it says *where* to look, never *what a note says*."""
-        nodes = manifest.get("nodes", [])
-        real = [n for n in nodes if n.get("exists")]
-        real_ids = {n["id"] for n in real}
-        top = sorted(
-            ((k, v) for k, v in manifest.get("folders", {}).items() if "/" not in k),
-            key=lambda kv: -kv[1],
+        return vault_links.format_manifest_digest(
+            manifest, max_folders, max_tags, max_hubs
         )
-        folder_lines = [
-            f"- `{k}/` — {v} note{'s' if v != 1 else ''}" for k, v in top[:max_folders]
-        ] or ["- *(flat vault — no folders)*"]
-
-        tag_counts: dict[str, int] = {}
-        inbound: dict[str, int] = {}
-        for n in real:
-            for t in n.get("tags", []):
-                tag_counts[t] = tag_counts.get(t, 0) + 1
-        for link in manifest.get("links", []):
-            if link["target"] in real_ids:
-                inbound[link["target"]] = inbound.get(link["target"], 0) + 1
-        tag_line = (
-            ", ".join(
-                f"#{t} ({c})"
-                for t, c in sorted(tag_counts.items(), key=lambda kv: -kv[1])[:max_tags]
-            )
-            or "—"
-        )
-        hub_line = (
-            ", ".join(
-                f"[[{h}]] ({c})"
-                for h, c in sorted(inbound.items(), key=lambda kv: -kv[1])[:max_hubs]
-            )
-            or "—"
-        )
-
-        out = [
-            f"### Ground-Truth Vault Structure Map ({len(real)} notes, {len(top)} top-level folders)",
-            "",
-            "**Folders:**",
-            *folder_lines,
-            "",
-            f"**Top tags:** {tag_line}",
-            f"**Most-linked notes:** {hub_line}",
-        ]
-        ghosts = [n["id"] for n in nodes if not n.get("exists")]
-        if ghosts:
-            sample = ", ".join(f"[[{g}]]" for g in ghosts[:6])
-            out.append(
-                f"**Unresolved links:** {len(ghosts)} ({sample}{', …' if len(ghosts) > 6 else ''})"
-            )
-        out.append("\n*Structure only — read the actual note for its contents.*")
-        return "\n".join(out)
 
     # ------------------------------------------------------------------
     # Note/folder mutation — thin, sandbox-scoped wrappers over
@@ -1548,7 +1352,7 @@ class VaultManager:
         back. `NOTE_NOT_FOUND` when the path isn't a real folder, `NOTE_DENIED`
         outside the sandbox."""
         return vault_write.delete_folder(
-            profile, folder_name, on_backlinks_changed=_BACKLINK_CACHE.clear
+            profile, folder_name, on_backlinks_changed=vault_links.clear_cache
         )
 
     @classmethod
@@ -1583,7 +1387,7 @@ class VaultManager:
             get_backlinks_fn=cls.get_backlinks,
             reindex_hook=cls._reindex_note_if_enabled,
             manifest_hook=cls._update_manifest_if_enabled,
-            on_backlinks_changed=_BACKLINK_CACHE.clear,
+            on_backlinks_changed=vault_links.clear_cache,
         )
 
     @classmethod
@@ -1592,7 +1396,7 @@ class VaultManager:
         (ADR-084) — recoverable, and `.trash` is already an ignored folder. A
         name clash in the trash gets a timestamp suffix."""
         return vault_write.delete_note(
-            profile, note_name, on_backlinks_changed=_BACKLINK_CACHE.clear
+            profile, note_name, on_backlinks_changed=vault_links.clear_cache
         )
 
     # ------------------------------------------------------------------
@@ -1633,7 +1437,7 @@ class VaultManager:
         dst = os.path.join(mv, result)
         cls._reindex_note_if_enabled(mv, dst)
         cls._update_manifest_if_enabled(mv, dst)
-        _BACKLINK_CACHE.clear()
+        vault_links.clear_cache()
         return f"Restored to `{result}`"
 
     @classmethod

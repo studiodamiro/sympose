@@ -740,7 +740,7 @@ function VaultTreeRow({
           onDragStart={canMove ? (e) => startNoteDrag(e, node.path) : undefined}
           // Nested notes align under the parent folder's label (+20 clears the
           // disclosure chevron); top-level notes have no folder above them, so
-          // they sit flush with the panel gutter (matching Settings / Agent).
+          // they sit flush with the panel gutter (matching Settings / Persona).
           style={{ paddingLeft: `${basePad + (depth > 0 ? 20 : 0)}px` }}
           className={cn(
             "flex min-w-0 flex-1 items-center gap-1.5 py-1 pr-0 text-left transition-[color,padding-right] duration-thumb ease-snappy",

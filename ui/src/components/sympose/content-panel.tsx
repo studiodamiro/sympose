@@ -47,12 +47,12 @@ interface ContentPanelProps extends React.ComponentProps<"div"> {
   /**
    * Phone shell: drop the panel fill + rounding so the surface reads on the
    * same plain background as the chat and editor — used for the Settings and
-   * Agent pages, which are destinations, not the vault navigation surface.
+   * Persona pages, which are destinations, not the vault navigation surface.
    */
   plain?: boolean
   /**
    * Desktop: for the same "destination, not vault navigation" pages `plain`
-   * already carves out (Settings, Agent). Stays a normal, draggable panel
+   * already carves out (Settings, Persona). Stays a normal, draggable panel
    * (the resize handle is not dropped, and its ceiling lifts to the full
    * stage width instead of the ordinary half): the dragged width from before
    * `fill` turned on is remembered and restored when it turns back off, so
@@ -161,7 +161,7 @@ function ContentPanel({
     []
   )
 
-  // A separate cookie for the `fill` (Settings / Agent) width — sharing
+  // A separate cookie for the `fill` (Settings / Persona) width — sharing
   // `storageKey` would mean dragging a destination page's panel silently
   // overwrites the vault view's own persisted width the moment you next
   // visit it.
@@ -276,7 +276,7 @@ function ContentPanel({
         ref={scrollWrapRef}
         className={cn(
           "group/scroll-thumb relative w-full flex-1 min-h-0 overflow-hidden",
-          // plain phone pages (Settings / Agent) sit on the same background as
+          // plain phone pages (Settings / Persona) sit on the same background as
           // chat and the editor — no fill, no rounding
           phone && plain
             ? "text-foreground"

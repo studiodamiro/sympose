@@ -7,7 +7,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { ModelChip } from "@/components/sympose/model-chip"
 
-interface AgentCardProps {
+interface PersonaCardProps {
   /** Live roster from `GET /api/personas`. */
   personas: LivePersona[]
   /** Handle of the active persona. */
@@ -23,20 +23,21 @@ interface AgentCardProps {
 }
 
 /**
- * The Agent panel — identity of the active persona plus a switcher. Soul and
- * Memory open the persona's markdown; both are disabled until their endpoints
- * land (`GET /api/personas/{handle}/soul|memory`). PINNED / RECENT are a later
- * pass. The header band is tinted with the persona's own accent, the same
- * `--persona-accent` custom property `<PersonaPill>` uses, so runtime-created
- * personas that are not in the static roster still get a stable colour.
+ * The Persona panel — identity of the active persona plus a switcher. Soul
+ * and Memory open the persona's markdown; both are disabled until their
+ * endpoints land (`GET /api/personas/{handle}/soul|memory`). PINNED / RECENT
+ * are a later pass. The header band is tinted with the persona's own accent,
+ * the same `--persona-accent` custom property `<PersonaPill>` uses, so
+ * runtime-created personas that are not in the static roster still get a
+ * stable colour.
  */
-function AgentCard({
+function PersonaCard({
   personas,
   active,
   onSwitch,
   phone = false,
   className,
-}: AgentCardProps) {
+}: PersonaCardProps) {
   const current = personas.find((p) => p.handle === active) ?? personas[0]
   const others = personas.filter((p) => p.handle !== current?.handle)
 
@@ -123,7 +124,7 @@ function AgentCard({
           <hr className="border-border" />
           <div className="flex flex-col gap-2">
             <span className="text-xs font-semibold tracking-wide text-fg-muted uppercase">
-              Switch agents
+              Switch personas
             </span>
             <div className="flex flex-wrap gap-2">
               {others.map((p) => {
@@ -158,4 +159,4 @@ function AgentCard({
   )
 }
 
-export { AgentCard }
+export { PersonaCard }

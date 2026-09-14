@@ -25,7 +25,7 @@ function StreamingCaret({ className, ...props }: React.ComponentProps<"span">) {
 }
 
 /**
- * One turn in the multi-agent chat timeline (UI_DESIGN_REFERENCE.md §7).
+ * One turn in the multi-persona chat timeline (UI_DESIGN_REFERENCE.md §7).
  * User turns are right-aligned with a filled bubble; persona turns are a
  * left-aligned identity header (handle pill + model chip + latency) over plain
  * flowing text — distinction by alignment/fill, never chat-bubble kitsch.

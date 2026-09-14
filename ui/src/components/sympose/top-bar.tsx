@@ -59,7 +59,7 @@ function IconButton({
 
 function TopBar({
   className,
-  account = { name: "Agent" },
+  account = { name: "Persona" },
   chatOpen = false,
   onToggleChat,
   menuOpen,

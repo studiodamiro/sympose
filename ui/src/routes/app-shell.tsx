@@ -60,7 +60,7 @@ import { resolveEmbed } from "@/lib/resolve-embed"
 import { VAULT_FOLDERS } from "@/lib/vault-folders"
 import {
   ActionBadge,
-  AgentCard,
+  PersonaCard,
   ChatActionGroup,
   ChatMessage,
   ChatPanel,
@@ -113,7 +113,7 @@ function menuIconFor(node: VaultNode) {
 /** Labels for the non-folder sections the footer rows can select. */
 const SECTION_LABELS: Record<string, string> = {
   [MENU_SETTINGS_ID]: "Settings",
-  [MENU_ACCOUNT_ID]: "Agent",
+  [MENU_ACCOUNT_ID]: "Persona",
   [MENU_TRASH_ID]: "Bin",
 }
 
@@ -250,7 +250,7 @@ export function AppShell() {
   }
 
   const selectSection = (id: string) => {
-    // On phone, jumping to Settings / Agent from the TopBar slides the menu away
+    // On phone, jumping to Settings / Persona from the TopBar slides the menu away
     // (folder picks keep it, so its highlight stays visible next to the panel).
     if (isPhone && (id === MENU_SETTINGS_ID || id === MENU_ACCOUNT_ID)) {
       setMenuShown(false)
@@ -343,7 +343,7 @@ export function AppShell() {
   const editorFill =
     editorOpen && !chatOpen && !unfillFirst && breakpoint !== "desktop"
 
-  // Agent picker — the active persona is client state (a cookie), and the
+  // Persona picker — the active persona is client state (a cookie), and the
   // roster is fetched once. Both feed the `MENU_ACCOUNT_ID` panel; the handle
   // is lifted here so the vault panels can scope their `?persona=` calls to it
   // once those land.
@@ -474,7 +474,7 @@ export function AppShell() {
   // Filters `panelNodes` client-side (name/path substring match) rather than
   // round-tripping to the backend — round-trip frugality, and the tree is
   // already fetched. Only scoped to the vault-folder listing, not Bin /
-  // Settings / Agent, which the same toolbar field sits above but don't read
+  // Settings / Persona, which the same toolbar field sits above but don't read
   // it.
   const [vaultSearch, setVaultSearch] = React.useState("")
   // Search, like new note/folder, is an icon-toggled field rather than
@@ -520,7 +520,7 @@ export function AppShell() {
 
   // Main menu = the vault's surface (top-level folders + root notes like
   // README.md), in the tree's own order, with curated icons where the folder
-  // name is known. The two footer sentinels (Settings, Agent) stay separate.
+  // name is known. The two footer sentinels (Settings, Persona) stay separate.
   const menuItems: MainMenuItem[] = vaultTree.map((node) => ({
     id: node.path,
     label:
@@ -757,13 +757,13 @@ export function AppShell() {
   }
 
   // The main-menu account row wears the active persona's name, icon and accent.
-  const activeAgentName =
+  const activePersonaName =
     personas.find((p) => p.handle === activePersona)?.name ?? activePersona
-  const activeAgentVisuals = resolvePersonaVisuals(activePersona)
+  const activePersonaVisuals = resolvePersonaVisuals(activePersona)
   // Phone: the rail only shows alongside the content panel — the two are one
   // view. Desktop / tablet: always shown.
   const menuOpen = isPhone ? menuShown && contentOpen : true
-  // Settings / Agent on phone are plain destination pages, styled off the chat
+  // Settings / Persona on phone are plain destination pages, styled off the chat
   // panel (same background, same gutter) rather than the vault content surface.
   const plainPage =
     isPhone && (active === MENU_SETTINGS_ID || active === MENU_ACCOUNT_ID)
@@ -772,7 +772,7 @@ export function AppShell() {
   // content panel's own top edge via `<ContentPanel header>`, mirroring the
   // editor toolbar's chrome exactly rather than sitting inline with the
   // section title. Shown on every surface (vault folders, Bin, Settings,
-  // Agent) so back/forward always works; new note/folder only make sense
+  // Persona) so back/forward always works; new note/folder only make sense
   // on an actual vault folder, so that group is dropped on the sentinel
   // surfaces instead of rendering disabled, inert buttons.
   const contentHeader = (
@@ -948,7 +948,7 @@ export function AppShell() {
 
   const contentBody =
     active === MENU_ACCOUNT_ID ? (
-      <AgentCard
+      <PersonaCard
         personas={personas}
         active={activePersona}
         onSwitch={setActivePersona}
@@ -1211,9 +1211,9 @@ export function AppShell() {
           onSelectTrash={() => selectSection(MENU_TRASH_ID)}
           onDropNote={moveNote}
           account={{
-            name: activeAgentName,
-            icon: activeAgentVisuals.icon,
-            accent: activeAgentVisuals.accent,
+            name: activePersonaName,
+            icon: activePersonaVisuals.icon,
+            accent: activePersonaVisuals.accent,
           }}
           collapsed={menu.collapsed}
           onCollapsedChange={(c) =>
@@ -1265,10 +1265,10 @@ export function AppShell() {
             storageKey="sympose:shell.panel"
             scrollKey="sympose:shell.panel.scroll"
             contentClassName={
-              // Settings, Agent and the Vault view all share one gutter: `p-8`
+              // Settings, Persona and the Vault view all share one gutter: `p-8`
               // on desktop/tablet, `px-4 py-6` on the phone plain page, `p-6`
-              // for the phone vault surface. The Agent card cancels this same
-              // pad with its own negative-margin accent band (see AgentCard).
+              // for the phone vault surface. The persona card cancels this same
+              // pad with its own negative-margin accent band (see PersonaCard).
               !isPhone ? "p-8" : plainPage ? "px-4 py-6" : "p-6"
             }
             open={contentOpen}

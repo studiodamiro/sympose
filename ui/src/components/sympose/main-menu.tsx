@@ -161,7 +161,7 @@ function MainMenu({
   onSelectAccount,
   onSelectTrash,
   onDropNote,
-  account = { name: "Agent" },
+  account = { name: "Persona" },
   storageKey,
   hideChrome = false,
   open = true,

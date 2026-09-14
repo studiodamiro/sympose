@@ -110,7 +110,7 @@ interface Section {
 const SECTIONS: Section[] = [
   { id: "foundations", title: "Foundations", icon: Layers01Icon },
   { id: "persona", title: "Persona identity", icon: UserCircle02Icon },
-  { id: "chat", title: "Multi-agent chat", icon: BubbleChatIcon },
+  { id: "chat", title: "Multi-persona chat", icon: BubbleChatIcon },
   { id: "vault", title: "Vault explorer", icon: Folder01Icon },
   { id: "menu", title: "Main menu", icon: SidebarLeft01Icon },
   { id: "nebula", title: "Nebula controls", icon: StarsIcon },
@@ -362,7 +362,7 @@ export function ComponentsGallery() {
         {/* ----------------------------------------------------------- chat -- */}
         <GallerySection
           id="chat"
-          title="Multi-agent chat"
+          title="Multi-persona chat"
           description="Turns distinguished by alignment + fill, not chat-bubble kitsch (§7). Action badges render inline under the message that produced them."
         >
           <div className="flex max-w-2xl flex-col gap-5 rounded-lg border border-border bg-card p-5">

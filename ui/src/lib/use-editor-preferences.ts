@@ -55,7 +55,7 @@ const DEFAULTS: EditorPreferences = {
  * The markdown panel's editing preferences — cookie-backed per the UI
  * preference convention (UI_DESIGN_REFERENCE.md §5), not localStorage, and
  * not a `config_schema.py` runtime knob (ADR-077): these are per-browser
- * editing behavior, not backend/agent configuration.
+ * editing behavior, not backend/persona configuration.
  */
 export function useEditorPreferences(): readonly [
   EditorPreferences,

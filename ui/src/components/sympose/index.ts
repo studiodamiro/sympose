@@ -1,5 +1,4 @@
 export { ActionBadge, ACTION_META, type ActionKind } from "./action-badge"
-export { AgentCard } from "./agent-card"
 export { CapacityMeter } from "./capacity-meter"
 export { ChatMessage, StreamingCaret } from "./chat-message"
 export { ChatActionGroup, ChatPanel } from "./chat-panel"
@@ -42,6 +41,7 @@ export {
   PanelHeader,
   PanelTitle,
 } from "./panel"
+export { PersonaCard } from "./persona-card"
 export { PersonaPill } from "./persona-pill"
 export { PresetCard, type ThemePreset } from "./preset-card"
 export { QuietToggle } from "./quiet-toggle"

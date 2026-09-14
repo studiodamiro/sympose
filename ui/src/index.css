@@ -198,7 +198,7 @@
    pills, vault-tree rows, the note-actions/vault-row menus, the wikilink
    hover-card — deliberately matched to `<ScrollThumb>`'s own hover-fade
    (ADR-100) rather than getting its own independently-tuned number; Settings
-   and the Agent panel keep their own popovers/menus at the shadcn defaults.
+   and the Persona panel keep their own popovers/menus at the shadcn defaults.
 
    Each also sets `--tw-duration` (ADR-103 fix), not just `transition-duration`
    — mirroring Tailwind's own built-in numeric `duration-*` utility (verified
@@ -952,7 +952,7 @@
    own child in `mode="preview"`, which has no `.cm-scroller` at all —
    `getStyloScroller` in markdown-panel.tsx resolves whichever one applies,
    this just needs to hide the native scrollbar on both the same way) and
-   `<ContentPanel>`'s scroll surface (the vault view, Settings, the Agent
+   `<ContentPanel>`'s scroll surface (the vault view, Settings, the Persona
    page). All native scrollbars here are hidden outright. */
 [data-slot="markdown-panel"] .cm-scroller,
 [data-slot="markdown-panel"] [data-stylo-mode="preview"] > div,

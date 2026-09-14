@@ -83,6 +83,7 @@ const KnowledgeNebula2D = React.forwardRef<
     const timerRef = React.useRef<any>(null)
     const lastReheatRef = React.useRef(0)
     const didInitialFitRef = React.useRef(false)
+    const pendingPanZoomTimeoutRef = React.useRef<any>(null)
     const { w, h } = useElementSize(containerRef)
     const live = interactive ?? !dimmed
 
@@ -182,9 +183,41 @@ const KnowledgeNebula2D = React.forwardRef<
       return { cx, cy, k }
     }
 
+    // Node click and background click both fire the highlight/dim change and
+    // the pan/zoom in the same instant, so the colour fade — which is what
+    // actually tells you what got (de)selected — gets buried under a bigger
+    // motion happening at the same time and reads as an abrupt snap (the same
+    // issue ADR-118 found and fixed on the 3D renderer). Giving the colour
+    // change a head start before the view moves lets it register on its own
+    // first. Routed through one cancellable scheduler so a second click before
+    // the delay elapses replaces the pending pan/zoom rather than stacking two.
+    const CLICK_ZOOM_LEAD_MS = 220
+    const schedulePanZoom = React.useCallback((fn: () => void, delayMs: number) => {
+      if (pendingPanZoomTimeoutRef.current !== null) {
+        window.clearTimeout(pendingPanZoomTimeoutRef.current)
+        pendingPanZoomTimeoutRef.current = null
+      }
+      if (delayMs <= 0) {
+        fn()
+        return
+      }
+      pendingPanZoomTimeoutRef.current = window.setTimeout(() => {
+        pendingPanZoomTimeoutRef.current = null
+        fn()
+      }, delayMs)
+    }, [])
+
+    React.useEffect(() => {
+      return () => {
+        if (pendingPanZoomTimeoutRef.current !== null) {
+          window.clearTimeout(pendingPanZoomTimeoutRef.current)
+        }
+      }
+    }, [])
+
     React.useImperativeHandle(ref, () => ({
       zoomToFit: (duration = 600, padding = 48) => {
-        fgRef.current?.zoomToFit(duration, padding)
+        schedulePanZoom(() => fgRef.current?.zoomToFit(duration, padding), CLICK_ZOOM_LEAD_MS)
       },
       focusNode: (nodeOrId: NebulaNode | string, distance?: number, duration = 700) => {
         const fg = fgRef.current
@@ -356,11 +389,16 @@ const KnowledgeNebula2D = React.forwardRef<
       const fg = fgRef.current
       if (!fg) return
       const framing = getClusterFraming(node.id, clickZoomDistance)
-      if (framing) {
-        fg.centerAt(framing.cx, framing.cy, 600)
-        fg.zoom(framing.k, 600)
-      }
+      // Fire the highlight change first (synchronously, so the very next
+      // paint already has it in flight) and only schedule the pan/zoom after
+      // CLICK_ZOOM_LEAD_MS — see the comment on `schedulePanZoom`.
       onNodeClick?.(node as NebulaNode)
+      if (framing) {
+        schedulePanZoom(() => {
+          fg.centerAt(framing.cx, framing.cy, 600)
+          fg.zoom(framing.k, 600)
+        }, CLICK_ZOOM_LEAD_MS)
+      }
     }
 
     return (

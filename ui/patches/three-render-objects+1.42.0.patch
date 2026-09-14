@@ -1,33 +1,37 @@
 diff --git a/node_modules/three-render-objects/dist/three-render-objects.mjs b/node_modules/three-render-objects/dist/three-render-objects.mjs
-index 3374b7a..89c91b1 100644
+index 3374b7a..59dc991 100644
 --- a/node_modules/three-render-objects/dist/three-render-objects.mjs
 +++ b/node_modules/three-render-objects/dist/three-render-objects.mjs
-@@ -524,9 +524,21 @@ var threeRenderObjects = Kapsule({
+@@ -520,13 +520,24 @@ var threeRenderObjects = Kapsule({
+     ['pointermove', 'pointerdown'].forEach(function (evType) {
+       return state.container.addEventListener(evType, function (ev) {
+         // track click state
+-        evType === 'pointerdown' && (state.isPointerPressed = true);
++        evType === 'pointerdown' && (state.isPointerPressed = true, state.pointerDownEvent = ev);
  
          // detect point drag
          !state.isPointerDragging && ev.type === 'pointermove' && (ev.pressure > 0 || state.isPointerPressed) // ev.pressure always 0 on Safari, so we used the isPointerPressed tracker
 -        && (ev.pointerType === 'mouse' || ev.movementX === undefined || [ev.movementX, ev.movementY].some(function (m) {
 -          return Math.abs(m) > 1;
 -        })) // relax drag trigger sensitivity on non-mouse (touch/pen) events
-+        // sympose patch (see ui/patches/three-render-objects+*.patch): upstream
-+        // short-circuited this whole check to true for any mouse pointermove
-+        // regardless of distance, so ordinary hand tremor between mousedown/mouseup
-+        // during a real click was misread as a drag and silently swallowed the
-+        // click. Movement magnitude now gates mouse the same as touch/pen — but
-+        // the `> 1` threshold from the first round of this patch was itself
-+        // still too tight: real mouse/trackpad hardware routinely reports 2-5px
-+        // of movement on a single pointermove event during an ordinary click,
-+        // confirmed by driving synthetic clicks with increasing jitter (solid
-+        // up to ~3px, 100% dropped at 5px+). Raised to `> 4` — comfortably past
-+        // normal click tremor, while a genuine drag/orbit gesture still clears
-+        // it almost immediately since it sustains many such events in a row.
-+        && (ev.movementX === undefined || [ev.movementX, ev.movementY].some(function (m) {
-+          return Math.abs(m) > 4;
-+        }))
++        // sympose patch (see ui/patches/three-render-objects+*.patch, amended
++        // ADR-120): the previous two rounds of this patch (thresholds `> 1`,
++        // then `> 4`) both gated on a single pointermove event's raw
++        // movementX/Y delta — still unreliable, because movementX reflects
++        // the device's pointer delta *before* OS-level pointer acceleration
++        // is applied, so a calm, small hand movement can report a large
++        // value on a system with a fast tracking-speed setting, and a single
++        // noisy event is a poor proxy for "did the user actually drag"
++        // either way. Compare cumulative on-screen displacement since
++        // pointerdown instead (pageX/Y, which already reflect acceleration)
++        // — the same click-vs-drag heuristic d3-zoom's own `clickDistance`
++        // option uses.
++        && state.pointerDownEvent
++        && Math.hypot(ev.pageX - state.pointerDownEvent.pageX, ev.pageY - state.pointerDownEvent.pageY) > 6
          && (state.isPointerDragging = true);
          if (state.enablePointerInteraction) {
            // update the pointer pos
-@@ -557,6 +569,14 @@ var threeRenderObjects = Kapsule({
+@@ -557,6 +568,14 @@ var threeRenderObjects = Kapsule({
          state.isPointerDragging = false;
          if (!state.clickAfterDrag) return; // don't trigger onClick after pointer drag (camera motion via controls)
        }

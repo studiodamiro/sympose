@@ -100,12 +100,13 @@ list and is kept in sync per the
 
 | ADR | Title | Status | Date |
 | --- | ----- | ------ | ---- |
+| [ADR-120](../journal/2026-09/2026-09-14_adr-120-click-drag-cumulative-displacement.md) | Click-vs-Drag Detection: Cumulative Displacement Instead of Per-Event Delta (amends ADR-096, ADR-114) | Accepted | 2026-09-14 |
 | [ADR-119](../journal/2026-09/2026-09-14_adr-119-3d-nebula-one-way-random-axis-spin.md) | 3D Nebula Camera Spin: One-Way Twist on a Random Axis (amends ADR-118) | Accepted | 2026-09-14 |
 | [ADR-118](../journal/2026-09/2026-09-14_adr-118-3d-nebula-click-then-fly-sequencing.md) | 3D Nebula Click-Then-Fly Sequencing (amends ADR-117) | Accepted (amended by ADR-119) | 2026-09-14 |
 | [ADR-117](../journal/2026-09/2026-09-14_adr-117-3d-nebula-click-stutter-root-causes.md) | 3D Nebula Click Stutter: Three Independent Root Causes (amends ADR-112, ADR-116) | Accepted (amended by ADR-118) | 2026-09-14 |
 | [ADR-116](../journal/2026-09/2026-09-14_adr-116-3d-highlight-easing-never-reached-the-screen.md) | 3D Highlight/Dim Easing Never Reached the Screen (amends ADR-112, ADR-115) | Accepted (amended by ADR-117) | 2026-09-14 |
 | [ADR-115](../journal/2026-09/2026-09-14_adr-115-remove-duplicate-3d-background-click-dispatch.md) | Remove the Duplicate 3D Background-Click Dispatch (amends ADR-112, ADR-114) | Accepted (amended by ADR-116) | 2026-09-14 |
-| [ADR-114](../journal/2026-09/2026-09-14_adr-114-nebula-force-graph-mount-crash-and-click-threshold-patches.md) | Nebula Force-Graph Mount-Crash Fix & Click-vs-Drag Threshold Recalibration (amends ADR-096, ADR-112) | Accepted (amended by ADR-115) | 2026-09-14 |
+| [ADR-114](../journal/2026-09/2026-09-14_adr-114-nebula-force-graph-mount-crash-and-click-threshold-patches.md) | Nebula Force-Graph Mount-Crash Fix & Click-vs-Drag Threshold Recalibration (amends ADR-096, ADR-112) | Accepted (amended by ADR-115, ADR-120) | 2026-09-14 |
 | [ADR-113](../journal/2026-09/2026-09-14_adr-113-agent-notes-use-real-vault-templates.md) | Notes Use the Vault's Real Templates, Agent and Dashboard Alike (amends ADR-039, ADR-076, ADR-083) | Accepted | 2026-09-14 |
 | [ADR-112](../journal/2026-09/2026-09-14_adr-112-enable-3d-nebula-renderer-in-app-shell.md) | Enable the 3D Nebula Renderer in the App Shell (amends ADR-088) | Accepted (amended by ADR-114, ADR-115, ADR-116, ADR-117) | 2026-09-14 |
 | [ADR-111](../journal/2026-09/2026-09-13_adr-111-drag-drop-target-for-folder-in-view.md) | Drop Target for the Folder Currently in View (amends ADR-110) | Accepted | 2026-09-13 |
@@ -123,7 +124,7 @@ list and is kept in sync per the
 | [ADR-099](../journal/2026-09/2026-09-12_adr-099-vault-folder-delete-to-bin.md) | Vault Folder Delete: Empty Unlinks, Non-Empty Goes to the Bin | Accepted | 2026-09-12 |
 | [ADR-098](../journal/2026-09/2026-09-12_adr-098-vault-tree-shows-empty-folders.md) | Vault Tree Shows Empty Folders on Disk (amends ADR-095) | Accepted | 2026-09-12 |
 | [ADR-097](../journal/2026-09/2026-09-12_adr-097-content-panel-selection-drives-ambient-nebula-focus.md) | Content-Panel Note Selection Drives the Ambient Nebula Focus (amends ADR-088) | Accepted | 2026-09-12 |
-| [ADR-096](../journal/2026-09/2026-09-12_adr-096-patch-force-graph-pointer-drag-detection.md) | Patch force-graph / three-render-objects Pointer-Drag Detection & Hover Freshness | Accepted (amended by ADR-114) | 2026-09-12 |
+| [ADR-096](../journal/2026-09/2026-09-12_adr-096-patch-force-graph-pointer-drag-detection.md) | Patch force-graph / three-render-objects Pointer-Drag Detection & Hover Freshness | Accepted (amended by ADR-114, ADR-120) | 2026-09-12 |
 | [ADR-095](../journal/2026-09/2026-09-12_adr-095-content-panel-toolbar-folder-creation-and-visit-history.md) | Content Panel Toolbar: Folder Creation & Visit History | Accepted (amended by ADR-098) | 2026-09-12 |
 | [ADR-094](../journal/2026-09/2026-09-11_adr-094-settings-panel-density-cleanup.md) | Settings Panel Density Cleanup | Accepted | 2026-09-11 |
 | [ADR-093](../journal/2026-09/2026-09-11_adr-093-stage-action-group-swap-and-explore-slide-out.md) | Stage Action Group Order Swap & Explore Slide-Out | Accepted | 2026-09-11 |

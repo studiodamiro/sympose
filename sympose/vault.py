@@ -11,7 +11,7 @@ from typing import Any, ClassVar
 
 import yaml
 
-from sympose import vault_index, vault_manifest, vault_trash, vault_tree
+from sympose import vault_index, vault_manifest, vault_paths, vault_trash, vault_tree
 from sympose.config import config_manager, is_safe_path
 
 log = logging.getLogger(__name__)
@@ -309,44 +309,25 @@ class VaultManager:
         ]
         return any(k in message.lower() for k in triggers)
 
+    # Sandbox path resolution itself now lives in vault_paths.py (pure,
+    # self-contained, no other vault module depends on it) — these stay as
+    # thin re-exports so every existing `VaultManager.get_allowed_dirs(...)`
+    # call site across the app keeps working unchanged.
     @staticmethod
     def _get_master_vault() -> str | None:
-        mv = os.getenv("MASTER_VAULT_PATH")
-        return os.path.abspath(os.path.expanduser(mv)) if mv else None
+        return vault_paths.get_master_vault()
 
     @classmethod
     def get_vault_name(cls) -> str | None:
-        """Display name for the vault root, for the dashboard's note-path
-        breadcrumb — the master vault directory's own basename. `None` when
-        `MASTER_VAULT_PATH` isn't set, same contract as `_get_master_vault`."""
-        mv = cls._get_master_vault()
-        return os.path.basename(mv) if mv else None
+        return vault_paths.get_vault_name()
 
     @classmethod
     def get_allowed_dirs(cls, profile: dict[str, Any]) -> list[str]:
-        mv = cls._get_master_vault()
-        if not mv:
-            return []
-        try:
-            os.makedirs(mv, exist_ok=True)
-            folders = profile.get("vault_folders") or [profile.get("vault_folder", "")]
-            if "" in folders or "*" in folders or "all" in folders:
-                return [mv]
-            allowed = []
-            for f in folders:
-                path = os.path.join(mv, f.strip()) if f.strip() else mv
-                if is_safe_path(path, mv):
-                    os.makedirs(path, exist_ok=True)
-                    allowed.append(path)
-            return allowed or [mv]
-        except Exception as e:
-            log.debug("get_allowed_dirs failed for %s: %s", mv, e)
-            return []
+        return vault_paths.get_allowed_dirs(profile)
 
     @classmethod
     def get_primary_dir(cls, profile: dict[str, Any]) -> str | None:
-        dirs = cls.get_allowed_dirs(profile)
-        return dirs[0] if dirs else None
+        return vault_paths.get_primary_dir(profile)
 
     @classmethod
     def read_note(cls, profile: dict[str, Any], note_name: str) -> str:

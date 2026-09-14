@@ -409,9 +409,7 @@ class VaultManager:
         return f"Note `{clean_name}` not found in allowed vault folders."
 
     @classmethod
-    def resolve_asset_path(
-        cls, profile: dict[str, Any], asset_name: str
-    ) -> str | None:
+    def resolve_asset_path(cls, profile: dict[str, Any], asset_name: str) -> str | None:
         """Resolves a `![[ref]]` embed reference to an absolute file path within
         the persona's sandbox — same three-tier lookup as `read_note` (direct
         join, basename in each allowed dir, recursive walk), but for any file
@@ -491,7 +489,9 @@ class VaultManager:
                 "up",
                 "author",
             ):
-                m = re.search(rf"^{k}:\s*([^\n\r]+)", head, re.MULTILINE | re.IGNORECASE)
+                m = re.search(
+                    rf"^{k}:\s*([^\n\r]+)", head, re.MULTILINE | re.IGNORECASE
+                )
                 if (
                     m
                     and m.group(1).strip()
@@ -500,7 +500,9 @@ class VaultManager:
                     parts.append(f"{k.capitalize()}: {m.group(1).strip()}")
                 else:
                     sub = re.findall(
-                        rf"^{k}:(?:\s*\n)((?:\s+-\s+[^\n]+\n)+)", head, re.MULTILINE | re.IGNORECASE
+                        rf"^{k}:(?:\s*\n)((?:\s+-\s+[^\n]+\n)+)",
+                        head,
+                        re.MULTILINE | re.IGNORECASE,
                     )
                     if sub:
                         items = [
@@ -665,7 +667,9 @@ class VaultManager:
                         ) as f:
                             full_content = f.read()
                     except Exception as e:
-                        log.debug("Skipping unreadable file in snapshot %s: %s", file_path, e)
+                        log.debug(
+                            "Skipping unreadable file in snapshot %s: %s", file_path, e
+                        )
                         continue
                     meta, body = cls.parse_frontmatter(full_content)
                     snapshot.append(
@@ -1338,7 +1342,11 @@ class VaultManager:
                                                 }
                                             )
                             except Exception as e:
-                                log.debug("Skipping unreadable file in backlink index %s: %s", rel_path, e)
+                                log.debug(
+                                    "Skipping unreadable file in backlink index %s: %s",
+                                    rel_path,
+                                    e,
+                                )
         except Exception as e:
             log.debug("Backlink index build ended early: %s", e)
 
@@ -1366,7 +1374,6 @@ class VaultManager:
         clean_target = (
             note_name.strip().strip("\"'").replace("[[", "").replace("]]", "")
         )
-        stem = os.path.splitext(os.path.basename(clean_target))[0].lower().strip()
         backlinks = cls.get_backlinks(profile, clean_target)
         if not backlinks:
             return f"No backlinks found referencing `[[{clean_target}]]` in allowed vault folders."
@@ -2168,7 +2175,10 @@ class VaultManager:
         primary_dir, mv = cls.get_primary_dir(profile), cls._get_master_vault()
         if not primary_dir or not mv:
             return "Warning: Master notes directory not configured or path denied."
-        now, handle = datetime.datetime.now().astimezone(), profile.get("handle", "agent").lower()
+        now, handle = (
+            datetime.datetime.now().astimezone(),
+            profile.get("handle", "agent").lower(),
+        )
         title_slug = (
             f"_{session_title.lower().replace(' ', '_')}" if session_title else ""
         )
@@ -2218,7 +2228,9 @@ class VaultManager:
         # Manifest fast-path (ADR-078) — no filesystem walk when the map is live.
         manifest = cls.get_manifest()
         if manifest is not None:
-            date_re = re.compile(r"^\d{4}-\d{2}-\d{2}\.(?:md|markdown|txt)$", re.IGNORECASE)
+            date_re = re.compile(
+                r"^\d{4}-\d{2}-\d{2}\.(?:md|markdown|txt)$", re.IGNORECASE
+            )
             prefixes = cls._allowed_rel_prefixes(mv, allowed_dirs)
             hits: list[str] = []
             for n in manifest.get("nodes", []):
@@ -2365,9 +2377,7 @@ class VaultManager:
         return f"### Ground-Truth Vault Search Results for '{cand}'{loc}:\n{digest}"
 
     @classmethod
-    def resolve_turn_context(
-        cls, profile: dict[str, Any], message: str
-    ) -> str | None:
+    def resolve_turn_context(cls, profile: dict[str, Any], message: str) -> str | None:
         """Skill-gated, structure-agnostic pre-inference retrieval conforming to skills/vault_recall."""
         # 1. Skill Permission Gate: only proceed if agent is authorized for vault recall
         if not cls.has_vault_skill(profile):
@@ -2385,7 +2395,9 @@ class VaultManager:
         #     Inert unless `vault.manifest.enabled`; structure only.
         if (
             re.search(
-                r"\b(vault|obsidian|journal|(?:my|our|the)\s+notes?)\b", msg, re.IGNORECASE
+                r"\b(vault|obsidian|journal|(?:my|our|the)\s+notes?)\b",
+                msg,
+                re.IGNORECASE,
             )
             and re.search(
                 r"\b(structure|structured|organi[sz]\w+|hierarch\w+|layout|"
@@ -2478,7 +2490,9 @@ class VaultManager:
                     if body:
                         return f"### Ground-Truth Sandboxed Vault Note (`{rel}` - Exact Content):\n{body[:3000]}"
                 except Exception as e:
-                    log.debug("Failed to read sampled chronological note %s: %s", rel, e)
+                    log.debug(
+                        "Failed to read sampled chronological note %s: %s", rel, e
+                    )
 
         # 6. Year-based chronological queries ("2020 journal entry")
         yr = re.search(r"\b(201\d|202\d|19\d\d)\b", msg)

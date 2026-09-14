@@ -123,7 +123,9 @@ def ensure_self_signed_cert(workspace_dir: str) -> tuple[str, str] | None:
         try:
             os.chmod(keyfile, 0o600)
         except Exception as e:
-            log.warning("[tls] Failed to restrict private key permissions on %s: %s", keyfile, e)
+            log.warning(
+                "[tls] Failed to restrict private key permissions on %s: %s", keyfile, e
+            )
         log.info("[tls] Generated self-signed dashboard certificate in %s", cert_dir)
         return certfile, keyfile
     except Exception:

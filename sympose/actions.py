@@ -381,9 +381,16 @@ class ActionProcessor:
                                 str(y_data["handle"]).strip().lower().replace("@", "")
                             )
                     except Exception as e:
-                        log.debug("Persona manifest YAML parse failed, falling back to regex: %s", e)
+                        log.debug(
+                            "Persona manifest YAML parse failed, falling back to regex: %s",
+                            e,
+                        )
                     if not h_name:
-                        m_h = re.search(r"^handle:\s*([^\n\r]+)", raw_yaml, re.MULTILINE | re.IGNORECASE)
+                        m_h = re.search(
+                            r"^handle:\s*([^\n\r]+)",
+                            raw_yaml,
+                            re.MULTILINE | re.IGNORECASE,
+                        )
                         if m_h:
                             h_name = (
                                 m_h.group(1)
@@ -418,7 +425,10 @@ class ActionProcessor:
                                     y_data, default_flow_style=False, sort_keys=False
                                 )
                         except Exception as e:
-                            log.debug("Failed to split soul_content out of persona manifest: %s", e)
+                            log.debug(
+                                "Failed to split soul_content out of persona manifest: %s",
+                                e,
+                            )
 
                         with open(yaml_file, "w", encoding="utf-8") as f:
                             f.write(manifest_yaml)

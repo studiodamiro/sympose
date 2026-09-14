@@ -106,7 +106,9 @@ class SessionManager:
                 meta = json.loads(lines[0])
                 if meta.get("type") == "meta":
                     meta["title"] = clean_title
-                    meta["updated_at"] = datetime.datetime.now().astimezone().isoformat()
+                    meta["updated_at"] = (
+                        datetime.datetime.now().astimezone().isoformat()
+                    )
                     lines[0] = json.dumps(meta)
                     with open(fpath, "w", encoding="utf-8") as f:
                         f.writelines(line + "\n" for line in lines)
@@ -277,7 +279,9 @@ class SessionManager:
                     os.remove(fpath)
                     pruned_count += 1
             except Exception as e:
-                log.debug("Skipping unreadable session file %s during prune: %s", fpath, e)
+                log.debug(
+                    "Skipping unreadable session file %s during prune: %s", fpath, e
+                )
                 continue
         return pruned_count
 
@@ -309,7 +313,6 @@ class SessionManager:
                     continue
                 sid = meta.get("session_id", "")
                 turns_cnt = meta.get("turns_count", 0)
-                title = meta.get("title", "")
 
                 # Skip 0-turn empty sessions unless currently active
                 if turns_cnt == 0 and sid != active_session_id:
@@ -320,7 +323,9 @@ class SessionManager:
                 )
                 results.append(meta)
             except Exception as e:
-                log.debug("Skipping unreadable session file %s during listing: %s", fname, e)
+                log.debug(
+                    "Skipping unreadable session file %s during listing: %s", fname, e
+                )
                 continue
 
         results.sort(

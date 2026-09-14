@@ -52,6 +52,7 @@ sympose = [
 dev = [
     "pytest>=8.0.0",
     "pytest-mock>=3.12.0",
+    "ruff>=0.16.0",
 ]
 
 [tool.pytest.ini_options]
@@ -64,3 +65,34 @@ markers = [
     "unit: fast unit tests with no external dependencies",
     "integration: tests that touch the filesystem or external services",
 ]
+
+# ADR-121: rule set kept deliberately narrow — every code here is one that
+# caught a real, verified issue in a full manual audit (2026-09), not a
+# blanket style/security category adopted on faith. Widening this is a
+# future decision, not a side effect of running `ruff check`.
+[tool.ruff.lint]
+select = [
+    "E4", "E7", "E9",  # pycodestyle: import/statement issues (incl. E741
+                        # ambiguous single-letter names) and syntax errors
+    "F",                # pyflakes: unused imports/variables, undefined names
+    "C90",              # mccabe complexity — flags functions worth a manual
+                        # correctness review, the way it did for the 36 that
+                        # turned up 3 real bugs this pass
+    "S110", "S112",     # flake8-bandit: try/except/pass and try/except/continue
+                        # with no logging — a real failure vanishing silently
+    "DTZ005",           # flake8-datetimez: naive datetime.now() calls
+    "RUF012",           # mutable class-level attributes that should be a
+                        # `ClassVar`, or are genuinely per-instance state
+                        # mistakenly declared at class level (the SlackDaemon
+                        # shared-cache bug this caught)
+]
+ignore = [
+    # This codebase's optional-dependency pattern —
+    # `try: from x import y \n except ImportError: y = None` at module top,
+    # followed by more real imports — deliberately trips E402. Not a style
+    # lapse; not worth flagging.
+    "E402",
+]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 10

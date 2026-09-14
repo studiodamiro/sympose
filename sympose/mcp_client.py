@@ -97,7 +97,9 @@ class MCPClient:
                     try:
                         msg = json.loads(clean)
                     except Exception as e:
-                        log.debug("[MCP:%s] non-JSON stdout line dropped: %s", self.name, e)
+                        log.debug(
+                            "[MCP:%s] non-JSON stdout line dropped: %s", self.name, e
+                        )
                         continue
                     if not isinstance(msg, dict) or msg.get("id") is None:
                         continue  # not a response to any pending request (e.g. a notification)
@@ -287,7 +289,11 @@ class MCPClient:
                 try:
                     self.process.kill()
                 except Exception as e:
-                    log.debug("[MCP:%s] failed to kill process during stop(): %s", self.name, e)
+                    log.debug(
+                        "[MCP:%s] failed to kill process during stop(): %s",
+                        self.name,
+                        e,
+                    )
             finally:
                 self.process = None
         # Defensive: _read_loop's own cleanup already resolves these once stdout

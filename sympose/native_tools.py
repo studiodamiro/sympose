@@ -233,7 +233,9 @@ class NativeTools:
                         # legitimate command over a transient os.listdir error.
                         # Still worth a loud log: a security check silently
                         # not running is worth knowing about.
-                        log.warning("Sibling-folder sandbox check failed, skipping it: %s", e)
+                        log.warning(
+                            "Sibling-folder sandbox check failed, skipping it: %s", e
+                        )
 
             try:
                 res = subprocess.run(

@@ -417,7 +417,9 @@ class SlackDaemon:
             for em in [
                 m.group(1).strip().strip(":")
                 for m in re.finditer(
-                    r"\[(?:ACTION:)?REACT:\s*([a-zA-Z0-9_\-+:]+?)\]", raw_text, re.IGNORECASE
+                    r"\[(?:ACTION:)?REACT:\s*([a-zA-Z0-9_\-+:]+?)\]",
+                    raw_text,
+                    re.IGNORECASE,
                 )
             ] or (["white_check_mark"] if is_silent else []):
                 try:

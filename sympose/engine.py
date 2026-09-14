@@ -136,9 +136,7 @@ class PersonaEngine:
                     return d
         return ""
 
-    def __init__(
-        self, profile_manager: ProfileManager, max_turns: int | None = None
-    ):
+    def __init__(self, profile_manager: ProfileManager, max_turns: int | None = None):
         self.pm, self.config, self.archivist = (
             profile_manager,
             config_manager,

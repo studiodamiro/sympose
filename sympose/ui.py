@@ -16,7 +16,6 @@ try:
     from rich.prompt import Prompt
     from rich.rule import Rule
     from rich.segment import Segment
-    from rich.table import Table
     from rich.text import Text
     from rich.theme import Theme
 

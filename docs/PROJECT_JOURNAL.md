@@ -25,6 +25,7 @@ one in [`docs/wiki/index.md`](./wiki/index.md) are kept in sync per the
 
 | ADR | Title | Status | Date | Source |
 | --- | ----- | ------ | ---- | ------ |
+| ADR-121 | ruff as a Standing Dev Dependency, With a Narrow, Audited Rule Set | Accepted | 2026-09-14 | [2026-09-14_adr-121-ruff-as-standing-dev-dependency.md](./journal/2026-09/2026-09-14_adr-121-ruff-as-standing-dev-dependency.md) |
 | ADR-120 | Click-vs-Drag Detection: Cumulative Displacement Instead of Per-Event Delta (amends ADR-096, ADR-114) | Accepted | 2026-09-14 | [2026-09-14_adr-120-click-drag-cumulative-displacement.md](./journal/2026-09/2026-09-14_adr-120-click-drag-cumulative-displacement.md) |
 | ADR-119 | 3D Nebula Camera Spin: One-Way Twist on a Random Axis (amends ADR-118) | Accepted | 2026-09-14 | [2026-09-14_adr-119-3d-nebula-one-way-random-axis-spin.md](./journal/2026-09/2026-09-14_adr-119-3d-nebula-one-way-random-axis-spin.md) |
 | ADR-118 | 3D Nebula Click-Then-Fly Sequencing (amends ADR-117) | Accepted (amended by ADR-119) | 2026-09-14 | [2026-09-14_adr-118-3d-nebula-click-then-fly-sequencing.md](./journal/2026-09/2026-09-14_adr-118-3d-nebula-click-then-fly-sequencing.md) |

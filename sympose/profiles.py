@@ -375,7 +375,8 @@ class ProfileManager:
             # forcing a full re-prefill. Write-time timestamps (daily notes,
             # session logs) use their own datetime.now() and are unaffected.
             .replace(
-                "{{current_datetime}}", datetime.datetime.now().astimezone().strftime("%Y-%m-%d %A")
+                "{{current_datetime}}",
+                datetime.datetime.now().astimezone().strftime("%Y-%m-%d %A"),
             )
             .replace("{{sources}}", sources)
             .replace("{{user}}", primary_user)
@@ -458,6 +459,8 @@ class ProfileManager:
 
                 MemoryCompactor.check_and_compact_async(shared_file, is_shared=True)
             except Exception as e:
-                log.debug("Failed to trigger memory compaction for %s: %s", shared_file, e)
+                log.debug(
+                    "Failed to trigger memory compaction for %s: %s", shared_file, e
+                )
 
         return ok

@@ -3,7 +3,6 @@ Session Archival, Distillation & Heuristic Gated Memory Management for Sympose.
 """
 
 import logging
-import os
 import re
 from typing import Any, ClassVar
 
@@ -13,6 +12,7 @@ import litellm
 
 from sympose.compactor import run_hygiene_task
 from sympose.config import DEFAULT_CHAT_MODEL, config_manager
+from sympose.models import resolve_api_key
 from sympose.profiles import ProfileManager
 from sympose.prompt_assets import load_prompt
 from sympose.vault import VaultManager
@@ -86,14 +86,9 @@ class HeuristicGatedExtractor:
                     "stream": False,
                     "timeout": bg_timeout,
                 }
-                for pfx, key in (
-                    ("gemini/", "GEMINI_API_KEY"),
-                    ("anthropic/", "ANTHROPIC_API_KEY"),
-                    ("openai/", "OPENAI_API_KEY"),
-                    ("openrouter/", "OPENROUTER_API_KEY"),
-                ):
-                    if model.startswith(pfx) and os.getenv(key):
-                        kwargs["api_key"] = os.getenv(key)
+                api_key = resolve_api_key(model)
+                if api_key:
+                    kwargs["api_key"] = api_key
 
                 resp = litellm.completion(**kwargs)
                 out = (resp.choices[0].message.content or "").strip()
@@ -164,22 +159,9 @@ class SessionArchivist:
                 "stream": False,
                 "timeout": float(self.config.get("performance.request_timeout")),
             }
-            if summarization_model.startswith("gemini/") and os.getenv(
-                "GEMINI_API_KEY"
-            ):
-                kwargs["api_key"] = os.getenv("GEMINI_API_KEY")
-            elif summarization_model.startswith("anthropic/") and os.getenv(
-                "ANTHROPIC_API_KEY"
-            ):
-                kwargs["api_key"] = os.getenv("ANTHROPIC_API_KEY")
-            elif summarization_model.startswith("openai/") and os.getenv(
-                "OPENAI_API_KEY"
-            ):
-                kwargs["api_key"] = os.getenv("OPENAI_API_KEY")
-            elif summarization_model.startswith("openrouter/") and os.getenv(
-                "OPENROUTER_API_KEY"
-            ):
-                kwargs["api_key"] = os.getenv("OPENROUTER_API_KEY")
+            api_key = resolve_api_key(summarization_model)
+            if api_key:
+                kwargs["api_key"] = api_key
 
             resp = litellm.completion(**kwargs)
             raw_text = resp.choices[0].message.content or ""

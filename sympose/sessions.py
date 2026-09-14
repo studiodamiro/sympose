@@ -13,6 +13,7 @@ from typing import Any
 from sympose.bootstrap import resolve_workspace_dir
 from sympose.compactor import get_file_lock, run_hygiene_task
 from sympose.config import DEFAULT_CHAT_MODEL
+from sympose.models import resolve_api_key
 
 log = logging.getLogger(__name__)
 
@@ -141,14 +142,9 @@ class SessionManager:
                     "timeout": 4.0,
                     "max_tokens": 20,
                 }
-                for pfx, key in (
-                    ("gemini/", "GEMINI_API_KEY"),
-                    ("anthropic/", "ANTHROPIC_API_KEY"),
-                    ("openai/", "OPENAI_API_KEY"),
-                    ("openrouter/", "OPENROUTER_API_KEY"),
-                ):
-                    if model.startswith(pfx) and os.getenv(key):
-                        kwargs["api_key"] = os.getenv(key)
+                api_key = resolve_api_key(model)
+                if api_key:
+                    kwargs["api_key"] = api_key
                 resp = litellm.completion(**kwargs)
                 out = (
                     (resp.choices[0].message.content or "")

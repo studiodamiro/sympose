@@ -3,7 +3,6 @@ Multi-Model Persona Execution Engine for Sympose.
 """
 
 import logging
-import os
 import re
 import threading
 from typing import Any
@@ -17,6 +16,7 @@ from sympose.commands import CommandInterceptor
 from sympose.config import DEFAULT_CHAT_MODEL, config_manager
 from sympose.memory import SessionArchivist
 from sympose.model_router import resolve_turn_model
+from sympose.models import resolve_api_key
 from sympose.profiles import ProfileManager
 from sympose.sessions import SessionManager
 from sympose.vault import VaultManager
@@ -273,14 +273,9 @@ class PersonaEngine:
             "stream": stream,
             "timeout": float(self.config.get(to_key)),
         }
-        for pfx, key in (
-            ("gemini/", "GEMINI_API_KEY"),
-            ("anthropic/", "ANTHROPIC_API_KEY"),
-            ("openai/", "OPENAI_API_KEY"),
-            ("openrouter/", "OPENROUTER_API_KEY"),
-        ):
-            if target_model.startswith(pfx) and os.getenv(key):
-                kwargs["api_key"] = os.getenv(key)
+        api_key = resolve_api_key(target_model)
+        if api_key:
+            kwargs["api_key"] = api_key
         if "temperature" in profile:
             kwargs["temperature"] = profile["temperature"]
         if profile.get("api_base"):

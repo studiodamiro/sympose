@@ -13,6 +13,7 @@ import litellm
 
 from sympose.config import DEFAULT_WORKER_MODEL, config_manager
 from sympose.mcp import MCPClient, mcp_registry
+from sympose.models import resolve_api_key
 from sympose.native_tools import NativeTools
 from sympose.profiles import ProfileManager
 from sympose.prompt_assets import load_prompt
@@ -167,15 +168,9 @@ class WorkerEngine:
     @staticmethod
     def _inject_api_key(kwargs: dict[str, Any], target_model: str) -> None:
         """Injects the correct API key into litellm kwargs based on model provider prefix."""
-        for pfx, key in (
-            ("gemini/", "GEMINI_API_KEY"),
-            ("anthropic/", "ANTHROPIC_API_KEY"),
-            ("openai/", "OPENAI_API_KEY"),
-            ("openrouter/", "OPENROUTER_API_KEY"),
-        ):
-            if target_model.startswith(pfx) and os.getenv(key):
-                kwargs["api_key"] = os.getenv(key)
-                return
+        api_key = resolve_api_key(target_model)
+        if api_key:
+            kwargs["api_key"] = api_key
 
     @staticmethod
     def _dispatch_tool_call(

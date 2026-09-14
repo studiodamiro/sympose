@@ -17,6 +17,7 @@ import litellm
 log = logging.getLogger(__name__)
 
 from sympose.config import DEFAULT_WORKER_MODEL, config_manager
+from sympose.models import resolve_api_key
 
 _FILE_LOCKS: dict[str, threading.Lock] = {}
 _GLOBAL_LOCK = threading.Lock()
@@ -137,18 +138,9 @@ class MemoryCompactor:
                     config_manager.get("performance.request_timeout", 30.0)
                 ),
             }
-            if target_model.startswith("gemini/") and os.getenv("GEMINI_API_KEY"):
-                kwargs["api_key"] = os.getenv("GEMINI_API_KEY")
-            elif target_model.startswith("anthropic/") and os.getenv(
-                "ANTHROPIC_API_KEY"
-            ):
-                kwargs["api_key"] = os.getenv("ANTHROPIC_API_KEY")
-            elif target_model.startswith("openai/") and os.getenv("OPENAI_API_KEY"):
-                kwargs["api_key"] = os.getenv("OPENAI_API_KEY")
-            elif target_model.startswith("openrouter/") and os.getenv(
-                "OPENROUTER_API_KEY"
-            ):
-                kwargs["api_key"] = os.getenv("OPENROUTER_API_KEY")
+            api_key = resolve_api_key(target_model)
+            if api_key:
+                kwargs["api_key"] = api_key
 
             resp = litellm.completion(**kwargs)
             distilled = (resp.choices[0].message.content or "").strip()

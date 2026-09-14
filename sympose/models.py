@@ -1,6 +1,10 @@
 """
-Model Discovery and OpenRouter Catalog Manager for Sympose.
-Provides fast local caching, catalog search, and dynamic tab-completion candidates.
+Model Discovery, Provider-Key Resolution, and OpenRouter Catalog Manager
+for Sympose. Provides fast local caching, catalog search, dynamic
+tab-completion candidates, and the one place `target_model` -> API key
+resolution lives — this used to be copy-pasted across five call sites
+(engine.py, workers.py, compactor.py, memory.py x2, sessions.py), each a
+verbatim or near-verbatim rewrite of the same four-provider prefix match.
 """
 
 import json
@@ -11,6 +15,30 @@ import urllib.request
 from typing import Any, ClassVar
 
 log = logging.getLogger(__name__)
+
+# (litellm provider prefix, env var to read the API key from). Order only
+# matters in that a model string matches at most one of these — litellm
+# provider prefixes never nest (an OpenRouter-routed Anthropic model is
+# "openrouter/anthropic/...", which matches "openrouter/" only).
+_API_KEY_ENV_BY_PREFIX: tuple[tuple[str, str], ...] = (
+    ("gemini/", "GEMINI_API_KEY"),
+    ("anthropic/", "ANTHROPIC_API_KEY"),
+    ("openai/", "OPENAI_API_KEY"),
+    ("openrouter/", "OPENROUTER_API_KEY"),
+)
+
+
+def resolve_api_key(target_model: str) -> str | None:
+    """The API key litellm should use for `target_model`, resolved from its
+    provider prefix against the matching env var. `None` when the prefix
+    isn't one of the cloud providers above (a local ollama/ model needs no
+    key) or the env var just isn't set — either way, the caller should
+    simply omit `api_key` from its litellm.completion() kwargs rather than
+    pass `None` through explicitly."""
+    for prefix, env_var in _API_KEY_ENV_BY_PREFIX:
+        if target_model.startswith(prefix):
+            return os.getenv(env_var)
+    return None
 
 
 def get_cache_file() -> str:

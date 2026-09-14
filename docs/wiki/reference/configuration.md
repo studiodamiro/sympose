@@ -32,6 +32,7 @@ Every runtime knob Sympose reads. Global keys live in `config.yaml`, settable at
 | `performance.drop_unsupported_params` | bool | `True` | — | yes | Silently drop model params a backend rejects (litellm.drop_params). |
 | `performance.stream` | bool | `True` | — | yes | Stream model output token-by-token. |
 | `performance.render_mode` | str | `hybrid` | `raw` \| `hybrid` \| `buffered` | yes | Terminal render mode. |
+| `performance.local_simple_max_tokens` | int | `200` | ≥ 1 | yes | Response length cap for a SIMPLE-tier reply routed to a persona's local_model (ADR-122). Bounds worst-case wait independent of hardware/warm state — the local model's tokens/sec doesn't change, so a short cap is what actually keeps a trivial reply fast. |
 
 ## Session & Memory
 
@@ -84,5 +85,6 @@ Every runtime knob Sympose reads. Global keys live in `config.yaml`, settable at
 | `share_memory` | bool | `False` | — | yes | Write to the shared team memory pool instead of private memory. |
 | `temperature` | float | *(unset)* | 0–2 | yes | Sampling temperature. |
 | `model` | str | *(unset)* | — | yes | litellm model id (e.g. gemini/gemini-3.6-flash, ollama/llama3.1:8b). |
+| `local_model` | str | *(unset)* | — | yes | Ollama model id for SIMPLE-tier messages (ADR-122) — definitions, quick math, a plain greeting. Empty = routing disabled, every message goes to `model` as today. Meaningless (leave unset) for a persona whose `model` is already local — there's no cheaper tier to route to, and no cloud fallback should ever fire for them. |
 | `api_base` | str | *(unset)* | — | yes | Custom API base URL for the persona's model. |
 

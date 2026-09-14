@@ -141,6 +141,17 @@ SETTINGS: tuple[Setting, ...] = (
         choices=("raw", "hybrid", "buffered"),
     ),
     Setting(
+        "performance.local_simple_max_tokens",
+        "int",
+        200,
+        "Response length cap for a SIMPLE-tier reply routed to a persona's "
+        "local_model (ADR-122). Bounds worst-case wait independent of "
+        "hardware/warm state — the local model's tokens/sec doesn't change, "
+        "so a short cap is what actually keeps a trivial reply fast.",
+        _PERF,
+        minimum=1,
+    ),
+    Setting(
         "session.exit_behavior.auto_save",
         "bool",
         False,
@@ -353,6 +364,18 @@ SETTINGS: tuple[Setting, ...] = (
         "str",
         "",
         "litellm model id (e.g. gemini/gemini-3.6-flash, ollama/llama3.1:8b).",
+        _PERSONA,
+        scope="persona",
+    ),
+    Setting(
+        "local_model",
+        "str",
+        "",
+        "Ollama model id for SIMPLE-tier messages (ADR-122) — definitions, "
+        "quick math, a plain greeting. Empty = routing disabled, every "
+        "message goes to `model` as today. Meaningless (leave unset) for a "
+        "persona whose `model` is already local — there's no cheaper tier "
+        "to route to, and no cloud fallback should ever fire for them.",
         _PERSONA,
         scope="persona",
     ),

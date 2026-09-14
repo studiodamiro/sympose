@@ -177,5 +177,26 @@ class TestResolveTurnModel:
         assert len(warmed) == 1
         target, args, kwargs = warmed[0]
         assert target is model_router.warm_ollama_model
-        assert args == ("ollama/gemma2:9b",)
+        # Bare name, not "ollama/gemma2:9b" — Ollama's own API has no concept
+        # of litellm's provider prefix (see test_strips_litellm_prefix below).
+        assert args == ("gemma2:9b",)
         assert kwargs == {"keep_alive": "30m"}
+
+    def test_strips_litellm_prefix_before_talking_to_ollama(self, monkeypatch):
+        """Regression test: local_model is stored in litellm's prefixed form
+        (e.g. "ollama/gemma2:9b") since it's passed straight to
+        litellm.completion, but Ollama's own /api/ps and /api/generate report
+        and expect the bare name. Passing the prefixed form straight through
+        means is_ollama_model_warm never matches and every turn silently
+        falls back to cloud forever — this was shipped and caught live."""
+        seen_warm_check = []
+        monkeypatch.setattr(
+            model_router,
+            "is_ollama_model_warm",
+            lambda name: seen_warm_check.append(name) or True,
+        )
+        model, routed = model_router.resolve_turn_model(
+            "gpt-4o", "ollama/gemma2:9b", "hi there"
+        )
+        assert seen_warm_check == ["gemma2:9b"]
+        assert (model, routed) == ("ollama/gemma2:9b", True)

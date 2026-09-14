@@ -19,6 +19,21 @@ log = logging.getLogger(__name__)
 
 _OLLAMA_BASE = "http://localhost:11434"
 
+# LiteLLM routes on a provider prefix (ollama/, ollama_chat/, ...) that
+# Ollama's own HTTP API has no concept of — /api/ps and /api/generate report
+# and expect the bare model name only. A persona's local_model is stored
+# in the litellm-prefixed form (it's passed straight to litellm.completion),
+# so anything talking to Ollama's API directly has to strip it first.
+_OLLAMA_LITELLM_PREFIXES = ("ollama_chat/", "ollama_completion/", "ollama/")
+
+
+def _bare_ollama_name(model_name: str) -> str:
+    for pfx in _OLLAMA_LITELLM_PREFIXES:
+        if model_name.startswith(pfx):
+            return model_name[len(pfx) :]
+    return model_name
+
+
 # Deliberately conservative: any doubt routes to cloud. A message earns the
 # SIMPLE tier only by being short AND not tripping any signal that it might
 # carry real emotional or intellectual weight (ADR-122's core risk).
@@ -69,10 +84,11 @@ def resolve_turn_model(
     if not local_model or not is_simple_message(message):
         return base_model, False
 
-    if not is_ollama_model_warm(local_model):
+    bare_name = _bare_ollama_name(local_model)
+    if not is_ollama_model_warm(bare_name):
         from sympose.compactor import run_hygiene_task
 
-        run_hygiene_task(warm_ollama_model, local_model, keep_alive=keep_alive)
+        run_hygiene_task(warm_ollama_model, bare_name, keep_alive=keep_alive)
         return base_model, False
 
     return local_model, True

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-🏛️ Sympose: Zero-Bloat Multi-Model AI Agent Hub
+🏛️ Sympose: Zero-Bloat Multi-Model AI Persona Hub
 Main Entry Point
 """
 
@@ -11,11 +11,11 @@ from sympose.cli import TerminalInterface
 from sympose.config import ConfigManager
 from sympose.engine import PersonaEngine
 from sympose.profiles import ProfileManager
-from sympose.slack import MultiAgentSlackRunner
+from sympose.slack import MultiPersonaSlackRunner
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Sympose Multi-Model Agent Hub")
+    parser = argparse.ArgumentParser(description="Sympose Multi-Model Persona Hub")
     parser.add_argument("-v", "--version", action="version", version="%(prog)s 0.2.26")
     parser.add_argument(
         "--cli", action="store_true", help="Launch interactive Terminal CLI Hub"
@@ -102,7 +102,7 @@ def main():
             tls=tls_enabled,
         )
     elif args.slack:
-        MultiAgentSlackRunner.run_all(
+        MultiPersonaSlackRunner.run_all(
             engine, persona_override=args.persona, workspace_dir=workspace_dir
         )
     else:

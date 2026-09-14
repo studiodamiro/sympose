@@ -296,10 +296,10 @@ class PersonaEngine:
                 kwargs["keep_alive"] = ka
         return kwargs
 
-    def spawn_sub_agent(self, target_handle: str, sub_prompt: str):
+    def consult_persona(self, target_handle: str, sub_prompt: str):
         target_profile = self.pm.get_profile(target_handle)
         if not target_profile:
-            yield f"⚠️ Specialist agent `@{target_handle}` not found in profiles."
+            yield f"⚠️ Specialist persona `@{target_handle}` not found in profiles."
             return
 
         system_prompt = self.pm.build_system_prompt(target_profile)

@@ -1,6 +1,6 @@
 """
 🏛️ Sympose: Slack Socket Mode Daemon
-Multi-agent concurrent router, thread context fetcher & event dispatcher.
+Multi-persona concurrent router, thread context fetcher & event dispatcher.
 """
 
 import atexit
@@ -543,7 +543,7 @@ class SlackDaemon:
                 time.sleep(3)
 
 
-class MultiAgentSlackRunner:
+class MultiPersonaSlackRunner:
     """Discovers and runs all configured persona Slack bots concurrently."""
 
     @classmethod
@@ -565,7 +565,7 @@ class MultiAgentSlackRunner:
         ]
         if not daemons:
             sys.exit("⚠️ [Sympose Slack] Missing or invalid Slack tokens in .env.")
-        log.info("[Sympose] Launching %d Slack Agent(s)...", len(daemons))
+        log.info("[Sympose] Launching %d Slack Persona(s)...", len(daemons))
         if workspace_dir:
             cls._start_heartbeat(workspace_dir, [d.default_persona for d in daemons])
         threads = [threading.Thread(target=d.start, daemon=True) for d in daemons]

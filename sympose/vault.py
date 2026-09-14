@@ -2177,7 +2177,7 @@ class VaultManager:
             return "Warning: Master notes directory not configured or path denied."
         now, handle = (
             datetime.datetime.now().astimezone(),
-            profile.get("handle", "agent").lower(),
+            profile.get("handle", "persona").lower(),
         )
         title_slug = (
             f"_{session_title.lower().replace(' ', '_')}" if session_title else ""
@@ -2379,7 +2379,7 @@ class VaultManager:
     @classmethod
     def resolve_turn_context(cls, profile: dict[str, Any], message: str) -> str | None:
         """Skill-gated, structure-agnostic pre-inference retrieval conforming to skills/vault_recall."""
-        # 1. Skill Permission Gate: only proceed if agent is authorized for vault recall
+        # 1. Skill Permission Gate: only proceed if persona is authorized for vault recall
         if not cls.has_vault_skill(profile):
             return None
 

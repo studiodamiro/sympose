@@ -36,7 +36,7 @@ SYMPOSE_THEME = (
         {
             "sympose.brand": "bold cyan",
             "sympose.user": "bold yellow",
-            "sympose.agent": "bold cyan",
+            "sympose.persona": "bold cyan",
             "sympose.model": "bold green",
             "sympose.path": "magenta",
             "sympose.dim": "dim white",
@@ -194,13 +194,13 @@ class TerminalUI:
     @staticmethod
     def display_banner(console: Any | None) -> None:
         if not console:
-            print("=== <S> sympose // multi-model agent hub ===")
+            print("=== <S> sympose // multi-model persona hub ===")
             return
 
         banner = Text()
         banner.append("<S>  ", style="bold cyan")
         banner.append("S Y M P O S E  ", style="bold white")
-        banner.append("// multi-model agent hub  ", style="dim white")
+        banner.append("// multi-model persona hub  ", style="dim white")
         banner.append("[v0.2.26]\n", style="dim cyan")
         banner.append("minimalist runtime for macos & slack\n", style="dim white")
         banner.append(
@@ -221,7 +221,7 @@ class TerminalUI:
         banner.append("// interactive setup wizard  ", style="dim white")
         banner.append("[v0.2.26]\n", style="dim cyan")
         banner.append(
-            "zero-bloat multi-model agent hub & sovereign vault explorer\n\n",
+            "zero-bloat multi-model persona hub & sovereign vault explorer\n\n",
             style="dim white",
         )
         banner.append("active workspace: ", style="green")

@@ -82,7 +82,7 @@ def create_app(engine: Any, workspace_dir: str | None = None) -> FastAPI:
     resolution the CLI uses."""
     workspace_dir = workspace_dir or resolve_workspace_dir()
     app = FastAPI(
-        title="Sympose Multi-Model Agent Hub API",
+        title="Sympose Multi-Model Persona Hub API",
         version="0.2.26",
         description="FastAPI REST API & Standalone Vault Gateway for Sympose",
         docs_url="/docs",
@@ -118,7 +118,7 @@ def create_app(engine: Any, workspace_dir: str | None = None) -> FastAPI:
 
     @app.get("/api/personas")
     def list_personas() -> dict[str, Any]:
-        """Roster for the dashboard agent picker — a trimmed projection of each
+        """Roster for the dashboard persona picker — a trimmed projection of each
         profile (never the raw manifest: no `soul_file` / `memory_file` paths,
         no `thinking_phrases`)."""
         default = engine.config.get("runtime.default_persona")
@@ -496,7 +496,7 @@ def create_app(engine: Any, workspace_dir: str | None = None) -> FastAPI:
         <head>
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>Sympose // Multi-Model Agent Hub &amp; Vault Gateway</title>
+            <title>Sympose // Multi-Model Persona Hub &amp; Vault Gateway</title>
             <style>
                 body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif; background: #080D14; color: #E2E8F0; margin: 0; padding: 40px 20px; display: flex; justify-content: center; align-items: center; min-height: 80vh; }}
                 .card {{ background: #0E1726; border: 1px solid #1E293B; border-radius: 16px; max-width: 620px; width: 100%; padding: 36px; box-shadow: 0 20px 40px rgba(0,0,0,0.6); }}
@@ -520,7 +520,7 @@ def create_app(engine: Any, workspace_dir: str | None = None) -> FastAPI:
                     <span class="brand-badge">&lt;S&gt; S Y M P O S E</span>
                     <span class="sla-badge">Live Gateway &bull; v{_version}</span>
                 </div>
-                <h1>Multi-Model Agent Hub &amp; Vault API</h1>
+                <h1>Multi-Model Persona Hub &amp; Vault API</h1>
                 <p>Zero-Bloat AI Orchestration Runtime &amp; Standalone Obsidian Vault Gateway running on <code>localhost:8000</code>.</p>
                 <ul>
                     <li><span class="endpoint-label">📖 Interactive Swagger API Docs</span> <a class="btn" href="/docs">/docs</a></li>

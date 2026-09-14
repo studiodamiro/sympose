@@ -397,7 +397,7 @@ class TestCreateNote:
     def test_seeds_from_matching_folder_template_when_present(self, tmp_vault_dir, monkeypatch):
         """The dashboard's 'new note' buttons (POST /api/vault/note, empty
         content) get the same real per-folder template write_note applies for
-        agent-written notes — ADR-113."""
+        persona-written notes — ADR-113."""
         from sympose.vault import VaultManager
         tmpl_dir = tmp_vault_dir / "Templates"
         tmpl_dir.mkdir()

@@ -791,10 +791,10 @@ class CommandInterceptor:
                 target = parts[0].replace("@", "").lower()
                 target_p = engine.pm.get_profile(target)
                 if not target_p:
-                    yield f"Specialist agent `@{target}` not found."
+                    yield f"Specialist persona `@{target}` not found."
                     return
                 yield f"[Delegating to {target_p.get('name', target)} ({target_p.get('title', 'Specialist')}):]\n\n"
-                for chunk in engine.spawn_sub_agent(target, parts[1]):
+                for chunk in engine.consult_persona(target, parts[1]):
                     yield chunk
 
             return _ask()
@@ -839,7 +839,7 @@ class CommandInterceptor:
                         f"{skill.content}\n\n"
                         f"---\n"
                         f"*To mount to active persona:* `/skill add {skill.name}`\n"
-                        f"*To mount to specific agent:* `/skill add {skill.name} @<handle>`"
+                        f"*To mount to specific persona:* `/skill add {skill.name} @<handle>`"
                     )
                     return
 
@@ -899,7 +899,7 @@ class CommandInterceptor:
                         f"{direct_skill.content}\n\n"
                         f"---\n"
                         f"*To mount to active persona:* `/skill add {direct_skill.name}`\n"
-                        f"*To mount to specific agent:* `/skill add {direct_skill.name} @<handle>`"
+                        f"*To mount to specific persona:* `/skill add {direct_skill.name} @<handle>`"
                     )
                     return
 
@@ -945,12 +945,14 @@ class CommandInterceptor:
                     lines.append("- *No MCP servers configured.*")
 
                 lines.append("\n### 💡  SKILL MANAGEMENT COMMANDS")
-                lines.append("- Mount skill to active agent: `/skill add <skill_name>`")
                 lines.append(
-                    "- Mount skill to specific agent: `/skill add <skill_name> @<handle>`"
+                    "- Mount skill to active persona: `/skill add <skill_name>`"
                 )
                 lines.append(
-                    "- Unmount skill from agent: `/skill remove <skill_name> [@handle]`"
+                    "- Mount skill to specific persona: `/skill add <skill_name> @<handle>`"
+                )
+                lines.append(
+                    "- Unmount skill from persona: `/skill remove <skill_name> [@handle]`"
                 )
                 lines.append(
                     "- Inspect playbook directives: `/skill show <skill_name>`"
@@ -1009,7 +1011,7 @@ class CommandInterceptor:
                 def _mention():
                     target_p = engine.pm.get_profile(target_tag)
                     yield f"[Delegating to {target_p.get('name', target_tag)} ({target_p.get('title', 'Specialist')}):]\n\n"
-                    for chunk in engine.spawn_sub_agent(target_tag, delegated_prompt):
+                    for chunk in engine.consult_persona(target_tag, delegated_prompt):
                         yield chunk
 
                 return _mention()
@@ -1048,7 +1050,7 @@ class CommandInterceptor:
                     if engine.config.get("runtime.default_persona") == t_handle:
                         engine.config.set("runtime.default_persona", "samantha")
                         engine.config.save()
-                    yield f"🗄️ **Retired agent persona @{t_handle}**. Files safely archived to `{arch_dir}/`."
+                    yield f"🗄️ **Retired persona @{t_handle}**. Files safely archived to `{arch_dir}/`."
                 else:
                     engine.pm.reload_profiles()
                     yield f"⚠️ Persona `@{t_handle}` not found in `{p_dir}/`."
@@ -1080,8 +1082,8 @@ class CommandInterceptor:
                     "- `/save [memory|obsidian|both]` — Manually trigger session summary\n\n"
                     "### 🛠️  SUB-AGENTS & TOOLS\n"
                     "- `/skills` or `/skill [list]` — Inspect indexed skill playbooks and active mounts\n"
-                    "- `/skill add <name> [@handle]` — Mount skill to active agent (or @handle)\n"
-                    "- `/skill remove <name> [@handle]` — Unmount skill from agent\n"
+                    "- `/skill add <name> [@handle]` — Mount skill to active persona (or @handle)\n"
+                    "- `/skill remove <name> [@handle]` — Unmount skill from persona\n"
                     "- `/skill show <name>` — Inspect playbook directives & markdown source\n"
                     "- `/worker <skill|mcp> <task>` — Dispatch ephemeral sub-agent worker\n"
                     "- `/ask <@handle> <task>` — Delegate isolated sub-task to a peer\n\n"
@@ -1090,7 +1092,7 @@ class CommandInterceptor:
                     "- `/config` — View active runtime settings & performance knobs\n"
                     "- `/config set <key> <val>` — Live-tune knobs (e.g. `/config set performance.max_context_turns 20`)\n"
                     "- `/persona [show|set] @<handle> <key> <val>` — View or set a persona's own knobs (e.g. `temperature`)\n"
-                    "- `/delete @<handle>` — Safely archive & retire an agent persona\n"
+                    "- `/delete @<handle>` — Safely archive & retire a persona\n"
                     "- `/help` or `/commands` — Show this command reference"
                 )
 

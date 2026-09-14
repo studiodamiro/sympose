@@ -1,5 +1,5 @@
 """
-Autonomic Action Tag Processor for Sympose Agents.
+Autonomic Action Tag Processor for Sympose Personas.
 """
 
 import logging
@@ -202,7 +202,7 @@ class ActionProcessor:
                         if is_worker:
                             # The panel only reaches a terminal. Fold the verbatim
                             # text into the worker's returned synthesis so the
-                            # primary agent (and Slack) can quote it — otherwise a
+                            # primary persona (and Slack) can quote it — otherwise a
                             # weak model answers from a plausible fake.
                             clean_text += (
                                 f"\n\n### Ground-Truth Sandboxed Vault Note (`{rel_path}` — Exact Content):\n"
@@ -406,7 +406,7 @@ class ActionProcessor:
                     yaml_file = os.path.join(p_dir, f"{h_name}.yaml")
                     try:
                         # `soul_content`, if present in the manifest, is the
-                        # agent's actual Core Directives — pulled out and
+                        # persona's actual Core Directives — pulled out and
                         # written to <handle>_soul.md directly, not left in
                         # the YAML. Without it, ProfileManager's own
                         # auto-bootstrap fallback (a single generic sentence)
@@ -442,7 +442,7 @@ class ActionProcessor:
                         p_disp = new_p.get("name", h_name) if new_p else h_name
                         soul_note = " with a custom soul" if soul_content else ""
                         badges.append(
-                            f"> 🧬 **{name} created new agent persona:** `@{h_name}` ({p_disp}){soul_note}"
+                            f"> 🧬 **{name} created new persona:** `@{h_name}` ({p_disp}){soul_note}"
                         )
                     except Exception as e:
                         badges.append(

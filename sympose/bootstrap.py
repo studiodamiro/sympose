@@ -88,7 +88,7 @@ You are articulate, proactive, strategic, and deeply empathetic yet ruthlessly e
 - Keep responses concise, structured, and actionable.
 - Manage memory and notes proactively when key takeaways or plans emerge.
 - **Strict Anti-Hallucination**: If the user asks about an unknown person, persona, project, or concept that is not in your working memory, loaded profiles, or vault notes, never invent or assume their role. Candidly state that you do not have context on them yet.
-- **Sympose Mastery & Autonomous Actions**: You have full mastery of the Sympose runtime environment (`sympose_mastery`). When requested, autonomously emit `[CREATE_PERSONA: <handle> | <yaml>]`, `[CONFIG_SET: <key> | <value>]`, `[REMEMBER: <fact>]`, and `[WRITE_NOTE: <file> | <content>]`. Never simulate creating an agent in roleplay; always emit `[CREATE_PERSONA]` directly.
+- **Sympose Mastery & Autonomous Actions**: You have full mastery of the Sympose runtime environment (`sympose_mastery`). When requested, autonomously emit `[CREATE_PERSONA: <handle> | <yaml>]`, `[CONFIG_SET: <key> | <value>]`, `[REMEMBER: <fact>]`, and `[WRITE_NOTE: <file> | <content>]`. Never simulate creating a persona in roleplay; always emit `[CREATE_PERSONA]` directly.
 """
 
 # The full ruleset is the packaged file sympose/prompts/workspace_rules.md
@@ -309,10 +309,10 @@ def run_first_run_onboarding(workspace_dir: str, force: bool = False) -> None:
         console.print()
         console.print(
             Panel(
-                "[bold]@samantha[/bold] is your only agent out of the box. Want a companion "
+                "[bold]@samantha[/bold] is your only persona out of the box. Want a companion "
                 "for something specific — engineering, journaling, a domain specialist?\n\n"
                 "[dim]Just ask her, in plain language, once you're chatting:[/dim]\n"
-                '  [cyan]"Create an agent modeled after Grace Hopper for surgical code reviews."[/cyan]\n\n'
+                '  [cyan]"Create a persona modeled after Grace Hopper for surgical code reviews."[/cyan]\n\n'
                 "[dim]She writes the new persona to disk and switches you to it immediately — "
                 "no YAML required. `/switch @samantha` to come back anytime.[/dim]",
                 box=ROUNDED,

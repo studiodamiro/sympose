@@ -208,7 +208,7 @@ class TestExecuteActionsMalformedTags:
 class TestWorkerReadNoteFoldsVerbatimContent:
     """Regression: a `vault_recall` worker that surfaced a note via `[READ_NOTE]`
     rendered it to the terminal panel only — the report handed back to the
-    primary agent (and Slack) had no note text, so a weak model quoted a
+    primary persona (and Slack) had no note text, so a weak model quoted a
     plausible fabrication. The worker path must fold the verbatim content into
     its returned synthesis."""
 
@@ -227,8 +227,8 @@ class TestWorkerReadNoteFoldsVerbatimContent:
         assert "fixing the layout of Benns resume" in clean
         assert "I feel devastated" in clean
 
-    def test_primary_agent_read_note_does_not_fold_content(self, monkeypatch):
-        """Only the worker path folds text; a primary agent's [READ_NOTE] still
+    def test_primary_persona_read_note_does_not_fold_content(self, monkeypatch):
+        """Only the worker path folds text; a primary persona's [READ_NOTE] still
         just renders the panel (that transcript is user-facing already)."""
         pm = _FakeProfileManager()
         monkeypatch.setattr("sympose.actions.VaultManager.resolve_note_target",

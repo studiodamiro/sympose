@@ -1,5 +1,5 @@
 """
-🏛️ Sympose: Zero-Bloat Multi-Model AI Agent Hub
+🏛️ Sympose: Zero-Bloat Multi-Model AI Persona Hub
 """
 
 # Guarantee environment optimization and GCE metadata bypass execute first
@@ -9,13 +9,13 @@ from sympose.cli import TerminalInterface
 from sympose.config import ConfigManager, config_manager
 from sympose.engine import PersonaEngine
 from sympose.profiles import ProfileManager
-from sympose.slack import MultiAgentSlackRunner, SlackDaemon
+from sympose.slack import MultiPersonaSlackRunner, SlackDaemon
 from sympose.vault import VaultManager
 
 __all__ = [
     "ActionProcessor",
     "ConfigManager",
-    "MultiAgentSlackRunner",
+    "MultiPersonaSlackRunner",
     "PersonaEngine",
     "ProfileManager",
     "SlackDaemon",

@@ -149,7 +149,7 @@ class SessionArchivist:
         )
         tmpl = _load_prompt_tmpl(
             "session_summary.md",
-            "You are the session archivist for Sympose Agent Hub.\nAnalyze session with @{{handle}} ({{name}}):\n\n### SECTION 1: PERSISTENT MEMORY BULLETS\n- Facts\n\n### SECTION 2: OBSIDIAN SESSION LOG\n## Overview\n\nCONVERSATION TRANSCRIPT:\n{{transcript}}",
+            "You are the session archivist for Sympose Persona Hub.\nAnalyze session with @{{handle}} ({{name}}):\n\n### SECTION 1: PERSISTENT MEMORY BULLETS\n- Facts\n\n### SECTION 2: OBSIDIAN SESSION LOG\n## Overview\n\nCONVERSATION TRANSCRIPT:\n{{transcript}}",
         )
         prompt = (
             tmpl.replace("{{handle}}", handle)

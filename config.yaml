@@ -70,7 +70,7 @@ vault:
   # vault where `direct`'s linear scan starts costing real TTFT.
   search_mode: direct
   # ADR-078: a materialized structural map of the vault (nodes, [[wikilink]]
-  # edges, folder counts) written under the workspace, feeding the agent's
+  # edges, folder counts) written under the workspace, feeding the persona's
   # navigation and the dashboard graph. On by default; built lazily on first
   # use, then refreshed access-triggered behind a cheap top-level mtime check.
   # check_debounce_seconds caps how often the rescan may run; set enabled false

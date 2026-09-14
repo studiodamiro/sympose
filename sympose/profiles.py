@@ -19,7 +19,7 @@ from sympose.skills import skill_manager
 
 
 class ProfileManager:
-    """Dynamically loads agent profiles, souls, universal user cards, and tiered memory pools."""
+    """Dynamically loads persona profiles, souls, universal user cards, and tiered memory pools."""
 
     def __init__(self, profiles_dir: str | None = None):
         if profiles_dir:
@@ -130,8 +130,8 @@ class ProfileManager:
     def bootstrap_missing_artifacts(self, profile: dict[str, Any]) -> None:
         """Generates soul, memory, universal user card, and shared team memory from .example templates if absent."""
         handle, name, title = (
-            profile.get("handle", "agent").lower(),
-            profile.get("name", "Agent"),
+            profile.get("handle", "persona").lower(),
+            profile.get("name", "Persona"),
             profile.get("title", "Specialist Advisor"),
         )
         os.makedirs(self.profiles_dir, exist_ok=True)
@@ -143,10 +143,10 @@ class ProfileManager:
         # Fallback only — CREATE_PERSONA writes a real soul directly from its
         # manifest's `soul_content` field when the model provides one; this
         # generic scaffold is what a persona gets if it doesn't (e.g. a
-        # hand-dropped 4-line YAML manifest, per creating-agents.md's "Quick
+        # hand-dropped 4-line YAML manifest, per creating-personas.md's "Quick
         # Genesis" path). Still generic — it can't know what a "Grace Hopper"
         # or "Dieter Rams" reference means — but it at least carries the same
-        # anti-hallucination and action-awareness floor every other agent gets,
+        # anti-hallucination and action-awareness floor every other persona gets,
         # instead of one bare sentence.
         fallback_soul = (
             f"# {name}: Core Directives\n\n"
@@ -164,7 +164,7 @@ class ProfileManager:
             ),
             (
                 os.path.join(self.profiles_dir, "_shared_memory.md"),
-                "# Shared Team Working Memory\n\n- **Active Project**: Sympose Agent Hub\n",
+                "# Shared Team Working Memory\n\n- **Active Project**: Sympose Persona Hub\n",
             ),
             (soul_path, fallback_soul),
             (mem_path, f"# {name}: Working Memory\n\n- **Role**: {title}\n"),
@@ -295,8 +295,8 @@ class ProfileManager:
 
     def build_system_prompt(self, profile: dict[str, Any]) -> str:
         handle, name = (
-            profile.get("handle", "agent"),
-            profile.get("name", profile.get("handle", "agent")),
+            profile.get("handle", "persona"),
+            profile.get("name", profile.get("handle", "persona")),
         )
         user_card = self._read_file_safe(
             os.path.join(self.profiles_dir, "user_profile.md")

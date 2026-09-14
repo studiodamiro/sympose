@@ -284,7 +284,7 @@ SETTINGS: tuple[Setting, ...] = (
         "bool",
         True,
         "Maintain a materialized structural map of the vault (nodes, links, folders) "
-        "under the workspace for the agent and the dashboard graph (ADR-078). Built "
+        "under the workspace for the persona and the dashboard graph (ADR-078). Built "
         "lazily on first use; set false to disable entirely.",
         _VAULT,
     ),

@@ -431,7 +431,7 @@ def _route(app, path):
 
 
 def test_personas_endpoint_is_a_trimmed_projection():
-    """The agent-picker roster must not leak profile file paths or internals —
+    """The persona-picker roster must not leak profile file paths or internals —
     only identity + model + skills, plus which handle is the default."""
     engine = MagicMock()
     engine.config.get.return_value = "samantha"

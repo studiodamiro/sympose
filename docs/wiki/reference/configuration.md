@@ -75,6 +75,7 @@ Every runtime knob Sympose reads. Global keys live in `config.yaml`, settable at
 | Key | Type | Default | Allowed | Live | Description |
 | --- | --- | --- | --- | --- | --- |
 | `worker.shell_allowlist` | list | `[]` | — | **restart** | argv[0] allowlist for the worker `run_command` tool (read-only commands only). |
+| `worker.shell_command_timeout` | float | `20.0` | ≥ 1 | yes | Hard wall-clock cap on a single `run_command` execution, seconds. |
 
 ## Persona (set in profiles/<handle>.yaml)
 

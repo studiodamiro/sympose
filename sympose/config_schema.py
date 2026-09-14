@@ -323,6 +323,14 @@ SETTINGS: tuple[Setting, ...] = (
         _WORK,
         live=False,
     ),
+    Setting(
+        "worker.shell_command_timeout",
+        "float",
+        20.0,
+        "Hard wall-clock cap on a single `run_command` execution, seconds.",
+        _WORK,
+        minimum=1,
+    ),
     # Persona-scoped — set with `/persona set @<handle> <key> <value>`, not /config.
     Setting(
         "vault_grounding",

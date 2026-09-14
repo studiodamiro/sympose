@@ -124,6 +124,20 @@ class NativeTools:
         return cls.DEFAULT_SHELL_ALLOWLIST
 
     @staticmethod
+    def _shell_command_timeout() -> float:
+        """Reads `worker.shell_command_timeout` from config; falls back to the
+        schema default (20s) if unset or malformed."""
+        try:
+            from sympose.config import config_manager
+
+            return float(config_manager.get("worker.shell_command_timeout", 20.0))
+        except Exception as e:
+            log.debug(
+                "Failed to read worker.shell_command_timeout, using default: %s", e
+            )
+            return 20.0
+
+    @staticmethod
     def _segment_commands(cmd: str) -> list[str]:
         """Splits a shell command line on top-level `&& || ; |` operators (best-effort,
         ignoring operators inside quotes) and returns each segment's argv[0] lowercased."""
@@ -237,13 +251,14 @@ class NativeTools:
                             "Sibling-folder sandbox check failed, skipping it: %s", e
                         )
 
+            cmd_timeout = cls._shell_command_timeout()
             try:
                 res = subprocess.run(
                     cmd,
                     shell=True,
                     capture_output=True,
                     text=True,
-                    timeout=20,
+                    timeout=cmd_timeout,
                     cwd=os.getcwd(),
                     env=cls._scrubbed_env(),
                     check=False,  # deliberate — a non-zero exit is reported
@@ -263,7 +278,7 @@ class NativeTools:
                     output = "(Command executed successfully with no stdout output)"
                 return (res.returncode == 0), output
             except subprocess.TimeoutExpired:
-                return False, f"Command timed out after 20s: `{cmd}`"
+                return False, f"Command timed out after {cmd_timeout:g}s: `{cmd}`"
             except Exception as e:
                 return False, f"Error executing command: {e}"
 

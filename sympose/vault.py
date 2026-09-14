@@ -14,6 +14,7 @@ from sympose import (
     vault_links,
     vault_manifest,
     vault_paths,
+    vault_recall,
     vault_search,
     vault_trash,
     vault_tree,
@@ -35,180 +36,12 @@ _VAULT_SNAPSHOT_CACHE: dict[tuple[str, ...], tuple[float, list[dict[str, Any]]]]
 class VaultManager:
     """Manages sandboxed reading, writing, high-density manifests, and searching in Obsidian vaults."""
 
-    # Lead-in phrases that precede the real subject of a conversational recall
-    # request. Longest-first so multi-word forms strip before their prefixes.
-    _RECALL_LEADINS: tuple[str, ...] = (
-        "what have i written about",
-        "what did i write about",
-        "what did i say about",
-        "what do i have on",
-        "what do i have about",
-        "what did i write",
-        "what did i say",
-        "do i have any notes about",
-        "do i have any notes on",
-        "do i have notes about",
-        "do i have notes on",
-        "do i have a note about",
-        "do i have anything about",
-        "do we have any notes about",
-        "do we have notes on",
-        "do we have anything about",
-        "remind me about",
-        "remind me of",
-        "tell me about",
-        "recall our",
-        "recall my",
-        "search for",
-        "look for",
-        "look up",
-        "look at",
-        "check for",
-        "dig up",
-        "dig out",
-        "pull up",
-        "pull out",
-        "bring up",
-        "show me",
-        "find me",
-        "get me",
-        "how about",
-        "what about",
-        "anything about",
-        "anything on",
-        "my notes about",
-        "my notes on",
-        "notes about",
-        "notes on",
-        "note about",
-        "note on",
-        "my journal about",
-        "journal entry about",
-        "journal about",
-        "journal on",
-        "remind me",
-        "recall",
-        "remember when",
-        "remember",
-    )
-    # Politeness / modal wrappers that sit in front of a recall lead-in
-    # ("can you pull up …", "please remind me …"). Stripped before the lead-in
-    # scan but — unlike a lead-in — not themselves treated as recall intent.
-    _RECALL_WRAPPERS: tuple[str, ...] = (
-        "can you please",
-        "could you please",
-        "would you please",
-        "can you kindly",
-        "i want you to",
-        "i'd like you to",
-        "i would like you to",
-        "i need you to",
-        "can you",
-        "could you",
-        "would you",
-        "will you",
-        "can we",
-        "could we",
-        "can u",
-        "cud u",
-        "lets",
-        "let's",
-        "let us",
-        "help me",
-        "go ahead and",
-        "please",
-        "kindly",
-        "pls",
-        "plz",
-    )
-    # Tokens with no value as a substring search term; trimmed from both ends of
-    # an extracted subject.
-    _SUBJECT_STOPWORDS: frozenset = frozenset(
-        {
-            "the",
-            "a",
-            "an",
-            "my",
-            "our",
-            "your",
-            "some",
-            "any",
-            "that",
-            "this",
-            "these",
-            "up",
-            "on",
-            "in",
-            "of",
-            "for",
-            "about",
-            "regarding",
-            "re",
-            "from",
-            "with",
-            "please",
-            "just",
-            "also",
-            "again",
-            "vault",
-            "obsidian",
-            "note",
-            "notes",
-            "journal",
-            "journals",
-            "diary",
-            "entry",
-            "entries",
-            "reflection",
-            "reflections",
-            "log",
-            "logs",
-            "did",
-            "do",
-            "i",
-            "we",
-            "you",
-            "have",
-            "had",
-            "has",
-            "write",
-            "wrote",
-            "written",
-            "say",
-            "said",
-            "anything",
-            "something",
-            "stuff",
-            "thing",
-            "things",
-            "and",
-            "or",
-            "me",
-            "us",
-            # sample / chrono filler — a "subject" made only of these is no subject
-            "random",
-            "randomly",
-            "randam",
-            "surprise",
-            "whatever",
-            "arbitrary",
-            "daily",
-            "recent",
-            "latest",
-            "old",
-            "past",
-            # stray retrieval verbs that can leak past the lead-in scan
-            "grab",
-            "get",
-            "fetch",
-            "pull",
-            "bring",
-            "show",
-            "give",
-            "pick",
-            "choose",
-        }
-    )
+    # ------------------------------------------------------------------
+    # Conversational-recall subject extraction — thin wrappers over
+    # `vault_recall`, which owns the pure text-processing logic. The
+    # orchestrator that actually *uses* this (resolve_turn_context, below)
+    # stays here — see vault_recall.py's own module docstring for why.
+    # ------------------------------------------------------------------
 
     @staticmethod
     def _extract_recall_subject(message: str) -> tuple[str, bool]:
@@ -219,59 +52,7 @@ class VaultManager:
         (subject, had_leadin) — had_leadin is True when a recall phrasing
         ('tell me about', 'pull up', …) was consumed, which is itself a signal
         of vault intent even absent a trigger keyword."""
-        raw = message.strip().strip("?.!").lower()
-        raw = re.sub(
-            r"^(?:hey|hi|hello|yo|good\s+\w+)[\s,]+(?:\w+[\s,]+)?", "", raw
-        ).strip()
-        # Possessive → bare stem so a substring search on "dylans" / "dylan's"
-        # still matches the note that only ever spells it "Dylan".
-        raw = re.sub(r"(\w)['’]s\b", r"\1", raw)
-
-        def _from_clause(q: str) -> tuple[str, bool]:
-            had_leadin = False
-            changed = True
-            while changed:
-                changed = False
-                for phrase in VaultManager._RECALL_WRAPPERS:
-                    if q.startswith(phrase + " "):
-                        q, changed = q[len(phrase) :].strip(), True
-                        break
-                for phrase in VaultManager._RECALL_LEADINS:
-                    if q.startswith(phrase + " "):
-                        q, changed, had_leadin = q[len(phrase) :].strip(), True, True
-                        break
-            m = re.search(
-                r"\b(?:about|on|regarding|mentioning|discussing|concerning)\s+(.+)$", q
-            )
-            if m:
-                q = m.group(1).strip()
-            q = re.sub(
-                r"\s+(?:in|from|within|inside)\s+(?:my|our|the\s+)?\s*"
-                r"(?:journal|diary|vault|notes?|daily|entries|reflections?|logs?)\b.*$",
-                "",
-                q,
-            ).strip()
-            # A recall request rarely spans a conjunction ("… and see if my
-            # memory's right"); keep only the head clause.
-            q = re.split(r"\s+(?:and|but|so|then)\s+", q, maxsplit=1)[0].strip()
-            toks = [t for t in re.split(r"\s+", q) if t]
-            while toks and toks[0] in VaultManager._SUBJECT_STOPWORDS:
-                toks.pop(0)
-            while toks and toks[-1] in VaultManager._SUBJECT_STOPWORDS:
-                toks.pop()
-            return " ".join(toks).strip(), had_leadin
-
-        # "i wish i could do that. can you pull up X" — process each sentence and
-        # prefer the one that actually carries a recall lead-in.
-        clauses = [c.strip() for c in re.split(r"[.?!]+\s+", raw) if c.strip()] or [raw]
-        best = ("", False)
-        for c in clauses:
-            subj, lead = _from_clause(c)
-            if lead and subj:
-                return subj, True
-            if subj and not best[0]:
-                best = (subj, lead)
-        return best
+        return vault_recall.extract_recall_subject(message)
 
     @classmethod
     def has_recall_intent(cls, message: str) -> bool:
@@ -281,17 +62,7 @@ class VaultManager:
         context when the current turn asked its own vault question and retrieval
         came back empty — answering a fresh 'pull up X' from a stale unrelated
         note is exactly the fabrication this guards against."""
-        _, had_leadin = cls._extract_recall_subject(message)
-        if had_leadin:
-            return True
-        triggers = config_manager.get("vault.search_triggers") or [
-            "vault",
-            "note",
-            "notes",
-            "journal",
-            "recall",
-        ]
-        return any(k in message.lower() for k in triggers)
+        return vault_recall.has_recall_intent(message)
 
     # Sandbox path resolution itself now lives in vault_paths.py (pure,
     # self-contained, no other vault module depends on it) — these stay as
@@ -1665,18 +1436,4 @@ class VaultManager:
         its most-specific single tokens (longest, then earliest), then the
         de-pluralised stem of each so an apostrophe-less possessive ('dylans' ->
         'dylan') still matches. `drop` removes one token (e.g. the folder name)."""
-        toks = {
-            t
-            for t in subject.split()
-            if len(t) >= 3 and t not in cls._SUBJECT_STOPWORDS and t != drop
-        }
-        toks |= {t[:-1] for t in list(toks) if len(t) >= 5 and t.endswith("s")}
-        ordered = [subject] + sorted(toks, key=lambda t: (-len(t), subject.find(t)))
-        seen: set = set()
-        out: list[str] = []
-        for c in ordered:
-            c = c.strip()
-            if len(c) >= 3 and c not in seen:
-                seen.add(c)
-                out.append(c)
-        return out
+        return vault_recall.recall_candidates(subject, drop)

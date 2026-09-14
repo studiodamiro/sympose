@@ -255,6 +255,29 @@ class SlackDaemon:
                 logging.debug(f"Channel context: {e}")
         return ""
 
+    @staticmethod
+    def _conversation_key(channel_id: str, is_dm: bool, event: dict[str, Any]) -> str:
+        """Identifies which ongoing conversation an event belongs to — the
+        continuity boundary for memory, active-persona-per-thread tracking,
+        and session archival.
+
+        A DM is inherently one conversation (just the user and the persona),
+        so it's keyed on the channel alone — stable across every message,
+        Slack-threaded or not. Ordinary DM chat is never Slack-threaded (a
+        user doesn't click "reply in thread" on themselves), so keying on
+        `thread_ts` here — as this used to — meant every plain follow-up got
+        its own fresh key (falling back to that message's own timestamp) and
+        the persona lost all memory of the message before it.
+
+        A channel can genuinely hold several separate conversations at once,
+        so it stays keyed on Slack's own thread_ts, falling back to the
+        triggering message's own ts for an unthreaded first message, and to
+        the channel id as a last resort.
+        """
+        if is_dm:
+            return channel_id
+        return f"{channel_id}:{event.get('thread_ts') or event.get('ts') or channel_id}"
+
     def _process_message(self, client: Any, event: dict[str, Any], say: Any) -> None:
         channel_id, msg_ts, raw_text = (
             event.get("channel", ""),
@@ -278,9 +301,7 @@ class SlackDaemon:
             if is_dm
             else (event.get("thread_ts") or event.get("ts", ""))
         )
-        thread_id = (
-            f"{channel_id}:{event.get('thread_ts') or event.get('ts') or channel_id}"
-        )
+        thread_id = self._conversation_key(channel_id, is_dm, event)
 
         handle, prompt = self._resolve_persona_and_prompt(raw_text, thread_id)
         if (

@@ -403,7 +403,10 @@ class ProfileManager:
 
         return "\n\n".join(prompt_parts)
 
-    def _append_to_file(self, file_path: str, fact: str) -> bool:
+    def _append_to_file(self, file_path: str, fact: str) -> tuple[bool, list[str]]:
+        """Appends new (non-duplicate) lines. Returns (success, lines_written)
+        — callers use lines_written to protect this exact write from being
+        judged away by a compaction pass the write itself may trigger."""
         try:
             from sympose.compactor import get_file_lock
 
@@ -426,9 +429,9 @@ class ProfileManager:
                 if new_lines:
                     with open(file_path, "a", encoding="utf-8") as f:
                         f.write("\n" + "\n".join(new_lines))
-                return True
+                return True, new_lines
         except Exception:
-            return False
+            return False, []
 
     def append_memory(
         self, handle: str, fact: str, force_shared: bool | None = None
@@ -442,22 +445,26 @@ class ProfileManager:
             profile.get("share_memory", False) if force_shared is None else force_shared
         )
         mem_file = profile.get("memory_file", f"profiles/{handle}_memory.md")
-        ok = self._append_to_file(mem_file, fact)
+        ok, new_lines = self._append_to_file(mem_file, fact)
 
         try:
             from sympose.compactor import MemoryCompactor
 
-            MemoryCompactor.check_and_compact_async(mem_file, is_shared=False)
+            MemoryCompactor.check_and_compact_async(
+                mem_file, is_shared=False, protect=new_lines
+            )
         except Exception as e:
             log.debug("Failed to trigger memory compaction for %s: %s", mem_file, e)
 
         if is_shared:
             shared_file = os.path.join(self.profiles_dir, "_shared_memory.md")
-            self._append_to_file(shared_file, fact)
+            _, shared_new_lines = self._append_to_file(shared_file, fact)
             try:
                 from sympose.compactor import MemoryCompactor
 
-                MemoryCompactor.check_and_compact_async(shared_file, is_shared=True)
+                MemoryCompactor.check_and_compact_async(
+                    shared_file, is_shared=True, protect=shared_new_lines
+                )
             except Exception as e:
                 log.debug(
                     "Failed to trigger memory compaction for %s: %s", shared_file, e

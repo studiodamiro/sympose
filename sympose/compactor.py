@@ -85,7 +85,11 @@ class MemoryCompactor:
 
     @classmethod
     def compact_file(
-        cls, filepath: str, is_shared: bool = False, model: str | None = None
+        cls,
+        filepath: str,
+        is_shared: bool = False,
+        model: str | None = None,
+        protect: list[str] | None = None,
     ) -> bool:
         """Executes an LLM distillation pass to clean and deduplicate a memory file."""
         if not filepath or not os.path.exists(filepath):
@@ -166,9 +170,20 @@ class MemoryCompactor:
                     appended_lines = [
                         line for line in current_lines if line not in initial_lines
                     ]
+                    # The fact whose own write crossed the compaction threshold
+                    # survives regardless of the LLM's durability judgment — it
+                    # was already in `initial_lines` (written before this pass
+                    # started reading), so the appended-lines diff above never
+                    # catches it on its own.
+                    protected_missing = [
+                        p
+                        for p in (protect or [])
+                        if p not in distilled and p not in appended_lines
+                    ]
                     final_text = distilled.rstrip() + "\n"
-                    if appended_lines:
-                        final_text += "\n" + "\n".join(appended_lines) + "\n"
+                    extra_lines = appended_lines + protected_missing
+                    if extra_lines:
+                        final_text += "\n" + "\n".join(extra_lines) + "\n"
 
                     with open(filepath, "w", encoding="utf-8") as f:
                         f.write(final_text)
@@ -180,11 +195,17 @@ class MemoryCompactor:
 
     @classmethod
     def check_and_compact_async(
-        cls, filepath: str, is_shared: bool = False, threshold: int | None = None
+        cls,
+        filepath: str,
+        is_shared: bool = False,
+        threshold: int | None = None,
+        protect: list[str] | None = None,
     ) -> None:
         """Checks if line count exceeds threshold and runs compaction on the shared
         hygiene pool — single-flight per file, so repeated turns crossing the
-        threshold before the first pass completes don't each queue their own run."""
+        threshold before the first pass completes don't each queue their own run.
+        `protect` is the fact whose own write just crossed the threshold — it must
+        survive this pass regardless of the compactor's own durability judgment."""
         auto_enabled = bool(config_manager.get("memory.auto_compact", True))
         if not auto_enabled:
             return
@@ -201,7 +222,7 @@ class MemoryCompactor:
 
         def _run() -> None:
             try:
-                cls.compact_file(filepath, is_shared)
+                cls.compact_file(filepath, is_shared, protect=protect)
             finally:
                 with _GLOBAL_LOCK:
                     _INFLIGHT_COMPACTIONS.discard(abs_path)

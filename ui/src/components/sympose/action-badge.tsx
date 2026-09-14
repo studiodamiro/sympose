@@ -17,7 +17,7 @@ import { cn } from "@/lib/utils"
 /**
  * Visual action-event badge — rendered inline, directly below the message that
  * produced it (UI_DESIGN_REFERENCE.md §7). Each maps to an engine action tag.
- * Clickable variants (note / daily / search / worker) get an affordance chevron
+ * Clickable variants (note / daily / search / sub-agent) get an affordance chevron
  * and behave as a button.
  */
 export type ActionKind =
@@ -25,7 +25,7 @@ export type ActionKind =
   | "APPEND_NOTE"
   | "DAILY_NOTE"
   | "SEARCH"
-  | "SPAWN_WORKER"
+  | "SPAWN_SUB_AGENT"
   | "CONFIG_SET"
   | "CREATE_PERSONA"
   | "DELETE_PERSONA"
@@ -45,7 +45,7 @@ const ACTION_META: Record<ActionKind, ActionMeta> = {
     interactive: true,
   },
   SEARCH: { icon: SearchAreaIcon, label: "Web search", interactive: true },
-  SPAWN_WORKER: { icon: WrenchIcon, label: "Sub-agent", interactive: true },
+  SPAWN_SUB_AGENT: { icon: WrenchIcon, label: "Sub-agent", interactive: true },
   CONFIG_SET: {
     icon: Settings01Icon,
     label: "config.yaml updated",

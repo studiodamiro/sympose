@@ -14,8 +14,8 @@ tags:
 > **Date:** Tuesday, September 15, 2026
 > **Topic:** Closing the deferred half of the Agent → Persona naming split
 > **Participants:** damiro (Lead Architect), Grace (Engineering Partner)
-> **Status:** Backend, config, CLI, and wiki done. UI (`ui/src`) and the
-> compiled `webui` bundle are the one piece still open.
+> **Status:** Done. Backend, config, CLI, wiki, `ui/src`, and the compiled
+> `webui` bundle are all renamed.
 
 ---
 
@@ -93,15 +93,30 @@ while working through the docs, not by the test suite (none of the existing
 tests exercise the packaged prompt files' actual content against the live
 parser) — fixed in its own commit immediately, ahead of the wiki work.
 
-## 4. What's still open
+## 4. Closing the last piece
+
+A separate gap surfaced later, unrelated to `ui/src`: this machine's local
+`config.yaml` still had a top-level `worker:` section (`shell_allowlist`)
+and `performance.max_worker_tool_turns`, neither of which the renamed
+schema (`sub_agent.shell_allowlist`, `performance.max_sub_agent_tool_turns`)
+recognizes any more. With the hard-rename, no-aliasing policy, that meant
+`ConfigManager.get("sub_agent.shell_allowlist")` was silently falling back
+to the schema's empty-list default — the `run_command` sub-agent tool had
+been quietly rejecting every command, including plain reads like `ls`/
+`cat`/`grep`, with no error pointing at the stale config file. Found while
+tracing an unrelated local-model reliability question, not by the test
+suite (a persisted `config.yaml` isn't something the suite exercises).
+Fixed by renaming both keys in place, preserving the existing allowlist
+values.
 
 The two `ui/src` files with "worker" in them
 (`components/sympose/action-badge.tsx`, `routes/components-gallery.tsx`)
-and the compiled `sympose/webui/` bundle, which still contains the string
-`SPAWN_WORKER` from before this rename and needs a rebuild once `ui/src` is
-updated. Everything else — every Python identifier, the wire-format tag,
-persisted config, the CLI command and its tab-completion, and all wiki/
-journal-index prose that isn't a frozen historical record — is done.
+are renamed and the `sympose/webui/` bundle rebuilt — confirmed
+`SPAWN_WORKER` no longer appears anywhere in the compiled output and
+`SPAWN_SUB_AGENT` does. Every Python identifier, the wire-format tag,
+persisted config, the CLI command and its tab-completion, all wiki/
+journal-index prose that isn't a frozen historical record, `ui/src`, and
+the compiled bundle are now consistent.
 
 ## 5. Commits
 
@@ -112,3 +127,5 @@ journal-index prose that isn't a frozen historical record — is done.
 - `01bc5b7` — docs: all wiki pages, the `mcp-and-workers.md` →
   `mcp-and-sub-agents.md` rename and full content rewrite, `.agents/rules/`
   sync.
+- (this session) — `config.yaml` key migration (§4), `ui/src` rename, and
+  the `webui` rebuild that finishes the rename end-to-end.

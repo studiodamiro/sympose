@@ -4,9 +4,9 @@ performance:
   # Residency hint passed to local (ollama/…) calls only: -1 forever, 0 unload
   # now, "30m" a duration. Unset = defer to the OLLAMA_KEEP_ALIVE server env
   # var. A persona YAML `keep_alive` overrides this.
-  # local_keep_alive: -1
+  local_keep_alive: -1
   max_context_turns: 15
-  max_worker_tool_turns: 8
+  max_sub_agent_tool_turns: 8
   drop_unsupported_params: true
   stream: true
   resume_context_turns: 6
@@ -29,8 +29,8 @@ memory:
 runtime:
   default_persona: samantha
   profiles_dir: profiles
-worker:
-  # ADR-073: argv[0] allowlist for the `run_command` native tool. A worker
+sub_agent:
+  # ADR-073: argv[0] allowlist for the `run_command` native tool. A sub-agent
   # task's shell commands are model-directed and unreviewed; only read/inspect
   # commands ship enabled. Widen deliberately, one command at a time.
   shell_allowlist:

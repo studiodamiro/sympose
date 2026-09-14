@@ -212,7 +212,7 @@ const ACTION_KINDS: { kind: ActionKind; detail?: string }[] = [
   { kind: "APPEND_NOTE", detail: "Daily/2026/08-August/2026-08-30.md" },
   { kind: "DAILY_NOTE", detail: "2026-08-30" },
   { kind: "SEARCH", detail: "self-signed cert fastapi" },
-  { kind: "SPAWN_WORKER", detail: "draft ADR-065" },
+  { kind: "SPAWN_SUB_AGENT", detail: "draft ADR-065" },
   { kind: "CONFIG_SET", detail: "runtime.streaming = true" },
   { kind: "CREATE_PERSONA", detail: "@grace" },
   { kind: "DELETE_PERSONA", detail: "@kepler" },

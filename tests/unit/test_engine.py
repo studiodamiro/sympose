@@ -134,8 +134,13 @@ class TestBuildKwargsKeepAlive:
         assert "keep_alive" not in kw
 
     def test_absent_when_unset(self, engine):
-        kw = engine._build_kwargs("ollama/llama3", {}, [])
-        assert "keep_alive" not in kw
+        prior = engine.config.get("performance.local_keep_alive")
+        engine.config.set("performance.local_keep_alive", None)
+        try:
+            kw = engine._build_kwargs("ollama/llama3", {}, [])
+            assert "keep_alive" not in kw
+        finally:
+            engine.config.set("performance.local_keep_alive", prior)
 
     def test_config_default_applies_when_persona_silent(self, engine):
         engine.config.set("performance.local_keep_alive", -1)

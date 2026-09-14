@@ -49,7 +49,9 @@ class TestVisibleStreamGate:
         assert "[SPAWN_WORKER: vault_recall | Dylan]" in raw
 
     def test_cuts_at_search_tag_split_across_chunks(self, engine):
-        out, raw = self._run(engine, "One sec ", "[SEA", "RCH: btc price] ", "It is $70k")
+        out, raw = self._run(
+            engine, "One sec ", "[SEA", "RCH: btc price] ", "It is $70k"
+        )
         assert out == "One sec "
         assert "70k" not in out
 
@@ -73,11 +75,22 @@ class TestGroundingModeKnob:
         assert engine._grounding_mode({}, "openrouter/x/y") == "trust"
 
     def test_localhost_api_base_forces_strict(self, engine):
-        assert engine._grounding_mode({"api_base": "http://localhost:11434"}, "openai/gpt-x") == "strict"
+        assert (
+            engine._grounding_mode(
+                {"api_base": "http://localhost:11434"}, "openai/gpt-x"
+            )
+            == "strict"
+        )
 
     def test_explicit_persona_setting_wins(self, engine):
-        assert engine._grounding_mode({"vault_grounding": "trust"}, "ollama/llama3") == "trust"
-        assert engine._grounding_mode({"vault_grounding": "strict"}, "gemini/flash") == "strict"
+        assert (
+            engine._grounding_mode({"vault_grounding": "trust"}, "ollama/llama3")
+            == "trust"
+        )
+        assert (
+            engine._grounding_mode({"vault_grounding": "strict"}, "gemini/flash")
+            == "strict"
+        )
 
     def test_global_default_overrides_auto(self, engine):
         engine.config.set("vault.grounding_default", "strict")
@@ -89,13 +102,19 @@ class TestGroundingModeKnob:
 
 class TestEntityGuess:
     def test_pull_x_entry(self, engine):
-        assert engine._entity_guess("Certainly, I can pull Dylan's entry from your vault.") == "Dylan"
+        assert (
+            engine._entity_guess("Certainly, I can pull Dylan's entry from your vault.")
+            == "Dylan"
+        )
 
     def test_do_you_know_x(self, engine):
         assert engine._entity_guess("do you know dylan?").lower() == "dylan"
 
     def test_falls_through_to_capitalised_name(self, engine):
-        assert engine._entity_guess("what did I say about Marguerite last year") == "Marguerite"
+        assert (
+            engine._entity_guess("what did I say about Marguerite last year")
+            == "Marguerite"
+        )
 
     def test_nothing_when_no_subject(self, engine):
         assert engine._entity_guess("yes, just summarize", "sure go ahead") == ""
@@ -133,3 +152,141 @@ class TestBuildKwargsKeepAlive:
             assert kw["keep_alive"] == 0
         finally:
             engine.config.set("performance.local_keep_alive", None)
+
+
+class TestSelectTurnModel:
+    """ADR-122: engine._select_turn_model, the guard that decides whether a
+    turn is even eligible for local routing before handing off to
+    model_router.resolve_turn_model (tested independently, so it's stubbed
+    here rather than re-verified)."""
+
+    def test_stays_on_target_when_no_local_model_configured(self, engine, monkeypatch):
+        monkeypatch.setattr(
+            "sympose.engine.resolve_turn_model",
+            lambda *a, **k: (_ for _ in ()).throw(
+                AssertionError("should not be called")
+            ),
+        )
+        model, routed = engine._select_turn_model(
+            "sam", {}, "hi", None, "gemini/gemini-3.6-flash"
+        )
+        assert (model, routed) == ("gemini/gemini-3.6-flash", False)
+
+    def test_stays_on_target_when_manual_override_active(self, engine, monkeypatch):
+        engine.set_model_override("sam", "gemini/gemini-3.6-pro")
+        monkeypatch.setattr(
+            "sympose.engine.resolve_turn_model",
+            lambda *a, **k: (_ for _ in ()).throw(
+                AssertionError("should not be called")
+            ),
+        )
+        model, routed = engine._select_turn_model(
+            "sam",
+            {"local_model": "ollama/gemma2:9b"},
+            "hi",
+            None,
+            "gemini/gemini-3.6-flash",
+        )
+        assert (model, routed) == ("gemini/gemini-3.6-flash", False)
+
+    def test_stays_on_target_when_vault_context_already_resolved(
+        self, engine, monkeypatch
+    ):
+        monkeypatch.setattr(
+            "sympose.engine.resolve_turn_model",
+            lambda *a, **k: (_ for _ in ()).throw(
+                AssertionError("should not be called")
+            ),
+        )
+        model, routed = engine._select_turn_model(
+            "sam",
+            {"local_model": "ollama/gemma2:9b"},
+            "hi",
+            "## Retrieved: some note content",
+            "gemini/gemini-3.6-flash",
+        )
+        assert (model, routed) == ("gemini/gemini-3.6-flash", False)
+
+    def test_stays_on_target_when_message_has_recall_intent(self, engine, monkeypatch):
+        monkeypatch.setattr(
+            "sympose.engine.resolve_turn_model",
+            lambda *a, **k: (_ for _ in ()).throw(
+                AssertionError("should not be called")
+            ),
+        )
+        model, routed = engine._select_turn_model(
+            "sam",
+            {"local_model": "ollama/gemma2:9b"},
+            "pull up my note on Tin",
+            None,
+            "gemini/gemini-3.6-flash",
+        )
+        assert (model, routed) == ("gemini/gemini-3.6-flash", False)
+
+    def test_delegates_to_resolve_turn_model_when_eligible(self, engine, monkeypatch):
+        captured = {}
+
+        def fake_resolve(target_model, local_model, message, keep_alive=None):
+            captured.update(
+                target_model=target_model,
+                local_model=local_model,
+                message=message,
+                keep_alive=keep_alive,
+            )
+            return local_model, True
+
+        monkeypatch.setattr("sympose.engine.resolve_turn_model", fake_resolve)
+        model, routed = engine._select_turn_model(
+            "sam",
+            {"local_model": "ollama/gemma2:9b"},
+            "hi there",
+            None,
+            "gemini/gemini-3.6-flash",
+        )
+        assert (model, routed) == ("ollama/gemma2:9b", True)
+        assert captured == {
+            "target_model": "gemini/gemini-3.6-flash",
+            "local_model": "ollama/gemma2:9b",
+            "message": "hi there",
+            "keep_alive": None,
+        }
+
+    def test_persona_keep_alive_passed_through(self, engine, monkeypatch):
+        captured = {}
+        monkeypatch.setattr(
+            "sympose.engine.resolve_turn_model",
+            lambda target_model, local_model, message, keep_alive=None: (
+                captured.update(keep_alive=keep_alive) or (local_model, True)
+            ),
+        )
+        engine._select_turn_model(
+            "sam",
+            {"local_model": "ollama/gemma2:9b", "keep_alive": "30m"},
+            "hi",
+            None,
+            "gemini/gemini-3.6-flash",
+        )
+        assert captured["keep_alive"] == "30m"
+
+    def test_config_default_keep_alive_used_when_persona_silent(
+        self, engine, monkeypatch
+    ):
+        engine.config.set("performance.local_keep_alive", "10m")
+        captured = {}
+        try:
+            monkeypatch.setattr(
+                "sympose.engine.resolve_turn_model",
+                lambda target_model, local_model, message, keep_alive=None: (
+                    captured.update(keep_alive=keep_alive) or (local_model, True)
+                ),
+            )
+            engine._select_turn_model(
+                "sam",
+                {"local_model": "ollama/gemma2:9b"},
+                "hi",
+                None,
+                "gemini/gemini-3.6-flash",
+            )
+        finally:
+            engine.config.set("performance.local_keep_alive", None)
+        assert captured["keep_alive"] == "10m"

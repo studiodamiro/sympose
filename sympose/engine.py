@@ -297,6 +297,40 @@ class PersonaEngine:
                 kwargs["keep_alive"] = ka
         return kwargs
 
+    def _select_turn_model(
+        self,
+        handle: str,
+        profile: dict[str, Any],
+        clean_input: str,
+        vault_ctx: str | None,
+        target_model: str,
+    ) -> tuple[str, bool]:
+        """ADR-122: decides whether this turn routes to the persona's own
+        cheap `local_model` instead of `target_model`. Returns
+        (model_to_use, routed_local) — never blocks on a cold local model
+        (see model_router.resolve_turn_model).
+
+        Skipped entirely (stays on target_model) when: no local_model is
+        configured for this persona; the user has a manual /model override
+        active — that's an explicit choice this shouldn't second-guess; or
+        this turn already resolved (or clearly wants) vault content — a
+        small local model summarizing retrieved notes is exactly the case
+        strict grounding exists to guard against."""
+        local_model = str(profile.get("local_model") or "").strip()
+        if (
+            not local_model
+            or self.get_model_override(handle)
+            or vault_ctx
+            or VaultManager.has_recall_intent(clean_input)
+        ):
+            return target_model, False
+        keep_alive = profile.get("keep_alive")
+        if keep_alive is None:
+            keep_alive = self.config.get("performance.local_keep_alive")
+        return resolve_turn_model(
+            target_model, local_model, clean_input, keep_alive=keep_alive
+        )
+
     def consult_persona(self, target_handle: str, sub_prompt: str):
         target_profile = self.pm.get_profile(target_handle)
         if not target_profile:
@@ -435,27 +469,9 @@ class PersonaEngine:
             yield "⚠️ LiteLLM is not installed. Run `pip install -r requirements.txt`."
             return
 
-        # ADR-122: route genuinely SIMPLE turns to a persona's own cheap
-        # local_model instead of target_model. Skipped entirely when the user
-        # has a manual /model override in play, or when this turn already
-        # resolved (or clearly wants) vault content — a small local model
-        # summarizing retrieved notes is exactly the case strict grounding
-        # exists to guard against, so those turns stay on the persona's
-        # normal (cloud) model.
-        call_model, routed_local = target_model, False
-        local_model = str(profile.get("local_model") or "").strip()
-        if (
-            local_model
-            and not self.get_model_override(handle)
-            and not vault_ctx
-            and not VaultManager.has_recall_intent(clean_input)
-        ):
-            keep_alive = profile.get("keep_alive")
-            if keep_alive is None:
-                keep_alive = self.config.get("performance.local_keep_alive")
-            call_model, routed_local = resolve_turn_model(
-                target_model, local_model, clean_input, keep_alive=keep_alive
-            )
+        call_model, routed_local = self._select_turn_model(
+            handle, profile, clean_input, vault_ctx, target_model
+        )
 
         strict = self._grounding_mode(profile, call_model) == "strict" and not vault_ctx
 

@@ -164,6 +164,49 @@ class TestEnsureFresh:
         vm.ensure_fresh(ws, mv, provider, debounce=100)  # within debounce window
         assert calls["n"] == 1
 
+    def test_ignore_folders_change_triggers_rebuild_without_mtime_drift(
+        self, tmp_path
+    ):
+        """Live bug: removing a folder from vault.ignore_folders never
+        surfaced it in folder discovery, because nothing else in the vault
+        had changed since the stale manifest was built - the watermark
+        alone can't detect an ignore-list edit, since a newly-unignored
+        folder can easily be older than whatever last touched the vault."""
+        mv, ws = self._vault(tmp_path)
+        calls = {"n": 0}
+
+        def provider():
+            calls["n"] += 1
+            return [_entry("Notes/a.md")]
+
+        vm.ensure_fresh(ws, mv, provider, ignore_folders=["Movies"], debounce=0)
+        vm.ensure_fresh(ws, mv, provider, ignore_folders=[], debounce=0)
+        assert calls["n"] == 2
+
+    def test_unchanged_ignore_folders_still_skips_rebuild(self, tmp_path):
+        mv, ws = self._vault(tmp_path)
+        calls = {"n": 0}
+
+        def provider():
+            calls["n"] += 1
+            return [_entry("Notes/a.md")]
+
+        vm.ensure_fresh(ws, mv, provider, ignore_folders=["Movies"], debounce=0)
+        vm.ensure_fresh(ws, mv, provider, ignore_folders=["Movies"], debounce=0)
+        assert calls["n"] == 1
+
+    def test_ignore_folders_change_bypasses_the_debounce_cache_too(self, tmp_path):
+        mv, ws = self._vault(tmp_path)
+        calls = {"n": 0}
+
+        def provider():
+            calls["n"] += 1
+            return [_entry("Notes/a.md")]
+
+        vm.ensure_fresh(ws, mv, provider, ignore_folders=["Movies"], debounce=100)
+        vm.ensure_fresh(ws, mv, provider, ignore_folders=[], debounce=100)
+        assert calls["n"] == 2
+
     def test_max_nodes_truncates(self, tmp_path):
         mv, ws = self._vault(tmp_path)
         snap = [_entry(f"Notes/n{i}.md") for i in range(10)]

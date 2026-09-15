@@ -407,12 +407,6 @@ class VaultManager:
         frontmatter, body, raw content), rebuilt only when a dir's mtime changes.
         Shared by search_structured() and get_folder_digest() so neither has to
         re-walk + re-read the vault from disk on every call."""
-        cache_key = tuple(sorted(dirs))
-        current_mtime = vault_paths.dirs_mtime(dirs)
-        cached_mtime, cached_snapshot = _VAULT_SNAPSHOT_CACHE.get(cache_key, (0.0, []))
-        if current_mtime == cached_mtime and cached_snapshot:
-            return cached_snapshot
-
         raw_ignore = config_manager.get("vault.ignore_folders") or [
             ".obsidian",
             ".git",
@@ -420,6 +414,18 @@ class VaultManager:
             ".trash",
         ]
         ignore_dirs = {str(d).lower().strip() for d in raw_ignore}
+        # Folded into the cache key (not just used to filter the walk) so an
+        # ignore-list edit invalidates this cache on its own - a changed
+        # ignore set doesn't reliably change any directory's own mtime (a
+        # newly-unignored folder can easily be *older* than whatever else
+        # last touched the vault), so relying on mtime drift alone silently
+        # kept serving a snapshot built under the old list.
+        cache_key = (tuple(sorted(dirs)), tuple(sorted(ignore_dirs)))
+        current_mtime = vault_paths.dirs_mtime(dirs)
+        cached_mtime, cached_snapshot = _VAULT_SNAPSHOT_CACHE.get(cache_key, (0.0, []))
+        if current_mtime == cached_mtime and cached_snapshot:
+            return cached_snapshot
+
         snapshot: list[dict[str, Any]] = []
 
         for allowed in dirs:

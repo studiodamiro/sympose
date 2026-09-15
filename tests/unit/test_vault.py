@@ -1189,6 +1189,45 @@ class TestResolveTurnContextConversational:
         assert VaultManager.has_recall_intent("what's the btc price right now") is False
 
 
+class TestGetVaultSnapshotIgnoreFoldersCacheKey:
+    """Live bug: `_get_vault_snapshot`'s cache was keyed only on the target
+    dirs and a directory-mtime signature, not on `vault.ignore_folders`.
+    Editing that config to un-ignore a folder doesn't move any directory's
+    own mtime, so the stale, pre-edit snapshot (missing the now-unignored
+    folder entirely) kept being served with no way to tell it was stale."""
+
+    def test_unignoring_a_folder_is_reflected_without_any_mtime_change(
+        self, tmp_vault_dir, monkeypatch
+    ):
+        from sympose.vault import VaultManager
+
+        write_note(
+            str(tmp_vault_dir / "Movies" / "Her.md"), "# Her\n\nA lonely writer.\n"
+        )
+
+        monkeypatch.setattr(
+            "sympose.vault.config_manager.get",
+            lambda key, default=None: (
+                [".obsidian", ".git", "Attachments", ".trash", "Movies"]
+                if key == "vault.ignore_folders"
+                else default
+            ),
+        )
+        first = VaultManager._get_vault_snapshot(str(tmp_vault_dir), [str(tmp_vault_dir)])
+        assert not any("Movies" in e["rel_path"] for e in first)
+
+        monkeypatch.setattr(
+            "sympose.vault.config_manager.get",
+            lambda key, default=None: (
+                [".obsidian", ".git", "Attachments", ".trash"]
+                if key == "vault.ignore_folders"
+                else default
+            ),
+        )
+        second = VaultManager._get_vault_snapshot(str(tmp_vault_dir), [str(tmp_vault_dir)])
+        assert any("Movies" in e["rel_path"] for e in second)
+
+
 class TestDescribesRandomPullRitual:
     """Generic detector for a persona-memory fact describing a "pull a
     random note" ritual, by whatever name the user gave it - deliberately

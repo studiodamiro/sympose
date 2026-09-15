@@ -111,31 +111,60 @@ def ensure_fresh(
     `build()`. Best-effort: the last good manifest (or None) on failure."""
     path = manifest_path(workspace_dir, mv)
     ignore = {str(d).lower().strip() for d in (ignore_folders or [])}
+    ignore_key = sorted(ignore)
     now = time.time()
+
+    def _ignore_changed(m: dict) -> bool:
+        # A changed ignore list doesn't reliably move any directory's own
+        # mtime (a newly-unignored folder can easily be *older* than
+        # whatever else last touched the vault) - the watermark alone can
+        # silently miss this, so the resolved ignore set is compared
+        # directly against what the cached manifest was built with. Live
+        # bug: removing "Movies" from vault.ignore_folders never surfaced
+        # it in folder discovery, because nothing else in the vault had
+        # changed since the stale manifest was built.
+        return m.get("meta", {}).get("ignore_folders") != ignore_key
 
     cached = _mem_cache.get(path)
     if (
         cached is not None
         and debounce > 0
         and (now - _last_check.get(path, 0.0)) < debounce
+        and not _ignore_changed(cached)
     ):
         return cached
     _last_check[path] = now
 
     wm = _top_level_watermark(mv, ignore)
     current = cached or _load_file(path)
-    if current is not None and current.get("meta", {}).get("watermark") == wm:
+    if (
+        current is not None
+        and current.get("meta", {}).get("watermark") == wm
+        and not _ignore_changed(current)
+    ):
         _mem_cache[path] = current
         return current
 
     with _lock_for(path):
         current = _mem_cache.get(path) or _load_file(path)
-        if current is not None and current.get("meta", {}).get("watermark") == wm:
+        if (
+            current is not None
+            and current.get("meta", {}).get("watermark") == wm
+            and not _ignore_changed(current)
+        ):
             _mem_cache[path] = current
             return current
 
         manifest: dict | None = None
         if (
+            current is not None
+            and _ignore_changed(current)
+        ):
+            # A changed ignore set can add or remove whole subtrees a
+            # stat-only delta never walks into - always a full rebuild
+            # here rather than trying to make the delta path handle it.
+            manifest = None
+        elif (
             read_notes is not None
             and current is not None
             and current.get("meta", {}).get("schema_version") == SCHEMA_VERSION
@@ -156,6 +185,7 @@ def ensure_fresh(
                 log.debug("[vault_manifest] rebuild failed for %s", mv, exc_info=True)
                 return current
         manifest["meta"]["watermark"] = wm
+        manifest["meta"]["ignore_folders"] = ignore_key
         if max_nodes and len(manifest["nodes"]) > max_nodes:
             manifest["nodes"] = manifest["nodes"][:max_nodes]
             manifest["meta"]["truncated"] = True

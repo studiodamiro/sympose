@@ -5,6 +5,7 @@ Multi-Model Persona Execution Engine for Sympose.
 import logging
 import re
 import threading
+from collections.abc import Callable
 from typing import Any
 
 import litellm
@@ -518,7 +519,11 @@ class PersonaEngine:
         sink.append(full)
 
     def chat_stream(
-        self, handle: str, user_message: str, session_id: str | None = None
+        self,
+        handle: str,
+        user_message: str,
+        session_id: str | None = None,
+        on_sub_agent_progress: Callable[[str], None] | None = None,
     ):
         profile = self.pm.get_profile(handle)
         if not profile:
@@ -632,7 +637,11 @@ class PersonaEngine:
 
             complete_text = sink[0] if sink else ""
             clean_text, badges = ActionProcessor.execute_actions(
-                self.pm, handle, complete_text, user_prompt=clean_input
+                self.pm,
+                handle,
+                complete_text,
+                user_prompt=clean_input,
+                on_progress=on_sub_agent_progress,
             )
             has_sub_agent = any(
                 "Sub-Agent" in b or "Live Web Search Report" in b for b in badges
@@ -694,6 +703,7 @@ class PersonaEngine:
                         handle,
                         f"[SPAWN_SUB_AGENT: vault_recall | {subj}]",
                         user_prompt=clean_input,
+                        on_progress=on_sub_agent_progress,
                     )
                     if any("Sub-Agent" in b for b in fb):
                         badges = fb + badges

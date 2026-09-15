@@ -433,6 +433,51 @@ assistant's own process. `MemoryCompactor`'s directives gained an explicit
 narration" directive, as a backstop for what's already in a file and
 whatever still slips through. Wiki pages corrected to match reality.
 
+### 3.18 Compaction never actually ran: an empty model string, then a too-short timeout
+
+Follow-up to §3.17: asked to manually trigger compaction against the real,
+live `samantha_memory.md`/`_shared_memory.md` (23 and 24 bullet lines,
+well past the 25-line threshold that should already have triggered it many
+times over), it failed outright, twice, for two separate reasons found by
+actually running it rather than reading the code.
+
+**First failure**: `compact_file`'s `target_model = model or
+config_manager.get("session.exit_behavior.summarization_model",
+DEFAULT_SUB_AGENT_MODEL)`. That fallback argument is dead for this key —
+its schema default is `""`, not `None`, so `ConfigManager.get()` (by its own
+documented contract: the fallback only applies to a genuinely absent key)
+always finds `""` already present and returns it, never reaching
+`DEFAULT_SUB_AGENT_MODEL`. Confirmed directly against the real config:
+`config_manager.get(key, DEFAULT_SUB_AGENT_MODEL)` returned `''`. Every
+install without an explicit override — which is the default shape — got
+`target_model = ""` passed to `litellm.completion()`, which fails outright.
+`sympose/memory.py`'s `summarize_session` never had this bug because it
+uses `config.get(key) or DEFAULT_CHAT_MODEL` (checking the *returned
+value's* falsiness) rather than passing the default as `.get()`'s second
+argument. Fixed `compact_file` to match that pattern.
+
+**Second failure**, only visible after the first fix let a real call
+through: the resolved model (`ollama/gemma4:e4b` for this install) timed
+out at 10s — `compact_file` built its timeout from
+`performance.request_timeout` (the cloud-oriented default) unconditionally,
+with no local-backend branch at all, unlike `PersonaEngine._build_kwargs`.
+Compaction always runs on the background hygiene pool (never the
+user-facing hot path), so there's no TTFT reason to use the short timeout
+even when the target happens to be local — switched it to
+`performance.local_request_timeout` unconditionally rather than adding a
+third copy of engine.py's local-backend prefix detection (which would have
+needed a shared module to avoid a circular import — compactor.py is
+already a dependency of memory.py, which engine.py imports).
+
+With both fixed, compaction ran for real against the live files:
+`samantha_memory.md` 23 → 14 bullet lines, `_shared_memory.md` 24 → 15,
+duplicates merged, process-narration lines gone. Not flawless — one
+stylo-npm-package restatement survived as "Historical Note: ... previously"
+right next to the merged version, since the summarization model here is the
+same weak local model, not a strong cloud one — consistent with §3.17's own
+point that prevention at the source (the extraction-prompt fix) is the real
+defense; compaction is a backstop, not a guarantee.
+
 ## 4. Skill coverage pass
 
 Samantha carries 9 skills. All got at least one live pass this session:

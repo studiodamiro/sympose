@@ -146,8 +146,18 @@ class MemoryCompactor:
         if not content_for_llm.strip():
             return False
 
-        target_model = model or config_manager.get(
-            "session.exit_behavior.summarization_model", DEFAULT_SUB_AGENT_MODEL
+        # Not config_manager.get(key, DEFAULT_SUB_AGENT_MODEL) - the schema
+        # default for this key is "" (meaning "use the active chat model"),
+        # not None, so it's always "present" and that fallback argument is
+        # never actually consulted (see ConfigManager.get's own docstring:
+        # the arg only applies to a genuinely absent key). Confirmed live:
+        # every install without an explicit override got target_model = ""
+        # and every compaction pass silently failed against litellm - which
+        # is why duplicate memory bullets never got cleaned up.
+        target_model = (
+            model
+            or config_manager.get("session.exit_behavior.summarization_model")
+            or DEFAULT_SUB_AGENT_MODEL
         )
 
         title = (
@@ -181,12 +191,20 @@ class MemoryCompactor:
         )
 
         try:
+            # local_request_timeout, not request_timeout - unlike a foreground
+            # chat turn, compaction always runs on a background hygiene thread
+            # (see module docstring), so there's no TTFT/SLA reason to use the
+            # short cloud-oriented timeout even when target_model happens to be
+            # local. Confirmed live: a local model routinely needs longer than
+            # the ~10s cloud default to warm up, and every compaction pass
+            # against a persona whose summarization model resolved local was
+            # silently timing out before this.
             kwargs: dict[str, Any] = {
                 "model": target_model,
                 "messages": [{"role": "user", "content": prompt}],
                 "stream": False,
                 "timeout": float(
-                    config_manager.get("performance.request_timeout", 30.0)
+                    config_manager.get("performance.local_request_timeout", 120.0)
                 ),
             }
             api_key = resolve_api_key(target_model)

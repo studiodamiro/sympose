@@ -22,7 +22,7 @@ conclusion from.
 
 import types
 
-from sympose.compactor import MemoryCompactor
+from sympose.compactor import MemoryCompactor, config_manager
 
 
 def _resp(content: str):
@@ -102,6 +102,78 @@ class TestCompactFileWithholdsUnresolvedClaims:
 
         result = fp.read_text()
         assert "cli in rust?" in result  # the honest original survives
+
+
+class TestCompactFileModelFallback:
+    """Regression, found live: `session.exit_behavior.summarization_model`'s
+    schema default is "" (meaning "use the active chat model"), not None -
+    so it's always present in the materialised config, and
+    config_manager.get(key, DEFAULT_SUB_AGENT_MODEL)'s fallback argument was
+    never actually consulted (that only applies to a genuinely absent key).
+    Every install without an explicit override got target_model = "" and
+    every real compact_file call silently failed against litellm - the
+    actual reason duplicate memory bullets never got cleaned up."""
+
+    def test_falls_back_to_default_sub_agent_model_when_unset(
+        self, tmp_path, monkeypatch
+    ):
+        fp = tmp_path / "memory.md"
+        fp.write_text("# Test Working Memory\n- Some fact\n")
+        seen_models = []
+
+        def fake_completion(**kwargs):
+            seen_models.append(kwargs["model"])
+            return _resp("# Test Working Memory\n- Some fact\n")
+
+        monkeypatch.setattr("sympose.compactor.litellm.completion", fake_completion)
+        real_get = config_manager.get
+
+        def fake_get(key, *a, **k):
+            if "summarization_model" in key:
+                return ""
+            return real_get(key, *a, **k)
+
+        monkeypatch.setattr("sympose.compactor.config_manager.get", fake_get)
+        monkeypatch.setattr(
+            "sympose.compactor.DEFAULT_SUB_AGENT_MODEL", "ollama/gemma4:e4b"
+        )
+
+        MemoryCompactor.compact_file(str(fp))
+
+        assert seen_models == ["ollama/gemma4:e4b"]
+
+    def test_uses_the_generous_local_timeout_not_the_short_cloud_one(
+        self, tmp_path, monkeypatch
+    ):
+        """Compaction always runs on a background hygiene thread, never on
+        the user-facing hot path, so it should use performance.local_
+        request_timeout (generous) rather than performance.request_timeout
+        (short, meant for a foreground cloud call) - live bug: a compaction
+        call to a local model was timing out at the short cloud default
+        before the model had even finished warming up."""
+        fp = tmp_path / "memory.md"
+        fp.write_text("# Test Working Memory\n- Some fact\n")
+        seen_timeouts = []
+
+        def fake_completion(**kwargs):
+            seen_timeouts.append(kwargs["timeout"])
+            return _resp("# Test Working Memory\n- Some fact\n")
+
+        monkeypatch.setattr("sympose.compactor.litellm.completion", fake_completion)
+        real_get = config_manager.get
+
+        def fake_get(key, *a, **k):
+            if key == "performance.request_timeout":
+                return 10.0
+            if key == "performance.local_request_timeout":
+                return 120.0
+            return real_get(key, *a, **k)
+
+        monkeypatch.setattr("sympose.compactor.config_manager.get", fake_get)
+
+        MemoryCompactor.compact_file(str(fp), model="ollama/gemma4:e4b")
+
+        assert seen_timeouts == [120.0]
 
 
 class TestCompactFileExplicitProtect:

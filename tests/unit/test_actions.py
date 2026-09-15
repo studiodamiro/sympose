@@ -298,6 +298,78 @@ class TestExecuteActionsThreadsOnProgressToSubAgent:
         assert received["on_progress"] is None
 
 
+class TestSubAgentTaskCarriesTheUsersOwnWords:
+    """Live bug: asked to play an established ritual ("our favorite game")
+    scoped to a specific folder, the model's own [SPAWN_SUB_AGENT] tag
+    condensed the task down to a bare "Roulette", dropping the folder
+    constraint entirely - the sub-agent then searched the whole vault. The
+    tag's task string is a paraphrase from whichever model is driving the
+    turn; appending the user's own literal words mechanically means a
+    dropped constraint still reaches the sub-agent regardless of which
+    model authored the paraphrase."""
+
+    def test_users_literal_message_is_appended_to_a_terse_task(self, monkeypatch):
+        pm = _FakeProfileManager()
+        received = {}
+
+        def fake_execute_sub_agent_task(task, on_progress=None):
+            received["task_prompt"] = task.task_prompt
+            return "the answer", []
+
+        monkeypatch.setattr(
+            "sympose.actions.SubAgentEngine.execute_sub_agent_task",
+            fake_execute_sub_agent_task,
+        )
+
+        ActionProcessor.execute_actions(
+            pm,
+            "test",
+            "[SPAWN_SUB_AGENT: vault_recall | Roulette]",
+            user_prompt="lets play our favorite game. lets do from Daily folder. g?",
+        )
+        assert "Roulette" in received["task_prompt"]
+        assert "Daily folder" in received["task_prompt"]
+
+    def test_not_duplicated_when_the_task_already_contains_it(self, monkeypatch):
+        pm = _FakeProfileManager()
+        received = {}
+
+        def fake_execute_sub_agent_task(task, on_progress=None):
+            received["task_prompt"] = task.task_prompt
+            return "the answer", []
+
+        monkeypatch.setattr(
+            "sympose.actions.SubAgentEngine.execute_sub_agent_task",
+            fake_execute_sub_agent_task,
+        )
+
+        ActionProcessor.execute_actions(
+            pm,
+            "test",
+            "[SPAWN_SUB_AGENT: vault_recall | pull a random note from Daily]",
+            user_prompt="pull a random note from Daily",
+        )
+        assert received["task_prompt"].count("pull a random note from Daily") == 1
+
+    def test_no_user_prompt_leaves_the_task_untouched(self, monkeypatch):
+        pm = _FakeProfileManager()
+        received = {}
+
+        def fake_execute_sub_agent_task(task, on_progress=None):
+            received["task_prompt"] = task.task_prompt
+            return "the answer", []
+
+        monkeypatch.setattr(
+            "sympose.actions.SubAgentEngine.execute_sub_agent_task",
+            fake_execute_sub_agent_task,
+        )
+
+        ActionProcessor.execute_actions(
+            pm, "test", "[SPAWN_SUB_AGENT: vault_recall | Roulette]"
+        )
+        assert received["task_prompt"] == "Roulette"
+
+
 # ---------------------------------------------------------------------------
 # execute_actions — CREATE_PERSONA soul_content extraction (ADR-075)
 #

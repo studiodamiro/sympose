@@ -892,6 +892,50 @@ class TestExtractRecallSubject:
         assert self._subj("pull up a random daily entry")[0] == ""
         assert self._subj("surprise me with any note")[0] == ""
 
+    def test_game_continuation_phrasing_has_no_subject(self):
+        # "lets play our favorite game" names Sympose's own shipped ritual
+        # ("Vault Roulette" - a random note pull), not a vault topic.
+        assert self._subj("lets play our favorite game")[0] == ""
+
+
+class TestRecallHitConfidence:
+    """Regression: `_recall_candidates` decomposes a multi-word subject down
+    to its single leftover words as a last resort, and a common English word
+    among them can loosely match several unrelated notes' body text. Live
+    bug: "favorite" (from "play our favorite game") matched 5 unrelated
+    notes and was accepted as a digest anyway. `require_confident` drops
+    that acceptance for exactly those decomposed single-word tries."""
+
+    def test_loose_multi_result_match_rejected_when_confident_required(
+        self, tmp_vault_dir, monkeypatch
+    ):
+        from sympose.vault import VaultManager
+
+        monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
+        write_note(str(tmp_vault_dir / "a.md"), "the morning light was nice")
+        write_note(str(tmp_vault_dir / "b.md"), "another morning, another coffee")
+        profile = {"vault_folders": ["*"]}
+
+        assert (
+            VaultManager._recall_hit(profile, "morning", require_confident=True)
+            is None
+        )
+        # Same loose match is accepted (as a digest) without the flag - this
+        # isn't a fabrication-free zone, just a lower-confidence one.
+        assert VaultManager._recall_hit(profile, "morning") is not None
+
+    def test_single_confident_match_still_returned_when_confident_required(
+        self, tmp_vault_dir, monkeypatch
+    ):
+        from sympose.vault import VaultManager
+
+        monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
+        write_note(str(tmp_vault_dir / "morning.md"), "# morning\n\nA quiet start.\n")
+        profile = {"vault_folders": ["*"]}
+
+        hit = VaultManager._recall_hit(profile, "morning", require_confident=True)
+        assert hit is not None and "quiet start" in hit
+
 
 class TestResolveTurnContextConversational:
     def _profile(self):
@@ -1012,6 +1056,39 @@ class TestResolveTurnContextConversational:
         )
         assert ctx is not None
         assert "entropy" in ctx and "insurance" not in ctx
+
+    def test_naming_the_established_game_still_triggers_a_random_pull(
+        self, tmp_vault_dir, monkeypatch
+    ):
+        """Regression, found live: "lets play our favorite game. lets do
+        from Daily folder. g?" - a continuation of a ritual already
+        established via conversation history and persona memory (Sympose's
+        own "Vault Roulette") - decomposed to the single word "favorite",
+        which loosely matched several unrelated notes and was accepted as a
+        digest. Separately, the short trailing "g?" ("go") survived
+        stopword-trimming as a one-letter fallback "subject" and would have
+        blocked the random-sample path just as effectively. Naming the
+        established game is itself the random-pull ask, not a topic to
+        search for."""
+        from sympose.vault import VaultManager
+
+        monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
+        write_note(
+            str(tmp_vault_dir / "Daily" / "2024-12-21.md"),
+            "# Day\n\nA quiet, uneventful day.\n",
+        )
+        write_note(
+            str(tmp_vault_dir / "Thoughts" / "On Preference.md"),
+            "# On Preference\n\nMy favorite color is blue.\n",
+        )
+
+        ctx = VaultManager.resolve_turn_context(
+            self._profile(),
+            "lets play our favorite game. lets do from Daily folder. g?",
+        )
+        assert ctx is not None
+        assert "Exact Content" in ctx
+        assert "quiet, uneventful day" in ctx and "favorite color" not in ctx
 
     def test_topic_folder_search_is_a_digest_not_full_body(
         self, tmp_vault_dir, monkeypatch

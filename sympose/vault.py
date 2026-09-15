@@ -1206,12 +1206,27 @@ class VaultManager:
 
     @classmethod
     def _recall_hit(
-        cls, profile: dict[str, Any], cand: str, target_folder: str | None = None
+        cls,
+        profile: dict[str, Any],
+        cand: str,
+        target_folder: str | None = None,
+        require_confident: bool = False,
     ) -> str | None:
         """Search one candidate term for the conversational-recall fallback.
         A single result — or a clear title match on the first hit — returns the
         note's *full verbatim body* (the strongest possible grounding payload);
-        anything broader returns the ranked digest so the model can pick."""
+        anything broader returns the ranked digest so the model can pick.
+
+        `require_confident` drops that digest fallback entirely: the caller
+        passes it for `_recall_candidates`' *decomposed single-token* tries
+        (a multi-word phrase whittled down to its longest leftover words),
+        never for the original phrase itself. Live bug: "play our favorite
+        game" (no folder-scoped match) decomposed to the single word
+        "favorite", which matched five unrelated notes' body text and was
+        accepted as a digest anyway - a common English word loosely
+        appearing in several notes isn't the same evidence as the user's own
+        multi-word phrase matching broadly; only a strong single/title match
+        earns trust once the subject has been cut down to one bare word."""
         results = cls.search_structured(profile, cand, target_folder=target_folder)
         if not results:
             return None
@@ -1226,6 +1241,8 @@ class VaultManager:
                     f"### Ground-Truth Sandboxed Vault Note (`{top.get('rel_path')}` "
                     f"— Exact Content, matched '{cand}'{loc}):\n{body[:3500]}"
                 )
+        if require_confident:
+            return None
         digest = cls.format_search_digest(cand, results)
         loc = f" in `{target_folder}/`" if target_folder else ""
         return f"### Ground-Truth Vault Search Results for '{cand}'{loc}:\n{digest}"
@@ -1337,6 +1354,15 @@ class VaultManager:
         # below (a named subject is never a request for a *random* note) and
         # drives the case-8 fallback search.
         subject, had_leadin = cls._extract_recall_subject(msg)
+        # A low-confidence guess (no explicit lead-in) shorter than a real
+        # search term is noise, not a target — live bug: "g?" (shorthand for
+        # "go") survived stopword-trimming as the winning fallback clause and
+        # blocked the random-sample path below just as effectively as a
+        # whole invented topic would have. Case 8 already required length
+        # >= 3 for its own fallback search; applying that same bar here too
+        # closes the same gap for the gates above it.
+        if subject and not had_leadin and len(subject) < 3:
+            subject = ""
 
         # 5. Chronological & Daily Journal Intent (Structure-Agnostic)
         is_chrono_query = bool(
@@ -1351,7 +1377,11 @@ class VaultManager:
         sample_match = re.search(
             r"\b(?:random(?:ly)?|randam|rnd|surprise\s+me|a\s+random|any\s+(?:random\s+)?(?:one|note|entry|day)|"
             r"some\s+(?:random\s+)?(?:note|entry|day)|(?:pick|choose|grab|pull\s+up|show|give)\s+(?:me\s+)?(?:a|an|one|any)\b|"
-            r"one\s+of\s+(?:my|the|our)|whatever\s+comes\s+up)\b",
+            r"one\s+of\s+(?:my|the|our)|whatever\s+comes\s+up|"
+            # Sympose's own shipped ritual (see the persona memory fact "...
+            # favorite game is 'Vault/Note Roulette', where a random note is
+            # pulled") — naming it *is* the random-pull ask, not a topic.
+            r"(?:our|the)\s+(?:favorite\s+)?game)\b",
             msg,
             re.IGNORECASE,
         )
@@ -1455,9 +1485,14 @@ class VaultManager:
                     # A named subject alongside the folder ("Dylan's People entry")
                     # means search *that* inside the folder, not list the folder.
                     if subject:
-                        for st in cls._recall_candidates(subject, drop=f_stem):
+                        for i, st in enumerate(
+                            cls._recall_candidates(subject, drop=f_stem)
+                        ):
                             hit = cls._recall_hit(
-                                profile, st, target_folder=folder_name
+                                profile,
+                                st,
+                                target_folder=folder_name,
+                                require_confident=i > 0,
                             )
                             if hit:
                                 return hit
@@ -1473,8 +1508,8 @@ class VaultManager:
         #    retrying progressively narrower so a multi-word phrase that
         #    substring-matches nothing still surfaces its salient notes.
         if (has_intent or had_leadin) and subject and len(subject) >= 3:
-            for cand in cls._recall_candidates(subject):
-                hit = cls._recall_hit(profile, cand)
+            for i, cand in enumerate(cls._recall_candidates(subject)):
+                hit = cls._recall_hit(profile, cand, require_confident=i > 0)
                 if hit:
                     return hit
 

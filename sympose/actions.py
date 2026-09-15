@@ -293,6 +293,27 @@ class ActionProcessor:
                         if tok not in skills_to_load and tok not in mcp_to_load:
                             skills_to_load.append(tok)
 
+                    # The tag's own task string is a paraphrase written by
+                    # whichever model is driving this turn - a weak one can
+                    # lose a constraint the user actually stated (live bug:
+                    # "give me a random note from the Daily folder" got
+                    # shortened to a bare "Roulette" task, and the sub-agent
+                    # searched the whole vault instead). The sub-agent itself
+                    # already gets routed to a stronger, skill-recommended
+                    # model independent of the parent's (see
+                    # `execute_sub_agent_task`'s model resolution) - but that
+                    # only helps once it actually receives the constraint.
+                    # Appending the user's own words, verbatim and mechanical
+                    # rather than re-paraphrased, means the constraint
+                    # survives regardless of which model authored the tag.
+                    original_ask = user_prompt.strip()
+                    if original_ask and original_ask.lower() not in task_prompt.lower():
+                        task_prompt = (
+                            f"{task_prompt}\n\n"
+                            f'(The user\'s own words this turn, in case the task above '
+                            f'dropped a constraint: "{original_ask}")'
+                        )
+
                     task = SubAgentTask(
                         task_prompt=task_prompt,
                         skills=skills_to_load,

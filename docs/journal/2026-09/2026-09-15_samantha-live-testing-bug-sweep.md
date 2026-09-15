@@ -600,6 +600,78 @@ to the real "I on Thoughts About Gods.md" / "Online Resources.md" notes;
 another run the model quoted the real note correctly and passed through
 untouched — no false positive.
 
+### 3.21 "Our favorite game" fell through to a slow, wrong-scoped sub-agent detour instead of the fast path
+
+Follow-up to §3.20, on a fresh install (`pipx uninstall` + reinstall). After
+several turns establishing "Vault Roulette" as a running joke (also
+independently confirmed to already be a real, correct fact in
+`samantha_memory.md`), asked *"lets play our favorite game. lets do from
+Daily folder. g?"* — a natural continuation, with no "random" wording at
+all since the ritual was already established. Samantha correctly recognised
+it and spawned `[SPAWN_SUB_AGENT: vault_recall | Roulette]`, but that
+sub-agent ran **7 shell commands** (`find`, three `grep`s, a Python script,
+an `awk` one-liner) over 82 seconds, searching the *entire* vault, and
+landed on a `Quotes/` note — not "Daily folder" as asked.
+
+Traced end to end against the real vault:
+
+- `resolve_turn_context` on that exact message returned a spurious
+  `Ground-Truth Vault Search Results for 'favorite'` digest — the subject
+  extractor decomposed "play our favorite game" down to the single word
+  "favorite", which loosely matched 5 unrelated notes' body text and was
+  accepted as a digest anyway, the same shape of bug as §3.20's "hmmm"
+  (harmless here only because the model ignored it and used the sub-agent
+  path instead).
+- The sub-agent's own task (`task_prompt`) was verbatim `"Roulette"` — the
+  model condensed away "from Daily folder" entirely before the sub-agent
+  (which resolves to a *different*, stronger, skill-recommended model
+  independent of whatever is driving the chat — see `execute_sub_agent_task`'s
+  `task.model → skill.recommended_models[0] → DEFAULT_SUB_AGENT_MODEL`
+  resolution) ever saw the request. A stronger model downstream can't
+  recover a constraint that was already dropped upstream.
+
+Damiro's question: if a single model can't be made to carry a constraint
+reliably, how does that hold up once the app is expected to hand off
+between different models mid-conversation? Answer, borne out by tracing
+this bug specifically: **the losing step happens before any hand-off** —
+the paraphrase that drops detail is written by whichever model is chatting
+*before* a stronger model is ever invoked, so swapping which model runs the
+sub-agent doesn't help. The fix has to be either (a) not need a paraphrase
+at all for something structural, or (b) carry the literal constraint
+forward mechanically, in code, so no model's fidelity is load-bearing.
+Applied both:
+
+1. **`vault_recall.py`** — added `game`, `play`, `favorite` to
+   `_SUBJECT_STOPWORDS` (exactly as generic/non-searchable as "note" or
+   "daily", already there): naming Sympose's own shipped ritual is the
+   random-pull ask itself, not a topic to search vault content for.
+2. **`vault.py`** — added `(?:our|the)\s+(?:favorite\s+)?game` as a
+   recognised sample-request phrase (the same curated-idiom mechanism
+   `is_sample_request` already uses, not open-ended phrase enumeration);
+   and a subject shorter than 3 characters (case 8's own existing threshold)
+   now clears the same way at every gate above it — live case: the trailing
+   "g?" ("go") survived stopword-trimming as a one-letter fallback subject
+   and would have blocked the random-sample path just as effectively as a
+   whole invented topic.
+3. **`vault.py`'s `_recall_hit`** — new `require_confident` flag, set for
+   every *decomposed single-token* candidate (never the user's original
+   phrase itself): a common word matching several unrelated notes' body
+   text is no longer accepted as a digest once the subject has been
+   whittled down to one bare word — it must be a strong single/title match.
+4. **`actions.py`** — `SPAWN_SUB_AGENT` now appends the user's own literal
+   message to the sub-agent's task, mechanically, whenever it isn't already
+   present in the model's paraphrase — the deterministic, model-agnostic
+   half of the fix, so a dropped constraint reaches the sub-agent
+   regardless of which model wrote the shorthand tag or which model runs
+   next.
+
+Re-verified against the live pipeline: `resolve_turn_context` now returns a
+genuine `Exact Content` note from `Daily/` directly (no sub-agent needed at
+all), and `chat_stream` on the exact live message completed in line with a
+normal single-model-call turn instead of the 82-second, 7-tool-call
+detour — confirmed across three separate runs, each correctly quoting a
+real `Daily/` note.
+
 ## 4. Skill coverage pass
 
 Samantha carries 9 skills. All got at least one live pass this session:

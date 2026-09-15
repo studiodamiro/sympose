@@ -76,7 +76,7 @@ class PersonaEngine:
     # is fabricating — the reply is withheld.
     _VAULT_CLAIM_RE = re.compile(
         r"(what you (?:wrote|written|noted|said) about|here'?s (?:a |the )?summary of what you|"
-        r"your (?:entry|note|journal entry|vault note)\b|in your vault[,\s]|from your vault\b|"
+        r"your (?:entry|note|journal entry|vault note)\b|in your vault\b|from your vault\b|"
         r"you (?:describe|mention|write about) .{0,40}\bin (?:your|the) (?:vault|journal|notes?)\b)",
         re.IGNORECASE,
     )

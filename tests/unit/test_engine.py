@@ -124,6 +124,30 @@ class TestGroundingModeKnob:
             engine.config.set("vault.grounding_default", None)
 
 
+class TestVaultClaimRegex:
+    """Regression, found live: a local model given a manual /model override
+    (which intentionally bypasses routing but still expects strict grounding
+    to catch fabrication) invented an entire fake "Sub-Agent Report" block
+    with placeholder movie names, then recapped it as "These are the movies
+    you've given a perfect rating in your vault." — a real vault-grounding
+    claim. `_VAULT_CLAIM_RE`'s `in your vault[,\\s]` alternative required a
+    comma or whitespace immediately after "vault", so a claim ending the
+    sentence with a period (the common case) was never recognized, and the
+    strict-mode fabrication catch it feeds never fired."""
+
+    def test_claim_ending_in_a_period_is_caught(self, engine):
+        assert engine._VAULT_CLAIM_RE.search(
+            "These are the movies you've given a perfect rating in your vault."
+        )
+
+    def test_claim_ending_in_other_punctuation_is_caught(self, engine):
+        assert engine._VAULT_CLAIM_RE.search("I found that note in your vault!")
+        assert engine._VAULT_CLAIM_RE.search("Did I mention that in your vault?")
+
+    def test_claim_mid_sentence_still_caught(self, engine):
+        assert engine._VAULT_CLAIM_RE.search("in your vault, there are many notes")
+
+
 class TestEntityGuess:
     def test_pull_x_entry(self, engine):
         assert (

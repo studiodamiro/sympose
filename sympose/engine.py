@@ -18,6 +18,7 @@ from sympose.memory import SessionArchivist
 from sympose.model_router import resolve_turn_model
 from sympose.models import resolve_api_key
 from sympose.profiles import ProfileManager
+from sympose.session_recall import has_session_recall_intent
 from sympose.sessions import SessionManager
 from sympose.vault import VaultManager
 
@@ -162,6 +163,43 @@ class PersonaEngine:
             h in api_base for h in ("localhost", "127.0.0.1", "0.0.0.0", ":11434")
         )
         return "strict" if is_local else "trust"
+
+    @staticmethod
+    def _build_session_history_digest(
+        handle: str, exclude_session_id: str | None
+    ) -> str:
+        """Deterministic, zero-round-trip answer to 'what did we do last
+        session?': the persona's own local JSONL history (SessionManager,
+        ADR-054) already holds exactly this, so it's injected as ground-truth
+        context the same way vault_ctx is — no sub-agent, no extra LLM call.
+        Always returns a non-empty block when session_recall intent fires, so
+        the model has a definitive answer instead of guessing or defaulting
+        to a vault crawl (which is a different store entirely and, per
+        `session.exit_behavior`, may hold nothing anyway)."""
+        sessions = [
+            s
+            for s in SessionManager.list_sessions(handle=handle, limit=6)
+            if s.get("session_id") != exclude_session_id
+        ][:3]
+        if not sessions:
+            return (
+                "### Local Sympose Session History:\n"
+                "No prior Sympose session is recorded locally for this persona "
+                "yet. This is NOT the same as the Obsidian vault — do not spawn "
+                "a vault_recall sub-agent for this; just say so."
+            )
+        lines = [
+            f'- "{s.get("title", "Untitled Session")}" — {s.get("relative_time", "")} '
+            f'({s.get("turns_count", 0)} turns)'
+            for s in sessions
+        ]
+        return (
+            "### Local Sympose Session History (most recent first):\n"
+            + "\n".join(lines)
+            + "\n\nThis is Sympose's own local conversation history, not the "
+            "Obsidian vault — answer from it directly, do not spawn a "
+            "vault_recall sub-agent for this question."
+        )
 
     @staticmethod
     def _depossess(word: str) -> str:
@@ -525,6 +563,10 @@ class PersonaEngine:
         system_prompt = self.pm.build_system_prompt(profile)
         if vault_ctx:
             system_prompt += f"\n\n{vault_ctx}"
+        if has_session_recall_intent(clean_input):
+            system_prompt += "\n\n" + self._build_session_history_digest(
+                handle, curr_session_id
+            )
 
         history = self.get_history(handle, session_id=session_id)
         active_messages = [{"role": "system", "content": system_prompt}]

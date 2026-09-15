@@ -317,6 +317,52 @@ class TestSelectTurnModel:
         )
         assert (model, routed) == ("gemini/gemini-3.6-flash", False)
 
+
+class TestBuildSessionHistoryDigest:
+    """The zero-round-trip 'what did we do last session?' answer: local JSONL
+    session history (SessionManager, ADR-054) injected as ground-truth
+    context, same mechanism as vault_ctx — never a vault_recall sub-agent."""
+
+    @pytest.fixture(autouse=True)
+    def _redirect_sessions_dir(self, tmp_sessions_dir, monkeypatch):
+        monkeypatch.setattr(
+            "sympose.sessions.resolve_workspace_dir",
+            lambda: str(tmp_sessions_dir.parent),
+        )
+
+    def test_no_prior_sessions_says_so_and_forbids_vault_spawn(self, engine):
+        digest = engine._build_session_history_digest("samantha", None)
+        assert "No prior Sympose session is recorded" in digest
+        assert "do not spawn" in digest.lower()
+
+    def test_lists_most_recent_session_title(self, engine):
+        from sympose.sessions import SessionManager
+
+        sid = SessionManager.create_session("samantha", title="Fix the workspace bug")[
+            "session_id"
+        ]
+        SessionManager.append_turn(sid, "samantha", "hi", "hello")
+
+        digest = engine._build_session_history_digest("samantha", None)
+        assert "Fix the workspace bug" in digest
+        assert "vault_recall" in digest
+
+    def test_excludes_the_active_session(self, engine):
+        from sympose.sessions import SessionManager
+
+        old = SessionManager.create_session("samantha", title="Old session")[
+            "session_id"
+        ]
+        SessionManager.append_turn(old, "samantha", "hi", "hello")
+        active = SessionManager.create_session("samantha", title="Active session")[
+            "session_id"
+        ]
+        SessionManager.append_turn(active, "samantha", "hi", "hello")
+
+        digest = engine._build_session_history_digest("samantha", active)
+        assert "Old session" in digest
+        assert "Active session" not in digest
+
     def test_stays_on_target_when_vault_context_already_resolved(
         self, engine, monkeypatch
     ):

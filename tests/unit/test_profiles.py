@@ -74,3 +74,35 @@ class TestSetPersonaField:
         pm = self._seed(tmp_path)
         ok, msg = pm.set_persona_field("nobody", "temperature", "0.5")
         assert not ok and "not found" in msg
+
+
+class TestBuildSystemPromptOrdering:
+    """Regression, found live: a small local model's recall of a fact in
+    persona working memory was unreliable when that block sat early in the
+    system prompt (before workspace rules and skill playbooks, ~6,000 tokens
+    of unrelated text away from the user's actual question). Moving the
+    block to the very end - right before the active turns - fixed it with
+    the memory content completely unchanged; only its position moved. This
+    locks that ordering in so it can't silently drift back to the front."""
+
+    def test_persona_memory_is_the_final_block(self, tmp_path):
+        (tmp_path / "sam.yaml").write_text(
+            "name: Sam\nhandle: sam\nsoul_file: sam_soul.md\n"
+            "memory_file: sam_memory.md\n"
+        )
+        (tmp_path / "sam_soul.md").write_text("# Sam\nYou are Sam.\n")
+        (tmp_path / "sam_memory.md").write_text(
+            "# Memory\n- The user's favorite game is Vault Roulette.\n"
+        )
+
+        pm = ProfileManager(profiles_dir=str(tmp_path))
+        prompt = pm.build_system_prompt(pm.get_profile("sam"))
+
+        mem_idx = prompt.index("Vault Roulette")
+        rules_idx = prompt.index("Grounding & Anti-Hallucination")
+        assert mem_idx > rules_idx, (
+            "persona memory must come after the workspace rules, not before"
+        )
+        assert prompt.rstrip().endswith(
+            "- The user's favorite game is Vault Roulette."
+        ), "persona memory should be the last block in the prompt"

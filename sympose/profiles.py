@@ -348,8 +348,7 @@ class ProfileManager:
         ):
             prompt_parts.append(f"### Shared Team Working Memory:\n{shared_mem}")
 
-        if persona_mem := self._read_file_safe(profile.get("memory_file")):
-            prompt_parts.append(f"### Persona Working Memory:\n{persona_mem}")
+        persona_mem = self._read_file_safe(profile.get("memory_file"))
 
         workspace_parent = os.path.dirname(os.path.abspath(self.profiles_dir))
         # Prefer the workspace copy (user-editable, seeded by ensure_workspace);
@@ -400,6 +399,15 @@ class ProfileManager:
             prompt_parts.append(
                 "### Available Specialist Peers in Sympose:\n" + "\n".join(peers)
             )
+
+        # Deliberately last, right before the active turns: a small local
+        # model's recall of an early fact degrades sharply once several
+        # thousand tokens of unrelated skill-playbook text follow it before
+        # the user's actual question ("lost in the middle") - confirmed live,
+        # same memory content, only its position changed. Placing it as the
+        # final block puts it closest to the query it needs to answer.
+        if persona_mem:
+            prompt_parts.append(f"### Persona Working Memory:\n{persona_mem}")
 
         return "\n\n".join(prompt_parts)
 

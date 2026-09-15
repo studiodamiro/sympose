@@ -478,6 +478,50 @@ same weak local model, not a strong cloud one — consistent with §3.17's own
 point that prevention at the source (the extraction-prompt fix) is the real
 defense; compaction is a backstop, not a guarantee.
 
+### 3.19 Persona working memory was reliably ignored — position, not content
+
+Follow-up to §3.17/§3.18: even against the freshly-compacted, clean
+`samantha_memory.md` (the correct "Vault Roulette" fact present, no
+duplicates, no noise), asked "do you know our game?" in a fresh exchange,
+Samantha fabricated a wrong, elaborate answer ("an exercise in curation and
+synthesis... a meta-cognitive feedback loop") and invented a specific false
+claim ("We just successfully analyzed the 'jack of all trades' reflection
+from September 14th") — nothing had been retrieved that turn. Asked "how
+are we sure of our diagnosis? can we run checks?" rather than accept an
+initial (wrong) assessment that the system prompt "wasn't buried in noise" —
+that claim was based on measuring the soul/rules files directly and missed
+that `build_system_prompt` also concatenates every active skill's full
+playbook text.
+
+Measured the real, assembled prompt: 26,823 characters (~6,700 tokens), with
+the `### Persona Working Memory:` block starting at the 10% mark — followed
+by ~6,000 tokens of unrelated skill-playbook text (sub-agent spawning rules,
+Slack protocol, system architecture guidelines, ...) before the user's
+actual question ever appears.
+
+Ran a controlled A/B/C test against the real `ollama/gemma4:e4b`, same
+question, only the prompt varying:
+- **A (shipped, memory at 10%)**: inconsistent across 3 runs — tried to
+  vault-search for "game" (wrong store), or declined; never once answered
+  correctly from memory already in its own context.
+- **B (same content, memory moved to the very end)**: correct immediately —
+  *"Yes, I remember our game. It's called Vault Roulette..."*
+- **C (minimal prompt, skills stripped)**: also correct immediately.
+
+Content identical in all three; only position changed. This is the
+well-documented "lost in the middle" failure mode — a fact sitting early in
+a long prompt, followed by a wall of unrelated text, gets far less reliable
+recall than the same fact placed near the query, especially for a small
+model.
+
+Fix: `ProfileManager.build_system_prompt` (`profiles.py`) now appends the
+persona's working-memory block *last* — after workspace rules, skill
+playbooks, and the peers list — instead of before them. Pure reordering, no
+content change. Re-verified against the real, unmodified pipeline: the real
+`build_system_prompt()` output now places the memory block at the 94% mark,
+and the same real model answers the same real question correctly on the
+first try.
+
 ## 4. Skill coverage pass
 
 Samantha carries 9 skills. All got at least one live pass this session:

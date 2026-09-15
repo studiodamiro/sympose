@@ -83,6 +83,30 @@ adding new retrieval logic — see journal
   something like a chunked or map-reduce pass over N notes — not an
   extension of the current single-call tools.
 
+## Shapes the wider Obsidian ecosystem has already converged on
+
+No academic taxonomy of "things people do with a personal knowledge vault"
+exists, but a crowdsourced one effectively does: the Obsidian community
+plugin directory (7,600+ plugins) and, more usefully, **Dataview** — the
+ecosystem's de facto standard for treating a vault as queryable data. Every
+note becomes a record (frontmatter fields, inline fields, tasks, links),
+and Dataview settles on four query shapes as the complete surface: **LIST**,
+**TABLE**, **TASK**, **CALENDAR** (basic queries read as plain English;
+DataviewJS covers anything more custom). Mapped against where this page
+already stands:
+
+| Dataview shape | What it means | Sympose coverage |
+|---|---|---|
+| LIST / TABLE | Filtered/sorted lookups, ranked results | `vault_search` (built) covers full-text lookups; a *structured field query* (filter by frontmatter, e.g. `tags: project AND status: active`) is still a gap — `vault_search` only matches text/snippets, not typed frontmatter fields |
+| TASK | Query checkbox items (`- [ ]` / `- [x]`) across notes | Nothing today — no tool reads or filters to-do items specifically |
+| CALENDAR | Date-range / chronological queries | Partial — `vault_sample` random-picks within a folder, daily-note logic exists, but there's no general "everything between date X and Y" tool. This is also exactly what the "aggregate/counting" and "full-corpus synthesis" gaps above need underneath them |
+
+Useful less as a spec to copy and more as external validation that the four
+gaps already listed on this page (structured field filtering, task
+querying, date-range querying, and the synthesis layer built on top of it)
+aren't a guess at what users will want — they're the same shape a mature,
+independent ecosystem already converged on for this exact kind of data.
+
 ## Design note for whoever picks these up
 
 Round-trip frugality still applies: prefer extending the deterministic

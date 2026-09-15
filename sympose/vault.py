@@ -25,6 +25,15 @@ from sympose.workspace import resolve_workspace_dir
 
 log = logging.getLogger(__name__)
 
+# Extracts every vault note path a piece of text names - shared by
+# PersonaEngine (comparing a reply against its injected vault_ctx) and
+# SubAgentEngine (comparing a sub-agent's synthesis against its own
+# tool-call history) so both can catch a model naming/quoting a note it
+# was never actually given, without a second model call to compare meaning.
+VAULT_PATH_TOKEN_RE = re.compile(
+    r"[\w][\w \-]*(?:/[\w][\w \-]*)+\.(?:md|markdown|txt)\b", re.IGNORECASE
+)
+
 # ---------------------------------------------------------------------------
 # Vault content snapshot cache — avoids re-walking + re-reading every note on
 # every search_structured() / get_folder_digest() call. Same mtime-keyed

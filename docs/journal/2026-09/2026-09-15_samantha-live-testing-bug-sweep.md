@@ -1340,6 +1340,85 @@ already covered; the fix is a one-line condition inside `chat_stream`
 itself, which this codebase tests via its pure helpers rather than a full
 streaming-generator harness).
 
+### 3.37 Sub-agent syntheses had no equivalent of the primary path's citation checks
+
+Follow-up to a live transcript ("Daily folder, favorite game") where a
+sub-agent spent its whole tool budget on redundant `grep`/`find`/`python
+random` attempts, never called `read_file`, then - to its credit -
+admitted it hadn't read the note rather than inventing content. damiro
+asked the natural next question: if it hadn't read the note, was that
+admission actually enforced, or did it just happen to tell the truth that
+time? Checked: `execute_sub_agent_task`/`execute_sub_agent_stream` had no
+equivalent of `PersonaEngine._vault_ctx_citation_mismatch` /
+`_vault_ctx_title_missing` - the moment a `[SPAWN_SUB_AGENT]` report comes
+back, `chat_stream`'s own swap-check is skipped entirely (`if verify_ctx
+and not has_sub_agent and (...)`), on the assumption the sub-agent's own
+"never simulate" / "quote verbatim or say what's missing" directives
+would hold. Nothing structural backed that assumption up.
+
+Built the sub-agent equivalent: `SubAgentEngine._content_unread(text,
+read_paths)` extracts every note path/filename `text` names and checks it
+against what was actually retrieved this run (`read_paths`, built from
+every successful tool call as the loop executes); if none of the named
+notes were ever actually retrieved, `_swap_in_unread_note` reads the real
+note for real (plain file I/O via `VaultManager.read_note`, no extra
+model round-trip) and substitutes it, falling back to an honest admission
+if the name doesn't resolve to a real note. Wired into both
+`execute_sub_agent_task` (the one `actions.py`'s `[SPAWN_SUB_AGENT]`
+handler actually calls) and `execute_sub_agent_stream` (the `/agent`
+command's path) so both get the same guarantee.
+
+Two more live-model runs, not just reasoning about the code, exposed real
+gaps in the first pass before it shipped:
+
+- **Bare filename citation.** Asked to pull a random Daily note and quote
+  it with only 3 tool turns available, gemma4:e4b never called
+  `read_file` (two `find` variants ate the whole budget) and, on this
+  run, did *not* admit it - it confidently invented a full multi-section
+  fake diary entry ("deep work," "Grace," "auto-save," all clearly
+  fabricated Sympose-adjacent content, not real vault text), citing the
+  note as `` `2022-08-29.md` `` and **`2022-08-29.md`**. The check missed
+  it: `VAULT_PATH_TOKEN_RE` (shared with the primary path) requires a
+  folder prefix, and a bare filename has none. Fixed by adding
+  `_BARE_CITED_FILENAME_RE`, matching a backtick- or bold-wrapped bare
+  filename - the markdown wrapping itself is the structural signal that a
+  model is citing a specific document, independent of wording, so this
+  stays a structural check rather than a phrase list. Re-ran live: the
+  same fabrication is now caught and swapped for the real note (about
+  aliens, not Sympose architecture - confirming the first run's content
+  really was invented).
+- **`read_paths` too narrow.** A second live run (same task, 8-turn
+  budget) had the model read the real file via `run_command(cat ...)`
+  instead of the dedicated `read_file` tool - genuinely grounded, but the
+  check flagged it anyway and overwrote a correct answer, because
+  `read_paths` only tracked `read_file`'s own path argument. Fixed by
+  extending tracking (`_register_read`) to also scan any successful
+  `run_command`'s command string for a literal filename
+  (`_COMMAND_FILENAME_RE`) - `cat`/`sed`/`head`/an inline script all
+  retrieve real content as long as the command names the file, so
+  matching on the command text (not on which specific utility ran)
+  covers all of them without hardcoding a list of "reading" commands. A
+  `find ... -name '*.md'` glob has no literal filename in it and
+  correctly registers nothing.
+
+Verified live a third time after both fixes: the exact 3-turn-budget
+fabrication case is now caught and replaced with the real note; a
+generous-budget run that read the file via `read_file` passes through
+untouched; a run that read it via `cat` also passes through untouched.
+10 new tests added (`TestContentUnread`, `TestSwapInUnreadNote`,
+`TestRegisterRead`, `TestExecuteSubAgentTaskCatchesUnreadFabrication`).
+735 tests passing.
+
+Separately raised and deliberately not changed: whether
+`performance.max_sub_agent_tool_turns` (default 8) should be higher for
+local models. Live evidence argues against it - even the 8-turn run above
+spent its budget on the real read plus four redundant, unexplained
+`echo 'I have no record of that in your vault.'` calls after already
+succeeding; more turns would have given the same inefficient tool
+selection more room to waste, not fixed it. The turn count wasn't the
+bottleneck in any of these runs; tool-call efficiency was, and the
+fabrication safety net now holds regardless of how many turns it takes.
+
 ## 6. Commits
 
 - `0e59da3` — fix(grounding): stop a denied premise from becoming settled

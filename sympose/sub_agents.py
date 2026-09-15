@@ -6,6 +6,7 @@ Executes isolated sub-agent tasks loaded with specific skills and MCP servers wi
 import json
 import logging
 import os
+import re
 from collections.abc import Callable, Generator
 from typing import Any
 
@@ -18,7 +19,7 @@ from sympose.native_tools import NativeTools
 from sympose.profiles import ProfileManager
 from sympose.prompt_assets import load_prompt
 from sympose.skills import skill_manager
-from sympose.vault import VaultManager
+from sympose.vault import VAULT_PATH_TOKEN_RE, VaultManager
 
 log = logging.getLogger(__name__)
 
@@ -221,8 +222,8 @@ class SubAgentEngine:
         tc: Any,
         tool_to_client: dict[str, MCPClient],
         allowed_dirs: list[str] | None,
-    ) -> tuple[str, str, str, bool, str]:
-        """Parses a tool_call object and executes it. Returns (call_id, t_name, arg_summary, ok, tool_res)."""
+    ) -> tuple[str, str, str, bool, str, dict[str, Any]]:
+        """Parses a tool_call object and executes it. Returns (call_id, t_name, arg_summary, ok, tool_res, args_dict)."""
         fn = tc.function if hasattr(tc, "function") else tc.get("function", {})
         call_id = tc.id if hasattr(tc, "id") else tc.get("id", "call_1")
         t_name = fn.name if hasattr(fn, "name") else fn.get("name", "")
@@ -265,7 +266,7 @@ class SubAgentEngine:
                 + "\n...[Output truncated for brevity]..."
             )
 
-        return call_id, t_name, arg_summary, ok, tool_res
+        return call_id, t_name, arg_summary, ok, tool_res, args_dict
 
     # Appended on the sub-agent's final allowed turn so it wraps up instead of
     # spending the turn on another tool call.
@@ -298,6 +299,103 @@ class SubAgentEngine:
             ).strip()
         except Exception:
             return ""
+
+    # Live bug (caught by a real ollama/gemma4:e4b run, not just reasoning
+    # about the code): asked to pull a random Daily note and read it, it
+    # never called read_file, then confidently invented a full multi-section
+    # diary entry for whatever bare filename `find` had turned up - citing it
+    # as `2022-08-29.md` and **2022-08-29.md**, neither of which
+    # VAULT_PATH_TOKEN_RE matches, since that pattern requires a folder
+    # prefix (`Daily/2022-08-29.md`) and a bare filename has none. Markdown
+    # backtick/bold wrapping is itself a structural signal - independent of
+    # wording - that a model is presenting a bare filename as a specific
+    # document citation rather than using it incidentally in prose, so it's
+    # what closes the gap here without resorting to a phrase list.
+    _BARE_CITED_FILENAME_RE = re.compile(
+        r"[`*]{1,3}([\w][\w \-]*\.(?:md|markdown|txt))[`*]{1,3}", re.IGNORECASE
+    )
+
+    # A local model reads a file via `run_command` (`cat`, `sed -n`, `head`,
+    # an inline `python -c "open(...)"`...) at least as often as via the
+    # dedicated read_file tool - live-observed in the same run that
+    # motivated the check above. Whichever utility it used, the literal
+    # filename has to appear in the command string for that command to have
+    # actually retrieved that file's content, so matching on the command
+    # text itself (not on which specific tool ran it) generalizes to any of
+    # them without hardcoding a list of "reading" commands.
+    _COMMAND_FILENAME_RE = re.compile(
+        r"[\w][\w./\-]*\.(?:md|markdown|txt)\b", re.IGNORECASE
+    )
+
+    @classmethod
+    def _register_read(
+        cls,
+        t_name: str,
+        ok: bool,
+        args_dict: dict[str, Any],
+        read_paths: set[str],
+    ) -> None:
+        """Records what this tool call actually retrieved, if anything, for
+        `_content_unread` to check a synthesis against."""
+        if not ok:
+            return
+        if t_name == "read_file":
+            p = str(args_dict.get("path", "")).strip()
+            if p:
+                read_paths.add(p)
+        elif t_name == "run_command":
+            cmd = str(args_dict.get("command", ""))
+            read_paths.update(cls._COMMAND_FILENAME_RE.findall(cmd))
+
+    @classmethod
+    def _content_unread(cls, text: str, read_paths: set[str]) -> str | None:
+        """Returns the offending note name when `text` names a specific
+        vault note whose content was never actually retrieved via a
+        successful `read_file` call this run - the same "named it, never
+        actually read it" fabrication shape `PersonaEngine._vault_ctx_title_
+        missing` already catches on the primary persona path (that check
+        compares a reply against the vault_ctx it was deterministically
+        handed; this one compares a sub-agent's synthesis against its own
+        tool-call history, since a sub-agent has no pre-fetched vault_ctx to
+        check against). Only fires when NONE of the paths named in `text`
+        were actually read (a synthesis correctly quoting one real note
+        while merely mentioning another in passing isn't this case) and
+        stays silent when `text` names no path at all - the same prose-only
+        residual gap the primary check leaves open, for the same
+        round-trip-frugal reason (no second model call to compare
+        meaning)."""
+        named = {p.rsplit("/", 1)[-1].lower() for p in VAULT_PATH_TOKEN_RE.findall(text)}
+        named |= {m.lower() for m in cls._BARE_CITED_FILENAME_RE.findall(text)}
+        if not named:
+            return None
+        read_names = {p.rsplit("/", 1)[-1].lower() for p in read_paths if p}
+        if named & read_names:
+            return None
+        return sorted(named)[0]
+
+    @staticmethod
+    def _swap_in_unread_note(offending: str, task: "SubAgentTask") -> str:
+        """Deterministic, zero-round-trip recovery for a synthesis flagged by
+        `_content_unread`: reads the named note for real (plain file I/O, not
+        another model call) via the same sandboxed lookup the rest of the
+        vault layer uses, so the user gets the actual content instead of
+        whatever the sub-agent invented for it. Falls back to an honest
+        admission when the name doesn't resolve to a real, readable note -
+        it was likely a plausible-sounding guess, not a genuine miss."""
+        parent_prof = ProfileManager().get_profile(task.parent_agent)
+        real = VaultManager.read_note(parent_prof, offending) if parent_prof else ""
+        if real and not real.startswith("⚠️") and not real.startswith(
+            "Error reading note"
+        ) and "not found in allowed vault folders" not in real:
+            return (
+                f"That's not what I actually have — I never opened `{offending}` "
+                f"this turn. Here's its real content:\n\n{real}"
+            )
+        return (
+            f"I found a reference to `{offending}` but never actually opened it "
+            "this turn, so I can't share its real content — ask me again and "
+            "I'll read it properly."
+        )
 
     # ------------------------------------------------------------------ #
     #  Public execution methods                                            #
@@ -332,6 +430,7 @@ class SubAgentEngine:
 
         turn_count = 0
         final_synthesis = ""
+        read_paths: set[str] = set()
         try:
             while turn_count < task.max_tool_turns:
                 turn_count += 1
@@ -365,9 +464,10 @@ class SubAgentEngine:
                         else dict(message)
                     )
                     for tc in tool_calls:
-                        call_id, t_name, _, ok, tool_res = cls._dispatch_tool_call(
-                            tc, tool_to_client, allowed_dirs
+                        call_id, t_name, _, ok, tool_res, args_dict = (
+                            cls._dispatch_tool_call(tc, tool_to_client, allowed_dirs)
                         )
+                        cls._register_read(t_name, ok, args_dict, read_paths)
                         yield f"> ⚙️ *Sub-agent calling tool:* `{t_name}`...\n"
                         messages.append(
                             {
@@ -388,6 +488,10 @@ class SubAgentEngine:
                 ) or (
                     "⚠️ Sub-agent hit its tool budget before finishing; retry with a narrower ask."
                 )
+
+            offending = cls._content_unread(final_synthesis, read_paths)
+            if offending:
+                final_synthesis = cls._swap_in_unread_note(offending, task)
             yield final_synthesis
 
         except Exception as e:
@@ -420,6 +524,7 @@ class SubAgentEngine:
         turn_count = 0
         final_synthesis = ""
         tool_calls_executed: list[str] = []
+        read_paths: set[str] = set()
 
         try:
             while turn_count < task.max_tool_turns:
@@ -454,9 +559,10 @@ class SubAgentEngine:
                         else dict(message)
                     )
                     for tc in tool_calls:
-                        call_id, t_name, arg_summary, ok, tool_res = (
+                        call_id, t_name, arg_summary, ok, tool_res, args_dict = (
                             cls._dispatch_tool_call(tc, tool_to_client, allowed_dirs)
                         )
+                        cls._register_read(t_name, ok, args_dict, read_paths)
                         call_summary = (
                             f"{t_name}({arg_summary})" if arg_summary else f"{t_name}()"
                         )
@@ -488,6 +594,10 @@ class SubAgentEngine:
                 ) or (
                     "⚠️ Sub-agent hit its tool budget before finishing; retry with a narrower ask."
                 )
+
+            offending = cls._content_unread(final_synthesis, read_paths)
+            if offending:
+                final_synthesis = cls._swap_in_unread_note(offending, task)
 
             return final_synthesis, tool_calls_executed
         except Exception as e:

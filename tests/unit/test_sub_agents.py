@@ -66,6 +66,7 @@ def ctx(monkeypatch):
                 "path=People/Tin.md",
                 True,
                 "note body: Tin is Dylan's mother.",
+                {"path": "People/Tin.md"},
             )
         ),
     )
@@ -287,7 +288,7 @@ class TestDispatchToolCall:
         monkeypatch.setattr(
             "sympose.sub_agents.NativeTools.execute", staticmethod(fake_execute)
         )
-        call_id, name, arg_summary, ok, res = SubAgentEngine._dispatch_tool_call(
+        call_id, name, arg_summary, ok, res, _args = SubAgentEngine._dispatch_tool_call(
             _tc("read_file", '{"path": "People/Tin.md"}'), {}, ["/vault"]
         )
         assert (call_id, name, ok, res) == (
@@ -305,14 +306,14 @@ class TestDispatchToolCall:
 
     def test_mcp_tool_routes_to_its_registered_client(self, monkeypatch):
         client = _FakeMCPClient(ok=True, result="42")
-        _, name, _, ok, res = SubAgentEngine._dispatch_tool_call(
+        _, name, _, ok, res, _args = SubAgentEngine._dispatch_tool_call(
             _tc("calc_add", '{"a": 1, "b": 41}'), {"calc_add": client}, None
         )
         assert (name, ok, res) == ("calc_add", True, "42")
         assert client.calls == [("calc_add", {"a": 1, "b": 41})]
 
     def test_unregistered_tool_fails_cleanly(self):
-        _, name, _, ok, res = SubAgentEngine._dispatch_tool_call(
+        _, name, _, ok, res, _args = SubAgentEngine._dispatch_tool_call(
             _tc("mystery_tool", "{}"), {}, None
         )
         assert ok is False
@@ -342,7 +343,7 @@ class TestDispatchToolCall:
             "id": "call_9",
             "function": {"name": "run_command", "arguments": '{"command": "ls"}'},
         }
-        call_id, name, arg_summary, ok, res = SubAgentEngine._dispatch_tool_call(
+        call_id, name, arg_summary, ok, res, _args = SubAgentEngine._dispatch_tool_call(
             tc, {}, None
         )
         assert (call_id, name, arg_summary, ok, res) == (
@@ -361,7 +362,7 @@ class TestDispatchToolCall:
             "sympose.sub_agents.NativeTools.execute",
             staticmethod(lambda tool_name, args, allowed_dirs=None: (True, huge)),
         )
-        *_, res = SubAgentEngine._dispatch_tool_call(_tc("read_file", "{}"), {}, None)
+        *_, res, _args = SubAgentEngine._dispatch_tool_call(_tc("read_file", "{}"), {}, None)
         assert len(res) < len(huge)
         assert res.endswith("[Output truncated for brevity]...")
 
@@ -370,7 +371,7 @@ class TestDispatchToolCall:
             "sympose.sub_agents.NativeTools.execute",
             staticmethod(lambda tool_name, args, allowed_dirs=None: (True, "ok")),
         )
-        _, _, arg_summary, _, _ = SubAgentEngine._dispatch_tool_call(
+        _, _, arg_summary, _, _, _args = SubAgentEngine._dispatch_tool_call(
             _tc("run_command", '{"command": "ls", "unrelated_flag": true}'), {}, None
         )
         assert arg_summary == "command=ls"
@@ -507,3 +508,210 @@ class TestExecuteSubAgentStream:
         task = SubAgentTask(task_prompt="x", max_tool_turns=2)
         chunks = list(SubAgentEngine.execute_sub_agent_stream(task))
         assert any("Sub-Agent Execution Error" in c for c in chunks)
+
+
+# --------------------------------------------------------------------------- #
+#  _content_unread / _swap_in_unread_note — catching a sub-agent that names   #
+#  or quotes a note it never actually loaded via a successful read_file call. #
+#  Live bug: asked to pull a random note and read it, gemma4:e4b burned its   #
+#  whole tool budget on redundant grep/find attempts, never called            #
+#  read_file, then (on a run that didn't honestly admit it) would have been   #
+#  free to narrate invented content for whatever path it had merely found.    #
+# --------------------------------------------------------------------------- #
+
+
+class TestContentUnread:
+    def test_no_path_named_is_silent(self):
+        assert SubAgentEngine._content_unread("just some prose, no path", set()) is None
+
+    def test_bare_backtick_filename_with_no_folder_prefix_is_caught(self):
+        """Live bug: a real ollama/gemma4:e4b run cited its invented note as
+        `2022-08-29.md` and **2022-08-29.md** - no folder prefix, so
+        VAULT_PATH_TOKEN_RE alone (which requires one) missed it entirely
+        and let the fabrication through untouched."""
+        offending = SubAgentEngine._content_unread(
+            "The random note is `2022-08-29.md`.\n\n**2022-08-29.md**\n\nFake body.",
+            set(),
+        )
+        assert offending == "2022-08-29.md"
+
+    def test_bare_filename_actually_read_via_run_command_is_not_flagged(self):
+        """A sub-agent that reads a file with `cat` (or `sed`/`head`/an
+        inline script) instead of the dedicated read_file tool genuinely did
+        read it - `read_paths` isn't limited to read_file's own path arg."""
+        assert (
+            SubAgentEngine._content_unread(
+                "The note `2022-08-29.md` says: real content here.",
+                {"2022-08-29.md"},
+            )
+            is None
+        )
+
+    def test_path_named_but_never_read_is_flagged(self):
+        offending = SubAgentEngine._content_unread(
+            "The note Daily/2024/01-January/2024-01-01.md reads: 'Today was good.'",
+            set(),
+        )
+        assert offending == "2024-01-01.md"
+
+    def test_path_named_and_actually_read_is_not_flagged(self):
+        assert (
+            SubAgentEngine._content_unread(
+                "The note Daily/2024/01-January/2024-01-01.md reads: 'Today was good.'",
+                {"Daily/2024/01-January/2024-01-01.md"},
+            )
+            is None
+        )
+
+    def test_matching_is_case_insensitive_and_basename_only(self):
+        """A read_file call given an absolute path shouldn't fail to match a
+        reply that names the same file by its vault-relative form."""
+        assert (
+            SubAgentEngine._content_unread(
+                "See Thoughts/MOUNTAIN.md for the full entry.",
+                {"/Users/x/garden/Thoughts/mountain.md"},
+            )
+            is None
+        )
+
+    def test_one_of_several_named_paths_read_is_not_flagged(self):
+        """Conservative by design: a synthesis correctly quoting one real
+        note while merely mentioning another in passing isn't the
+        fabrication shape this guards against - only flag when NONE of the
+        named paths were actually read."""
+        text = (
+            "Read Daily/2024/01-January/2024-01-01.md; related to "
+            "Thoughts/Mountain.md."
+        )
+        assert SubAgentEngine._content_unread(text, {"Daily/2024/01-January/2024-01-01.md"}) is None
+
+
+class TestSwapInUnreadNote:
+    def test_swaps_in_the_real_note_when_it_resolves(self, monkeypatch):
+        monkeypatch.setattr(
+            "sympose.sub_agents.ProfileManager",
+            lambda: types.SimpleNamespace(get_profile=lambda h: {"handle": h}),
+        )
+        monkeypatch.setattr(
+            "sympose.sub_agents.VaultManager.read_note",
+            staticmethod(lambda profile, name: "Actual body text of the real note."),
+        )
+        task = SubAgentTask(task_prompt="x", parent_agent="samantha")
+        out = SubAgentEngine._swap_in_unread_note("2024-01-01.md", task)
+        assert out.startswith("That's not what I actually have")
+        assert "Actual body text of the real note." in out
+
+    def test_falls_back_to_honest_admission_when_note_not_found(self, monkeypatch):
+        monkeypatch.setattr(
+            "sympose.sub_agents.ProfileManager",
+            lambda: types.SimpleNamespace(get_profile=lambda h: {"handle": h}),
+        )
+        monkeypatch.setattr(
+            "sympose.sub_agents.VaultManager.read_note",
+            staticmethod(
+                lambda profile, name: f"Note `{name}` not found in allowed vault folders."
+            ),
+        )
+        task = SubAgentTask(task_prompt="x", parent_agent="samantha")
+        out = SubAgentEngine._swap_in_unread_note("ghost.md", task)
+        assert "never actually opened it" in out
+        assert "not found" not in out
+
+    def test_falls_back_when_parent_profile_is_missing(self, monkeypatch):
+        monkeypatch.setattr(
+            "sympose.sub_agents.ProfileManager",
+            lambda: types.SimpleNamespace(get_profile=lambda h: None),
+        )
+        task = SubAgentTask(task_prompt="x", parent_agent="nobody")
+        out = SubAgentEngine._swap_in_unread_note("2024-01-01.md", task)
+        assert "never actually opened it" in out
+
+
+class TestRegisterRead:
+    """What counts as "actually retrieved this run" - not limited to the
+    dedicated read_file tool, since a local model reads files via
+    `run_command` (`cat`, `sed -n`, `head`...) just as often, live-observed
+    in the same run that motivated `_content_unread`."""
+
+    def test_read_file_call_registers_its_path(self):
+        paths: set[str] = set()
+        SubAgentEngine._register_read(
+            "read_file", True, {"path": "Daily/2022-08-29.md"}, paths
+        )
+        assert "Daily/2022-08-29.md" in paths
+
+    def test_cat_via_run_command_registers_the_filename(self):
+        paths: set[str] = set()
+        SubAgentEngine._register_read(
+            "run_command",
+            True,
+            {"command": "cat /Users/x/garden/Daily/2022-08-29.md"},
+            paths,
+        )
+        assert "2022-08-29.md" in {p.rsplit("/", 1)[-1] for p in paths}
+
+    def test_find_with_a_glob_registers_nothing(self):
+        """No literal filename in the command - it located candidates, it
+        didn't retrieve any one file's content."""
+        paths: set[str] = set()
+        SubAgentEngine._register_read(
+            "run_command",
+            True,
+            {"command": "find /vault/Daily -name '*.md' | shuf -n 1"},
+            paths,
+        )
+        assert paths == set()
+
+    def test_a_failed_call_registers_nothing(self):
+        paths: set[str] = set()
+        SubAgentEngine._register_read(
+            "read_file", False, {"path": "Daily/2022-08-29.md"}, paths
+        )
+        assert paths == set()
+
+
+class TestExecuteSubAgentTaskCatchesUnreadFabrication:
+    """End-to-end through execute_sub_agent_task: a completion that names an
+    unread note gets overridden before it ever reaches the user."""
+
+    def test_synthesis_naming_an_unread_note_gets_swapped(self, ctx, monkeypatch):
+        # ctx's stubbed _dispatch_tool_call always "reads" People/Tin.md -
+        # the model's final synthesis instead claims a *different* note.
+        def fake_completion(**kwargs):
+            if "tools" not in kwargs:
+                return _resp(
+                    content=(
+                        "The note Daily/2024/01-January/2024-01-01.md reads: "
+                        "'I climbed a mountain today.'"
+                    )
+                )
+            return _resp(tool_calls=[_fake_tool_call()])
+
+        monkeypatch.setattr("sympose.sub_agents.litellm.completion", fake_completion)
+        monkeypatch.setattr(
+            "sympose.sub_agents.ProfileManager",
+            lambda: types.SimpleNamespace(get_profile=lambda h: {"handle": h}),
+        )
+        monkeypatch.setattr(
+            "sympose.sub_agents.VaultManager.read_note",
+            staticmethod(lambda profile, name: "The real, actually-read content."),
+        )
+
+        task = SubAgentTask(task_prompt="find notes on Tin", max_tool_turns=4)
+        out, _ = SubAgentEngine.execute_sub_agent_task(task)
+
+        assert "climbed a mountain" not in out
+        assert "The real, actually-read content." in out
+
+    def test_synthesis_naming_the_actually_read_note_is_untouched(
+        self, ctx, monkeypatch
+    ):
+        def fake_completion(**kwargs):
+            if "tools" not in kwargs:
+                return _resp(content="People/Tin.md says Tin is Dylan's mother.")
+            return _resp(tool_calls=[_fake_tool_call()])
+
+        monkeypatch.setattr("sympose.sub_agents.litellm.completion", fake_completion)
+        task = SubAgentTask(task_prompt="find notes on Tin", max_tool_turns=4)
+        out, _ = SubAgentEngine.execute_sub_agent_task(task)
+        assert out == "People/Tin.md says Tin is Dylan's mother."

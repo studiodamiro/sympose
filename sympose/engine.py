@@ -21,7 +21,7 @@ from sympose.models import resolve_api_key
 from sympose.profiles import ProfileManager
 from sympose.session_recall import has_session_recall_intent
 from sympose.sessions import SessionManager
-from sympose.vault import VaultManager
+from sympose.vault import VAULT_PATH_TOKEN_RE, VaultManager
 
 
 class PersonaEngine:
@@ -154,13 +154,9 @@ class PersonaEngine:
         model actually used it."""
         return bool(vault_ctx) and "Exact Content" in vault_ctx
 
-    # Same structural shape as the last `_VAULT_CLAIM_RE` alternative, reused
-    # here to extract every note path a piece of text names - both the ones
-    # the model's reply claims to be quoting and the ones actually present in
-    # the ground-truth it was handed - so the two can be compared.
-    _VAULT_PATH_TOKEN_RE = re.compile(
-        r"[\w][\w \-]*(?:/[\w][\w \-]*)+\.(?:md|markdown|txt)\b", re.IGNORECASE
-    )
+    # Shared with SubAgentEngine (sub_agents.py) - see VAULT_PATH_TOKEN_RE's
+    # own docstring in vault.py.
+    _VAULT_PATH_TOKEN_RE = VAULT_PATH_TOKEN_RE
 
     @classmethod
     def _vault_ctx_citation_mismatch(cls, clean_text: str, vault_ctx: str | None) -> bool:

@@ -724,6 +724,43 @@ and still works inside its own folder. Re-ran Damiro's second live message
 end to end: the sub-agent now reads `Thoughts/` successfully with no
 security error, finds and quotes a real note from it. 668 tests passing.
 
+### 3.23 A win, and a cosmetic leak: invented `[GAME_STATE_UPDATE]` bracket printed as raw text
+
+Damiro shared a live follow-up showing all of §3.20–3.22 paying off: "lets
+play our favorite game. lets do thoughts folder" (no "random" wording at
+all) correctly pulled a genuine random note from `Thoughts/`
+(`Timelife.md`) via the sub-agent path, with a faithful, ungrounded-free
+analysis. Checked the actual file directly rather than trust the
+transcript — the "230 million years," "~73 turns," "blip," and
+2023-2025 chronology are all really in the note. Fully grounded.
+
+One cosmetic leak in the same reply: it ended with a bare `[GAME_STATE_UPDATE]`
+printed as raw literal text. Not a real Sympose action tag (`ActionProcessor.
+TAG_NAMES` has no such entry) — the model invented its own bracket notation
+as roleplay flavor, mimicking the shape of a real tag, and since
+`parse_action_tags` only recognizes known tag names, this one just passed
+through untouched.
+
+Fix (`actions.py`): a new `_PSEUDO_TAG_RE`, matching the *shape* every real
+tag name follows (an all-caps, underscore-joined identifier alone in
+brackets, with or without a trailing `:args`) rather than naming this one
+invented tag specifically — so whatever a model invents next
+(`[SESSION_UPDATE]`, `[ROLL_DICE: 6]`, ...) is caught the same way. Real
+tag names are excluded from the pattern so an already-handled tag is never
+touched by this catch-all. Verified it leaves footnotes (`[1]`), markdown
+links (`[text](url)`), and wikilinks (`[[Note]]`) alone — none of them
+match the all-caps shape.
+
+Asked separately whether the reply was "true to its vibe and persona":
+grounded, yes, but Samantha's own soul file explicitly says "articulate,
+proactive, strategic... ruthlessly efficient" and "keep responses concise,
+structured, and actionable" - the actual reply ("*A soft, amused sigh
+escapes me...*", theatrical scene-setting, rhetorical musing) is closer to
+whimsical narrative roleplay than a concise strategic orchestrator. Not a
+grounding problem - flagged as a genuine tension between the persona's
+written directive and what "the game" pulls out of a small local model
+when given creative latitude, for Damiro to decide whether to tighten.
+
 ## 4. Skill coverage pass
 
 Samantha carries 9 skills. All got at least one live pass this session:

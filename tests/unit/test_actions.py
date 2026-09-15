@@ -216,6 +216,58 @@ class TestExecuteActionsMalformedTags:
         assert any("Malformed" in b and "SPAWN_SUB_AGENT" in b for b in badges)
 
 
+class TestInventedPseudoTagsAreStripped:
+    """Live bug: a local model, narrating a roleplay "game", ended its reply
+    with `[GAME_STATE_UPDATE]` — its own invented bracket notation, mimicking
+    the shape of a real action tag but matching no real tag name. Nothing
+    recognized it, so it printed as raw literal text. Caught by shape (an
+    all-caps, underscored identifier alone in brackets) rather than by
+    naming this one specific invented tag, so any other one a model dreams
+    up next is caught the same way."""
+
+    def test_bare_invented_tag_is_removed(self):
+        pm = _FakeProfileManager()
+        clean, _ = ActionProcessor.execute_actions(
+            pm, "test", "Here is your note.\n\n[GAME_STATE_UPDATE]"
+        )
+        assert "GAME_STATE_UPDATE" not in clean
+        assert "Here is your note." in clean
+
+    def test_invented_tag_with_a_colon_is_also_removed(self):
+        pm = _FakeProfileManager()
+        clean, _ = ActionProcessor.execute_actions(
+            pm, "test", "Rolling now. [ROLL_DICE: 6] You got a six!"
+        )
+        assert "ROLL_DICE" not in clean
+        assert "You got a six!" in clean
+
+    def test_a_real_recognized_tag_is_not_double_mangled(self, monkeypatch):
+        # A real tag name is excluded from the pseudo-tag pattern so this
+        # stays governed entirely by the real WRITE_NOTE handling above -
+        # not something this catch-all also tries to match.
+        pm = _FakeProfileManager()
+        monkeypatch.setattr(
+            "sympose.actions.VaultManager.write_note",
+            lambda profile, filename, content: None,
+        )
+        clean, badges = ActionProcessor.execute_actions(
+            pm, "test", "[WRITE_NOTE: todo.md | Buy milk]"
+        )
+        assert any("saved note" in b for b in badges)
+        assert not any("Malformed" in b for b in badges)
+
+    def test_footnotes_and_markdown_links_survive(self):
+        pm = _FakeProfileManager()
+        clean, _ = ActionProcessor.execute_actions(
+            pm,
+            "test",
+            "See [1] and [a check](https://example.com) and [[a Wikilink]].",
+        )
+        assert "[1]" in clean
+        assert "[a check](https://example.com)" in clean
+        assert "[[a Wikilink]]" in clean
+
+
 class TestSubAgentReadNoteFoldsVerbatimContent:
     """Regression: a `vault_recall` sub-agent that surfaced a note via
     `[READ_NOTE]` rendered it to the terminal panel only — the report handed

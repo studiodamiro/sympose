@@ -52,6 +52,21 @@ class ActionProcessor:
     # silent no-op.
     _LEGACY_TAG_RE = re.compile(r"\[(?:ACTION:)?SPAWN_WORKER:[^\]]*\]", re.IGNORECASE)
 
+    # A model can invent its own bracket notation that merely *looks* like
+    # our tag syntax (e.g. `[GAME_STATE_UPDATE]`, seen live from a local
+    # model narrating a roleplay game) - unlike a mistyped real tag, this
+    # never matches any name in TAG_NAMES, so parse_action_tags never sees
+    # it and it just prints as raw literal text. Caught by shape (an
+    # all-caps, underscored identifier alone in brackets - the same
+    # structural pattern every real tag name follows) rather than by
+    # enumerating every name a model might dream up; real tag names are
+    # excluded so an already-handled tag's own bracket is never touched
+    # here even if something upstream left it unprocessed.
+    _PSEUDO_TAG_RE = re.compile(
+        r"\[(?:ACTION:)?(?!(?:" + "|".join(TAG_NAMES) + r")\b)"
+        r"[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+(?::[^\]]*)?\]"
+    )
+
     @staticmethod
     def _op_failed(result: str) -> bool:
         """True when a vault_write.py-style call returned one of its
@@ -112,6 +127,7 @@ class ActionProcessor:
         clean = text
         for _, _, raw_tag in tags:
             clean = clean.replace(raw_tag, "")
+        clean = cls._PSEUDO_TAG_RE.sub("", clean)
         clean = re.sub(r"```[a-zA-Z0-9_-]*\s*```\n?", "", clean)
         return re.sub(r"\n{3,}", "\n\n", clean).strip()
 
@@ -607,6 +623,7 @@ class ActionProcessor:
                     f"> ⚠️ **Malformed `[{tag}]` action tag — ignored (missing or invalid arguments).**"
                 )
 
+        clean_text = cls._PSEUDO_TAG_RE.sub("", clean_text)
         clean_text = re.sub(r"```[a-zA-Z0-9_-]*\s*```\n?", "", clean_text)
         clean_text = re.sub(r"\n{3,}", "\n\n", clean_text).strip()
         return clean_text, badges

@@ -158,6 +158,43 @@ and the runaway-stop-sequence list had silently never applied to any local
 backend spelled differently from a literal `ollama/` prefix. Unified onto
 the one shared prefix list.
 
+### 3.9 `config_manager` singleton never learned the resolved workspace config path (`381ae18`)
+
+Found live, after the session already appeared to be over: a plain "hi sam,
+how are you?" crashed outright with `OSError: [Errno 30] Read-only file
+system: '/.vault_index'` — `/` being the literal filesystem root, not a real
+vault or workspace path.
+
+Root cause: `sympose.config` creates one module-level `config_manager`
+singleton at import time, defaulted to the relative path `"config.yaml"`.
+`app.py:main()` correctly resolves the real, writable workspace
+(`resolve_workspace_dir()`, which already guards against the process having
+launched with cwd `/` or `~`) and builds the true config path under it — but
+then handed that path to a *second*, throwaway `ConfigManager` instance
+instead of updating the shared singleton. Every other module that imports
+`config_manager` directly (`engine.py`, `vault.py`, `actions.py`, ...) kept
+seeing the stale, never-updated instance. `VaultManager._workspace_dir()`
+derived "the workspace dir" as `dirname(abspath(config_manager.config_path))`
+— i.e. relative to whatever directory the process happened to launch from,
+not the real workspace. Tonight that was `/` (root), so
+`vault_manifest.manifest_path` tried `os.makedirs("/.vault_index")` and
+macOS refused.
+
+This wasn't only tonight's crash: `[CONFIG_SET]`'s `config_manager.save()`
+writes to that same never-updated, cwd-relative `config.yaml` too, so config
+edits have likely been landing in the wrong place (or nowhere durable)
+depending on which directory `sympose` was launched from — a plausible
+contributor to config-related oddities beyond just this one crash.
+
+Fix: `app.py` now points the existing singleton at the resolved path and
+reloads it (`config_manager.config_path = config_path;
+config_manager.reload()`) instead of constructing a second instance.
+Defense in depth: `VaultManager._workspace_dir()` no longer reverse-engineers
+a directory from `config_manager.config_path` at all — it calls
+`resolve_workspace_dir()` directly, the same canonical, guarded resolver
+`server.py`/`slack.py` already use, so this class of drift can't recur even
+if some future caller repeats the original mistake.
+
 ## 4. Skill coverage pass
 
 Samantha carries 9 skills. All got at least one live pass this session:
@@ -209,3 +246,5 @@ to damiro; left untouched.
   with UnboundLocalError.
 - `4c864ff` — fix(engine): unify local-backend detection in
   `_build_kwargs`.
+- `381ae18` — fix(config,vault): stop config_manager singleton from drifting
+  off the resolved workspace path.

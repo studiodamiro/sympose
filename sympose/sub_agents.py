@@ -6,7 +6,7 @@ Executes isolated sub-agent tasks loaded with specific skills and MCP servers wi
 import json
 import logging
 import os
-from collections.abc import Generator
+from collections.abc import Callable, Generator
 from typing import Any
 
 import litellm
@@ -351,8 +351,19 @@ class SubAgentEngine:
             yield f"\n⚠️ **Sub-Agent Execution Error ({target_model}):** {e}"
 
     @classmethod
-    def execute_sub_agent_task(cls, task: SubAgentTask) -> tuple[str, list[str]]:
-        """Executes sub-agent task and returns (final_deliverable_text, tool_calls_summary_list)."""
+    def execute_sub_agent_task(
+        cls,
+        task: SubAgentTask,
+        on_progress: Callable[[str], None] | None = None,
+    ) -> tuple[str, list[str]]:
+        """Executes sub-agent task and returns (final_deliverable_text, tool_calls_summary_list).
+
+        `on_progress`, if given, is called synchronously with each
+        `tool(args)` string the instant that tool call completes — the same
+        strings that end up in `tool_calls_summary_list`, just surfaced
+        before the whole multi-turn loop finishes instead of only after.
+        Purely a side-channel for a live terminal status; never awaited,
+        never changes what gets returned."""
         (
             _,
             target_model,
@@ -402,9 +413,18 @@ class SubAgentEngine:
                         call_id, t_name, arg_summary, ok, tool_res = (
                             cls._dispatch_tool_call(tc, tool_to_client, allowed_dirs)
                         )
-                        tool_calls_executed.append(
+                        call_summary = (
                             f"{t_name}({arg_summary})" if arg_summary else f"{t_name}()"
                         )
+                        tool_calls_executed.append(call_summary)
+                        if on_progress:
+                            try:
+                                on_progress(call_summary)
+                            except Exception:
+                                log.debug(
+                                    "on_progress callback failed, ignoring",
+                                    exc_info=True,
+                                )
                         messages.append(
                             {
                                 "role": "tool",

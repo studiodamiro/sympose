@@ -252,6 +252,52 @@ class TestSubAgentReadNoteFoldsVerbatimContent:
         assert any("rendered note to Terminal" in b for b in badges)
 
 
+class TestExecuteActionsThreadsOnProgressToSubAgent:
+    """`on_progress` lets a caller show live tool-call status instead of a
+    silent wait for the whole sub-agent loop — must reach
+    SubAgentEngine.execute_sub_agent_task unchanged."""
+
+    def test_on_progress_is_passed_through_to_the_sub_agent_call(self, monkeypatch):
+        pm = _FakeProfileManager()
+        received = {}
+
+        def fake_execute_sub_agent_task(task, on_progress=None):
+            received["on_progress"] = on_progress
+            return "the answer", ["read_file(path=x)"]
+
+        monkeypatch.setattr(
+            "sympose.actions.SubAgentEngine.execute_sub_agent_task",
+            fake_execute_sub_agent_task,
+        )
+
+        sentinel = lambda s: None  # noqa: E731
+        ActionProcessor.execute_actions(
+            pm,
+            "test",
+            "[SPAWN_SUB_AGENT: vault_recall | find my notes]",
+            on_progress=sentinel,
+        )
+        assert received["on_progress"] is sentinel
+
+    def test_on_progress_defaults_to_none_when_omitted(self, monkeypatch):
+        pm = _FakeProfileManager()
+        received = {}
+
+        def fake_execute_sub_agent_task(task, on_progress=None):
+            received["on_progress"] = on_progress
+            return "the answer", []
+
+        monkeypatch.setattr(
+            "sympose.actions.SubAgentEngine.execute_sub_agent_task",
+            fake_execute_sub_agent_task,
+        )
+
+        ActionProcessor.execute_actions(
+            pm, "test", "[SPAWN_SUB_AGENT: vault_recall | find my notes]"
+        )
+        assert received["on_progress"] is None
+
+
 # ---------------------------------------------------------------------------
 # execute_actions — CREATE_PERSONA soul_content extraction (ADR-075)
 #

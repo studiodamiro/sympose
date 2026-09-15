@@ -286,6 +286,39 @@ legitimate way for the model to know a real vault path without having
 retrieved it first. Scoped to `.md` specifically so it doesn't trip on
 ordinary mentions of code files (`src/app.py`).
 
+### 3.14 Sub-agent tool calls made visible live, not just in the final report
+
+Damiro's own read of a pasted transcript: a `vault_recall` sub-agent's
+multi-turn tool loop (seven `grep`/`find` calls hunting for "favorite game")
+ran entirely silently — the CLI showed only the generic rotating "thinking"
+spinner for the whole ~25s, then the full "🛠️ Sub-Agent Report" box appeared
+in one block. Asked whether that could show what's actually happening, the
+way Claude Code or Gemini CLI surface each tool call as it runs.
+
+Traced the gap to `SubAgentEngine.execute_sub_agent_task`
+([sub_agents.py](../../../sympose/sub_agents.py)): it already builds a
+`tool_calls_executed` list one call at a time internally, but only returns
+it once the entire loop finishes — nothing was surfaced mid-loop. Added an
+optional `on_progress` callback, called the instant each tool call completes
+with the same `tool(args)` string that ends up in the final list — no new
+data computed, just exposed one step earlier. Threaded it through the three
+layers between the terminal and that loop: `chat_stream` →
+`ActionProcessor.execute_actions` → `execute_sub_agent_task`, each just
+passing it along unchanged.
+
+`cli.py` wires it to a live Rich status line: `"{name} is running:
+{last tool call}"`, replacing the canned spinner for the duration of the
+tool loop, truncated to ~88 chars so a long `grep`/`find` command doesn't
+wrap. One real edge case caught before shipping: a sub-agent can spawn
+before any visible text has streamed at all (the model's very first move is
+the spawn tag), in which case the canned "thinking" spinner is still live
+when the first progress callback fires — Rich allows only one live display
+per console, so the callback now stops that spinner first if it's still
+running. Verified against the real `rich.Status` object (not just mocked)
+since that interaction is exactly the kind of thing a pure unit test would
+miss. Zero added LLM round trips or latency either way — purely exposing
+data the loop already had.
+
 ## 4. Skill coverage pass
 
 Samantha carries 9 skills. All got at least one live pass this session:

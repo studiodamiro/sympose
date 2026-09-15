@@ -118,6 +118,60 @@ def test_forced_synthesis_empty_falls_back_to_notice(ctx, monkeypatch):
     assert "tool budget" in out
 
 
+class TestOnProgressCallback:
+    """The live terminal-status side-channel: fired the instant each tool
+    call completes, not just once the whole multi-turn loop finishes."""
+
+    def test_called_once_per_tool_call_with_the_same_summary_string(
+        self, ctx, monkeypatch
+    ):
+        calls_seen = {"n": 0}
+
+        def fake_completion(**kwargs):
+            calls_seen["n"] += 1
+            if "tools" not in kwargs:
+                return _resp(content="done")
+            return _resp(tool_calls=[_fake_tool_call()])
+
+        monkeypatch.setattr("sympose.sub_agents.litellm.completion", fake_completion)
+
+        seen: list[str] = []
+        task = SubAgentTask(task_prompt="x", max_tool_turns=2)
+        out, tool_calls = SubAgentEngine.execute_sub_agent_task(
+            task, on_progress=seen.append
+        )
+
+        assert seen == tool_calls
+        assert seen == ["read_file(path=People/Tin.md)"]
+
+    def test_not_called_when_no_tool_calls_happen(self, ctx, monkeypatch):
+        monkeypatch.setattr(
+            "sympose.sub_agents.litellm.completion",
+            lambda **kw: _resp(content="no tools needed"),
+        )
+        seen: list[str] = []
+        SubAgentEngine.execute_sub_agent_task(
+            SubAgentTask(task_prompt="x", max_tool_turns=3), on_progress=seen.append
+        )
+        assert seen == []
+
+    def test_a_raising_callback_does_not_break_the_loop(self, ctx, monkeypatch):
+        def fake_completion(**kwargs):
+            if "tools" not in kwargs:
+                return _resp(content="done anyway")
+            return _resp(tool_calls=[_fake_tool_call()])
+
+        monkeypatch.setattr("sympose.sub_agents.litellm.completion", fake_completion)
+
+        def boom(_):
+            raise RuntimeError("terminal went away")
+
+        out, _ = SubAgentEngine.execute_sub_agent_task(
+            SubAgentTask(task_prompt="x", max_tool_turns=3), on_progress=boom
+        )
+        assert out == "done anyway"
+
+
 # --------------------------------------------------------------------------- #
 #  _dispatch_tool_call — native tools, MCP tools, unregistered tools, parsing #
 # --------------------------------------------------------------------------- #

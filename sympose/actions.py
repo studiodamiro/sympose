@@ -6,6 +6,7 @@ import logging
 import os
 import re
 import shutil
+from collections.abc import Callable
 from typing import Any, ClassVar
 
 from sympose.config import config_manager
@@ -122,8 +123,13 @@ class ActionProcessor:
         text: str,
         user_prompt: str = "",
         depth: int = 0,
+        on_progress: Callable[[str], None] | None = None,
     ) -> tuple[str, list[str]]:
-        """Executes all detected action tags in model output and returns (clean_text, confirmation_badges)."""
+        """Executes all detected action tags in model output and returns
+        (clean_text, confirmation_badges). `on_progress`, if given, is passed
+        straight through to a spawned sub-agent's tool-call loop so a caller
+        can show live progress during what would otherwise be a silent,
+        multi-turn synchronous wait — see SubAgentEngine.execute_sub_agent_task."""
         is_sub_agent = handle.lower() == "sub_agent"
         profile = profile_manager.get_profile(handle) if not is_sub_agent else {}
         if not profile and not is_sub_agent:
@@ -294,7 +300,9 @@ class ActionProcessor:
                         parent_agent=handle,
                     )
                     final_synthesis, tool_calls_executed = (
-                        SubAgentEngine.execute_sub_agent_task(task)
+                        SubAgentEngine.execute_sub_agent_task(
+                            task, on_progress=on_progress
+                        )
                     )
                     if depth < cls.MAX_ACTION_DEPTH:
                         clean_sub_agent_res, sub_agent_sub_badges = cls.execute_actions(
@@ -303,6 +311,7 @@ class ActionProcessor:
                             final_synthesis,
                             user_prompt=task_prompt,
                             depth=depth + 1,
+                            on_progress=on_progress,
                         )
                     else:
                         clean_sub_agent_res, sub_agent_sub_badges = (

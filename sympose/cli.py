@@ -5,6 +5,7 @@ Interactive Terminal UI for Sympose.
 import os
 import sys
 import time
+from typing import Any
 
 try:
     from rich.console import Console
@@ -214,6 +215,44 @@ class TerminalInterface:
                 )
                 status = AnimatedStatus(self.console, name, phrases).start()
 
+            # Live sub-agent tool-call status: fills what would otherwise be a
+            # silent multi-second wait (a sub-agent's whole tool loop runs
+            # synchronously before anything is yielded) with the actual
+            # command it's running right now, instead of leaving the generic
+            # "thinking" spinner up. Lazily created on the first callback so
+            # a turn with no sub-agent never touches it. Torn down the moment
+            # any real content is about to print, right below.
+            sub_status: dict[str, Any] = {"obj": None}
+
+            def _on_sub_agent_progress(call_summary: str) -> None:
+                nonlocal status
+                if not self.console:
+                    return
+                shown = (
+                    call_summary
+                    if len(call_summary) <= 88
+                    else call_summary[:85] + "..."
+                )
+                text = f"[dim italic cyan]{name} is running: {shown}[/dim italic cyan]"
+                if sub_status["obj"] is None:
+                    # A sub-agent can spawn before any visible text has
+                    # streamed yet (e.g. the model's very first move is the
+                    # spawn tag) — the canned "thinking" spinner would still
+                    # be live in that case, and Rich only allows one live
+                    # display per console at a time.
+                    if status:
+                        status.stop()
+                        status = None
+                    sub_status["obj"] = self.console.status(text, spinner="dots")
+                    sub_status["obj"].start()
+                else:
+                    sub_status["obj"].update(text)
+
+            def _stop_sub_status() -> None:
+                if sub_status["obj"] is not None:
+                    sub_status["obj"].stop()
+                    sub_status["obj"] = None
+
             first_chunk, first_time, cleared = False, 0.0, False
             render_mode = (
                 str(self.engine.config.get("performance.render_mode")).lower().strip()
@@ -221,7 +260,11 @@ class TerminalInterface:
             buffered_chunks = []
 
             try:
-                for chunk in self.engine.chat_stream(current_handle, user_input):
+                for chunk in self.engine.chat_stream(
+                    current_handle,
+                    user_input,
+                    on_sub_agent_progress=_on_sub_agent_progress,
+                ):
                     if chunk == "CLEARED_SESSION":
                         cleared = True
                         if self.console:
@@ -234,6 +277,10 @@ class TerminalInterface:
                                 f"\n[bold green]✓ Context cleared for @{current_handle}.[/bold green]"
                             )
                         break
+
+                    # Any real content chunk means the sub-agent (if one ran)
+                    # is done — its final report is what's about to print.
+                    _stop_sub_status()
 
                     if not first_chunk:
                         first_chunk = True
@@ -284,6 +331,7 @@ class TerminalInterface:
                 if status:
                     status.stop()
                     status = None
+                _stop_sub_status()
                 if self.console:
                     self.console.print(
                         f"\n\n[dim yellow]^C [Interrupted @{current_handle}][/dim yellow]"
@@ -294,6 +342,7 @@ class TerminalInterface:
             finally:
                 if status:
                     status.stop()
+                _stop_sub_status()
 
             if cleared:
                 continue

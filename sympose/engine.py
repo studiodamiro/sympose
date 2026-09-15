@@ -32,6 +32,19 @@ class PersonaEngine:
         r"\[(?:ACTION:)?(?:SEARCH|WEB_SEARCH|SPAWN_SUB_AGENT)\b", re.IGNORECASE
     )
 
+    # Every autonomic action tag, not just retrieval ones - built from
+    # ActionProcessor's own list so it can't quietly drift out of sync with
+    # it. A tag's bracket syntax is internal wire format; without this, a
+    # non-retrieval tag (WRITE_NOTE, REMEMBER, CONFIG_SET, ...) just sits in
+    # _visible_stream's holdback buffer and gets unconditionally flushed
+    # once the stream ends, leaking its raw `[WRITE_NOTE: ...]` text into
+    # what the user actually sees, right next to the clean confirmation
+    # badge for the same action.
+    _ANY_ACTION_TAG_RE = re.compile(
+        r"\[(?:ACTION:)?(?:" + "|".join(ActionProcessor.TAG_NAMES) + r")\b",
+        re.IGNORECASE,
+    )
+
     # Cloud chat APIs enforce the assistant/user turn boundary server-side.
     # Local backends only stop where the model's own template's stop token
     # fires — a mismatched or broken template (seen on some community
@@ -97,6 +110,15 @@ class PersonaEngine:
             "anais",
             "grace",
             "samantha",
+            "hello",
+            "hi",
+            "hey",
+            "thanks",
+            "thank",
+            "today",
+            "whether",
+            "since",
+            "well",
         }
     )
 
@@ -144,8 +166,16 @@ class PersonaEngine:
                 cand = cls._depossess(m.group(1).strip().rstrip(".,!?"))
                 if cand and cand.lower() not in cls._NAME_STOP:
                     return cand
-            for w in re.findall(r"\b[A-Z][a-zA-Z’'-]{2,}\b", text):
-                d = cls._depossess(w)
+            # Fallback: any other Capitalised word — but only mid-sentence.
+            # Sentence-initial capitalisation is just English grammar (or a
+            # contraction like "I'll"/"I'm"), not an entity signal, and was
+            # handing back words like "Hello" or "I'll" from ordinary small
+            # talk with no real subject in it at all.
+            for cm in re.finditer(r"\b[A-Z][a-zA-Z’'-]{2,}\b", text):
+                start = cm.start()
+                if start == 0 or re.search(r"[.!?]\s$", text[max(0, start - 2) : start]):
+                    continue
+                d = cls._depossess(cm.group(0))
                 if d and d.lower() not in cls._NAME_STOP:
                     return d
         return ""
@@ -378,12 +408,15 @@ class PersonaEngine:
             )
 
     def _visible_stream(self, response: Any, sink: list[str]):
-        """Yield model text for display, but stop the moment a retrieval tag
-        (`[SEARCH …]` / `[SPAWN_SUB_AGENT …]`) begins: the runtime will inject the
-        real report, so a weak local model that keeps 'reading out' the note it
-        has not seen yet must not reach the user. The full raw text still lands
-        in `sink[0]` for `ActionProcessor`. A short hold-back keeps a tag that
-        is split across chunks from leaking its first characters."""
+        """Yield model text for display, but stop the moment any autonomic
+        action tag begins (`[SEARCH …]`, `[WRITE_NOTE …]`, `[REMEMBER …]`, ...):
+        for a retrieval tag the runtime will inject the real report, so a weak
+        local model that keeps 'reading out' the note it has not seen yet
+        must not reach the user; for every other tag, its bracket syntax is
+        internal wire format that was never meant to be user-visible in the
+        first place. The full raw text still lands in `sink[0]` for
+        `ActionProcessor`. A short hold-back keeps a tag that is split across
+        chunks from leaking its first characters."""
         HOLDBACK = 24
         buf: list[str] = []
         emitted = 0
@@ -399,7 +432,7 @@ class PersonaEngine:
             if not gate_open:
                 continue
             text = "".join(buf)
-            m = self._RETRIEVAL_TAG_RE.search(text)
+            m = self._ANY_ACTION_TAG_RE.search(text)
             if m:
                 if m.start() > emitted:
                     yield text[emitted : m.start()]
@@ -576,7 +609,11 @@ class PersonaEngine:
                 ):
                     subj = self._entity_guess(prev_asst, prev_user)
                 if not subj and self._VAULT_CLAIM_RE.search(clean_text):
-                    subj = self._entity_guess(clean_input, prev_user, prev_asst)
+                    # The claim just made is in clean_text itself (e.g. "here's
+                    # your entry about X") — search it first, not the *previous*
+                    # turn's assistant text, which has no bearing on this claim
+                    # and can hand back an unrelated word from earlier small talk.
+                    subj = self._entity_guess(clean_text, clean_input, prev_user)
 
                 if subj:
                     _, fb = ActionProcessor.execute_actions(

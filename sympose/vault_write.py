@@ -90,7 +90,7 @@ def _render_template(
     templates use: `{{date}}`, `{{time}}`, `{{title}}`, `{{date:YYYY}}`."""
     return (
         raw_tmpl.replace("{{date}}", now.strftime("%Y-%m-%d"))
-        .replace("{{time}}", now.strftime("%Y-%m-%d %H:%M"))
+        .replace("{{time}}", now.strftime("%H:%M"))
         .replace("{{title}}", title_heading)
         .replace("{{date:YYYY}}", now.strftime("%Y"))
     ).strip()
@@ -124,7 +124,7 @@ def write_note(
     now = datetime.datetime.now().astimezone()
     date_str, time_str, rel_display = (
         now.strftime("%Y-%m-%d"),
-        now.strftime("%Y-%m-%d %H:%M"),
+        now.strftime("%H:%M"),
         os.path.relpath(target_file, mv),
     )
     clean_content = content.strip()

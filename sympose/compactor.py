@@ -129,7 +129,11 @@ class MemoryCompactor:
             "2. ELIMINATE REDUNDANCY: Merge duplicate points (e.g. repeated user identity or duplicate architecture entries) into single crisp bullets.\n"
             "3. PRUNE TRANSIENT ARTIFACTS: Remove markdown separators (like '- ---'), temporary notes, and empty points.\n"
             "4. PRESERVE STRUCTURE: Start with `# {title}` and use clean bullet points (`- `).\n"
-            "5. ZERO FABRICATION: Retain all unique, durable facts. Do not invent any new details.\n\n"
+            "5. ZERO FABRICATION: Retain all unique, durable facts. Do not invent any new details.\n"
+            "6. DO NOT RESOLVE AMBIGUITY INTO FACT: An entry phrased as a question, a hedge, "
+            "or an unconfirmed premise (e.g. \"did we decide to...\", \"weren't we going to...\") "
+            "is not a settled fact even if no contradicting entry exists. Preserve it verbatim, "
+            "phrased with its original uncertainty, or drop it — never restate it as confirmed.\n\n"
             f"### ORIGINAL MEMORY:\n{content}"
         )
 

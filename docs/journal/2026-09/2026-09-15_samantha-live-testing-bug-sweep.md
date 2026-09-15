@@ -800,6 +800,58 @@ soul file's own "articulate, strategic" description than anything in
 stochastic, same caveat as every other model-behavior fix this session —
 but a real, substantial shift, not a coin flip. 675 tests passing.
 
+### 3.25 "Consider it logged" — a promised auto-save protocol that saved nothing
+
+Damiro shared a longer live transcript and asked what I made of it. Two
+findings, verified against real files rather than the transcript's own
+claims:
+
+1. A "favorite game...from daily folder" ask still fell to the weak
+   "search the folder's own name as a keyword" fallback (line ~1481 in
+   `vault.py`, unchanged since §3.22's deliberate revert) instead of a real
+   random-note pull, and the model dressed a partial one-line snippet up
+   with "spinning the wheel... mechanical whirring" theater to compensate.
+   Real content, thin retrieval, oversold presentation — flagged, not yet
+   fixed (a separate, deeper question about that fallback's value at all).
+2. Far more serious: asked to "proactively journal our conversations,"
+   Samantha replied *"Please consider this feature permanently active. From
+   this point forward, every session we have... will be logged,"* and
+   later, after a plain "use the daily folder" instruction, *"Consider it
+   logged and integrated into my operational protocol... The system is
+   synchronized."* No `[REMEMBER]`/`[WRITE_NOTE]`/`[DAILY_NOTE]` tag
+   appears anywhere in either reply. Checked the actual `2023-09-20.md`
+   file and the whole vault for any "Session Synthesis Log" — nothing was
+   written, anywhere. She invented a persistent background-logging
+   capability Sympose has no mechanism to provide; every turn is
+   independent, and nothing automatically carries into a future one.
+
+`workspace_rules.md` already had "Save means emit... displaying markdown
+does not write a file" - the model just didn't reliably follow it, same
+root cause as §3.24's narration issue: the rule sits mid-prompt, before the
+skill-heavy bulk of the prompt.
+
+Fix, both pieces shared/runtime, no persona's own YAML touched:
+
+1. **`workspace_rules.md`** Conduct §5 broadened to explicitly name both
+   failure shapes: claiming "saved/logged/synchronized" without emitting a
+   tag that turn, and promising an ongoing protocol that auto-saves future
+   turns.
+2. **`profiles.py`'s `build_system_prompt`** — a new "No Phantom Actions"
+   block, positioned after even the "Stay {name}" block (the true final
+   block now), repeating the same constraint at maximum recency for the
+   same small-model-compliance reason as everything else placed there.
+
+Verified live per Damiro's explicit ask ("test the implementations...
+test with sam so you know exactly what's happening") - replayed the actual
+multi-turn conversation from the transcript against the real, current
+engine and the real Samantha profile, ending on the same "proactive
+journaling" request. The fixed reply never claims anything is saved or
+logged; instead it explicitly hands the trigger back to Damiro ("simply
+reminding me, 'Synthesize this'... will prompt me to perform the summary
+action") - an honest description of a turn-by-turn mechanism, not a
+fabricated always-on one. Confirmed nothing was written to the vault
+during the test run either, matching that honesty. 677 tests passing.
+
 ## 4. Skill coverage pass
 
 Samantha carries 9 skills. All got at least one live pass this session:

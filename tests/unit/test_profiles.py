@@ -125,7 +125,22 @@ class TestBuildSystemPromptOrdering:
 
         assert "third-person narration of your own reactions" in prompt
 
-    def test_stay_in_character_block_is_the_final_block(self, tmp_path):
+    def test_workspace_rules_forbid_promising_an_ongoing_auto_save_protocol(
+        self, tmp_path
+    ):
+        (tmp_path / "sam.yaml").write_text(
+            "name: Sam\nhandle: sam\nsoul_file: sam_soul.md\n"
+        )
+        (tmp_path / "sam_soul.md").write_text("# Sam\nYou are Sam.\n")
+
+        pm = ProfileManager(profiles_dir=str(tmp_path))
+        prompt = pm.build_system_prompt(pm.get_profile("sam"))
+
+        assert "Never promise an ongoing protocol that will keep saving" in prompt
+
+    def test_stay_in_character_and_no_phantom_actions_come_after_memory(
+        self, tmp_path
+    ):
         (tmp_path / "sam.yaml").write_text(
             "name: Sam\nhandle: sam\nsoul_file: sam_soul.md\n"
             "memory_file: sam_memory.md\n"
@@ -140,10 +155,33 @@ class TestBuildSystemPromptOrdering:
 
         mem_idx = prompt.index("Vault Roulette")
         stay_idx = prompt.index("### Stay Sam")
+        phantom_idx = prompt.index("### No Phantom Actions")
         assert stay_idx > mem_idx, (
             "the persona-consistency reinforcement must come after memory"
         )
-        assert prompt.rstrip().endswith("not an author describing Sam from outside.")
+        assert phantom_idx > stay_idx, (
+            "the no-phantom-actions reinforcement must be the final block"
+        )
+        assert prompt.rstrip().endswith(
+            "it must be saved again, that turn, with a real tag."
+        )
+
+    def test_no_phantom_actions_block_names_the_live_failure_pattern(
+        self, tmp_path
+    ):
+        """Live bug: a local model announced "from this point forward,
+        every session will be logged" and later "consider it logged" -
+        having emitted no real tag and written nothing to disk."""
+        (tmp_path / "sam.yaml").write_text(
+            "name: Sam\nhandle: sam\nsoul_file: sam_soul.md\n"
+        )
+        (tmp_path / "sam_soul.md").write_text("# Sam\nYou are Sam.\n")
+
+        pm = ProfileManager(profiles_dir=str(tmp_path))
+        prompt = pm.build_system_prompt(pm.get_profile("sam"))
+
+        assert "describing an action is not doing it" in prompt
+        assert "no such mechanism" in prompt
 
     def test_stay_in_character_block_adapts_to_any_persona_name(self, tmp_path):
         """A runtime-level fix, not a per-persona prompt edit: every persona

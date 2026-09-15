@@ -429,6 +429,25 @@ class ProfileManager:
             f"speaking directly, not an author describing {name} from outside."
         )
 
+        # Same reasoning, same position, different failure mode: workspace_
+        # rules.md already forbids claiming a save without emitting the real
+        # tag, and promising an ongoing auto-logging protocol - live case,
+        # a local model announced "from this point forward, every session
+        # will be logged" and later "consider it logged," having emitted no
+        # tag and written nothing to disk. That rule sitting mid-prompt
+        # wasn't enough on its own, the same way the narration rule above
+        # wasn't - repeated here, closest to the query, for the same reason.
+        prompt_parts.append(
+            "### No Phantom Actions\n"
+            "Never say something is \"saved,\" \"logged,\" \"remembered,\" or "
+            "\"synchronized\" unless you emit the real tag ([REMEMBER], "
+            "[WRITE_NOTE], [APPEND_NOTE], [DAILY_NOTE]) in this exact reply — "
+            "describing an action is not doing it. Never promise an ongoing "
+            "feature that will keep saving future turns automatically; there is "
+            "no such mechanism. Each turn stands alone — if it matters again "
+            "later, it must be saved again, that turn, with a real tag."
+        )
+
         return "\n\n".join(prompt_parts)
 
     def _append_to_file(self, file_path: str, fact: str) -> tuple[bool, list[str]]:

@@ -1189,6 +1189,116 @@ class TestResolveTurnContextConversational:
         assert VaultManager.has_recall_intent("what's the btc price right now") is False
 
 
+class TestDescribesRandomPullRitual:
+    """Generic detector for a persona-memory fact describing a "pull a
+    random note" ritual, by whatever name the user gave it - deliberately
+    not tied to any one wording ("Vault Roulette", "surprise me", etc.)."""
+
+    def test_matches_a_random_note_fact(self):
+        from sympose.vault import VaultManager
+
+        assert VaultManager.describes_random_pull_ritual(
+            "Damiro's favorite game is \"Vault Roulette,\" where a random "
+            "note from his Obsidian vault is pulled and discussed."
+        )
+
+    def test_matches_differently_worded_random_pull_facts(self):
+        from sympose.vault import VaultManager
+
+        assert VaultManager.describes_random_pull_ritual(
+            "We like to grab a random page from the notes together."
+        )
+        assert VaultManager.describes_random_pull_ritual(
+            "Her favorite ritual is picking a random entry to read aloud."
+        )
+
+    def test_unrelated_fact_does_not_match(self):
+        from sympose.vault import VaultManager
+
+        assert not VaultManager.describes_random_pull_ritual(
+            "Damiro likes his coffee black."
+        )
+
+    def test_random_alone_without_a_pull_word_does_not_match(self):
+        from sympose.vault import VaultManager
+
+        assert not VaultManager.describes_random_pull_ritual(
+            "Damiro dislikes random small talk at parties."
+        )
+
+    def test_empty_fact_does_not_match(self):
+        from sympose.vault import VaultManager
+
+        assert not VaultManager.describes_random_pull_ritual("")
+
+
+class TestResolveRitualRandomPull:
+    """Live bug: "let's play our favorite game" never matches
+    resolve_turn_context's own sample-request phrasing, so even when a
+    persona's memory says the game IS a random-note pull, nothing real
+    ever gets fetched and the model invents a plausible-sounding title.
+    `resolve_ritual_random_pull` is called separately, once a matched
+    memory fact is already confirmed to describe this ritual."""
+
+    def _profile(self):
+        return {"handle": "samantha", "skills": ["vault_recall"], "vault_folders": ["*"]}
+
+    def test_folder_named_in_message_scopes_the_pull(self, tmp_vault_dir, monkeypatch):
+        from sympose.vault import VaultManager
+
+        monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
+        write_note(
+            str(tmp_vault_dir / "Movies" / "Her.md"), "# Her\n\nA lonely writer.\n"
+        )
+        write_note(
+            str(tmp_vault_dir / "Thoughts" / "Random.md"), "# Random\n\nOn entropy.\n"
+        )
+
+        ctx = VaultManager.resolve_ritual_random_pull(
+            self._profile(), "lets play our favorite game. lets do Movies. g!"
+        )
+        assert ctx is not None
+        assert "Her.md" in ctx
+        assert "Exact Content" in ctx
+
+    def test_no_folder_named_samples_the_whole_vault(self, tmp_vault_dir, monkeypatch):
+        from sympose.vault import VaultManager
+
+        monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
+        write_note(
+            str(tmp_vault_dir / "Movies" / "Her.md"), "# Her\n\nA lonely writer.\n"
+        )
+
+        ctx = VaultManager.resolve_ritual_random_pull(
+            self._profile(), "lets play our favorite game"
+        )
+        assert ctx is not None
+        assert "Exact Content" in ctx
+
+    def test_scoped_persona_without_full_vault_access_and_no_folder_named_returns_none(
+        self, tmp_vault_dir, monkeypatch
+    ):
+        """A partial-access persona whose allowed_dirs aren't the vault root
+        itself shouldn't get an implicit vault-wide sample when no folder is
+        named - conservative fallback, not a regression."""
+        from sympose.vault import VaultManager
+
+        monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
+        write_note(
+            str(tmp_vault_dir / "Movies" / "Her.md"), "# Her\n\nA lonely writer.\n"
+        )
+        scoped = {
+            "handle": "scoped",
+            "skills": ["vault_recall"],
+            "vault_folders": ["Movies"],
+        }
+
+        assert (
+            VaultManager.resolve_ritual_random_pull(scoped, "lets play our favorite game")
+            is None
+        )
+
+
 class TestWorkspaceDir:
     """Regression coverage: `_workspace_dir` must delegate to the canonical
     `resolve_workspace_dir()` resolver (which guards against cwd being "/" or

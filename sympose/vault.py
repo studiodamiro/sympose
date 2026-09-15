@@ -328,6 +328,47 @@ class VaultManager:
         return "\n\n---\n\n".join(payloads)
 
     @staticmethod
+    def describes_random_pull_ritual(fact: str) -> bool:
+        """Generic detector for a persona-memory fact that itself describes
+        a "pull a random note and discuss it" ritual, by whatever name the
+        user gave it - not tied to any one wording or persona. Used to
+        decide whether to honor such a fact for real (below) rather than
+        let the model invent a plausible-sounding title."""
+        low = (fact or "").lower()
+        return "random" in low and any(
+            w in low for w in ("note", "entry", "page", "pull", "pulled", "picked")
+        )
+
+    @classmethod
+    def resolve_ritual_random_pull(
+        cls, profile: dict[str, Any], message: str
+    ) -> str | None:
+        """Live bug: "let's play our favorite game" doesn't match
+        `resolve_turn_context`'s own sample-request phrasing ("random",
+        "surprise me", "give me a"...), so its structural retrieval never
+        fires for it even when the persona's own memory says the game IS a
+        random-note pull - leaving the model to invent a plausible-sounding
+        note title instead of performing a real one. Called only once a
+        matched memory fact has already been confirmed (via
+        `describes_random_pull_ritual`) to describe exactly this ritual.
+        Folder-scopes to any discovered folder named in the message, the
+        same way `resolve_turn_context`'s case 7 does; otherwise samples
+        across the whole vault a persona has full access to."""
+        mv, allowed_dirs = cls._get_master_vault(), cls.get_allowed_dirs(profile)
+        if not mv or not allowed_dirs:
+            return None
+        for folder_name in cls.get_discovered_folders(profile):
+            stem = folder_name.rstrip("s")
+            if re.search(rf"\b{re.escape(stem)}\w*\b", message, re.IGNORECASE):
+                return cls.get_random_sample_notes(profile, folder_name, count=1) or None
+        if any(os.path.realpath(d) == os.path.realpath(mv) for d in allowed_dirs):
+            return (
+                cls.get_random_sample_notes(profile, os.path.basename(mv), count=1)
+                or None
+            )
+        return None
+
+    @staticmethod
     def parse_frontmatter(content: str) -> tuple[dict[str, Any], str]:
         """Extracts YAML frontmatter dictionary and clean markdown body."""
         if not content.startswith("---"):

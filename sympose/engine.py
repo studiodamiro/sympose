@@ -639,6 +639,25 @@ class PersonaEngine:
                 "The user's message closely overlaps this fact you already "
                 f"have - it is very likely what they mean:\n- {mem_hit}"
             )
+            # The matched fact itself may describe a "pull a random note"
+            # ritual by whatever name the user gave it. Nothing in
+            # resolve_turn_context's own phrase-matching fires for a
+            # message like "let's play our favorite game" - it never
+            # asked for a random note in those words - so without this, a
+            # real note is never actually fetched and the model fills the
+            # gap with a plausible-sounding invented title. Only acts when
+            # no structural match already ran this turn, and respects the
+            # same vault-skill gate resolve_turn_context itself enforces.
+            if not vault_ctx and VaultManager.describes_random_pull_ritual(
+                mem_hit
+            ) and VaultManager.has_vault_skill(profile):
+                vault_ctx = VaultManager.resolve_ritual_random_pull(
+                    profile, clean_input
+                )
+                if vault_ctx:
+                    with self._lock:
+                        self.active_vault_ctx[h_key] = vault_ctx
+                    system_prompt += f"\n\n{vault_ctx}"
         if has_session_recall_intent(clean_input):
             system_prompt += "\n\n" + self._build_session_history_digest(
                 handle, curr_session_id

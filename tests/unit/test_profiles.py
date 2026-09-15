@@ -83,9 +83,15 @@ class TestBuildSystemPromptOrdering:
     of unrelated text away from the user's actual question). Moving the
     block to the very end - right before the active turns - fixed it with
     the memory content completely unchanged; only its position moved. This
-    locks that ordering in so it can't silently drift back to the front."""
+    locks that ordering in so it can't silently drift back to the front.
 
-    def test_persona_memory_is_the_final_block(self, tmp_path):
+    The "Stay {name}" persona-consistency reinforcement (added later, same
+    session) is deliberately the one block placed after memory - a
+    behavioral instruction benefits from the same end-of-prompt recency as
+    a factual one, and it doesn't compete with recalling memory content
+    since it's a different kind of thing entirely."""
+
+    def test_persona_memory_comes_after_the_workspace_rules(self, tmp_path):
         (tmp_path / "sam.yaml").write_text(
             "name: Sam\nhandle: sam\nsoul_file: sam_soul.md\n"
             "memory_file: sam_memory.md\n"
@@ -103,6 +109,54 @@ class TestBuildSystemPromptOrdering:
         assert mem_idx > rules_idx, (
             "persona memory must come after the workspace rules, not before"
         )
-        assert prompt.rstrip().endswith(
-            "- The user's favorite game is Vault Roulette."
-        ), "persona memory should be the last block in the prompt"
+
+    def test_workspace_rules_cover_theatrical_self_narration(self, tmp_path):
+        """The shared, packaged ruleset (every persona, no per-persona edit)
+        already forbade process stage directions; broadened live to also
+        name third-person scene-setting narration of the persona's own
+        reactions, which is what actually slipped through."""
+        (tmp_path / "sam.yaml").write_text(
+            "name: Sam\nhandle: sam\nsoul_file: sam_soul.md\n"
+        )
+        (tmp_path / "sam_soul.md").write_text("# Sam\nYou are Sam.\n")
+
+        pm = ProfileManager(profiles_dir=str(tmp_path))
+        prompt = pm.build_system_prompt(pm.get_profile("sam"))
+
+        assert "third-person narration of your own reactions" in prompt
+
+    def test_stay_in_character_block_is_the_final_block(self, tmp_path):
+        (tmp_path / "sam.yaml").write_text(
+            "name: Sam\nhandle: sam\nsoul_file: sam_soul.md\n"
+            "memory_file: sam_memory.md\n"
+        )
+        (tmp_path / "sam_soul.md").write_text("# Sam\nYou are Sam.\n")
+        (tmp_path / "sam_memory.md").write_text(
+            "# Memory\n- The user's favorite game is Vault Roulette.\n"
+        )
+
+        pm = ProfileManager(profiles_dir=str(tmp_path))
+        prompt = pm.build_system_prompt(pm.get_profile("sam"))
+
+        mem_idx = prompt.index("Vault Roulette")
+        stay_idx = prompt.index("### Stay Sam")
+        assert stay_idx > mem_idx, (
+            "the persona-consistency reinforcement must come after memory"
+        )
+        assert prompt.rstrip().endswith("not an author describing Sam from outside.")
+
+    def test_stay_in_character_block_adapts_to_any_persona_name(self, tmp_path):
+        """A runtime-level fix, not a per-persona prompt edit: every persona
+        gets this the same way, with no YAML/soul-file change required -
+        the shipped default Samantha included, and any user-created
+        persona with a different name and voice."""
+        (tmp_path / "grace.yaml").write_text(
+            "name: Grace\nhandle: grace\nsoul_file: grace_soul.md\n"
+        )
+        (tmp_path / "grace_soul.md").write_text("# Grace\nYou are Grace.\n")
+
+        pm = ProfileManager(profiles_dir=str(tmp_path))
+        prompt = pm.build_system_prompt(pm.get_profile("grace"))
+
+        assert "### Stay Grace" in prompt
+        assert "You are Grace speaking directly, not an author describing Grace" in prompt

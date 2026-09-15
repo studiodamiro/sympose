@@ -409,6 +409,26 @@ class ProfileManager:
         if persona_mem:
             prompt_parts.append(f"### Persona Working Memory:\n{persona_mem}")
 
+        # Deliberately last, same reasoning as the memory block above: a
+        # small local model asked to do something playful or creative
+        # (live case - a "pick a random note and discuss it" exchange) can
+        # drift into narrating itself as a character from outside ("*a soft
+        # sigh escapes me*", theatrical scene-setting) rather than staying
+        # in its own defined voice, even though workspace_rules.md already
+        # says not to - that rule just sits too early to reliably survive a
+        # long, skill-heavy prompt. This is a runtime-level reinforcement,
+        # not a per-persona prompt edit: every persona gets it the same way
+        # with no YAML changes required, from the shipped default Samantha
+        # to any persona a user creates later.
+        prompt_parts.append(
+            f"### Stay {name}\n"
+            f"No matter how playful, creative, or unusual the topic gets, respond "
+            f"as {name} — in {name}'s own voice as defined above. Never narrate "
+            f"yourself in the third person, add theatrical stage directions, or "
+            f"slip into a different storytelling register. You are {name} "
+            f"speaking directly, not an author describing {name} from outside."
+        )
+
         return "\n\n".join(prompt_parts)
 
     def _append_to_file(self, file_path: str, fact: str) -> tuple[bool, list[str]]:

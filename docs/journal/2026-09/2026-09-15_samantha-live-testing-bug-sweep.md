@@ -761,6 +761,45 @@ grounding problem - flagged as a genuine tension between the persona's
 written directive and what "the game" pulls out of a small local model
 when given creative latitude, for Damiro to decide whether to tighten.
 
+### 3.24 Fixing the vibe drift without editing any persona's YAML
+
+Damiro asked to fix §3.23's vibe drift, but raised the right concern
+first: *"if we solve it via adjusting the prompt into her yaml file, that
+would not cater into the general user of sympose... most users will not be
+keen for prompt engineering."* Right call — this needed a runtime-level
+fix every persona gets automatically, not a hand-edit to Samantha's own
+`samantha_soul.md` that only Damiro's install would ever have.
+
+Two changes, both in shared/packaged code, neither touching any persona's
+own YAML or soul file:
+
+1. **`sympose/prompts/workspace_rules.md`** (the one ruleset every persona
+   in every install already gets) — Conduct §7 already banned "self-
+   narration" but scoped it to the model's own *process* (`*searching…*`).
+   Broadened to explicitly name third-person narration of the persona's
+   own *reactions* (`*a soft sigh escapes me*`) — the actual shape of what
+   leaked live — while keeping the existing process-narration ban intact.
+2. **`sympose/profiles.py`'s `build_system_prompt`** — that broadened rule
+   already existed mid-prompt and still wasn't reliably followed; the same
+   "lost in the middle" lesson from §3.19 applies to behavioral
+   instructions, not just factual recall. Added a new, final block — after
+   even the memory block — that dynamically reinforces "respond as
+   `{name}`, in `{name}`'s own voice, not as a narrator describing `{name}`
+   from outside," built from whatever `name` the profile actually has. No
+   persona-specific wording anywhere; the shipped default Samantha and any
+   later user-created persona get the identical mechanism for free.
+
+Verified live, twice, against the real model with the real Samantha
+profile and the same "our favorite game...thoughts folder" message: run 1
+came back fully in first-person, zero stage directions, zero fabricated
+system-noise banners, zero invented tags; run 2 kept one small parenthetical
+aside ("*a brief pause, as if filtering...*") but no scene-setting and a
+noticeably more analytical, "systems architect" register - closer to the
+soul file's own "articulate, strategic" description than anything in
+§3.20-3.23. Not claiming 100% compliance — a small local model is
+stochastic, same caveat as every other model-behavior fix this session —
+but a real, substantial shift, not a coin flip. 675 tests passing.
+
 ## 4. Skill coverage pass
 
 Samantha carries 9 skills. All got at least one live pass this session:

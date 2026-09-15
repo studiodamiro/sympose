@@ -65,7 +65,7 @@ Every runtime knob Sympose reads. Global keys live in `config.yaml`, settable at
 | `vault.grounding_default` | str | `auto` | `auto` \| `strict` \| `trust` | yes | Vault-grounding enforcement when a persona sets no vault_grounding. auto = strict for local models, trust for cloud. |
 | `vault.daily_notes_folder` | str | `Daily` | — | yes | Vault folder for daily notes. |
 | `vault.daily_notes_format` | str | `Daily/%Y/%m-%B/%Y-%m-%d.md` | — | yes | strftime path for a daily note. |
-| `vault.ignore_folders` | list | `['.obsidian', '.git', 'Attachments', 'Drawings', 'Movies', '.trash', 'dot-files']` | — | yes | Folders excluded from vault search and indexing. |
+| `vault.ignore_folders` | list | `['.obsidian', '.git', 'Attachments', 'Drawings', '.trash']` | — | yes | Folders excluded from vault search and indexing. |
 | `vault.search_triggers` | list | `[]` | — | yes | Extra keywords that flag a message as a vault query (added to the built-ins). |
 | `vault.manifest.enabled` | bool | `True` | — | yes | Maintain a materialized structural map of the vault (nodes, links, folders) under the workspace for the persona and the dashboard graph (ADR-078). Built lazily on first use; set false to disable entirely. |
 | `vault.manifest.check_debounce_seconds` | float | `2.0` | ≥ 0 | yes | Minimum seconds between vault-manifest freshness scans; 0 disables the debounce. |

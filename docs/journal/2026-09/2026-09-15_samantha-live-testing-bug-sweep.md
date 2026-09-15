@@ -1141,6 +1141,83 @@ not provably grounded that turn — this fixes recognizing the *ritual*
 correctly from the first message, not "every named note is a verified
 pull." 698 tests passing.
 
+### 3.31 A standardized live-reliability check, and closing the fabricated-note gap it caught
+
+Ran §3.30's fix through 12 fresh, repeated live sessions (6 local
+`ollama/gemma4:e4b`, 6 cloud `gemini/gemini-3.6-flash` default) instead of
+trusting one anecdotal transcript — damiro's explicit ask, and a fair one:
+a local model samples at nonzero temperature, so one good run proves less
+than it feels like it does. Result: 6/6 local, 6/6 cloud behaviorally (one
+cloud reply described the exact right action without saying the word
+"roulette"). Real, repeatable win for §3.30.
+
+But every one of those 12 replies also claimed to have "pulled a random
+note" and named a specific movie — and checking the vault, most were real
+(`If I Stay.md`) but at least one, `Blade Runner`, was not: a straight
+fabrication of vault content, worse than the game-name mixup this session
+started with. Root cause: `resolve_turn_context`'s structural random-pull
+path only fires on literal phrasing ("random", "surprise me", "give me
+a..."); "let's play our favorite game" never matches it, so no real note
+is ever fetched on this path, on either model — the model fills the gap
+itself, sometimes with a real title by luck.
+
+Fix: when a matched memory fact (§3.30) itself describes a "random note is
+pulled" ritual — `VaultManager.describes_random_pull_ritual`, a generic
+keyword check, not tied to any one persona's wording — and no structural
+match already ran this turn, `VaultManager.resolve_ritual_random_pull`
+honors it for real: folder-scopes to any discovered folder named in the
+message (reusing case 7's own folder-matching), or samples the whole vault
+for a full-access persona. Reuses the existing `get_random_sample_notes`
+reader rather than a new content path, so it automatically carries the
+"Exact Content" marker — which means a full-access persona's existing
+citation-mismatch safety net (§3.14) now also covers this path for local/
+strict-mode models, for free.
+
+Also built `scripts/live_reliability_check.py` — a small, reusable,
+parameterized live-testing tool (message, models, run count, a
+success-substring check) so "does this actually work reliably" has a
+standing answer instead of a fresh ad hoc script each time. Not part of
+the pytest suite (it makes real LLM calls); a manual verification tool.
+
+706 tests passing (new coverage: `TestDescribesRandomPullRitual`,
+`TestResolveRitualRandomPull`).
+
+### 3.32 §3.31's random pull kept missing `Movies/` — traced to a month-old default, not today's code
+
+Re-running §3.31's fix live, the structural random-pull kept landing on
+unrelated notes (`Projects/Stern ISP/Bandwidth Computation.md`), and
+gemma4:e4b still narrated a specific, sometimes-nonexistent movie title
+even with that unrelated real note as its only ground truth for the turn.
+Checked why folder-scoping to `Movies/` never matched:
+`VaultManager.get_discovered_folders` (and the manifest behind it) both
+honor `vault.ignore_folders`, and Samantha's actual live workspace
+(`~/.sympose/config.yaml`, no override present) was inheriting Sympose's
+own shipped default for that setting - which included `Movies`. Not a
+manifest-staleness bug, not anything introduced this session: traced to
+**ADR-023** (2026-08-25). That ADR's own "Context" section is entirely
+about binary/config noise (`.obsidian/`, `Attachments/`, `Drawings/`,
+`.git/`, `.trash/`) causing search latency and read errors - but the
+actual decision list also included `Movies` and `dot-files`, neither of
+which fits that rationale (`Movies/` is plain markdown content; `dot-files`
+isn't even a folder that exists inside this vault). "Alternatives
+rejected" was blank. This meant a persona with full vault access
+(`vault_folders: ["*"]`) could never reach `Movies/` through the
+structural retrieval path — while the sub-agent's own shell commands
+ignore this list entirely and reached it anyway, so the two retrieval
+paths silently disagreed about what was in scope, and the "why didn't it
+find Movies" question could easily have been mistaken for a code bug
+(and briefly was, before checking the actual config).
+
+Removed `Movies` and `dot-files` from `vault.ignore_folders`'s shipped
+default in `config_schema.py`, leaving the five that actually match the
+ADR's own stated rationale (`.obsidian`, `.git`, `Attachments`,
+`Drawings`, `.trash`) - a generic, user-agnostic housekeeping list again,
+not a vault's own content-folder names baked into every install's
+default. Added a dated correction note to ADR-023 itself rather than
+rewriting its history. Regenerated `docs/wiki/reference/configuration.md`.
+706 tests passing (no test asserted the old list's exact contents, so
+nothing else needed updating).
+
 ## 6. Commits
 
 - `0e59da3` — fix(grounding): stop a denied premise from becoming settled

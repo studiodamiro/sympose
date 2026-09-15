@@ -87,6 +87,7 @@ graph TD
 * **[Action Tags Reference](./reference/action-tags.md):** Every `[TAG: args]` a persona can emit — `WRITE_NOTE`, `SPAWN_SUB_AGENT`, `CREATE_PERSONA`, and the rest — plus the malformed-tag warning contract.
 * **[Python API Reference](./reference/python-api.md):** Package internals, class hierarchies, and integration hooks.
 * **[Web Dashboard UI Design Reference](./reference/ui-design-reference.md):** The flat "Sovereign Craft" design brief — theme presets, semantic tokens, layout shell, per-screen artboards.
+* **[Vault Agent Capability Reference & Roadmap](./reference/vault-agent-capabilities.md):** What a `vault_read` sub-agent can already do deterministically, what data exists but isn't wired up yet (backlink counting), and what's genuinely unsolved (aggregate counting, full-corpus synthesis).
 
 ---
 

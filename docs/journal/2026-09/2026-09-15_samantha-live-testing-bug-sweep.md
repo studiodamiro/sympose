@@ -195,6 +195,76 @@ a directory from `config_manager.config_path` at all — it calls
 `server.py`/`slack.py` already use, so this class of drift can't recur even
 if some future caller repeats the original mistake.
 
+### 3.10 "What did we do last session?" routed to a vault crawl instead of Sympose's own local history
+
+Pasted transcript: asked Samantha "what did we do last session," she emitted
+`[SPAWN_SUB_AGENT: vault_recall]`, which crawled `<vault>/Daily/` (the user's
+personal journal folder) for six tool calls and 27 seconds, found nothing,
+and gave up. Two compounding problems, not one:
+
+- `vault_recall`'s ground rule ("answer not already in your pre-turn context
+  → spawn a sub-agent") has no notion of Sympose's own conversation history
+  at all, so any recall-shaped question defaults to a vault search — even
+  though ADR-054 already built exactly this recall as local `.jsonl` session
+  files (`SessionManager`), decoupled from the vault specifically to avoid
+  this kind of round trip.
+- Even where a Sympose session *is* archived to the vault (opt-in,
+  `session.exit_behavior.default_target: vault|both`), it lands in
+  `<vault>/Sessions/` (`obsidian_subfolder`), not `Daily/` — so the crawl was
+  searching the wrong tree regardless.
+
+Fix: `sympose/session_recall.py` (new, pure regex, mirrors `vault_recall.py`'s
+own split of intent-detection from orchestration) detects phrasings like
+"what did we do last session," "our last conversation," "pick up where we
+left off." `engine.py::chat_stream` now checks it alongside the existing
+`vault_ctx` resolution and, when it fires, injects a ground-truth
+"Local Sympose Session History" block — the persona's own most recent
+sessions (title, relative time, turn count) straight from `SessionManager`,
+the same in-process, zero-network mechanism vault_ctx already uses — and
+explicitly tells the model not to spawn `vault_recall` for this question.
+When no prior session exists, the block says so outright rather than leaving
+a gap for the model to fill by guessing. Zero added LLM round trips either
+way, matching the round-trip-frugality mandate this transcript's own crawl
+violated.
+
+### 3.11 Sub-agent inventing a fake reason for its own tool failure
+
+Same transcript: after its failed vault crawl, the sub-agent's report claimed
+it "could not be read within the tool execution budget due to sandbox
+restrictions on deep path traversal" — a real-sounding technical explanation
+that isn't anything the runtime actually enforces. Root cause traced to
+`native_tools.py::execute`'s `run_command`: every call is an independent
+`subprocess.run(cmd, shell=True, cwd=os.getcwd())`, so a `cd` in one call
+never carries over to the next. The sub-agent's own transcript showed it
+running `cd .../garden && ls -lt Daily`, then a separate `pwd` that came back
+to the original directory, then guessing relative paths with the leading `/`
+dropped (`Users/damiro/Development/garden/Daily`) that could never resolve —
+then, instead of reporting that mundane failure, fabricating a plausible
+excuse for it.
+
+`sub_agent_system.md` said "never simulate or invent outputs" but never
+mentioned that shell state doesn't persist across calls (the actual cause of
+the confusion) and had no directive at all against inventing an explanation
+for a failure once one occurred. Added directive 6 (STATELESS SHELL — always
+use absolute paths, `cd` doesn't persist) and directive 7 (HONEST FAILURE
+REPORTING — quote the tool's real error/output, never invent a technical
+reason it didn't give).
+
+### 3.12 TTFT SLA claim, investigated — no app-side bottleneck found
+
+The same transcript showed 2.9–6.1s TTFT against the documented sub-1.0s
+target, which read like a violation worth chasing. Checked every synchronous
+step on the hot path before `litellm.completion()` fires: `_select_turn_model`'s
+Ollama-warm probe (`urllib.request` against `/api/ps`, capped at 0.5s) — measured
+at ~27ms against this machine's actual Ollama instance; `VaultManager.resolve_turn_context` —
+pure regex for a non-matching message, no disk I/O; `build_system_prompt` —
+a handful of small local markdown reads; the vault manifest — mtime-gated and
+cached, not rebuilt per turn. None of it accounts for multi-second latency.
+Conclusion: for a cloud persona (Samantha runs `gemini/gemini-3.6-flash`),
+the observed TTFT is the provider's own network/inference latency, not
+Sympose-side blocking work — nothing to fix in the app for this one without
+manufacturing a change against evidence that doesn't support it.
+
 ## 4. Skill coverage pass
 
 Samantha carries 9 skills. All got at least one live pass this session:

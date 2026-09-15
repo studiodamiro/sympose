@@ -8,6 +8,7 @@ import re
 import shutil
 from typing import Any, ClassVar
 
+from sympose.config import config_manager
 from sympose.mcp import mcp_registry
 from sympose.native_tools import NativeTools
 from sympose.skills import skill_manager
@@ -232,8 +233,6 @@ class ActionProcessor:
                         and not str(note_content).startswith("Error")
                         and not str(note_content).startswith("⚠️")
                     ):
-                        from sympose.config import config_manager
-
                         render_mode = (
                             str(config_manager.get("performance.render_mode", "hybrid"))
                             .lower()
@@ -534,6 +533,13 @@ class ActionProcessor:
                     if config_manager.get("runtime.default_persona") == h_name:
                         config_manager.set("runtime.default_persona", "samantha")
                         config_manager.save()
+                    badges.append(
+                        f"> 🗑️ **{name} deleted persona:** `@{h_name}` (archived, not permanently erased)"
+                    )
+                else:
+                    badges.append(
+                        f"> ⚠️ **Persona `@{h_name}` not found** — nothing deleted."
+                    )
 
             elif tag == "WRITE_CANVAS" and "|" in inner:
                 parts = inner.split("|", 1)

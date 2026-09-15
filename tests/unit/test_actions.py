@@ -315,6 +315,59 @@ class TestExecuteActionsCreatePersonaSoulContent:
         assert (tmp_path / "broken.yaml").exists()
 
 
+class TestExecuteActionsConfigSetAndDeletePersona:
+    """Regression, found live: `config_manager` was only ever imported
+    locally inside the VIEW_NOTE branch. Since Python decides a name is
+    local to the whole function at compile time, that made `config_manager`
+    a local variable throughout execute_actions — so CONFIG_SET and
+    DELETE_PERSONA, which both reference it in their own branches with no
+    import of their own, crashed with `UnboundLocalError: cannot access
+    local variable 'config_manager'` any time they ran without a VIEW_NOTE
+    tag having already executed first in the same call. Confirmed live: a
+    plain "delete the testbot persona" request crashed outright. Fixed by
+    importing `config_manager` once at module scope instead."""
+
+    def test_config_set_alone_does_not_crash(self, monkeypatch):
+        import sympose.actions as actions_mod
+
+        calls = {}
+        monkeypatch.setattr(
+            actions_mod.config_manager, "set", lambda k, v: calls.setdefault("set", (k, v))
+        )
+        monkeypatch.setattr(actions_mod.config_manager, "save", lambda: calls.setdefault("saved", True))
+        pm = _FakeProfileManager()
+        _, badges = ActionProcessor.execute_actions(
+            pm, "test", "[CONFIG_SET: performance.stream | false]"
+        )
+        assert calls["set"] == ("performance.stream", False)
+        assert calls["saved"] is True
+        assert any("updated runtime configuration" in b for b in badges)
+
+    def test_delete_persona_alone_does_not_crash(self, tmp_path, monkeypatch):
+        import sympose.actions as actions_mod
+
+        monkeypatch.setattr(actions_mod.config_manager, "get", lambda k: "samantha")
+        (tmp_path / "testbot.yaml").write_text("name: Test Bot\nhandle: testbot\n")
+        (tmp_path / "testbot_soul.md").write_text("A friendly test assistant.")
+        pm = _FakeProfileManagerWithDisk(tmp_path)
+        _, badges = ActionProcessor.execute_actions(
+            pm, "test", "[DELETE_PERSONA: testbot]"
+        )
+        assert not (tmp_path / "testbot.yaml").exists()
+        assert (tmp_path / "_archived" / "testbot" / "testbot.yaml").exists()
+        assert any("deleted persona" in b for b in badges)
+
+    def test_delete_persona_not_found_gets_honest_badge(self, tmp_path, monkeypatch):
+        import sympose.actions as actions_mod
+
+        monkeypatch.setattr(actions_mod.config_manager, "get", lambda k: "samantha")
+        pm = _FakeProfileManagerWithDisk(tmp_path)
+        _, badges = ActionProcessor.execute_actions(
+            pm, "test", "[DELETE_PERSONA: ghost]"
+        )
+        assert any("not found" in b for b in badges)
+
+
 class _FakeProfileManagerWithMemory(_FakeProfileManager):
     def __init__(self, append_memory_result: bool = True):
         self._append_memory_result = append_memory_result

@@ -672,6 +672,58 @@ normal single-model-call turn instead of the 82-second, 7-tool-call
 detour — confirmed across three separate runs, each correctly quoting a
 real `Daily/` note.
 
+### 3.22 Correction: §3.21's "game" recognition was fitted to one user's data, not a product bug — reverted; found a real one instead
+
+Damiro pushed back on §3.21 directly: *"I just hope all these are user
+agnostic. we're just pointing out mistakes not really fine tuning based on
+my preference."* Right to. Two of that fix's four pieces were justified as
+recognizing "Sympose's own shipped ritual" — but grepping the actual
+codebase (skills, docs, everything outside this journal) turns up zero
+other reference to "Vault/Note Roulette" anywhere. It isn't a documented
+feature. It only exists in Damiro's own `samantha_memory.md`, written from
+his own conversation history. Hardcoding `(?:our|the)\s+(?:favorite\s+)?game`
+as a random-pull trigger, and adding "game"/"play"/"favorite" to the
+subject stopword list, into the *shared* vault-recall code meant a
+different user with a real "Game Night" folder, or who genuinely asks "what
+did I write about the game last night," would now have "game" silently
+swallowed as noise for no reason that applies to their vault at all.
+
+Reverted both (`vault.py`'s `is_sample_request` regex alternative,
+`vault_recall.py`'s three stopword additions). The other two pieces of
+§3.21 stand unchanged — `require_confident` (a common word must be a
+strong single/title match, not just present in several notes, regardless
+of *what* the word is) and the `actions.py` literal-message splice (carries
+forward whatever the user actually typed, regardless of *what* it says) —
+both are general by construction: nothing about them depends on this
+vault's content or this user's habits.
+
+While re-verifying the revert against a second live message from Damiro
+("...lets play our fave game. from thoughts folder perhaps?"), the
+sub-agent hit something that looked like a fabrication at first glance — a
+"Security Error: Command targets `Thoughts/` which is outside assigned
+vault sandbox" — but `grep`ping for that exact string found it's real code
+(`native_tools.py:241`), not invented. Traced the actual bug: a full-vault
+persona's `allowed_dirs` is just the vault root (`vault_folders: ["*"]`,
+same fact established back in §3.20), so
+`os.path.relpath(vault_root, vault_root)` is `"."` — the sibling-folder
+sandbox check's `allowed_rel` became the single-element set `{"."}`, and
+*every real subfolder name* failed `not in allowed_rel`, so any shell
+command naming `Thoughts/`, `Daily/`, or any other top-level folder got
+rejected as an out-of-sandbox sibling. This is universal: it blocks every
+full-vault-access persona from ever running a shell command that mentions
+any folder by name, for every user, regardless of vault content — a far
+more serious and far more general bug than anything in §3.21.
+
+Fix (`native_tools.py`): when any `allowed_dir` resolves to the vault root
+itself, the sibling-exclusion check is skipped entirely — there is no
+sibling to be outside of when the whole vault *is* the sandbox. Verified
+directly: the exact blocked command now succeeds and lists `Thoughts/`'s
+real contents; a genuinely narrower persona (`vault_folders: ["Notes"]`)
+is still correctly blocked from a real sibling (`Secret/`) it wasn't given,
+and still works inside its own folder. Re-ran Damiro's second live message
+end to end: the sub-agent now reads `Thoughts/` successfully with no
+security error, finds and quotes a real note from it. 668 tests passing.
+
 ## 4. Skill coverage pass
 
 Samantha carries 9 skills. All got at least one live pass this session:

@@ -1377,11 +1377,7 @@ class VaultManager:
         sample_match = re.search(
             r"\b(?:random(?:ly)?|randam|rnd|surprise\s+me|a\s+random|any\s+(?:random\s+)?(?:one|note|entry|day)|"
             r"some\s+(?:random\s+)?(?:note|entry|day)|(?:pick|choose|grab|pull\s+up|show|give)\s+(?:me\s+)?(?:a|an|one|any)\b|"
-            r"one\s+of\s+(?:my|the|our)|whatever\s+comes\s+up|"
-            # Sympose's own shipped ritual (see the persona memory fact "...
-            # favorite game is 'Vault/Note Roulette', where a random note is
-            # pulled") — naming it *is* the random-pull ask, not a topic.
-            r"(?:our|the)\s+(?:favorite\s+)?game)\b",
+            r"one\s+of\s+(?:my|the|our)|whatever\s+comes\s+up)\b",
             msg,
             re.IGNORECASE,
         )

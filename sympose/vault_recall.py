@@ -187,13 +187,6 @@ _SUBJECT_STOPWORDS: frozenset = frozenset(
         "latest",
         "old",
         "past",
-        # "let's play our favorite game" names an established ritual (Sympose's
-        # own "Vault/Note Roulette" - a random-note pull), not a vault topic;
-        # these describe the activity itself, never something worth searching
-        # note bodies for.
-        "game",
-        "play",
-        "favorite",
         # stray retrieval verbs that can leak past the lead-in scan
         "grab",
         "get",

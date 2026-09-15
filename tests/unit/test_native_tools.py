@@ -54,6 +54,55 @@ class TestShellAllowlist:
         assert "No command provided" in out
 
 
+class TestSiblingFolderSandboxCheck:
+    """Live bug: a full-vault-access persona (`vault_folders: ["*"]`) has an
+    `allowed_dirs` of just the vault root itself. `os.path.relpath(root,
+    root)` is `"."`, so the sibling-folder check's `allowed_rel` was just
+    `{"."}` - every real subfolder name failed `not in allowed_rel` and got
+    rejected as an out-of-sandbox sibling, blocking a command that named
+    *any* top-level folder at all, for every full-access persona. A
+    narrowly-scoped persona (`vault_folders: ["Notes"]`, say) must still be
+    genuinely blocked from a real sibling it wasn't given."""
+
+    def test_full_vault_access_can_target_any_real_subfolder(self, tmp_path, monkeypatch):
+        (tmp_path / "Thoughts").mkdir()
+        (tmp_path / "Thoughts" / "a.md").write_text("hi")
+        monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_path))
+
+        ok, out = NativeTools.execute(
+            "run_command",
+            {"command": f'find "{tmp_path}/Thoughts" -type f'},
+            allowed_dirs=[str(tmp_path)],
+        )
+        assert ok is True
+        assert "Security Error" not in out
+
+    def test_scoped_persona_still_blocked_from_a_real_sibling(self, tmp_path, monkeypatch):
+        (tmp_path / "Notes").mkdir()
+        (tmp_path / "Secret").mkdir()
+        monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_path))
+
+        ok, out = NativeTools.execute(
+            "run_command",
+            {"command": f'find "{tmp_path}/Secret" -type f'},
+            allowed_dirs=[str(tmp_path / "Notes")],
+        )
+        assert ok is False
+        assert "Security Error" in out and "Secret" in out
+
+    def test_scoped_persona_can_still_target_its_own_folder(self, tmp_path, monkeypatch):
+        (tmp_path / "Notes").mkdir()
+        (tmp_path / "Notes" / "a.md").write_text("hi")
+        monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_path))
+
+        ok, out = NativeTools.execute(
+            "run_command",
+            {"command": f'find "{tmp_path}/Notes" -type f'},
+            allowed_dirs=[str(tmp_path / "Notes")],
+        )
+        assert ok is True
+
+
 class TestShellCommandTimeout:
     """sub_agent.shell_command_timeout (ADR-077): was a hardcoded `timeout=20`
     literal at the subprocess.run call site, now a declared config knob."""

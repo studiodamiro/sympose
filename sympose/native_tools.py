@@ -220,7 +220,20 @@ class NativeTools:
 
             if allowed_dirs:
                 mv = os.getenv("MASTER_VAULT_PATH")
-                if mv and os.path.exists(mv):
+                # A persona with full vault access (`vault_folders: ["*"]`)
+                # has an `allowed_dirs` of just the vault root itself, whose
+                # relpath to itself is "." - every real subfolder name then
+                # fails the `not in allowed_rel` check below and gets
+                # rejected as a "sibling" outside the sandbox, even though
+                # the whole vault *is* the sandbox. Live bug: a full-access
+                # persona's sub-agent got a fabricated-looking "Security
+                # Error" blocking `Thoughts/` (and would block every other
+                # top-level folder identically) purely because of how full
+                # access happens to be represented, not any real boundary.
+                has_full_vault_access = bool(mv) and any(
+                    os.path.realpath(d) == os.path.realpath(mv) for d in allowed_dirs
+                )
+                if mv and os.path.exists(mv) and not has_full_vault_access:
                     allowed_rel = {os.path.relpath(d, mv).lower() for d in allowed_dirs}
                     try:
                         all_subdirs = [

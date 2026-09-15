@@ -892,11 +892,6 @@ class TestExtractRecallSubject:
         assert self._subj("pull up a random daily entry")[0] == ""
         assert self._subj("surprise me with any note")[0] == ""
 
-    def test_game_continuation_phrasing_has_no_subject(self):
-        # "lets play our favorite game" names Sympose's own shipped ritual
-        # ("Vault Roulette" - a random note pull), not a vault topic.
-        assert self._subj("lets play our favorite game")[0] == ""
-
 
 class TestRecallHitConfidence:
     """Regression: `_recall_candidates` decomposes a multi-word subject down
@@ -1057,19 +1052,21 @@ class TestResolveTurnContextConversational:
         assert ctx is not None
         assert "entropy" in ctx and "insurance" not in ctx
 
-    def test_naming_the_established_game_still_triggers_a_random_pull(
+    def test_game_reference_decomposed_to_a_common_word_is_not_trusted_as_a_digest(
         self, tmp_vault_dir, monkeypatch
     ):
         """Regression, found live: "lets play our favorite game. lets do
-        from Daily folder. g?" - a continuation of a ritual already
-        established via conversation history and persona memory (Sympose's
-        own "Vault Roulette") - decomposed to the single word "favorite",
-        which loosely matched several unrelated notes and was accepted as a
-        digest. Separately, the short trailing "g?" ("go") survived
-        stopword-trimming as a one-letter fallback "subject" and would have
-        blocked the random-sample path just as effectively. Naming the
-        established game is itself the random-pull ask, not a topic to
-        search for."""
+        from Daily folder. g?" - a continuation of a ritual established only
+        in this user's own persona memory ("Vault Roulette" is not a
+        documented Sympose feature, so it isn't recognised structurally
+        here) - decomposed to the single word "favorite", which loosely
+        matched an unrelated note and was accepted as a digest anyway. This
+        stays a thin, honest "daily" digest instead: no `Exact Content`
+        marker, and no note mentioning "favorite" pulled in on that
+        strength alone. Whether "our game" means anything is left entirely
+        to the model's own memory, not hardcoded here — recognising one
+        user's private ritual by name would misfire for anyone else's vault
+        (a real "Game Night" folder, say)."""
         from sympose.vault import VaultManager
 
         monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
@@ -1077,18 +1074,29 @@ class TestResolveTurnContextConversational:
             str(tmp_vault_dir / "Daily" / "2024-12-21.md"),
             "# Day\n\nA quiet, uneventful day.\n",
         )
+        # Two loose matches, not one — a single hit is still confident (a
+        # real title/only match can legitimately be trusted); the bug is
+        # specifically about *several* unrelated notes sharing one common
+        # decomposed word.
         write_note(
             str(tmp_vault_dir / "Thoughts" / "On Preference.md"),
             "# On Preference\n\nMy favorite color is blue.\n",
+        )
+        write_note(
+            str(tmp_vault_dir / "Thoughts" / "On Music.md"),
+            "# On Music\n\nMy favorite band changes every year.\n",
         )
 
         ctx = VaultManager.resolve_turn_context(
             self._profile(),
             "lets play our favorite game. lets do from Daily folder. g?",
         )
-        assert ctx is not None
-        assert "Exact Content" in ctx
-        assert "quiet, uneventful day" in ctx and "favorite color" not in ctx
+        # Whether anything gets returned at all is incidental here (this
+        # tiny fixture has nothing else for a folder-name-as-keyword
+        # fallback to match); what matters is that "favorite" never gets
+        # trusted as a confident hit for either unrelated note.
+        assert ctx is None or "Exact Content" not in ctx
+        assert not ctx or ("favorite color" not in ctx and "favorite band" not in ctx)
 
     def test_topic_folder_search_is_a_digest_not_full_body(
         self, tmp_vault_dir, monkeypatch

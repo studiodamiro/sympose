@@ -74,11 +74,19 @@ class PersonaEngine:
     )
     # A reply that asserts it is reporting the user's own vault content. If one
     # of these fires and no retrieval ran this turn, a strict-grounding persona
-    # is fabricating — the reply is withheld.
+    # is fabricating — the reply is withheld. The last alternative is a
+    # structural signal rather than a phrase: a vault-shaped file path (e.g.
+    # "General/Personal Philosophy.md" in a fabricated "Source:" citation)
+    # can only be legitimate here if a retrieval actually produced it, and
+    # this regex is only ever consulted when it didn't (see the `not
+    # has_sub_agent` guard around its call sites) — so a bare path match is
+    # as damning as the wording-based alternatives, without having to
+    # enumerate every way a model can dress up an invented note.
     _VAULT_CLAIM_RE = re.compile(
         r"(what you (?:wrote|written|noted|said) about|here'?s (?:a |the )?summary of what you|"
         r"your (?:entry|note|journal entry|vault note)\b|in your vault\b|from your vault\b|"
-        r"you (?:describe|mention|write about) .{0,40}\bin (?:your|the) (?:vault|journal|notes?)\b)",
+        r"you (?:describe|mention|write about) .{0,40}\bin (?:your|the) (?:vault|journal|notes?)\b|"
+        r"[\w][\w \-]*(?:/[\w][\w \-]*)+\.md\b)",
         re.IGNORECASE,
     )
     _NAME_STOP = frozenset(

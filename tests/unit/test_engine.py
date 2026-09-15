@@ -147,6 +147,25 @@ class TestVaultClaimRegex:
     def test_claim_mid_sentence_still_caught(self, engine):
         assert engine._VAULT_CLAIM_RE.search("in your vault, there are many notes")
 
+    def test_fabricated_note_path_citation_is_caught(self, engine):
+        """Live failure: asked "ever heard of random note pull?", a local
+        model invented a "Wild Card Note Pull" card citing a fake source path
+        ("**Source:** `General/Personal Philosophy.md`") and a full invented
+        passage, with no `[SPAWN_SUB_AGENT: ...]` tag anywhere in the reply -
+        so no wording in the old alternatives ("in your vault", "your note",
+        ...) ever appeared and the fabrication streamed straight through."""
+        assert engine._VAULT_CLAIM_RE.search(
+            "**Source:** `General/Personal Philosophy.md` (A canvas you "
+            "created six months ago)"
+        )
+        assert engine._VAULT_CLAIM_RE.search("Source: People/Dylan.md")
+
+    def test_unrelated_dotted_path_not_mistaken_for_a_note(self, engine):
+        """The path alternative is scoped to `.md` specifically so ordinary
+        talk about code files (a `.py`/`.json` path with no bearing on the
+        vault) doesn't trip the same fabrication catch."""
+        assert not engine._VAULT_CLAIM_RE.search("check src/app.py for that")
+
 
 class TestEntityGuess:
     def test_pull_x_entry(self, engine):

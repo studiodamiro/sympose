@@ -265,6 +265,27 @@ the observed TTFT is the provider's own network/inference latency, not
 Sympose-side blocking work — nothing to fix in the app for this one without
 manufacturing a change against evidence that doesn't support it.
 
+### 3.13 `_VAULT_CLAIM_RE`'s phrase list missed a structurally-fabricated note
+
+Same seed transcript, a later turn: asked "ever heard of random note pull?",
+the overridden local model invented a whole "Wild Card Note Pull" card —
+`**Source:** \`General/Personal Philosophy.md\` (A canvas you created six
+months ago)`, fake tags, a fully invented passage — with no
+`[SPAWN_SUB_AGENT: ...]` tag anywhere in the reply. `_VAULT_CLAIM_RE` (the
+net that's supposed to catch a strict-grounding persona's un-retrieved vault
+claim and withhold it) only fires on a fixed phrase list ("in your vault",
+"your note", ...); the fabrication never used any of them, so it streamed
+straight through — same failure class as §3.6, a different regex miss.
+
+Rather than add another phrase to chase the next rewording, added a
+structural alternative: a vault-shaped file path ending `.md` (e.g.
+`General/Personal Philosophy.md`). The regex is only ever consulted when
+`not has_sub_agent` — no retrieval ran this turn — so any specific `.md`
+path appearing in the reply at that point can only be invented; there's no
+legitimate way for the model to know a real vault path without having
+retrieved it first. Scoped to `.md` specifically so it doesn't trip on
+ordinary mentions of code files (`src/app.py`).
+
 ## 4. Skill coverage pass
 
 Samantha carries 9 skills. All got at least one live pass this session:

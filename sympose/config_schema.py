@@ -66,6 +66,18 @@ SETTINGS: tuple[Setting, ...] = (
         _PERF,
     ),
     Setting(
+        "performance.local_model_keep_alive",
+        "dict",
+        {},
+        "Per-model Ollama residency override, keyed by exact model id (e.g. "
+        "\"ollama/llama3.1:8b\": \"30m\"). Wins over a persona's own "
+        "keep_alive and local_keep_alive above — the right place to set "
+        "this once two or more personas share the same local model, since "
+        "keep_alive is a property of the loaded model, not the persona "
+        "calling it. Edit config.yaml directly; not settable via `/config set`.",
+        _PERF,
+    ),
+    Setting(
         "performance.max_context_turns",
         "int",
         15,
@@ -455,6 +467,8 @@ def coerce(setting: Setting, raw: Any) -> Any:
             raise ValueError(f"`{raw}` is not a boolean (use true/false)")
         if setting.type == "list":
             return [p.strip() for p in r.split(",") if p.strip()]
+        if setting.type == "dict":
+            raise ValueError("edit config.yaml directly for this key (not a single-value set)")
         return r  # str
     except ValueError as e:
         if setting.type in ("int", "float"):

@@ -167,6 +167,61 @@ class TestVaultClaimRegex:
         assert not engine._VAULT_CLAIM_RE.search("check src/app.py for that")
 
 
+class TestResolveKeepAlive:
+    """keep_alive is a property of which model is loaded into Ollama, not
+    which persona calls it. `performance.local_model_keep_alive` (keyed by
+    exact model id) is the one source of truth once two personas share a
+    model; a persona's own `keep_alive` and the global
+    `performance.local_keep_alive` are progressively broader fallbacks.
+
+    `engine.config` is the process-wide singleton (this machine's real
+    config.yaml, not a fixture-scoped copy), so every test here snapshots
+    and restores the two keys it touches rather than assuming a blank slate."""
+
+    @pytest.fixture(autouse=True)
+    def _isolate_config(self, engine):
+        orig_global = engine.config.get("performance.local_keep_alive")
+        orig_per_model = engine.config.get("performance.local_model_keep_alive")
+        yield
+        engine.config.set("performance.local_keep_alive", orig_global)
+        engine.config.set("performance.local_model_keep_alive", orig_per_model)
+
+    def test_no_config_defers_to_none(self, engine):
+        engine.config.set("performance.local_keep_alive", None)
+        engine.config.set("performance.local_model_keep_alive", {})
+        assert engine._resolve_keep_alive({}, "ollama/llama3.1:8b") is None
+
+    def test_global_fallback_applies_to_any_local_model(self, engine):
+        engine.config.set("performance.local_keep_alive", "30m")
+        assert engine._resolve_keep_alive({}, "ollama/llama3.1:8b") == "30m"
+
+    def test_persona_keep_alive_wins_over_global(self, engine):
+        engine.config.set("performance.local_keep_alive", "30m")
+        assert (
+            engine._resolve_keep_alive({"keep_alive": -1}, "ollama/llama3.1:8b")
+            == -1
+        )
+
+    def test_per_model_entry_wins_over_persona_and_global(self, engine):
+        engine.config.set("performance.local_keep_alive", "30m")
+        engine.config.set(
+            "performance.local_model_keep_alive", {"ollama/llama3.1:8b": 0}
+        )
+        assert (
+            engine._resolve_keep_alive({"keep_alive": -1}, "ollama/llama3.1:8b")
+            == 0
+        )
+
+    def test_per_model_entry_for_a_different_model_does_not_apply(self, engine):
+        engine.config.set(
+            "performance.local_model_keep_alive", {"ollama/other:1b": 0}
+        )
+        assert (
+            engine._resolve_keep_alive({"keep_alive": -1}, "ollama/llama3.1:8b")
+            == -1
+        )
+
+
 class TestEntityGuess:
     def test_pull_x_entry(self, engine):
         assert (

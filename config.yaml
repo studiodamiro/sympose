@@ -3,8 +3,11 @@ performance:
   local_request_timeout: 120.0
   # Residency hint passed to local (ollama/…) calls only: -1 forever, 0 unload
   # now, "30m" a duration. Unset = defer to the OLLAMA_KEEP_ALIVE server env
-  # var. A persona YAML `keep_alive` overrides this.
+  # var. A persona YAML `keep_alive` overrides this; local_model_keep_alive
+  # below (keyed by exact model id) overrides both — the source of truth
+  # once two personas ever share the same local model.
   local_keep_alive: -1
+  local_model_keep_alive: {}
   max_context_turns: 15
   max_sub_agent_tool_turns: 8
   drop_unsupported_params: true

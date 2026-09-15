@@ -22,6 +22,7 @@ Every runtime knob Sympose reads. Global keys live in `config.yaml`, settable at
 | `performance.request_timeout` | float | `30.0` | ≥ 1 | yes | Cloud-model HTTP timeout, seconds. |
 | `performance.local_request_timeout` | float | `120.0` | ≥ 1 | yes | Local (ollama/…) model timeout, seconds. |
 | `performance.local_keep_alive` | str | *(unset)* | — | yes | Ollama residency hint: -1 forever, 0 unload, '30m'. Unset = defer to OLLAMA_KEEP_ALIVE. |
+| `performance.local_model_keep_alive` | dict | `{}` | — | yes | Per-model Ollama residency override, keyed by exact model id (e.g. "ollama/llama3.1:8b": "30m"). Wins over a persona's own keep_alive and local_keep_alive above — the right place to set this once two or more personas share the same local model, since keep_alive is a property of the loaded model, not the persona calling it. Edit config.yaml directly; not settable via `/config set`. |
 | `performance.max_context_turns` | int | `15` | ≥ 1 | yes | Conversation turns kept in the model context window. |
 | `performance.resume_context_turns` | int | `6` | ≥ 0 | yes | Turns rehydrated when resuming a saved session. |
 | `performance.max_sub_agent_tool_turns` | int | `8` | ≥ 1 | yes | Tool-call budget for a sub-agent before a forced synthesis. |

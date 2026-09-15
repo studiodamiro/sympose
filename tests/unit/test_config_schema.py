@@ -31,14 +31,14 @@ class TestSchemaIntegrity:
 
     def test_types_are_supported(self):
         for s in SETTINGS:
-            assert s.type in ("int", "float", "bool", "str", "list")
+            assert s.type in ("int", "float", "bool", "str", "list", "dict")
 
     def test_default_matches_type(self):
         for s in SETTINGS:
             if s.default is None:
                 continue
             expect = {"int": int, "float": (int, float), "bool": bool,
-                      "str": str, "list": list}[s.type]
+                      "str": str, "list": list, "dict": dict}[s.type]
             assert isinstance(s.default, expect), f"{s.key} default {s.default!r} not {s.type}"
 
     def test_global_and_persona_partition(self):
@@ -53,7 +53,11 @@ def _flatten(d, prefix=""):
     out = {}
     for k, v in d.items():
         p = f"{prefix}{k}"
-        if isinstance(v, dict):
+        # An empty dict is a leaf value (a "dict"-typed setting's default,
+        # e.g. performance.local_model_keep_alive), not a namespace to
+        # recurse into - every real namespace (performance.*, vault.*, ...)
+        # has at least one key, so this can't misfire on one of those.
+        if isinstance(v, dict) and v:
             out.update(_flatten(v, p + "."))
         else:
             out[p] = v
@@ -136,6 +140,13 @@ class TestCoerce:
     def test_bad_bool_raises(self):
         with pytest.raises(ValueError, match="boolean"):
             coerce(get_setting("performance.stream"), "maybe")
+
+    def test_dict_type_rejects_cli_set(self):
+        """A per-model map (performance.local_model_keep_alive) can't be
+        expressed as a single CLI value — coerce must refuse it rather than
+        silently overwrite the whole map with a raw string."""
+        with pytest.raises(ValueError, match="config.yaml directly"):
+            coerce(get_setting("performance.local_model_keep_alive"), "foo")
 
 
 class TestValidate:

@@ -319,6 +319,38 @@ since that interaction is exactly the kind of thing a pure unit test would
 miss. Zero added LLM round trips or latency either way — purely exposing
 data the loop already had.
 
+### 3.15 `keep_alive` moved from a per-persona knob to a per-model one
+
+Follow-up from a plain question while poking at the local-routing config:
+"should it be per model?" `keep_alive` residency is really a property of
+which model Ollama has loaded, not which persona happens to be calling it —
+`_grounding_mode`'s own warm-up measurements (ADR-122) already key
+everything off the model string via `/api/ps`. The persona-scoped
+`keep_alive` field (`config_schema.py`) worked fine under the current
+1-persona-1-local-model reality, but if a second persona were ever pointed
+at the same Ollama model with a different `keep_alive`, the two would just
+stomp on each other's residency on every call — Ollama applies whatever
+value arrived with the most recent request, there's no merge.
+
+Also found in the process: `_build_kwargs` and `_select_turn_model` each
+independently re-implemented the same `profile.keep_alive` →
+`performance.local_keep_alive` fallback chain — a second copy of the same
+resolution logic, the exact thing ADR-077 exists to prevent.
+
+Added `performance.local_model_keep_alive` (`config_schema.py`) — a dict
+setting, keyed by exact model id, new territory for the schema (only
+int/float/bool/str/list existed before). `coerce()` refuses it from
+`/config set` (a whole map can't be a single CLI value) rather than
+silently clobbering it with a raw string. `PersonaEngine._resolve_keep_alive`
+is the new single resolution path, called from both prior call sites:
+per-model entry wins (the source of truth once a model is shared), else the
+persona's own `keep_alive`, else the global `local_keep_alive`, else defer
+to `OLLAMA_KEEP_ALIVE`. `test_config_schema.py`'s `_flatten` test helper
+needed one adjustment: it treated any dict as a namespace to recurse into,
+which swallowed a dict-*valued* leaf setting whose default is `{}` — fixed
+by only recursing into non-empty dicts, since every real namespace
+(`performance.*`, `vault.*`, ...) always has at least one key.
+
 ## 4. Skill coverage pass
 
 Samantha carries 9 skills. All got at least one live pass this session:

@@ -363,6 +363,28 @@ class PersonaEngine:
                     )
         return res
 
+    def _resolve_keep_alive(
+        self, profile: dict[str, Any], model: str
+    ) -> str | int | None:
+        """Ollama residency for `model`. keep_alive is a property of which
+        model is loaded into Ollama, not which persona is calling it — two
+        personas pointed at the same model string but different keep_alive
+        values would otherwise just overwrite each other's residency on
+        every call. So `performance.local_model_keep_alive[model]` (keyed by
+        exact model id) is the one source of truth once that happens; a
+        persona's own `keep_alive` covers the common single-persona case
+        without needing an entry in that map; `performance.local_keep_alive`
+        is the blanket fallback; None leaves it to the server-wide
+        OLLAMA_KEEP_ALIVE env var. Accepts -1 (forever), 0 (unload now), or
+        a duration string like "30m"."""
+        per_model = self.config.get("performance.local_model_keep_alive") or {}
+        if model in per_model:
+            return per_model[model]
+        ka = profile.get("keep_alive")
+        if ka is not None:
+            return ka
+        return self.config.get("performance.local_keep_alive")
+
     def _build_kwargs(
         self,
         target_model: str,
@@ -394,13 +416,7 @@ class PersonaEngine:
         if profile.get("api_base"):
             kwargs["api_base"] = profile["api_base"]
         if is_loc:
-            # Per-persona residency override for local backends: persona YAML
-            # `keep_alive` wins, else `performance.local_keep_alive`, else leave
-            # it to the server-wide OLLAMA_KEEP_ALIVE env var. Accepts -1
-            # (forever), 0 (unload now), or a duration string like "30m".
-            ka = profile.get("keep_alive")
-            if ka is None:
-                ka = self.config.get("performance.local_keep_alive")
+            ka = self._resolve_keep_alive(profile, target_model)
             if ka is not None:
                 kwargs["keep_alive"] = ka
             kwargs["stop"] = list(self._LOCAL_RUNAWAY_STOP_SEQUENCES)
@@ -433,9 +449,7 @@ class PersonaEngine:
             or VaultManager.has_recall_intent(clean_input)
         ):
             return target_model, False
-        keep_alive = profile.get("keep_alive")
-        if keep_alive is None:
-            keep_alive = self.config.get("performance.local_keep_alive")
+        keep_alive = self._resolve_keep_alive(profile, local_model)
         return resolve_turn_model(
             target_model, local_model, clean_input, keep_alive=keep_alive
         )

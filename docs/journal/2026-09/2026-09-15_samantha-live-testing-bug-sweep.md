@@ -852,6 +852,54 @@ action") - an honest description of a turn-by-turn mechanism, not a
 fabricated always-on one. Confirmed nothing was written to the vault
 during the test run either, matching that honesty. 677 tests passing.
 
+### 3.26 Fixing the two flagged-but-deferred issues from §3.23/3.25
+
+Damiro asked to fix both remaining flagged items.
+
+**The daily-folder result was thin, not wrong — but tracing it turned up
+something worse hiding one step further out.** Investigating why "I'm
+bored, let's play our favorite game... from daily folder" still produced
+theatrical framing led to case 8 (`vault.py`'s unscoped conversational
+fallback): once case 7's folder-scoped subject search found nothing
+confident, case 8 retried the *same* decomposed candidates **vault-wide**
+- and "bored" (from "I'm bored," pure mood, not a topic) turned out to be
+a confident single-title match against a totally unrelated `Quotes/` note
+in the real vault, returned as full-body "Exact Content" - which disables
+strict grounding for the turn entirely. Worse than the thin digest it
+looked like at first glance. Fix: track whether a real folder was already
+named and tried (`folder_scope_matched`); skip case 8's vault-wide
+re-broadening when it was, since the user already narrowed the scope and a
+failed, *scoped* attempt shouldn't be answered by silently dropping that
+scope. (A parallel attempt to also raise the confidence bar on case 7's
+own folder-name-as-keyword fallback was tried and reverted - it broke
+§3.16's intentional "ambiguous topic-in-folder → safe digest, not full
+body" behavior, which is a different, legitimate use of that same
+fallback line. The vault-wide re-broadening was the actual bug; the
+thin, honestly-marked "daily" digest that remains is a real, safe,
+non-fabricating result.)
+
+**Verbosity/over-formatting** — checked live: a casual emotional exchange
+("actually both, the problem is I'm not expressive...") got answered with
+invented jargon ("System Interface Constraint," "Translator and
+Amplifier"), bold section headers, and numbered lists — documentation
+formatting applied to an ordinary conversational reply, regardless of
+whether the *topic* was casual or deep. Fix (`profiles.py`): a new
+runtime-level, name-parameterized "Match The Moment" block, positioned as
+the true final block (after "No Phantom Actions," same recency reasoning
+as everything else placed there) - deliberately not a universal "always
+be brief" rule (a persona whose own soul file calls for elaborate prose
+should stay elaborate), but a structural instruction to match formatting
+to what the specific message needs; a casual reply doesn't need headers
+regardless of what any persona's own voice sounds like.
+
+Both verified live against the real model and real Samantha profile: the
+daily-folder message now returns the safe, honest "daily" search digest
+(no fabricated confident match, no theatrical wheel-spinning) and a plain-
+prose reply; the emotional-topic message came back as a single flowing
+paragraph with zero headers, bold titles, or lists — not perfectly terse
+(still a small-model, still has room to ramble), but structurally correct
+this time. 679 tests passing.
+
 ## 4. Skill coverage pass
 
 Samantha carries 9 skills. All got at least one live pass this session:

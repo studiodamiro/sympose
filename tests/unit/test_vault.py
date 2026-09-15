@@ -1098,6 +1098,37 @@ class TestResolveTurnContextConversational:
         assert ctx is None or "Exact Content" not in ctx
         assert not ctx or ("favorite color" not in ctx and "favorite band" not in ctx)
 
+    def test_folder_scoped_message_does_not_re_broaden_to_the_whole_vault(
+        self, tmp_vault_dir, monkeypatch
+    ):
+        """Regression, found live: "I'm bored, let's play our favorite
+        game... from daily folder" - once case 7's folder-scoped attempt
+        found nothing confident, case 8 retried the same decomposed subject
+        *unscoped*, and "bored" (from "I'm bored") happened to be a
+        confident single-title match against a totally unrelated Quotes/
+        note - full body, "Exact Content", disabling strict grounding for
+        the turn, for a note with zero connection to what was actually
+        asked. Once a real folder has already been named and tried, the
+        broader vault-wide fallback must not re-open the scope the user
+        explicitly narrowed."""
+        from sympose.vault import VaultManager
+
+        monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
+        write_note(
+            str(tmp_vault_dir / "Daily" / "2025-01-01.md"), "# Day\n\nQuiet start.\n"
+        )
+        write_note(
+            str(tmp_vault_dir / "Quotes" / "bored.md"),
+            "# On boredom\n\nBoredom is the mother of invention.\n",
+        )
+
+        ctx = VaultManager.resolve_turn_context(
+            self._profile(),
+            "im bored, lets play our favorite game. from daily folder. g?",
+        )
+        assert ctx is None or "Exact Content" not in ctx
+        assert not ctx or "mother of invention" not in ctx
+
     def test_topic_folder_search_is_a_digest_not_full_body(
         self, tmp_vault_dir, monkeypatch
     ):

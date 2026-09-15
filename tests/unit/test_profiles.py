@@ -156,15 +156,17 @@ class TestBuildSystemPromptOrdering:
         mem_idx = prompt.index("Vault Roulette")
         stay_idx = prompt.index("### Stay Sam")
         phantom_idx = prompt.index("### No Phantom Actions")
+        moment_idx = prompt.index("### Match The Moment")
         assert stay_idx > mem_idx, (
             "the persona-consistency reinforcement must come after memory"
         )
         assert phantom_idx > stay_idx, (
-            "the no-phantom-actions reinforcement must be the final block"
+            "the no-phantom-actions reinforcement must come after Stay {name}"
         )
-        assert prompt.rstrip().endswith(
-            "it must be saved again, that turn, with a real tag."
+        assert moment_idx > phantom_idx, (
+            "the match-the-moment reinforcement must be the final block"
         )
+        assert prompt.rstrip().endswith("not by default.")
 
     def test_no_phantom_actions_block_names_the_live_failure_pattern(
         self, tmp_path
@@ -182,6 +184,26 @@ class TestBuildSystemPromptOrdering:
 
         assert "describing an action is not doing it" in prompt
         assert "no such mechanism" in prompt
+
+    def test_match_the_moment_block_forbids_over_formatting_casual_replies(
+        self, tmp_path
+    ):
+        """Live bug: a casual back-and-forth got answered with markdown
+        headers, bold section titles, numbered lists, and an emoji-labelled
+        "Summary & Commitment" - documentation formatting for an ordinary
+        conversational reply. Not a universal brevity rule - a persona
+        whose own soul file calls for elaborate prose should stay that way;
+        this is about matching structure to what the message needs."""
+        (tmp_path / "sam.yaml").write_text(
+            "name: Sam\nhandle: sam\nsoul_file: sam_soul.md\n"
+        )
+        (tmp_path / "sam_soul.md").write_text("# Sam\nYou are Sam.\n")
+
+        pm = ProfileManager(profiles_dir=str(tmp_path))
+        prompt = pm.build_system_prompt(pm.get_profile("sam"))
+
+        assert "no markdown headers, bold section titles" in prompt
+        assert "fewest sentences that fully address" in prompt
 
     def test_stay_in_character_block_adapts_to_any_persona_name(self, tmp_path):
         """A runtime-level fix, not a per-persona prompt edit: every persona

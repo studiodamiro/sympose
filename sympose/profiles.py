@@ -448,6 +448,28 @@ class ProfileManager:
             "later, it must be saved again, that turn, with a real tag."
         )
 
+        # Same reasoning, same position, a third failure mode: a casual
+        # back-and-forth got answered with markdown headers, bold section
+        # titles, numbered lists, and an emoji-labelled "Summary &
+        # Commitment" - documentation formatting applied to an ordinary
+        # reply. This isn't a universal "always be brief" rule (a persona
+        # whose own definition above calls for elaborate prose should stay
+        # elaborate) - it's about matching structure to what THIS message
+        # actually needs, which a casual exchange rarely does regardless of
+        # what any persona's voice sounds like.
+        prompt_parts.append(
+            "### Match The Moment\n"
+            "Format follows the request, not the topic's weight. A casual "
+            "conversational reply is prose — no markdown headers, bold "
+            "section titles, numbered lists, or emoji labels, even for a "
+            "deep or emotional topic. Reserve that structure for when the "
+            "user actually asks for a plan, comparison, written note, or "
+            "analysis. Answer in the fewest sentences that fully address "
+            "the question; add more only because the question needs it or "
+            "your own definition above specifically calls for it — not by "
+            "default."
+        )
+
         return "\n\n".join(prompt_parts)
 
     def _append_to_file(self, file_path: str, fact: str) -> tuple[bool, list[str]]:

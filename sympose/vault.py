@@ -1460,10 +1460,16 @@ class VaultManager:
         ]
         has_intent = any(k in msg.lower() for k in triggers)
 
+        # Set when the message names a real folder case 7 below actually
+        # tried and came up empty for - used to keep case 8 from then
+        # re-broadening the same request to the whole vault (see there).
+        folder_scope_matched = False
+
         if has_intent and discovered_dirs:
             for folder_name, folder_path in discovered_dirs.items():
                 f_stem = folder_name.rstrip("s")
                 if re.search(rf"\b{re.escape(f_stem)}\w*\b", msg, re.IGNORECASE):
+                    folder_scope_matched = True
                     if is_sample_request and not subject:
                         samples = cls.get_random_sample_notes(
                             profile, folder_name, count=1
@@ -1503,7 +1509,18 @@ class VaultManager:
         # 8. Conversational recall fallback — search the extracted subject,
         #    retrying progressively narrower so a multi-word phrase that
         #    substring-matches nothing still surfaces its salient notes.
-        if (has_intent or had_leadin) and subject and len(subject) >= 3:
+        #    Skipped when the message already named a real folder (case 7
+        #    just tried it, scoped, and found nothing confident there) -
+        #    live bug: re-running the same decomposed candidates unscoped
+        #    let "bored" (from "I'm bored, let's play...") match an
+        #    unrelated Quotes/ note vault-wide, silently dropping the
+        #    folder the user actually asked for.
+        if (
+            (has_intent or had_leadin)
+            and subject
+            and len(subject) >= 3
+            and not folder_scope_matched
+        ):
             for i, cand in enumerate(cls._recall_candidates(subject)):
                 hit = cls._recall_hit(profile, cand, require_confident=i > 0)
                 if hit:

@@ -17,7 +17,7 @@ import os
 from typing import Any, Callable
 
 from sympose import vault_index, vault_paths
-from sympose.config import config_manager
+from sympose.config import config_manager, is_safe_path
 
 log = logging.getLogger(__name__)
 
@@ -86,16 +86,31 @@ def search_structured(
     if not mv or not allowed_dirs:
         return []
 
-    search_dirs = (
-        [
-            d
-            for d in allowed_dirs
-            if os.path.basename(d).lower() == target_folder.lower()
-        ]
-        if target_folder
-        else allowed_dirs
-    )
-    search_dirs = search_dirs or allowed_dirs
+    if target_folder:
+        # `allowed_dirs` only ever holds the persona's *root* access points
+        # (for a full-vault `["*"]` persona, that's just the vault itself) -
+        # matching a named folder against their basenames alone misses any
+        # actual subfolder, like `Thoughts/` under the vault root. Resolve it
+        # the same way discovery elsewhere in the vault module does: either
+        # an allowed dir's own name, or an immediate child of one.
+        tf_lower = target_folder.lower()
+        resolved = next(
+            (d for d in allowed_dirs if os.path.basename(d).lower() == tf_lower),
+            None,
+        )
+        if resolved is None:
+            for d in allowed_dirs:
+                candidate = os.path.join(d, target_folder)
+                if os.path.isdir(candidate) and is_safe_path(candidate, d):
+                    resolved = candidate
+                    break
+        # A named folder that can't be resolved is a scope miss, not an
+        # invitation to search the whole vault instead - that silent
+        # widening is exactly what let an unrelated note answer a request
+        # meant to be confined to one folder.
+        search_dirs = [resolved] if resolved else []
+    else:
+        search_dirs = allowed_dirs
 
     query_clean = query.lower().strip().strip("\"'")
     if not query_clean:

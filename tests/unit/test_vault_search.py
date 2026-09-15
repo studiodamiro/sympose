@@ -85,12 +85,6 @@ class TestSearchStructuredContentMatch:
 
 class TestSearchStructuredTargetFolder:
     def test_restricts_to_named_folder(self, tmp_vault_dir, monkeypatch):
-        # target_folder only narrows the search when the persona's own
-        # allowed_dirs are themselves per-folder (e.g. vault_folders:
-        # ["Notes", "Journal"]) — a wildcard persona's single allowed_dir is
-        # the vault root, whose basename never matches a target_folder name,
-        # so the filter falls back to searching everything (see the
-        # unknown-folder test below, which exercises that same fallback).
         monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
         write_note(str(tmp_vault_dir / "Notes" / "a.md"), "mentions widget")
         write_note(str(tmp_vault_dir / "Journal" / "b.md"), "also mentions widget")
@@ -100,7 +94,25 @@ class TestSearchStructuredTargetFolder:
         assert len(results) == 1
         assert results[0]["rel_path"] == "Notes/a.md"
 
-    def test_unknown_target_folder_falls_back_to_all_allowed_dirs(
+    def test_restricts_to_a_subfolder_of_a_wildcard_persona(
+        self, tmp_vault_dir, monkeypatch
+    ):
+        # A wildcard (`vault_folders: ["*"]`) persona's only allowed_dir is
+        # the vault root itself — "Notes" never appears in that list by
+        # name, only as a subfolder under it. Regression: this used to make
+        # the folder filter match nothing, which silently fell through to
+        # searching the whole vault instead of just "Notes" (see the
+        # unresolvable-folder test below for that old fallback's replacement).
+        monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
+        write_note(str(tmp_vault_dir / "Notes" / "a.md"), "mentions widget")
+        write_note(str(tmp_vault_dir / "Journal" / "b.md"), "also mentions widget")
+        results = VaultManager.search_structured(
+            {"vault_folders": ["*"]}, "widget", target_folder="Notes"
+        )
+        assert len(results) == 1
+        assert results[0]["rel_path"] == "Notes/a.md"
+
+    def test_unresolvable_target_folder_returns_nothing_rather_than_everything(
         self, tmp_vault_dir, monkeypatch
     ):
         monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
@@ -108,7 +120,7 @@ class TestSearchStructuredTargetFolder:
         results = VaultManager.search_structured(
             {"vault_folders": ["*"]}, "widget", target_folder="NoSuchFolder"
         )
-        assert len(results) == 1
+        assert results == []
 
 
 class TestSearchStructuredMaxResults:

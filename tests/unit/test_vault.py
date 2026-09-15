@@ -983,6 +983,36 @@ class TestResolveTurnContextConversational:
         )
         assert ctx is not None and "quiet morning" in ctx
 
+    def test_reflex_reaction_opener_does_not_block_a_random_folder_sample(
+        self, tmp_vault_dir, monkeypatch
+    ):
+        """Regression, found live: "hmmm.. not really what I expected. It
+        should be a random note from the thoughts folder" guessed the
+        subject "hmmm" from the reflex-reaction opener, which then blocked
+        the random-sample path (a guessed subject is treated as a named
+        target) and sent "hmmm" to a vault-wide word search instead, which
+        happened to surface an unrelated Daily note. A low-confidence
+        subject guess disconnected from the sentence that actually makes the
+        random-note ask must not stop the sampler from firing."""
+        from sympose.vault import VaultManager
+
+        monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
+        write_note(
+            str(tmp_vault_dir / "Thoughts" / "a.md"), "# Thoughts\n\nOn entropy.\n"
+        )
+        write_note(
+            str(tmp_vault_dir / "Daily" / "2025-02-05.md"),
+            "# Day\n\nHmmm, bought life insurance today.\n",
+        )
+
+        ctx = VaultManager.resolve_turn_context(
+            self._profile(),
+            'hmmm.. not really what I expected. It should be a random note '
+            'from the "thoughts" folder.',
+        )
+        assert ctx is not None
+        assert "entropy" in ctx and "insurance" not in ctx
+
     def test_topic_folder_search_is_a_digest_not_full_body(
         self, tmp_vault_dir, monkeypatch
     ):

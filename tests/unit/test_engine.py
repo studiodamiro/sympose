@@ -124,6 +124,53 @@ class TestIsFullBodyVaultCtx:
         )
 
 
+class TestVaultCtxCitationMismatch:
+    """Live bug: even handed a real, correctly-retrieved note body, a local
+    model invented a *different*, fictional note (a plausible-looking but
+    nonexistent path) instead of quoting the one it was actually given —
+    "Exact Content" being present doesn't mean the model used it. This check
+    catches a reply naming a note path that never appears anywhere in the
+    ground-truth it was handed, so `chat_stream` can swap the invented
+    answer for the real one rather than trust it."""
+
+    def test_reply_citing_a_different_path_is_a_mismatch(self, engine):
+        vault_ctx = (
+            "### Ground-Truth Sandboxed Vault Note (`Daily/2023-05-17.md` "
+            "- Exact Content):\n# Day\n\nStudy more react.\n"
+        )
+        reply = "**Retrieved Note: `Thoughts/hmmm.md`**\n\nSome invented text."
+        assert engine._vault_ctx_citation_mismatch(reply, vault_ctx)
+
+    def test_reply_quoting_the_real_path_is_not_a_mismatch(self, engine):
+        vault_ctx = (
+            "### Ground-Truth Sandboxed Vault Note (`Thoughts/A.md` "
+            "- Exact Content):\n# Thoughts\n\nOn entropy.\n"
+        )
+        reply = "From `Thoughts/A.md`:\n\n# Thoughts\n\nOn entropy."
+        assert not engine._vault_ctx_citation_mismatch(reply, vault_ctx)
+
+    def test_reply_naming_no_path_at_all_is_not_flagged(self, engine):
+        # No structural signal to check against - can't be verified without
+        # a second model call, which stays a known residual gap rather than
+        # something forced through a false-positive block.
+        vault_ctx = (
+            "### Ground-Truth Sandboxed Vault Note (`Thoughts/A.md` "
+            "- Exact Content):\n# Thoughts\n\nOn entropy.\n"
+        )
+        reply = "You wrote a nice reflection on entropy and joy."
+        assert not engine._vault_ctx_citation_mismatch(reply, vault_ctx)
+
+    def test_no_vault_ctx_is_never_a_mismatch(self, engine):
+        assert not engine._vault_ctx_citation_mismatch("Some/Made.md up path", None)
+
+    def test_strip_vault_ctx_headers_leaves_only_the_body(self, engine):
+        vault_ctx = (
+            "### Ground-Truth Sandboxed Vault Note (`Thoughts/A.md` "
+            "- Exact Content):\n# Thoughts\n\nOn entropy.\n"
+        )
+        assert engine._strip_vault_ctx_headers(vault_ctx) == "# Thoughts\n\nOn entropy."
+
+
 class TestGroundingModeKnob:
     """`vault_grounding: auto` derives strict/trust from the model: a local
     backend (or localhost api_base) → strict, cloud → trust. An explicit

@@ -1348,15 +1348,37 @@ class VaultManager:
         )
         # Only an *explicit* ask for an arbitrary note — "pull"/"grab"/"get"/
         # "pick" alone are not it ("pull up Dylan's entry" names a target).
-        is_sample_request = bool(
-            re.search(
-                r"\b(?:random(?:ly)?|randam|rnd|surprise\s+me|a\s+random|any\s+(?:random\s+)?(?:one|note|entry|day)|"
-                r"some\s+(?:random\s+)?(?:note|entry|day)|(?:pick|choose|grab|pull\s+up|show|give)\s+(?:me\s+)?(?:a|an|one|any)\b|"
-                r"one\s+of\s+(?:my|the|our)|whatever\s+comes\s+up)\b",
-                msg,
-                re.IGNORECASE,
-            )
+        sample_match = re.search(
+            r"\b(?:random(?:ly)?|randam|rnd|surprise\s+me|a\s+random|any\s+(?:random\s+)?(?:one|note|entry|day)|"
+            r"some\s+(?:random\s+)?(?:note|entry|day)|(?:pick|choose|grab|pull\s+up|show|give)\s+(?:me\s+)?(?:a|an|one|any)\b|"
+            r"one\s+of\s+(?:my|the|our)|whatever\s+comes\s+up)\b",
+            msg,
+            re.IGNORECASE,
         )
+        is_sample_request = bool(sample_match)
+
+        # A low-confidence subject guess (no explicit recall lead-in like
+        # "pull up notes on X") that comes from an earlier sentence than the
+        # one actually making the random-note ask is filler, not a named
+        # target — live bug: "hmmm.. not really what I expected. It should
+        # be a random note from the thoughts folder" guessed the subject
+        # "hmmm" from the reflex-reaction opener, which then blocked the
+        # random-sample path below and sent an unrelated word to a vault-wide
+        # search instead. Checked by sentence co-occurrence rather than an
+        # enumerable filler-word list, so it generalises to any interjection.
+        # A confident lead-in match is never cleared this way even if the
+        # message also happens to mention "random" elsewhere.
+        if subject and not had_leadin and sample_match:
+            request_sentence = next(
+                (
+                    s
+                    for s in re.split(r"[.?!]+\s+", msg)
+                    if sample_match.group(0).lower() in s.lower()
+                ),
+                "",
+            )
+            if subject not in request_sentence.lower():
+                subject = ""
 
         if is_chrono_query and is_sample_request and not subject:
             chrono_notes = cls.find_chronological_notes(profile)

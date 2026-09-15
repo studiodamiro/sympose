@@ -161,12 +161,51 @@ class PersonaEngine:
         `### Ground-Truth ... (... Exact Content):` returns), or a thin digest
         (a search-results list, a backlink index, the structural manifest) that
         only gives titles/snippets/counts. Only the former is strong enough
-        grounding to suspend strict mode's fabrication check for the turn —
-        live bug: a "thoughts" search digest (title + one-line snippet per
-        note) was enough to turn strict off entirely, and the model filled the
-        gap between snippet and full note with an invented essay that nothing
-        caught."""
+        grounding to suspend strict mode's *retrieval-enforcement* fallback
+        for the turn — live bug: a "thoughts" search digest (title + one-line
+        snippet per note) was enough to turn strict off entirely, and the
+        model filled the gap between snippet and full note with an invented
+        essay that nothing caught. Citation verification (below) still runs
+        on a full body — a real note being available doesn't guarantee the
+        model actually used it."""
         return bool(vault_ctx) and "Exact Content" in vault_ctx
+
+    # Same structural shape as the last `_VAULT_CLAIM_RE` alternative, reused
+    # here to extract every note path a piece of text names - both the ones
+    # the model's reply claims to be quoting and the ones actually present in
+    # the ground-truth it was handed - so the two can be compared.
+    _VAULT_PATH_TOKEN_RE = re.compile(
+        r"[\w][\w \-]*(?:/[\w][\w \-]*)+\.(?:md|markdown|txt)\b", re.IGNORECASE
+    )
+
+    @classmethod
+    def _vault_ctx_citation_mismatch(cls, clean_text: str, vault_ctx: str | None) -> bool:
+        """True when `clean_text` names a vault note path that appears
+        nowhere in the ground-truth `vault_ctx` actually injected this turn —
+        i.e. the model swapped in an invented path instead of the real one it
+        was given. Live bug: handed the real content of
+        `Daily/2023/05-May/2023-05-17.md`, gemma4:e4b answered with a
+        plausible-looking but entirely fictional `Thoughts/hmmm.md` instead
+        of quoting what it actually had. Silent (False) when the reply names
+        no path at all — that prose-only case isn't checkable without a
+        second model call to compare meaning, which conflicts with Sympose's
+        round-trip-frugal design, so it stays a known residual gap rather
+        than something this catches."""
+        if not vault_ctx:
+            return False
+        reply_paths = {p.lower() for p in cls._VAULT_PATH_TOKEN_RE.findall(clean_text)}
+        if not reply_paths:
+            return False
+        ctx_paths = {p.lower() for p in cls._VAULT_PATH_TOKEN_RE.findall(vault_ctx)}
+        return not (reply_paths & ctx_paths)
+
+    @staticmethod
+    def _strip_vault_ctx_headers(vault_ctx: str) -> str:
+        """Drops the internal `### Ground-Truth ...` bookkeeping headers from
+        a resolved vault context, leaving just the real note body/bodies to
+        show the user directly when the model's own retelling of them can't
+        be trusted."""
+        return re.sub(r"(?m)^### Ground-Truth[^\n]*\n?", "", vault_ctx).strip()
 
     def _grounding_mode(self, profile: dict[str, Any], target_model: str) -> str:
         """`strict` → the runtime enforces vault retrieval itself; `trust` →
@@ -628,9 +667,15 @@ class PersonaEngine:
             handle, profile, clean_input, vault_ctx, target_model
         )
 
-        strict = self._grounding_mode(
-            profile, call_model
-        ) == "strict" and not self._is_full_body_vault_ctx(vault_ctx)
+        grounding_mode = self._grounding_mode(profile, call_model)
+        is_full_body_ctx = self._is_full_body_vault_ctx(vault_ctx)
+        strict = grounding_mode == "strict" and not is_full_body_ctx
+        # A real note body being present doesn't guarantee the model actually
+        # relayed it faithfully - hold the stream here too so a mismatched
+        # citation can be caught and swapped for the real thing before the
+        # user ever sees the invented one.
+        verify_ctx = grounding_mode == "strict" and is_full_body_ctx
+        hold_stream = strict or verify_ctx
 
         try:
             stream_val = bool(self.config.get("performance.stream"))
@@ -660,8 +705,10 @@ class PersonaEngine:
             held: list[str] = []
             for piece in self._visible_stream(response, sink):
                 # strict-grounding personas hold the model's text until we know
-                # whether it fabricated an un-retrieved vault answer.
-                if strict:
+                # whether it fabricated an un-retrieved vault answer, or (when
+                # a real note was already given) cited a different one than
+                # the one it actually has.
+                if hold_stream:
                     held.append(piece)
                 else:
                     yield piece
@@ -680,6 +727,19 @@ class PersonaEngine:
             has_retrieval = has_sub_agent or any("Web Search" in b for b in badges)
 
             forced_answer = None
+            if verify_ctx and not has_sub_agent and self._vault_ctx_citation_mismatch(
+                clean_text, vault_ctx
+            ):
+                # A real note was handed to the model this turn and it named
+                # a different one instead of quoting what it actually had -
+                # discard the invented reply and show the real note directly
+                # rather than trusting a second attempt to do better.
+                clean_text = (
+                    "That's not what I actually have — here's the real note:\n\n"
+                    + self._strip_vault_ctx_headers(vault_ctx or "")
+                )
+                held = [clean_text]
+
             if strict and not has_sub_agent:
                 # The model neither had pre-turn context nor spawned a sub-agent.
                 # If a vault subject is in play, retrieve it ourselves; if it is
@@ -747,7 +807,7 @@ class PersonaEngine:
                     )
                     clean_text = forced_answer
 
-            if strict:
+            if hold_stream:
                 # Emit what survived the check: the candid line, or the model's
                 # own text when it did not need forcing.
                 if forced_answer is not None:

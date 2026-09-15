@@ -522,6 +522,84 @@ content change. Re-verified against the real, unmodified pipeline: the real
 and the same real model answers the same real question correctly on the
 first try.
 
+### 3.20 A folder-scoped "random note" request went to the wrong folder — then the model ignored the correct note anyway
+
+Asked (in the live CLI) for a random note from the "thoughts" folder,
+followed by a frustrated correction: *"hmmm.. not really what I expected. It
+should be a random note from the 'thoughts' folder."* Samantha replied with
+a wholly fictional journal entry (system-design musings about `stylo`,
+"architectural inertia," entropy) with no vault path cited at all — not the
+real "not really what I expected" issue, but a symptom of two upstream
+retrieval bugs plus a third, harder one in the model itself. Diagnosed each
+against the real vault (`MASTER_VAULT_PATH=~/Development/garden`) and the
+real model rather than guessing:
+
+**Bug A — a filler opener was mistaken for the search subject.**
+`extract_recall_subject` (`vault_recall.py`) splits a message into
+sentences and takes the first one with any leftover words as "the subject
+you named," with no way to tell a real topic from a reflex reaction. Traced
+directly: `extract_recall_subject('hmmm.. not really what I expected. It
+should be a random note from the "thoughts" folder.')` → `('hmmm', False)`.
+Once "hmmm" was treated as a named subject, `resolve_turn_context`
+(`vault.py`) skipped the random-sample branch (a named subject means "search
+for that," not "give me anything") and searched the whole vault for the word
+"hmmm" instead — landing on an unrelated 2023 Daily note that happened to
+contain it, mislabeled `matched 'hmmm' in `thoughts/`` even though it isn't
+in that folder. Fix: when a low-confidence subject guess (no explicit recall
+lead-in, e.g. "pull up notes on X") comes from a sentence that isn't the one
+actually containing the random-request phrase ("a random note", "pick one
+of...", etc.), clear it — checked by sentence co-occurrence with the
+already-matched random-request pattern, not an enumerable filler-word list,
+so it generalizes to any interjection ("well", "so", "uh", ...) the same
+way. A genuinely named subject with its own explicit lead-in is untouched.
+
+**Bug B — folder scoping silently did nothing for a full-access persona.**
+Samantha's `vault_folders: ['*']` means her `allowed_dirs` is just the vault
+root — "Thoughts" never appears in that list by name, only as a subfolder
+under it. `search_structured`'s target-folder filter
+(`vault_search.py`) matched only against `allowed_dirs`' own basenames, and
+when that matched nothing, `search_dirs = search_dirs or allowed_dirs`
+silently widened the search to the *entire vault* instead of reporting a
+scope miss. Confirmed directly:
+`VaultManager.search_structured(profile, "hmmm", target_folder="thoughts")`
+returned a hit from `Daily/2023/05-May/2023-05-17.md` — nowhere near
+Thoughts. Fix: resolve `target_folder` the same way folder discovery
+elsewhere in the module already does (an allowed dir's own name, or an
+immediate child of one) and return no results when it can't be resolved,
+rather than falling back to an unscoped search.
+
+**Bug C — even handed the real note, the model invented a different one
+anyway.** With both retrieval bugs fixed, `resolve_turn_context` now
+correctly returns a genuine random note from `Thoughts/`. Fed that exact
+system prompt + real note straight to `ollama/gemma4:e4b` twice: both times
+it fabricated a plausible-sounding but nonexistent note (`Thoughts/hmmm.md`
+with the note's own filler line echoed back as "content"; separately,
+`Thoughts/On the Nature of Entropy and Joy.md`, a full invented essay) — the
+`vault_recall` skill's explicit "every statement is a verbatim quote" rule
+notwithstanding. Damiro asked directly: can this be forced to *always* be
+grounded in truth, not just given the material and hoped? The existing
+strict-mode fabrication catch (`_VAULT_CLAIM_RE`) only ever ran when *no*
+vault content was given at all (`_is_full_body_vault_ctx` == False) — a real
+note being present was treated as sufficient on its own, which this
+disproved live.
+
+Fix (`engine.py`): a new, purely structural check —
+`_vault_ctx_citation_mismatch` — extracts any vault-note-shaped path the
+model's reply names and any such path actually present in the `vault_ctx`
+it was handed; if the reply names one and it matches none of the real ones,
+that's fabrication, checkable without a second model call (comparing
+prose *meaning* against the note, rather than a cited *path*, would need
+one, and stays a known residual gap rather than something silently claimed
+as solved). `chat_stream` now holds the stream for this case too (as it
+already did for the no-context strict path) and, on a mismatch, discards
+the invented reply and shows the real note directly — no extra round trip,
+consistent with the round-trip-frugality mandate. Re-verified against the
+live pipeline end to end, `chat_stream("samantha", <the real message>)`
+against the real model, twice: one run fabricated again and got corrected
+to the real "I on Thoughts About Gods.md" / "Online Resources.md" notes;
+another run the model quoted the real note correctly and passed through
+untouched — no false positive.
+
 ## 4. Skill coverage pass
 
 Samantha carries 9 skills. All got at least one live pass this session:

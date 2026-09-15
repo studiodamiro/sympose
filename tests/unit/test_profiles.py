@@ -165,6 +165,25 @@ class TestFindRelevantMemoryFact:
         assert "Vault Roulette" in hit
 
 
+class TestGetPrimaryUserName:
+    """Extracted out of build_system_prompt so other call sites (engine.py's
+    entity guessing, which needs to know the user's own name is never a
+    recall subject) can reuse it instead of hardcoding any one user's name."""
+
+    def test_reads_the_name_field_from_user_profile(self, tmp_path):
+        (tmp_path / "user_profile.md").write_text("- Name: Alex\n")
+        pm = ProfileManager(profiles_dir=str(tmp_path))
+        assert pm.get_primary_user_name() == "Alex"
+
+    def test_falls_back_to_os_user_when_profile_has_no_name_field(
+        self, tmp_path, monkeypatch
+    ):
+        monkeypatch.setenv("USER", "someone")
+        (tmp_path / "user_profile.md").write_text("# Notes\n\nUnrelated content.\n")
+        pm = ProfileManager(profiles_dir=str(tmp_path))
+        assert pm.get_primary_user_name() == "someone"
+
+
 class TestBuildSystemPromptOrdering:
     """Regression, found live: a small local model's recall of a fact in
     persona working memory was unreliable when that block sat early in the

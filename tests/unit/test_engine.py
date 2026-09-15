@@ -171,6 +171,61 @@ class TestVaultCtxCitationMismatch:
         assert engine._strip_vault_ctx_headers(vault_ctx) == "# Thoughts\n\nOn entropy."
 
 
+class TestVaultCtxTitleMissing:
+    """Live bug, confirmed by repeated live runs: handed a real note -
+    regardless of topic - gemma4:e4b narrated a specific, unrelated,
+    sometimes nonexistent title in prose instead of referencing what it
+    actually had, every time. `_vault_ctx_citation_mismatch` doesn't catch
+    this since the fabricated reply names no path at all; this sibling
+    check catches the same failure from the other side: the real note's
+    own title never showing up anywhere in the reply."""
+
+    def test_real_note_title_never_mentioned_is_flagged(self, engine):
+        vault_ctx = (
+            "### Ground-Truth Sandboxed Vault Note (`Movies/Monster.md` "
+            "- Exact Content):\n# Monster\n\nA true-crime character study.\n"
+        )
+        reply = "The random note pulled is about *Arrival*. The film explores..."
+        assert engine._vault_ctx_title_missing(reply, vault_ctx)
+
+    def test_real_note_title_mentioned_is_not_flagged(self, engine):
+        vault_ctx = (
+            "### Ground-Truth Sandboxed Vault Note (`Movies/Monster.md` "
+            "- Exact Content):\n# Monster\n\nA true-crime character study.\n"
+        )
+        reply = "The note pulled is about *Monster* - a true-crime character study."
+        assert not engine._vault_ctx_title_missing(reply, vault_ctx)
+
+    def test_short_generic_stem_is_not_flagged(self, engine):
+        """A stem under 4 characters (e.g. a single-letter or terse note
+        name) is skipped - too likely to coincidentally appear (or not)
+        in ordinary prose to be a reliable signal either way. Known,
+        accepted trade-off: a genuinely short real title like "Her" is
+        skipped by the same rule and this check simply never fires for it,
+        rather than risk being noisy on short/common words in general."""
+        vault_ctx = (
+            "### Ground-Truth Sandboxed Vault Note (`Thoughts/A.md` "
+            "- Exact Content):\n# Thoughts\n\nOn entropy.\n"
+        )
+        reply = "You wrote a nice reflection on entropy and joy."
+        assert not engine._vault_ctx_title_missing(reply, vault_ctx)
+
+    def test_no_vault_ctx_is_never_flagged(self, engine):
+        assert not engine._vault_ctx_title_missing("Anything at all.", None)
+
+    def test_at_least_one_of_several_sampled_notes_mentioned_is_enough(
+        self, engine
+    ):
+        vault_ctx = (
+            "### Ground-Truth Sandboxed Vault Note (`Movies/Monster.md` "
+            "- Exact Content):\nAbout Monster.\n\n---\n\n"
+            "### Ground-Truth Sandboxed Vault Note (`Movies/Limitless.md` "
+            "- Exact Content):\nAbout Limitless.\n"
+        )
+        reply = "One of the pulled notes was about *Limitless* and a smart drug."
+        assert not engine._vault_ctx_title_missing(reply, vault_ctx)
+
+
 class TestGroundingModeKnob:
     """`vault_grounding: auto` derives strict/trust from the model: a local
     backend (or localhost api_base) → strict, cloud → trust. An explicit
@@ -326,6 +381,31 @@ class TestEntityGuess:
 
     def test_nothing_when_no_subject(self, engine):
         assert engine._entity_guess("yes, just summarize", "sure go ahead") == ""
+
+    def test_extra_stop_suppresses_a_dynamic_name(self, engine):
+        """The active user's and personas' own names are resolved per
+        install (chat_stream builds this set from ProfileManager, not a
+        fixed list) - any name can be excluded this way, not just one
+        install's own. Regression: this used to be a hardcoded class-level
+        set of one user's actual persona names, which would never have
+        worked for a different install's own names."""
+        assert (
+            engine._entity_guess(
+                "what did I say about Grace last year", extra_stop={"grace"}
+            )
+            == ""
+        )
+
+    def test_a_name_not_in_extra_stop_is_unaffected(self, engine):
+        """Same message, same mechanism - a name only gets suppressed when
+        the caller actually passes it, proving this isn't tied to any
+        specific literal name in the code itself."""
+        assert (
+            engine._entity_guess(
+                "what did I say about Grace last year", extra_stop={"dylan"}
+            )
+            == "Grace"
+        )
 
     def test_ignores_sentence_initial_capitalisation(self, engine):
         """Regression: the tier-2 fallback accepted *any* capitalised word,

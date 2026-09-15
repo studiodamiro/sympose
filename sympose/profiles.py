@@ -328,6 +328,27 @@ class ProfileManager:
                 best_line, best_overlap = line, overlap
         return best_line
 
+    def get_primary_user_name(self) -> str:
+        """The vault owner's own name, read from `profiles/user_profile.md`'s
+        Name/User/Primary User field, falling back to the OS username or
+        "User". Extracted so other call sites (e.g. engine.py's entity
+        guessing, which needs to know this name is never itself a vault
+        recall subject) can reuse it instead of hardcoding any one user's
+        actual name."""
+        user_card = self._read_file_safe(
+            os.path.join(self.profiles_dir, "user_profile.md")
+        )
+        m = re.search(
+            r"[-*]?\s*(?:\*\*|__)?(?:Primary\s+User|User|Name)(?:\*\*|__)?\s*:\s*([^\n\r]+)",
+            user_card,
+            re.IGNORECASE,
+        )
+        return (
+            m.group(1).strip().strip("*_`")
+            if m and m.group(1).strip()
+            else (os.getenv("USER") or "User")
+        )
+
     def _read_file_safe(self, path: str | None) -> str:
         if not path:
             return ""
@@ -361,16 +382,7 @@ class ProfileManager:
         user_card = self._read_file_safe(
             os.path.join(self.profiles_dir, "user_profile.md")
         )
-        m = re.search(
-            r"[-*]?\s*(?:\*\*|__)?(?:Primary\s+User|User|Name)(?:\*\*|__)?\s*:\s*([^\n\r]+)",
-            user_card,
-            re.IGNORECASE,
-        )
-        primary_user = (
-            m.group(1).strip().strip("*_`")
-            if m and m.group(1).strip()
-            else (os.getenv("USER") or "User")
-        )
+        primary_user = self.get_primary_user_name()
 
         v_folders = profile.get("vault_folders") or [
             profile.get("vault_folder", "General")

@@ -104,10 +104,6 @@ class PersonaEngine:
             "skills",
             "vault",
             "note",
-            "damiro",
-            "anais",
-            "grace",
-            "samantha",
             "hello",
             "hi",
             "hey",
@@ -187,6 +183,40 @@ class PersonaEngine:
         ctx_paths = {p.lower() for p in cls._VAULT_PATH_TOKEN_RE.findall(vault_ctx)}
         return not (reply_paths & ctx_paths)
 
+    _FILENAME_EXT_RE = re.compile(r"\.(?:md|markdown|txt)$", re.IGNORECASE)
+
+    @classmethod
+    def _vault_ctx_title_missing(cls, clean_text: str, vault_ctx: str | None) -> bool:
+        """True when a real note was handed to the model this turn and its
+        reply never mentions that note's own title at all - the residual gap
+        `_vault_ctx_citation_mismatch` (above) leaves open by design: a
+        reply naming zero paths isn't a mismatch by that check's own logic,
+        but zero paths is also exactly what a model saying nothing real at
+        all looks like. Live bug, confirmed by repeated live runs: handed a
+        real note - any real note, regardless of topic - gemma4:e4b
+        narrated a specific, unrelated, sometimes entirely fictional title
+        in prose instead of quoting or even referencing what it actually
+        had, every single time. Deliberately a presence check, not a
+        meaning check (no second model call, same round-trip-frugal
+        reasoning as the sibling check) - flags only when NONE of the real
+        note(s)' own titles appear anywhere in the reply, so a reply that
+        paraphrases around the real title without repeating it verbatim is
+        a false negative here, not a false positive; and a short/generic
+        stem (under 4 characters) is skipped to keep that rare miss from
+        becoming a noisy one."""
+        if not vault_ctx:
+            return False
+        ctx_paths = cls._VAULT_PATH_TOKEN_RE.findall(vault_ctx)
+        stems = {
+            cls._FILENAME_EXT_RE.sub("", p.rsplit("/", 1)[-1]).strip().lower()
+            for p in ctx_paths
+        }
+        stems = {s for s in stems if len(s) >= 4}
+        if not stems:
+            return False
+        low = clean_text.lower()
+        return not any(re.search(rf"\b{re.escape(s)}\b", low) for s in stems)
+
     @staticmethod
     def _strip_vault_ctx_headers(vault_ctx: str) -> str:
         """Drops the internal `### Ground-Truth ...` bookkeeping headers from
@@ -253,10 +283,21 @@ class PersonaEngine:
         return re.sub(r"['’]s?$", "", word).strip()
 
     @classmethod
-    def _entity_guess(cls, *texts: str) -> str:
+    def _entity_guess(
+        cls, *texts: str, extra_stop: frozenset[str] | set[str] = frozenset()
+    ) -> str:
         """Best-effort name/subject of a recall request across a few candidate
         strings (current message, then recent history), for the strict-grounding
-        forced retrieval. Returns '' when nothing looks like a subject."""
+        forced retrieval. Returns '' when nothing looks like a subject.
+
+        `extra_stop` is for names that are never a legitimate recall subject
+        in *this* install specifically - the active user and personas, who
+        are conversants, not a note topic - resolved dynamically by the
+        caller (`chat_stream`) rather than hardcoded here, since any fixed
+        set of names would only ever match one install's own user/personas
+        and would wrongly suppress a genuine subject with the same name for
+        anyone else."""
+        stop = cls._NAME_STOP | {s.lower() for s in extra_stop}
         for text in texts:
             if not text:
                 continue
@@ -270,7 +311,7 @@ class PersonaEngine:
             )
             if m:
                 cand = cls._depossess(m.group(1).strip().rstrip(".,!?"))
-                if cand and cand.lower() not in cls._NAME_STOP:
+                if cand and cand.lower() not in stop:
                     return cand
             # Fallback: any other Capitalised word — but only mid-sentence.
             # Sentence-initial capitalisation is just English grammar (or a
@@ -282,7 +323,7 @@ class PersonaEngine:
                 if start == 0 or re.search(r"[.!?]\s$", text[max(0, start - 2) : start]):
                     continue
                 d = cls._depossess(cm.group(0))
-                if d and d.lower() not in cls._NAME_STOP:
+                if d and d.lower() not in stop:
                     return d
         return ""
 
@@ -741,13 +782,15 @@ class PersonaEngine:
             has_retrieval = has_sub_agent or any("Web Search" in b for b in badges)
 
             forced_answer = None
-            if verify_ctx and not has_sub_agent and self._vault_ctx_citation_mismatch(
-                clean_text, vault_ctx
+            if verify_ctx and not has_sub_agent and (
+                self._vault_ctx_citation_mismatch(clean_text, vault_ctx)
+                or self._vault_ctx_title_missing(clean_text, vault_ctx)
             ):
-                # A real note was handed to the model this turn and it named
-                # a different one instead of quoting what it actually had -
-                # discard the invented reply and show the real note directly
-                # rather than trusting a second attempt to do better.
+                # A real note was handed to the model this turn and it either
+                # named a different one instead of quoting what it actually
+                # had, or never referenced the real one at all - discard the
+                # invented reply and show the real note directly rather than
+                # trusting a second attempt to do better.
                 clean_text = (
                     "That's not what I actually have — here's the real note:\n\n"
                     + self._strip_vault_ctx_headers(vault_ctx or "")
@@ -758,6 +801,16 @@ class PersonaEngine:
                 # The model neither had pre-turn context nor spawned a sub-agent.
                 # If a vault subject is in play, retrieve it ourselves; if it is
                 # clearly reporting vault content anyway, withhold the guess.
+                # The active user and every persona's own name/handle are
+                # never themselves a recall subject - resolved fresh per
+                # install rather than a fixed list, so this holds for
+                # whichever names this persona hub actually has.
+                not_a_subject = {self.pm.get_primary_user_name().lower()} | {
+                    n.lower()
+                    for p in self.pm.list_personas()
+                    for n in (p.get("handle", ""), p.get("name", ""))
+                    if n
+                }
                 prev_asst = next(
                     (
                         m["content"]
@@ -794,13 +847,17 @@ class PersonaEngine:
                         re.IGNORECASE,
                     )
                 ):
-                    subj = self._entity_guess(prev_asst, prev_user)
+                    subj = self._entity_guess(
+                        prev_asst, prev_user, extra_stop=not_a_subject
+                    )
                 if not subj and self._VAULT_CLAIM_RE.search(clean_text):
                     # The claim just made is in clean_text itself (e.g. "here's
                     # your entry about X") — search it first, not the *previous*
                     # turn's assistant text, which has no bearing on this claim
                     # and can hand back an unrelated word from earlier small talk.
-                    subj = self._entity_guess(clean_text, clean_input, prev_user)
+                    subj = self._entity_guess(
+                        clean_text, clean_input, prev_user, extra_stop=not_a_subject
+                    )
 
                 if subj:
                     _, fb = ActionProcessor.execute_actions(

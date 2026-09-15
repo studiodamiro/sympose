@@ -1218,6 +1218,91 @@ rewriting its history. Regenerated `docs/wiki/reference/configuration.md`.
 706 tests passing (no test asserted the old list's exact contents, so
 nothing else needed updating).
 
+### 3.33 §3.32's config fix wasn't enough on its own: the vault manifest cache never knew the ignore-list had changed
+
+Damiro pushed back on the previous root-cause claim ("do we really know
+the real/root cause?") before agreeing to build the citation-fix from
+§3.31 — a fair challenge, since it hadn't actually been confirmed whether
+the local model was *given* a real Movies note and ignored it, or never
+given one at all. Logging the real note handed alongside the reply,
+across repeated runs, settled it: still never `Movies/`, even after
+removing it from `vault.ignore_folders` (§3.32). Two separate caches, both
+keyed only on filesystem mtime drift, were both silently serving state
+built while `Movies` was still ignored - neither has any way to notice
+that a *config value*, not vault content, is what changed:
+
+1. `VaultManager._get_vault_snapshot`'s cache key was `(dirs,)` alone. A
+   changed `ignore_folders` doesn't move any directory's own mtime, so the
+   cached, pre-edit snapshot (missing `Movies/` entirely) kept being
+   served. Fixed by folding the resolved ignore set into the cache key
+   itself, so an edit invalidates it directly rather than hoping for
+   incidental mtime drift.
+2. The ADR-078 manifest (`vault_manifest.ensure_fresh`) has the identical
+   shape of gap, one layer up: its own watermark is `max(mtime of every
+   non-ignored top-level dir)`, and a newly-*un*ignored folder can easily
+   be older than whatever else last touched the vault, so including it in
+   the scan doesn't necessarily change that number at all. Fixed by
+   stamping the resolved `ignore_folders` list into the manifest's own
+   `meta` and comparing it directly against the current call's list —
+   any difference forces a full rebuild (never the ADR-078.4 delta path,
+   since an ignore-list change can add or remove whole subtrees a
+   stat-only delta never walks into).
+
+Verified directly against the real `~/.sympose` workspace: `Movies` now
+shows up in `get_discovered_folders` with no vault content touched at
+all, purely from the config edit. 715 tests passing.
+
+### 3.34 Closing the remaining gap: a real note handed to the model, never referenced at all
+
+With `Movies/` finally reachable, re-ran the exact repeated-turns check
+from §3.31 and initially still saw fabricated titles ("Wild" cited when
+`The Dawn Wall.md` was the one given, etc.) — until re-checking what
+`chat_stream` *actually* used internally (via `active_vault_ctx`, not a
+second, independent random draw for comparison, which is what my own
+verification script had been doing): 4/4 replies matched their real note
+exactly once compared correctly. So §3.33 alone may already have closed
+the practical case that mattered most here. Still built the defensive
+check proposed in §3.31, since it was confirmed earlier (with wrong-folder
+content, before §3.33) that this local model *will* fabricate a title in
+prose without ever naming a path — a shape `_vault_ctx_citation_mismatch`
+explicitly doesn't cover by design (its own docstring calls this out as a
+known residual gap).
+
+Added `PersonaEngine._vault_ctx_title_missing`: when a real note (or
+several, from a multi-sample pull) was handed this turn, checks whether
+any of their own filename stems (≥4 characters, to skip noisy short/
+common words like "Her") appear anywhere in the reply at all. No second
+model call — a presence check, not a meaning check, so it stays within
+the round-trip-frugal design the sibling check already established.
+Wired into the same swap-in branch as the path-based check: either
+signal discards the reply and shows the real note directly. 715 tests
+passing (`TestVaultCtxTitleMissing`, plus new manifest/snapshot cache-key
+coverage for §3.33).
+
+### 3.35 `_NAME_STOP` had this exact install's own names hardcoded into shared code
+
+Spotted directly by damiro reading the diff, not found independently:
+`engine.py`'s `_NAME_STOP` (a stopword set for `_entity_guess`, which
+guesses a vault-recall subject from free text) hardcoded four literal
+names - `"damiro"`, `"anais"`, `"grace"`, `"samantha"` - so the active
+user and the other personas on *this* install never get mistaken for a
+recall subject. Exactly the shape of bug this session has been hunting
+for elsewhere (ADR-023's `Movies`/`dot-files`, §3.19-3.27's persona-memory
+fixes): correct behavior for one install, silently wrong for any other
+- a different install's own user or persona names wouldn't be in this
+list at all, and worse, a legitimate vault subject who happens to share a
+name with any of these four (a real "Grace" in someone else's vault, say)
+would be wrongly and permanently suppressed for every install, forever.
+
+Fixed by resolving the exclusion set dynamically instead: `_entity_guess`
+now takes an `extra_stop` parameter, and `chat_stream` builds it fresh
+each call from `ProfileManager.list_personas()` (every persona's own
+handle and name) plus a new `ProfileManager.get_primary_user_name()`
+(extracted from the same user-card-parsing logic `build_system_prompt`
+already had inline, so both call sites share one implementation instead
+of two). Holds for whichever names any given install actually has,
+including this one. 719 tests passing.
+
 ## 6. Commits
 
 - `0e59da3` — fix(grounding): stop a denied premise from becoming settled

@@ -7,6 +7,8 @@ import threading
 import time
 from typing import Any
 
+from sympose.config import get_version
+
 try:
     from rich.box import ROUNDED
     from rich.console import Console, Group
@@ -201,8 +203,8 @@ class TerminalUI:
         banner.append("<S>  ", style="bold cyan")
         banner.append("S Y M P O S E  ", style="bold white")
         banner.append("// multi-model persona hub  ", style="dim white")
-        banner.append("[v0.2.26]\n", style="dim cyan")
-        banner.append("minimalist runtime for macos & slack\n", style="dim white")
+        banner.append(f"[v{get_version()}]\n", style="dim cyan")
+        banner.append("minimalist runtime for macos, windows, linux & slack\n", style="dim white")
         banner.append(
             "commands: /help | /save | /config | switch: /switch | exit: /exit",
             style="dim cyan",
@@ -219,7 +221,7 @@ class TerminalUI:
         banner.append("<S>  ", style="bold cyan")
         banner.append("S Y M P O S E  ", style="bold white")
         banner.append("// interactive setup wizard  ", style="dim white")
-        banner.append("[v0.2.26]\n", style="dim cyan")
+        banner.append(f"[v{get_version()}]\n", style="dim cyan")
         banner.append(
             "zero-bloat multi-model persona hub & sovereign vault explorer\n\n",
             style="dim white",

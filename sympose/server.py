@@ -14,6 +14,7 @@ from pydantic import BaseModel, Field
 
 from sympose import slack_heartbeat
 from sympose.auth import require_dashboard_auth
+from sympose.config import get_version
 from sympose.vault import VaultManager
 from sympose.workspace import resolve_workspace_dir
 
@@ -83,7 +84,7 @@ def create_app(engine: Any, workspace_dir: str | None = None) -> FastAPI:
     workspace_dir = workspace_dir or resolve_workspace_dir()
     app = FastAPI(
         title="Sympose Multi-Model Persona Hub API",
-        version="0.2.26",
+        version=get_version(),
         description="FastAPI REST API & Standalone Vault Gateway for Sympose",
         docs_url="/docs",
         redoc_url="/redoc",
@@ -111,7 +112,7 @@ def create_app(engine: Any, workspace_dir: str | None = None) -> FastAPI:
     def health_check() -> dict[str, Any]:
         return {
             "status": "healthy",
-            "version": "0.2.26",
+            "version": get_version(),
             "active_personas": list(engine.pm.profiles.keys()),
             "default_persona": engine.config.get("runtime.default_persona"),
         }
@@ -484,12 +485,7 @@ def create_app(engine: Any, workspace_dir: str | None = None) -> FastAPI:
             with open(os.path.join(ui_root, "index.html"), "r", encoding="utf-8") as f:
                 return f.read()
 
-        try:
-            from importlib.metadata import version as pkg_version
-
-            _version = pkg_version("sympose")
-        except Exception:
-            _version = "0.2.26"
+        _version = get_version()
         return f"""
         <!DOCTYPE html>
         <html lang="en">

@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "sympose"
-version = "0.2.26"
-description = "Zero-Bloat Multi-Model AI Agent Hub & Sovereign Vault Explorer"
+version = "0.2.27"
+description = "Zero-Bloat Multi-Model AI Persona Hub & Sovereign Vault Explorer"
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }

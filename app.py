@@ -8,7 +8,7 @@ import argparse
 import os
 
 from sympose.cli import TerminalInterface
-from sympose.config import config_manager
+from sympose.config import config_manager, get_version
 from sympose.engine import PersonaEngine
 from sympose.profiles import ProfileManager
 from sympose.slack import MultiPersonaSlackRunner
@@ -16,7 +16,9 @@ from sympose.slack import MultiPersonaSlackRunner
 
 def main():
     parser = argparse.ArgumentParser(description="Sympose Multi-Model Persona Hub")
-    parser.add_argument("-v", "--version", action="version", version="%(prog)s 0.2.26")
+    parser.add_argument(
+        "-v", "--version", action="version", version=f"%(prog)s {get_version()}"
+    )
     parser.add_argument(
         "--cli", action="store_true", help="Launch interactive Terminal CLI Hub"
     )

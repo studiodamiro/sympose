@@ -7,7 +7,12 @@ import os
 import textwrap
 import pytest
 
-from sympose.config import ConfigManager, is_safe_path, convert_md_to_slack_mrkdwn
+from sympose.config import (
+    ConfigManager,
+    convert_md_to_slack_mrkdwn,
+    get_version,
+    is_safe_path,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -187,3 +192,23 @@ class TestConvertMdToSlackMrkdwn:
     def test_plain_text_unchanged(self):
         text = "Just plain text here."
         assert convert_md_to_slack_mrkdwn(text) == text
+
+
+class TestGetVersion:
+    """Regression: the CLI banner, the FastAPI app/health endpoint, and
+    app.py's --version flag each used to hardcode their own "vX.Y.Z" literal
+    (three independent copies of pyproject.toml's version field), and drifted
+    stale within days. get_version() is now the one place this is resolved."""
+
+    def test_returns_a_dotted_version_string_when_installed(self):
+        v = get_version()
+        assert v == "dev" or v.count(".") >= 1
+
+    def test_falls_back_to_dev_when_package_not_installed(self, monkeypatch):
+        def raise_not_found(*a, **k):
+            raise Exception("package not installed")
+
+        monkeypatch.setattr(
+            "importlib.metadata.version", raise_not_found
+        )
+        assert get_version() == "dev"

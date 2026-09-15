@@ -51,6 +51,21 @@ DEFAULT_CHAT_MODEL: str = os.getenv("DEFAULT_MODEL", "gemini/gemini-3.6-flash")
 DEFAULT_SUB_AGENT_MODEL: str = os.getenv("DEFAULT_SUB_AGENT_MODEL", DEFAULT_CHAT_MODEL)
 
 
+def get_version() -> str:
+    """The installed package's own version — pyproject.toml is the one
+    source of truth (read via package metadata, not retyped here), so a
+    banner or endpoint calling this can't independently drift from it the
+    way a hardcoded "vX.Y.Z" string does. "dev" (not a stale last-known
+    number) is the honest fallback for a source checkout that was never
+    `pip install`-ed."""
+    try:
+        from importlib.metadata import version as _pkg_version
+
+        return _pkg_version("sympose")
+    except Exception:
+        return "dev"
+
+
 class ConfigManager:
     """Manages master configuration loading, validation, and dynamic updates.
 

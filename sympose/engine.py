@@ -119,6 +119,27 @@ class PersonaEngine:
             "whether",
             "since",
             "well",
+            # Contractions are never entities regardless of position - a
+            # sentence-boundary check alone misses one that follows a comma
+            # ("Yes, I'm here") rather than a full stop. _depossess() strips
+            # a trailing 's ('it's' -> 'it') before this set is checked, so
+            # an 's-contraction belongs here in its already-stripped form,
+            # not as the literal "word's" spelling.
+            "i'm",
+            "i'll",
+            "i've",
+            "i'd",
+            "you're",
+            "you'll",
+            "you've",
+            "we're",
+            "we'll",
+            "we've",
+            "they're",
+            "it",
+            "that",
+            "there",
+            "who",
         }
     )
 

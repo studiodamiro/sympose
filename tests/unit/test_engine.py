@@ -60,6 +60,30 @@ class TestVisibleStreamGate:
         assert out == ""
         assert raw == "[SPAWN_SUB_AGENT: vault_recall | grief]"
 
+    def test_cuts_at_write_note_tag(self, engine):
+        """Regression: only the 3 retrieval tags were ever gated - every other
+        tag (WRITE_NOTE, REMEMBER, DAILY_NOTE, ...) just sat in the holdback
+        buffer and got unconditionally flushed once the stream ended, so its
+        raw `[WRITE_NOTE: ...]` bracket syntax always leaked into the visible
+        reply next to the clean confirmation badge for the same action."""
+        out, raw = self._run(
+            engine,
+            "I've created the note for you in your Thoughts folder.\n\n",
+            "[WRITE_NOTE: Thoughts/Test.md | This is a test note.]",
+        )
+        assert out == "I've created the note for you in your Thoughts folder.\n\n"
+        assert "WRITE_NOTE" not in out
+        assert "[WRITE_NOTE: Thoughts/Test.md | This is a test note.]" in raw
+
+    def test_cuts_at_remember_tag(self, engine):
+        out, raw = self._run(
+            engine,
+            "Got it logged into working memory for you.\n\n",
+            "[REMEMBER: Second test fact is a lavender bicycle]",
+        )
+        assert out == "Got it logged into working memory for you.\n\n"
+        assert "REMEMBER" not in out
+
 
 class TestGroundingModeKnob:
     """`vault_grounding: auto` derives strict/trust from the model: a local
@@ -118,6 +142,41 @@ class TestEntityGuess:
 
     def test_nothing_when_no_subject(self, engine):
         assert engine._entity_guess("yes, just summarize", "sure go ahead") == ""
+
+    def test_ignores_sentence_initial_capitalisation(self, engine):
+        """Regression: the tier-2 fallback accepted *any* capitalised word,
+        including one that's only capitalised because it starts a sentence
+        (or a contraction like "I'll"). Live failure: a persona's own prior
+        greeting "Hello! Yes, I'm here. What can I help you with today?"
+        got searched as if "Hello" were a vault-recall subject, dispatching
+        a real sub-agent to search the vault for the word "Hello"."""
+        assert (
+            engine._entity_guess(
+                "Hello! Yes, I'm here. What can I help you with today?"
+            )
+            == ""
+        )
+
+    def test_ignores_contraction_right_after_sentence_boundary(self, engine):
+        """Second live failure with the same root cause, different text:
+        "Sure, let's play! I'll pull a note from your vault..." handed back
+        "I'll" as the guessed subject."""
+        assert (
+            engine._entity_guess(
+                "Sure, let's play! I'll pull a note from your vault to get us started."
+            )
+            == ""
+        )
+
+    def test_still_finds_a_real_entity_mid_sentence(self, engine):
+        """The fix must not blind the fallback entirely - a genuine name
+        appearing mid-sentence (not sentence-initial) is still a real signal."""
+        assert (
+            engine._entity_guess(
+                "Sure, here's a summary of what you wrote about Dylan last week."
+            )
+            == "Dylan"
+        )
 
 
 class TestBuildKwargsKeepAlive:

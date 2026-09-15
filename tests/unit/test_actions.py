@@ -313,3 +313,86 @@ class TestExecuteActionsCreatePersonaSoulContent:
         text = "[CREATE_PERSONA: broken | name: \"Broken\": : not valid yaml :::]"
         _, badges = ActionProcessor.execute_actions(pm, "test", text)
         assert (tmp_path / "broken.yaml").exists()
+
+
+class _FakeProfileManagerWithMemory(_FakeProfileManager):
+    def __init__(self, append_memory_result: bool = True):
+        self._append_memory_result = append_memory_result
+        self.append_memory_calls: list[tuple[str, str]] = []
+
+    def append_memory(self, handle, fact):
+        self.append_memory_calls.append((handle, fact))
+        return self._append_memory_result
+
+
+class TestExecuteActionsHonestFailureBadges:
+    """Regression: WRITE_NOTE/APPEND_NOTE/DAILY_NOTE/REMEMBER discarded the
+    return value of the underlying vault_write.py / append_memory call and
+    unconditionally showed a success badge - so a rejected write (sandbox
+    violation, the Daily/ boundary guard, a disk error) was confirmed to the
+    user as a success every time. Found live: asking Samantha to write
+    directly into Daily/ produced "Samantha saved note to Vault: Daily/..."
+    even though vault_write.py correctly refused and no file was created."""
+
+    def test_write_note_failure_produces_warning_not_success_badge(self, monkeypatch):
+        pm = _FakeProfileManager()
+        monkeypatch.setattr(
+            "sympose.actions.VaultManager.write_note",
+            lambda profile, filename, content: "Warning: Daily/ is reserved for daily entries — use [DAILY_NOTE] instead of writing directly into that folder.",
+        )
+        _, badges = ActionProcessor.execute_actions(
+            pm, "test", "[WRITE_NOTE: Daily/test.md | hello]"
+        )
+        assert any("could not save note" in b for b in badges)
+        assert not any("saved note to Vault" in b for b in badges)
+
+    def test_write_note_success_still_produces_success_badge(self, monkeypatch):
+        pm = _FakeProfileManager()
+        monkeypatch.setattr(
+            "sympose.actions.VaultManager.write_note",
+            lambda profile, filename, content: "Saved note: `Thoughts/todo.md`",
+        )
+        _, badges = ActionProcessor.execute_actions(
+            pm, "test", "[WRITE_NOTE: todo.md | Buy milk]"
+        )
+        assert any("saved note to Vault" in b for b in badges)
+        assert not any("could not save note" in b for b in badges)
+
+    def test_append_note_failure_produces_warning_not_success_badge(self, monkeypatch):
+        pm = _FakeProfileManager()
+        monkeypatch.setattr(
+            "sympose.actions.VaultManager.append_note",
+            lambda profile, filename, content: "Security Error: Target path `../etc/passwd` is outside assigned sandbox.",
+        )
+        _, badges = ActionProcessor.execute_actions(
+            pm, "test", "[APPEND_NOTE: ../etc/passwd | pwned]"
+        )
+        assert any("could not append to note" in b for b in badges)
+        assert not any("appended to Vault note" in b for b in badges)
+
+    def test_daily_note_failure_produces_warning_not_success_badge(self, monkeypatch):
+        pm = _FakeProfileManager()
+        monkeypatch.setattr(
+            "sympose.actions.VaultManager.write_daily_note",
+            lambda profile, reflection: "Error: Failed to write daily note: disk full",
+        )
+        _, badges = ActionProcessor.execute_actions(
+            pm, "test", "[DAILY_NOTE: rough day today]"
+        )
+        assert any("could not log daily entry" in b for b in badges)
+        assert not any("logged entry to Daily Notes" in b for b in badges)
+
+    def test_remember_failure_produces_warning_not_success_badge(self):
+        pm = _FakeProfileManagerWithMemory(append_memory_result=False)
+        _, badges = ActionProcessor.execute_actions(
+            pm, "test", "[REMEMBER: favorite color is chartreuse]"
+        )
+        assert any("could not persist to memory" in b for b in badges)
+        assert not any("updated" in b and "memory" in b for b in badges)
+
+    def test_remember_success_still_produces_success_badge(self):
+        pm = _FakeProfileManagerWithMemory(append_memory_result=True)
+        _, badges = ActionProcessor.execute_actions(
+            pm, "test", "[REMEMBER: favorite color is chartreuse]"
+        )
+        assert any("updated" in b and "memory" in b for b in badges)

@@ -107,13 +107,56 @@ querying, date-range querying, and the synthesis layer built on top of it)
 aren't a guess at what users will want — they're the same shape a mature,
 independent ecosystem already converged on for this exact kind of data.
 
-## Design note for whoever picks these up
+## Prioritized punch list
 
-Round-trip frugality still applies: prefer extending the deterministic
-`resolve_turn_context` fast path (zero LLM calls) for any phrasing that can
-be recognized structurally, and reserve sub-agent tool calls for what
-genuinely needs a model in the loop. The backlink and multi-keyword items
-above fit that pattern cleanly; full-corpus synthesis inherently does not
-(it needs the model to actually read and reason over the content) and
-should be scoped as its own piece of work rather than bolted onto the
-existing single-call tools.
+Ordered by cost-to-build, each cross-referenced to the UI surface it would
+power — `ui-design-reference.md` §6.5 (Vault Explorer) already speced
+several of these panels ahead of having real data behind them:
+
+| # | Tool | Cost | Wraps | UI surface it powers |
+|---|---|---|---|---|
+| 1 | `vault_by_date(start, end, folder=None)` | Cheap | `find_chronological_notes` (already exists) | §6.5's **Daily Reflections calendar view** — currently speced with no data source; this is it. Also fixes the counting-question defect above (a real count instead of the swap-in-hijack) |
+| 2 | `vault_by_tag(tag, folder=None)` | Cheap | Manifest's already-indexed `tags` per node | §6.5's **YAML frontmatter inspector + tag editor** |
+| 3 | `vault_backlinks(target)` | Cheap | `get_backlinks_digest` (already exists, exact) | §6.5's **Backlink & Mention inspector side panel** — explicitly speced as "powered by the inverted index," which already exists; this tool is what makes it queryable from chat too, not just the dashboard's own direct API call |
+| 4 | `vault_tasks(status=None, folder=None)` | Medium — no checkbox index exists yet | New: needs either a manifest extension or a live per-note scan | Not yet speced in the UI doc — building this tool and a UI panel for it should happen together |
+
+Deliberately still not planned: arbitrary frontmatter-field filtering
+beyond tags (needs a manifest schema change, no concrete need yet),
+full-corpus synthesis (a genuinely different mechanism — chunked/map-reduce
+over N notes), and adopting an external Obsidian MCP server (real prior art
+exists — e.g. `joch/obsidian-connect-mcp` for Dataview-style queries,
+`aaronsb/obsidian-mcp-plugin` for graph/task/hybrid search — but plugging
+one in means vetting whether it respects Sympose's per-persona `allowed_dirs`
+sandbox, plus its own ADR per the project's dependency policy; not a quick
+add). Also worth knowing: Dataview itself has been reportedly dormant since
+April 2025, with Obsidian's native **Bases** feature (1.9+) as the
+implicit successor — a reason to keep #1-4 above general rather than
+building tightly around Dataview's specific query syntax.
+
+## The real bottleneck is local-model reliability, not tool availability
+
+Every tool above only helps if the model calling it behaves. Live evidence
+from this same session, all with the *same* task and the *same* tools
+available, varied wildly run to run on `ollama/gemma4:e4b`:
+
+- Redundant tool calls for identical intent (two `find` variants back to
+  back; `vault_sample` called twice in a row for one random pick).
+- Unrelated tangents mid-task — one run answered "how many entries in
+  2023" by identifying itself as "Gemma 4, developed by Google DeepMind"
+  instead of continuing the task.
+- Raw tool-call JSON leaking into the final answer instead of prose, on
+  a run that otherwise had the real content sitting right there in its own
+  tool-call history.
+- The same "pick a random note" task getting a clean, correct answer on
+  two runs and a broken one on a third — no code changed between them.
+
+None of this is fixed by adding more tools; it's model behavior under the
+same tool surface. Two implications for anything built from the punch list
+above: (1) keep leaning on `resolve_turn_context`'s deterministic fast path
+(zero LLM calls) for any phrasing recognizable structurally — it's the only
+way to fully sidestep this, since a sub-agent tool call is always at the
+mercy of whichever model is driving it that turn; (2) any new tool needs
+its own fabrication/sanity check in the same spirit as 3.37's
+`_content_unread` and the counting-question defect noted above — assume
+the model calling it will occasionally go off-script, because on a small
+local model it reliably does.

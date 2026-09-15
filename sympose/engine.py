@@ -686,10 +686,23 @@ class PersonaEngine:
             # message like "let's play our favorite game" - it never
             # asked for a random note in those words - so without this, a
             # real note is never actually fetched and the model fills the
-            # gap with a plausible-sounding invented title. Only acts when
-            # no structural match already ran this turn, and respects the
+            # gap with a plausible-sounding invented title. Respects the
             # same vault-skill gate resolve_turn_context itself enforces.
-            if not vault_ctx and VaultManager.describes_random_pull_ritual(
+            #
+            # Live bug: a *thin* vault_ctx carried over from an earlier,
+            # unrelated turn (a search-results digest, not a full note)
+            # was enough to skip this entirely - "already have something"
+            # - even though it has nothing to do with this turn's request
+            # and isn't strong enough for the citation-mismatch safety net
+            # to engage either (that only activates on a full note body),
+            # so the model's fabrication sailed through completely
+            # unchecked. Only a genuine full-body context (this turn's own
+            # structural match, or a freshly refreshed single-note carry-
+            # over) counts as "already have something" here; a thin digest
+            # gets superseded by a real pull instead.
+            if not self._is_full_body_vault_ctx(
+                vault_ctx
+            ) and VaultManager.describes_random_pull_ritual(
                 mem_hit
             ) and VaultManager.has_vault_skill(profile):
                 vault_ctx = VaultManager.resolve_ritual_random_pull(

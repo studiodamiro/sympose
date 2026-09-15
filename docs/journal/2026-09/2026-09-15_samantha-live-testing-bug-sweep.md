@@ -1303,6 +1303,43 @@ already had inline, so both call sites share one implementation instead
 of two). Holds for whichever names any given install actually has,
 including this one. 719 tests passing.
 
+### 3.36 A stale, thin digest from an earlier unrelated turn blocked both today's fixes at once
+
+Live transcript, damiro on `ollama/gemma4:e4b`: "lets do Thoughs" (typo
+for Thoughts) got a raw, leaked `<execute_tool> vault_recall(...)
+</execute_tool>` fabrication, and a follow-up admitted it was "simulating
+me accessing your vault content" - both completely unchecked, no
+correction. Reproduced in isolation many times first with no luck (the
+§3.34 safety net caught 5-6/6 single-turn attempts cleanly) - the
+transcript excerpt started mid-session with a `/model` override, not a
+fresh `/reset`, so the missing piece was *prior, unrelated conversation
+turns* not shown in what was pasted.
+
+Reproduced it directly once that was accounted for: an earlier turn in
+the same session ("pull up my notes on mountain climbing") resolves to a
+thin, multi-result *search digest* (not a full note), which
+`chat_stream`'s carry-over logic then reuses on the next turn when
+nothing new resolves structurally. §3.31's ritual-pull fix only fired
+`if not vault_ctx` - a thin digest is truthy, so it silently read as
+"already have something" and never ran. And because it's only a digest
+(no "Exact Content" marker), `verify_ctx` never activates either, so
+§3.34's citation check never got a chance to run. Two separate safety
+mechanisms, both correctly built, both gated past by the same stale,
+irrelevant leftover.
+
+Fix: the ritual-pull's guard now checks `not
+self._is_full_body_vault_ctx(vault_ctx)` instead of `not vault_ctx` - a
+thin digest no longer counts as "already grounded" and gets superseded by
+a real pull, the same way a `None` vault_ctx already did. Verified live
+against the exact reproduction: the stale digest is now correctly
+replaced by a fresh, real note, and when the model still didn't quote it
+faithfully, §3.34's swap-in caught and corrected it as designed. 719
+tests passing (no new test added beyond live verification -
+`_is_full_body_vault_ctx`'s own digest-vs-full-body distinction was
+already covered; the fix is a one-line condition inside `chat_stream`
+itself, which this codebase tests via its pure helpers rather than a full
+streaming-generator harness).
+
 ## 6. Commits
 
 - `0e59da3` — fix(grounding): stop a denied premise from becoming settled

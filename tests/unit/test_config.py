@@ -11,6 +11,7 @@ from sympose.config import (
     ConfigManager,
     convert_md_to_slack_mrkdwn,
     get_version,
+    is_local_backend,
     is_safe_path,
 )
 
@@ -212,3 +213,22 @@ class TestGetVersion:
             "importlib.metadata.version", raise_not_found
         )
         assert get_version() == "dev"
+
+
+class TestIsLocalBackend:
+    """Shared by the chat path (grounding mode, request-timeout selection)
+    and the sub-agent path (its own request timeout) - declared once here
+    so both stay in sync instead of drifting into two copies."""
+
+    def test_ollama_prefix_is_local(self):
+        assert is_local_backend("ollama/gemma2:9b") is True
+
+    def test_cloud_prefixes_are_not_local(self):
+        assert is_local_backend("gemini/gemini-3.6-flash") is False
+        assert is_local_backend("anthropic/claude-sonnet-5") is False
+
+    def test_localhost_api_base_is_local_regardless_of_prefix(self):
+        assert is_local_backend("openai/gpt-5", "http://localhost:11434/v1") is True
+
+    def test_empty_model_is_not_local(self):
+        assert is_local_backend("") is False

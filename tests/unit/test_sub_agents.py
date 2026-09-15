@@ -328,6 +328,38 @@ class TestInjectApiKey:
         assert "api_key" not in kwargs
 
 
+class TestInjectTimeout:
+    """Live bug: a sub-agent's litellm call had no `timeout` kwarg at all,
+    surfacing as "litellm.Timeout: Connection timed out after None
+    seconds" once the underlying connection genuinely stalled - the "None"
+    is the tell that nothing real was ever configured for this call."""
+
+    def test_sets_a_real_timeout_value(self, monkeypatch):
+        monkeypatch.setattr(
+            "sympose.sub_agents.config_manager.get",
+            lambda key, default=None: 42.0 if key == "sub_agent.request_timeout" else default,
+        )
+        kwargs = {}
+        SubAgentEngine._inject_timeout(kwargs)
+        assert kwargs["timeout"] == 42.0
+
+    def test_uses_its_own_key_not_the_chat_paths_local_cloud_split(self, monkeypatch):
+        # A sub-agent's report is delivered as one block once its whole
+        # tool-calling loop finishes - no TTFT reason to use the short
+        # cloud chat timeout, even when its own model is a cloud one.
+        seen_keys = []
+
+        def fake_get(key, default=None):
+            seen_keys.append(key)
+            return 99.0
+
+        monkeypatch.setattr("sympose.sub_agents.config_manager.get", fake_get)
+        kwargs = {}
+        SubAgentEngine._inject_timeout(kwargs)
+        assert seen_keys == ["sub_agent.request_timeout"]
+        assert kwargs["timeout"] == 99.0
+
+
 # --------------------------------------------------------------------------- #
 #  execute_sub_agent_stream — the streaming twin of execute_sub_agent_task          #
 # --------------------------------------------------------------------------- #

@@ -176,6 +176,21 @@ class SubAgentEngine:
             kwargs["api_key"] = api_key
 
     @staticmethod
+    def _inject_timeout(kwargs: dict[str, Any]) -> None:
+        """Without an explicit value, this call had no timeout at all and
+        could hang on litellm's own ambiguous default - live symptom:
+        "Connection timed out after None seconds", the tell-tale sign
+        nothing real was ever configured for it. Uses its own dedicated
+        `sub_agent.request_timeout` rather than the chat path's local/cloud
+        split (`performance.*_request_timeout`): those bound a live,
+        streamed reply's TTFT, but a sub-agent's report is delivered as one
+        block once its whole tool-calling loop finishes, so there's no TTFT
+        reason to use the short cloud timeout even when its own model
+        happens to be a cloud one - same reasoning as compactor.py's own
+        background work using the generous timeout regardless of backend."""
+        kwargs["timeout"] = float(config_manager.get("sub_agent.request_timeout"))
+
+    @staticmethod
     def _dispatch_tool_call(
         tc: Any,
         tool_to_client: dict[str, MCPClient],
@@ -251,6 +266,7 @@ class SubAgentEngine:
                 "tool_choice": "none",
             }
             cls._inject_api_key(kwargs, target_model)
+            cls._inject_timeout(kwargs)
             return (
                 litellm.completion(**kwargs).choices[0].message.content or ""
             ).strip()
@@ -309,6 +325,7 @@ class SubAgentEngine:
                     kwargs["tools"] = all_litellm_tools
                     kwargs["tool_choice"] = "auto"
                 cls._inject_api_key(kwargs, target_model)
+                cls._inject_timeout(kwargs)
 
                 response = litellm.completion(**kwargs)
                 choice = response.choices[0]
@@ -397,6 +414,7 @@ class SubAgentEngine:
                     kwargs["tools"] = all_litellm_tools
                     kwargs["tool_choice"] = "auto"
                 cls._inject_api_key(kwargs, target_model)
+                cls._inject_timeout(kwargs)
 
                 response = litellm.completion(**kwargs)
                 choice = response.choices[0]

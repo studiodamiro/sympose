@@ -50,6 +50,34 @@ except ImportError:
 DEFAULT_CHAT_MODEL: str = os.getenv("DEFAULT_MODEL", "gemini/gemini-3.6-flash")
 DEFAULT_SUB_AGENT_MODEL: str = os.getenv("DEFAULT_SUB_AGENT_MODEL", DEFAULT_CHAT_MODEL)
 
+# Local inference backends, by litellm provider prefix. Shared by every call
+# site that needs to know whether a model is local or cloud (grounding mode,
+# request-timeout selection, ...) so the list itself is declared exactly once.
+_LOCAL_MODEL_PREFIXES = (
+    "ollama",
+    "ollama_chat",
+    "ollama_completion",
+    "lm_studio",
+    "text-completion-openai",
+    "llamafile",
+    "llama-cpp-python",
+)
+
+
+def is_local_backend(model: str, api_base: str = "") -> bool:
+    """True when `model`'s litellm provider prefix (or a localhost-looking
+    `api_base`) points at a local inference backend rather than a cloud API.
+    Both the main chat path and a spawned sub-agent's own call need this to
+    pick the right request-timeout knob - a local model gets a much longer
+    budget (`performance.local_request_timeout`) than a cloud one
+    (`performance.request_timeout`), and a call with no explicit timeout at
+    all can hang on an ambiguous default instead of failing cleanly."""
+    backend = str(model or "").split("/", 1)[0].strip().lower()
+    api_base_low = str(api_base or "").lower()
+    return backend in _LOCAL_MODEL_PREFIXES or any(
+        h in api_base_low for h in ("localhost", "127.0.0.1", "0.0.0.0", ":11434")
+    )
+
 
 def get_version() -> str:
     """The installed package's own version — pyproject.toml is the one

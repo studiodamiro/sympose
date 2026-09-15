@@ -14,7 +14,7 @@ log = logging.getLogger(__name__)
 
 from sympose.actions import ActionProcessor
 from sympose.commands import CommandInterceptor
-from sympose.config import DEFAULT_CHAT_MODEL, config_manager
+from sympose.config import DEFAULT_CHAT_MODEL, config_manager, is_local_backend
 from sympose.memory import SessionArchivist
 from sympose.model_router import resolve_turn_model
 from sympose.models import resolve_api_key
@@ -61,18 +61,6 @@ class PersonaEngine:
         "\nYou (to",
     )
 
-    # Local inference backends: with `vault_grounding: auto`, a persona on one of
-    # these gets `strict` grounding (the runtime forces `vault_recall` rather
-    # than trusting the model to emit the tag). Cloud models get `trust`.
-    _LOCAL_MODEL_PREFIXES = (
-        "ollama",
-        "ollama_chat",
-        "ollama_completion",
-        "lm_studio",
-        "text-completion-openai",
-        "llamafile",
-        "llama-cpp-python",
-    )
     # A reply that asserts it is reporting the user's own vault content. If one
     # of these fires and no retrieval ran this turn, a strict-grounding persona
     # is fabricating — the reply is withheld. The last alternative is a
@@ -220,11 +208,7 @@ class PersonaEngine:
         )
         if default in ("strict", "trust"):
             return default
-        backend = str(target_model or "").split("/", 1)[0].strip().lower()
-        api_base = str(profile.get("api_base", "") or "").lower()
-        is_local = backend in self._LOCAL_MODEL_PREFIXES or any(
-            h in api_base for h in ("localhost", "127.0.0.1", "0.0.0.0", ":11434")
-        )
+        is_local = is_local_backend(target_model, profile.get("api_base", ""))
         return "strict" if is_local else "trust"
 
     @staticmethod
@@ -446,11 +430,7 @@ class PersonaEngine:
         messages: list[dict[str, Any]],
         stream: bool = True,
     ) -> dict[str, Any]:
-        backend = str(target_model or "").split("/", 1)[0].strip().lower()
-        api_base = str(profile.get("api_base", "") or "").lower()
-        is_loc = backend in self._LOCAL_MODEL_PREFIXES or any(
-            h in api_base for h in ("localhost", "127.0.0.1", "0.0.0.0", ":11434")
-        )
+        is_loc = is_local_backend(target_model, profile.get("api_base", ""))
         to_key = (
             "performance.local_request_timeout"
             if is_loc

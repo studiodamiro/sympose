@@ -77,6 +77,7 @@ Every runtime knob Sympose reads. Global keys live in `config.yaml`, settable at
 | --- | --- | --- | --- | --- | --- |
 | `sub_agent.shell_allowlist` | list | `[]` | — | **restart** | argv[0] allowlist for the sub-agent `run_command` tool (read-only commands only). |
 | `sub_agent.shell_command_timeout` | float | `20.0` | ≥ 1 | yes | Hard wall-clock cap on a single `run_command` execution, seconds. |
+| `sub_agent.request_timeout` | float | `120.0` | ≥ 1 | yes | A sub-agent's own LLM call timeout, seconds - one call per tool-use turn, up to max_sub_agent_tool_turns of them. Deliberately separate from performance.request_timeout: that one bounds a live, streamed chat reply's TTFT, but a sub-agent's report is delivered as a single block once the whole tool-calling loop finishes, so there's no TTFT reason to use the short cloud timeout even when its model is a cloud one. |
 
 ## Persona (set in profiles/<handle>.yaml)
 

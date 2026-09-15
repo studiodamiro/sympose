@@ -944,6 +944,53 @@ model will now always prefer a given fact over an easy invention in every
 case; that's the same residual-gap caveat as everything else model-
 behavior-related this session. 680 tests passing.
 
+### 3.28 "Connection timed out after None seconds" — a sub-agent call with no timeout at all
+
+Live transcripts showed the vault_recall sub-agent (routed to
+`gemini/gemini-3.6-flash`, per that skill's own `recommended_models`)
+failing repeatedly with `litellm.Timeout: Connection timed out after None
+seconds` - once for a purely conversational message that shouldn't have
+spawned a sub-agent at all, and once mid-exploration after several real,
+successful tool calls (`find`, `ls`, `read_file` on real `Movies/` notes).
+The literal word "None" where a duration belongs was the tell: grepped
+`sub_agents.py`'s three `litellm.completion` call sites - none of them
+ever passed a `timeout` kwarg. The main chat path (`engine.py`'s
+`_build_kwargs`) always resolves one explicitly; the sub-agent path never
+did, so these calls ran on whatever ambiguous internal default litellm
+falls back to, surfacing as this confusing message once one genuinely
+stalled.
+
+Confirmed the underlying connection itself is fine — a direct
+`litellm.completion` call to the same model with an explicit timeout
+succeeded in ~2 seconds — so this was purely a missing-configuration bug,
+not an environment/network problem.
+
+Fix, in two parts:
+1. Added `_inject_timeout` (`sub_agents.py`), called at all three sites
+   alongside the existing `_inject_api_key` — no call goes out without an
+   explicit, real timeout again.
+2. That timeout needed its own dedicated setting rather than reusing the
+   chat path's `performance.request_timeout`/`local_request_timeout`
+   split: those bound a *live, streamed* reply's TTFT, but a sub-agent's
+   report is delivered as one block once its whole tool-calling loop
+   finishes — same reasoning as §3.18's compactor timeout fix ("no TTFT
+   reason to use the short cloud timeout"). Added
+   `sub_agent.request_timeout` (float, default 120.0) to
+   `config_schema.py`, declared once per ADR-077.
+
+While in there, noticed `_LOCAL_MODEL_PREFIXES` and the local-backend
+detection logic were duplicated verbatim across two spots in `engine.py`,
+and would have needed a *third* copy for the sub-agent path. Extracted to
+a single `is_local_backend()` in `config.py`; `engine.py`'s two call sites
+now use it too, removing the class-level duplicate entirely.
+
+Re-ran the exact failing task end to end against the real vault and real
+model: four real tool calls (`find`, `ls`, two `cat`s), a genuine random
+pick from `Movies/`, zero timeout errors. Checked the result against the
+actual `Movies/Her.md` file — genre, rating, IMDb link, tags, and created
+date all matched exactly. 686 tests passing, docs/wiki/reference/
+configuration.md regenerated for the new setting.
+
 ## 4. Skill coverage pass
 
 Samantha carries 9 skills. All got at least one live pass this session:

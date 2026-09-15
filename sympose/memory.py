@@ -70,12 +70,18 @@ class HeuristicGatedExtractor:
                     config.get("session.exit_behavior.summarization_model")
                     or DEFAULT_CHAT_MODEL
                 )
+                profile = pm.get_profile(handle) or {}
+                existing_memory = (
+                    pm._read_file_safe(profile.get("memory_file")) or "(none yet)"
+                )
                 tmpl = _load_prompt_tmpl(
                     "memory_extraction.md",
-                    "You are the silent memory archivist for Sympose AI.\nUser message: {{user_message}}\nAssistant reply: {{assistant_reply}}\n\nEvaluate if the user shared a DURABLE fact.\nIf NO: Output 'NONE'.\nIf YES: Output 1 bullet point '- '.",
+                    "You are the silent memory archivist for Sympose AI.\nUser message: {{user_message}}\nAssistant reply: {{assistant_reply}}\n\nEXISTING MEMORY (do not repeat):\n{{existing_memory}}\n\nEvaluate if the user shared a DURABLE fact about themselves, not already above.\nIf NO: Output 'NONE'.\nIf YES: Output 1 bullet point '- '.",
                 )
-                prompt = tmpl.replace("{{user_message}}", user_message).replace(
-                    "{{assistant_reply}}", assistant_reply
+                prompt = (
+                    tmpl.replace("{{user_message}}", user_message)
+                    .replace("{{assistant_reply}}", assistant_reply)
+                    .replace("{{existing_memory}}", existing_memory)
                 )
                 # Use a dedicated short timeout for background daemon threads to
                 # prevent pileup under slow API conditions
@@ -138,17 +144,21 @@ class SessionArchivist:
             f"{msg.get('role', 'unknown').capitalize()}: {msg.get('content', '')}"
             for msg in history
         )
+        existing_memory = (
+            self.pm._read_file_safe(profile.get("memory_file")) or "(none yet)"
+        )
         summarization_model = (
             self.config.get("session.exit_behavior.summarization_model")
             or DEFAULT_CHAT_MODEL
         )
         tmpl = _load_prompt_tmpl(
             "session_summary.md",
-            "You are the session archivist for Sympose Persona Hub.\nAnalyze session with @{{handle}} ({{name}}):\n\n### SECTION 1: PERSISTENT MEMORY BULLETS\n- Facts\n\n### SECTION 2: OBSIDIAN SESSION LOG\n## Overview\n\nCONVERSATION TRANSCRIPT:\n{{transcript}}",
+            "You are the session archivist for Sympose Persona Hub.\nAnalyze session with @{{handle}} ({{name}}):\n\n### SECTION 1: PERSISTENT MEMORY BULLETS\nFacts about the user only, never the assistant's own actions. Skip anything already in EXISTING MEMORY. '- Facts' or 'NONE'.\n\n### SECTION 2: OBSIDIAN SESSION LOG\n## Overview\n\nEXISTING MEMORY:\n{{existing_memory}}\n\nCONVERSATION TRANSCRIPT:\n{{transcript}}",
         )
         prompt = (
             tmpl.replace("{{handle}}", handle)
             .replace("{{name}}", str(profile.get("name", handle)))
+            .replace("{{existing_memory}}", existing_memory)
             .replace("{{transcript}}", transcript)
         )
 

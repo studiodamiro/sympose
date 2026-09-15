@@ -36,21 +36,22 @@ Samantha streams in 0.83s:                          Heuristic Gate detects plann
 
 Firing a background LLM evaluation on *every single turn* is wasteful: it doubles token consumption, risks hitting API rate limits (RPM), and clutters memory with conversational noise (e.g. *"User said hello"*).
 
-Sympose uses a **dual-filter heuristic gate** in [`sympose/memory.py`](../../../sympose/memory.py#L18):
+Sympose uses a **dual-filter heuristic gate** in [`sympose/memory.py`](../../../sympose/memory.py#L28):
 
 ```python
 TRIGGER_PATTERNS = [
-    r"\b(i\s+will|i\s+plan|i\s+need|i\s+want|i\s+am\s+going\s+to|i\s+prefer)\b",
-    r"\b(we\s+decided|we\s+are\s+using|we\s+switched|let\'?s\s+use|our\s+stack|our\s+database)\b",
-    r"\b(on\s+(?:january|february|march|april|may|june|july|august|september|october|november|december))\b",
-    r"\b(my\s+name\s+is|my\s+favorite|my\s+timezone|my\s+role|i\s+live\s+in)\b",
-    r"\b(birthday|anniversary|born|married|wife|husband|kid|kids|son|daughter|family|partner|friend)\b",
-    r"\b(rule|constraint|never\s+use|always\s+use|deploy\s+to|secret|credential)\b",
+    r"\b(?:my\s+name\s+is|i\s+am|i'm|call\s+me)\b",
+    r"\b(?:i\s+live\s+in|my\s+timezone\s+is|i\s+work\s+at|my\s+job\s+is|i\s+am\s+a)\b",
+    r"\b(?:i\s+prefer|i\s+like|i\s+dislike|i\s+hate|always\s+use|never\s+use|my\s+favorite)\b",
+    r"\b(?:remember\s+that|keep\s+in\s+mind|don't\s+forget|note\s+that|save\s+this)\b",
+    r"\b(?:we\s+decided|the\s+architecture\s+is|we\s+are\s+building|the\s+stack\s+is)\b",
+    r"\b(?:my\s+goal\s+is|the\s+deadline\s+is|we\s+need\s+to\s+ship)\b",
 ]
 
 SKIP_PATTERNS = [
-    r"^(hi|hello|hey|thanks|thank you|ok|okay|cool|great|bye|quit|exit|ping)\b",
-    r"^(what is|who is|how do i|explain|summarize|convert)\b",
+    r"^(?:hi|hello|hey|yo|thanks|thank\s+you|ok|okay|cool|nice|yes|no|yep|nope)[\.\!\?]?$",
+    r"^(?:clear|reset|delete|help|exit|quit|status|\/switch|\/save|\/clear|\/reset)",
+    r"^\[SPAWN_SUB_AGENT:",
 ]
 ```
 
@@ -61,9 +62,11 @@ SKIP_PATTERNS = [
 
 ---
 
-## 3. Silent Deduplication & Hygiene
+## 3. Prompt-Level Deduplication & Hygiene
 
-When a fact is extracted, [`ProfileManager.append_memory()`](../../../sympose/profiles.py) checks the existing `_memory.md` text under process-wide mutex lock before writing, preventing duplicate bullet points from being appended across sessions.
+`append_memory()` itself does not check for duplicates — it appends under a process-wide mutex lock (safe against concurrent writers) and triggers background compaction once the file crosses `memory.compaction_threshold` bullet lines, but nothing at write time compares a new fact against what's already recorded.
+
+The real dedup happens one step earlier: the extraction prompt itself is shown the persona's *existing* memory file content (`{{existing_memory}}` in [`sympose/prompts/memory_extraction.md`](../../../sympose/prompts/memory_extraction.md)) and told to output `NONE` if the candidate fact is already covered, even if it would be worded differently. `SessionArchivist`'s end-of-session distillation does the same. This was a live bug fix — before it, neither extraction path could see the memory file it was writing into, so the same standing fact (e.g. a coffee preference) got independently re-derived and re-worded across sessions, and `MemoryCompactor`'s later LLM-judgment merge pass didn't reliably recognize differently-phrased restatements as duplicates. Prevention at the source is the primary defense; compaction remains a backstop for whatever still slips through.
 
 ---
 

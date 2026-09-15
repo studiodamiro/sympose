@@ -36,9 +36,9 @@ When you type `/exit` (or `quit` / `exit`), Sympose presents an interactive choi
 
 ## 2. LLM Transcript Distillation
 
-The [`SessionArchivist`](../../../sympose/memory.py#L90) executes a distillation pass over the conversation transcript, separating signal from conversational noise:
+The [`SessionArchivist`](../../../sympose/memory.py#L117) executes a distillation pass over the conversation transcript, separating signal from conversational noise:
 
-- **Section 1 (Memory Bullets)**: 2–4 permanent facts or decisions appended to working memory.
+- **Section 1 (Memory Bullets)**: 0–4 permanent facts about the *user* — never the assistant's own actions (tool calls, sub-agents spawned, retrieval steps). The prompt is shown the persona's existing memory file content and told to skip anything already covered, even if it would come out worded differently, and to write `NONE` rather than a bullet list when nothing new qualifies — `'NONE'` naturally produces no bullet lines, so nothing gets appended.
 - **Section 2 (Obsidian Session Note)**: A Markdown log formatted with YAML frontmatter, overview, technical decisions, and next steps.
 
 ---
@@ -76,4 +76,4 @@ Summary of the discussion and high-level architectural goals.
 
 Session distillation prompts are externalized to [`sympose/prompts/session_summary.md`](../../../sympose/prompts/session_summary.md) (shipped inside the package via `package-data`, loaded through `sympose.prompt_assets.load_prompt`).
 - **Strict Bullet Filtering**: In `SessionArchivist.summarize_session`, `memory_part` is strictly filtered to bullet points (`- ` / `* `).
-- **Zero Pollution**: If section header matching fails or models emit non-bullet prose, raw Markdown notes and headings are never appended into `_memory.md`.
+- **Zero Pollution**: If section header matching fails or models emit non-bullet prose, raw Markdown notes and headings are never appended into `_memory.md`. The prompt itself is also told never to extract the assistant's own process (tool calls, sub-agent spawns, retrieval/context-configuration steps) as a "fact" — a transcript full of tool narration is not a list of things to remember about the user.

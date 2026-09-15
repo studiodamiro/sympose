@@ -384,6 +384,55 @@ now correctly resolves as not-full-body, `strict` now computes `True` for
 that turn, and the actual fabricated reply text from the transcript now
 matches `_VAULT_CLAIM_RE` (via the `.md`-path alternative from §3.13).
 
+### 3.17 Working memory accumulating duplicate and non-factual bullets, unnoticed for weeks
+
+Live transcript: asked to "play our game" (an established routine —
+"Vault Roulette," pulling a random note and discussing it), Samantha had no
+idea what that meant and confidently claimed a wrong game, then falsely
+asserted "I remember!" when challenged. The fact *was* actually registered —
+`samantha_memory.md` contained "Damiro's favorite game to play with the AI
+is 'Vault Roulette'..." verbatim, and `profiles.py` confirmed the whole file
+is injected into the system prompt on every turn — so this wasn't a
+retrieval gap like §3.13/§3.16. Reading the actual file turned up the real
+problem: it's bloated. Two near-duplicate phrasings of a coffee preference,
+two of a "polymath self-identity" fact, three reworded copies of the same
+npm-package fact, and lines like "Assistant invoked the vault_recall
+sub-agent skill to query the Obsidian workspace" — process narration, not a
+fact about the user at all. A small local model (`ollama/gemma4:e4b`) had to
+find one relevant line in a file that noisy and never did.
+
+Root cause, traced through both write paths into that file
+(`HeuristicGatedExtractor.extract_async`, per-turn, and
+`SessionArchivist.summarize_session`, end-of-session): **neither was ever
+shown the memory file's existing content before deciding what counted as a
+new fact**, and `ProfileManager.append_memory` writes with no dedup check at
+all — the only cleanup is `MemoryCompactor`'s periodic LLM-judgment merge
+pass, which doesn't reliably recognize two independently-phrased
+restatements of the same fact as duplicates. Separately, `session_summary.md`
+told the distillation LLM to extract "durable facts, technical decisions, or
+user preferences" with no restriction to the *user* — nothing excluded the
+assistant's own actions, which is exactly how the tool-narration lines got
+in.
+
+Also found stale: `docs/wiki/memory/shadow-extractor.md` claimed
+`append_memory()` "checks the existing `_memory.md` text... before writing,
+preventing duplicate bullet points" — false, and probably why this gap went
+unnoticed; nothing in the code ever did that. Its `TRIGGER_PATTERNS` /
+`SKIP_PATTERNS` code sample had also drifted from the real ones in
+`memory.py`.
+
+Fix: both extraction prompts (`memory_extraction.md`, `session_summary.md`)
+now receive the persona's existing memory content via a new
+`{{existing_memory}}` placeholder and are told to output `NONE` (or skip the
+bullet) for anything already covered, even if it would be worded
+differently — dedup moved to the source, before a fact is ever written,
+rather than relying on cleanup after the fact. Both prompts also now
+explicitly restrict extraction to facts about the user, never the
+assistant's own process. `MemoryCompactor`'s directives gained an explicit
+"merge by meaning, not exact text match" instruction and a new "drop process
+narration" directive, as a backstop for what's already in a file and
+whatever still slips through. Wiki pages corrected to match reality.
+
 ## 4. Skill coverage pass
 
 Samantha carries 9 skills. All got at least one live pass this session:

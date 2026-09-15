@@ -1096,6 +1096,51 @@ nothing does. Most likely an Obsidian plugin (e.g. a linter/auto-formatter)
 reformatting notes on open, unrelated to Sympose or this session. Flagged
 to damiro; left untouched.
 
+### 3.30 Correction to §3.29's own diagnosis, and the actual fix: a deterministic per-turn memory-fact match
+
+§3.29 concluded the local model's "Vault Roulette" failure needed semantic
+matching, on the theory that the memory fact and the user's phrasing shared
+no vocabulary. That theory was built on the wrong file. The verification
+script had been run from inside this repo, which `resolve_workspace_dir()`
+(`workspace.py`) silently resolves to "Local Project Mode" for (it has its
+own `profiles/`) — a completely different, separate `samantha_memory.md`
+than the one damiro's actual live sessions use. His real day-to-day
+`sympose` is a global pipx install, invoked from outside the repo, which
+resolves to `~/.sympose` instead. Confirmed directly (`pipx list` /
+`direct_url.json` show it pinned to `7deb1bb`, this session's own latest
+push at the time) and by re-running the check against that real workspace:
+`~/.sympose/profiles/samantha_memory.md` states *"Damiro's favorite game
+is 'Vault Roulette'..."* — near-verbatim overlap with "lets play our
+favorite game." Not a vocabulary gap at all: a plain, exact phrase sitting
+in context that a small model still didn't reliably notice mid-file.
+Updated the `dont-sync-dotsympose-testinstall` memory to capture this
+precisely, so a future verification script doesn't repeat the mistake of
+diagnosing from the wrong workspace.
+
+That reframes the fix as much simpler than embeddings: a deterministic,
+zero-round-trip keyword-overlap check between the message and each
+persona-memory bullet, generic across any fact or phrasing (not tied to
+"games" specifically) — `ProfileManager.find_relevant_memory_fact`
+(`profiles.py`), requiring at least two shared significant words (a
+stopword list filters greetings/pronouns/articles) so a lone incidental
+word doesn't fire a false match. Wired into `chat_stream` (`engine.py`)
+the same way `vault_ctx` already is: appended per-turn, after the cached
+system-prompt block, specifically so it doesn't invalidate a local
+backend's prompt-cache prefix the way a per-turn timestamp would (the same
+reasoning §3.19 already established for persona memory's own placement).
+
+Verified live against the real `~/.sympose` workspace, both models, fresh
+sessions, first turn (no prior correction needed): local `ollama/gemma4:e4b`
+went from inventing an unrelated open-prompt game across three turns to
+correctly opening with "pulling a random note now... *If I Stay*"
+immediately; `gemini/gemini-3.6-flash`'s default (non-overridden) path went
+from generic movie chat to naming "Vault Roulette" outright on message one.
+Caveat, same shape as §3.27's: neither turn actually triggered a real
+retrieval (no sub-agent, no tool call), so the specific note named is still
+not provably grounded that turn — this fixes recognizing the *ritual*
+correctly from the first message, not "every named note is a verified
+pull." 698 tests passing.
+
 ## 6. Commits
 
 - `0e59da3` — fix(grounding): stop a denied premise from becoming settled

@@ -101,6 +101,70 @@ class TestGetPersonaMemory:
         assert pm.get_persona_memory(profile) == ""
 
 
+class TestFindRelevantMemoryFact:
+    """Live bug: a memory bullet can say almost exactly what the user just
+    typed ("Damiro's favorite game is 'Vault Roulette'..." vs. "lets play
+    our favorite game") and a small local model still doesn't reliably
+    notice it mid-file. This is a deterministic, zero-round-trip keyword
+    match so the caller can surface the fact explicitly instead of hoping
+    the model finds it unassisted - generic across any fact/phrasing, not
+    tied to "games" or any one ritual."""
+
+    MEMORY = (
+        "# Samantha: Working Memory\n"
+        "**Identity & Role**\n"
+        "- User's name is Damiro.\n"
+        "**Recent Achievements & Personal Interests**\n"
+        "- Damiro published his first npm package, stylo.\n"
+        "- Damiro's favorite game is \"Vault Roulette,\" where a random "
+        "note from his Obsidian vault is pulled and discussed.\n"
+        "- Damiro likes his coffee black.\n"
+    )
+
+    def test_matches_a_near_verbatim_phrase(self):
+        hit = ProfileManager.find_relevant_memory_fact(
+            self.MEMORY, "hey sam lets play our favorite game. lets do Movies. g!"
+        )
+        assert hit is not None
+        assert "Vault Roulette" in hit
+
+    def test_matches_a_differently_worded_follow_up(self):
+        hit = ProfileManager.find_relevant_memory_fact(
+            self.MEMORY, "dont you remember our favorite game?"
+        )
+        assert hit is not None
+        assert "Vault Roulette" in hit
+
+    def test_no_match_for_an_unrelated_message(self):
+        hit = ProfileManager.find_relevant_memory_fact(
+            self.MEMORY, "what's the weather like for a hike this weekend?"
+        )
+        assert hit is None
+
+    def test_single_shared_word_is_not_enough(self):
+        """A lone incidental overlap (e.g. just "game") shouldn't fire -
+        requires at least two shared significant words to avoid noisy
+        false positives on short, generic messages."""
+        hit = ProfileManager.find_relevant_memory_fact(self.MEMORY, "nice game today")
+        assert hit is None
+
+    def test_empty_memory_returns_none(self):
+        assert ProfileManager.find_relevant_memory_fact("", "our favorite game") is None
+
+    def test_empty_message_returns_none(self):
+        assert ProfileManager.find_relevant_memory_fact(self.MEMORY, "") is None
+
+    def test_picks_the_strongest_of_multiple_candidate_lines(self):
+        mem = (
+            "- Damiro likes coffee.\n"
+            "- Damiro's favorite coffee shop game is trivia night.\n"
+            "- Damiro's favorite game is \"Vault Roulette,\" a random vault note pull.\n"
+        )
+        hit = ProfileManager.find_relevant_memory_fact(mem, "our favorite game, roulette style")
+        assert hit is not None
+        assert "Vault Roulette" in hit
+
+
 class TestBuildSystemPromptOrdering:
     """Regression, found live: a small local model's recall of a fact in
     persona working memory was unreliable when that block sat early in the

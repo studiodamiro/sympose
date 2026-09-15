@@ -624,6 +624,21 @@ class PersonaEngine:
         system_prompt = self.pm.build_system_prompt(profile)
         if vault_ctx:
             system_prompt += f"\n\n{vault_ctx}"
+        # Deterministic, zero-round-trip nudge: persona memory is dumped in
+        # full inside build_system_prompt's cached block, but a small model
+        # can still fail to notice one relevant bullet among everything
+        # else there. Appended per-turn (not baked into the cached prefix
+        # above) so it doesn't defeat local prompt-caching the way a
+        # per-turn timestamp would.
+        mem_hit = ProfileManager.find_relevant_memory_fact(
+            self.pm.get_persona_memory(profile), clean_input
+        )
+        if mem_hit:
+            system_prompt += (
+                "\n\n### Matched Working-Memory Fact (This Turn)\n"
+                "The user's message closely overlaps this fact you already "
+                f"have - it is very likely what they mean:\n- {mem_hit}"
+            )
         if has_session_recall_intent(clean_input):
             system_prompt += "\n\n" + self._build_session_history_digest(
                 handle, curr_session_id

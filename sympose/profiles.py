@@ -275,6 +275,59 @@ class ProfileManager:
         the protected `_read_file_safe` helper directly."""
         return self._read_file_safe(profile.get("memory_file"))
 
+    # Generic filler - articles, pronouns, greetings, auxiliary verbs - kept
+    # deliberately small and topic-agnostic so this never turns into a
+    # per-user/per-ritual phrase list (see `find_relevant_memory_fact`).
+    _MEMORY_MATCH_STOPWORDS: ClassVar[frozenset[str]] = frozenset(
+        {
+            "the", "a", "an", "is", "are", "was", "were", "be", "been", "being",
+            "to", "of", "in", "on", "at", "for", "and", "or", "but", "with",
+            "this", "that", "these", "those", "it", "its", "he", "she", "they",
+            "we", "you", "your", "our", "us", "i", "do", "does", "did", "done",
+            "have", "has", "had", "not", "no", "yes", "so", "if", "then",
+            "than", "just", "really", "very", "also", "hey", "hi", "hello",
+            "lets", "let", "gonna", "wanna", "dont", "cant", "youre", "im",
+            "my", "me", "his", "her", "their", "them", "what", "when", "how",
+            "why", "who", "there", "here", "again", "please", "about",
+        }
+    )
+
+    @classmethod
+    def _memory_match_tokens(cls, text: str) -> set[str]:
+        words = re.findall(r"[a-z']+", text.lower())
+        return {w for w in words if len(w) > 2 and w not in cls._MEMORY_MATCH_STOPWORDS}
+
+    @classmethod
+    def find_relevant_memory_fact(cls, memory_text: str, message: str) -> str | None:
+        """Deterministic, zero-round-trip check for a working-memory bullet
+        that closely overlaps the current message.
+
+        Live bug: a persona's working memory can state a fact in words the
+        user's own message nearly repeats ("Damiro's favorite game is 'Vault
+        Roulette'..." vs. "lets play our favorite game") and a small model
+        still won't reliably notice it buried mid-file - not because the
+        wording differs, but because nothing points it at that one line
+        among everything else in the prompt. This never calls a model: it's
+        plain keyword overlap between the message and each memory bullet,
+        generic across any fact/phrasing (not tied to any one ritual or
+        user), so the caller can surface a genuine match as its own small,
+        prominent block right next to the query instead of hoping the model
+        finds it unassisted."""
+        if not memory_text:
+            return None
+        msg_tokens = cls._memory_match_tokens(message)
+        if not msg_tokens:
+            return None
+        best_line, best_overlap = None, 0
+        for raw_line in memory_text.splitlines():
+            line = raw_line.strip().lstrip("-*").strip()
+            if len(line) < 8 or line.startswith("#"):
+                continue
+            overlap = len(msg_tokens & cls._memory_match_tokens(line))
+            if overlap >= 2 and overlap > best_overlap:
+                best_line, best_overlap = line, overlap
+        return best_line
+
     def _read_file_safe(self, path: str | None) -> str:
         if not path:
             return ""

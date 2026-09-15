@@ -6,6 +6,10 @@ aliases:
 model: "gemini/gemini-3.6-flash"
 icon_emoji: ":brain:"
 
+# ADR-122: local/cloud routing (personal — not shipped in the public default,
+# see below).
+local_model: "ollama/richardyoung/qwen2.5-14b-instruct-abliterated:latest"
+
 # "*" = full vault access. Samantha is the master orchestrator and Sympose
 # adapts to any folder taxonomy (Flat, PARA, Johnny Decimal, Zettelkasten) —
 # a fixed folder list would only work for one taxonomy and would auto-create

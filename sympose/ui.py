@@ -204,7 +204,9 @@ class TerminalUI:
         banner.append("S Y M P O S E  ", style="bold white")
         banner.append("// multi-model persona hub  ", style="dim white")
         banner.append(f"[v{get_version()}]\n", style="dim cyan")
-        banner.append("minimalist runtime for macos, windows, linux & slack\n", style="dim white")
+        banner.append(
+            "gives your Obsidian vault a voice — zero-bloat & local-first\n", style="dim white"
+        )
         banner.append(
             "commands: /help | /save | /config | switch: /switch | exit: /exit",
             style="dim cyan",

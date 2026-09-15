@@ -323,8 +323,10 @@ class PersonaEngine:
         messages: list[dict[str, Any]],
         stream: bool = True,
     ) -> dict[str, Any]:
-        is_loc = target_model.startswith("ollama/") or ":11434" in str(
-            profile.get("api_base", "")
+        backend = str(target_model or "").split("/", 1)[0].strip().lower()
+        api_base = str(profile.get("api_base", "") or "").lower()
+        is_loc = backend in self._LOCAL_MODEL_PREFIXES or any(
+            h in api_base for h in ("localhost", "127.0.0.1", "0.0.0.0", ":11434")
         )
         to_key = (
             "performance.local_request_timeout"

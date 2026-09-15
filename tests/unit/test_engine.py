@@ -242,6 +242,46 @@ class TestBuildKwargsKeepAlive:
             engine.config.set("performance.local_keep_alive", None)
 
 
+class TestBuildKwargsLocalRunawayStop:
+    """A broken local chat-template (no stop tokens of its own) lets
+    generation run past the reply into a hallucinated `### User:` /
+    `### Assistant:` continuation - seen live on a community Ollama
+    fine-tune. `_build_kwargs` sets a model-agnostic `stop` list for local
+    backends to cut that regardless of the model's own template. Verified
+    live tonight (a real Ollama exchange that stayed clean), but that
+    verification never had a permanent regression test until now.
+
+    Writing that test caught a second, real bug: `_build_kwargs`'s own
+    local-backend check only recognized a literal `ollama/` prefix, so
+    `ollama_chat/...`, `lm_studio/...`, and the rest of `_grounding_mode`'s
+    already-established `_LOCAL_MODEL_PREFIXES` list silently got neither
+    the stop list nor keep_alive - the two "is this local" checks in the
+    same file had drifted apart. Unified onto the one prefix list."""
+
+    def test_stop_list_set_for_local_model(self, engine):
+        kw = engine._build_kwargs("ollama/llama3", {}, [])
+        assert kw["stop"] == list(engine._LOCAL_RUNAWAY_STOP_SEQUENCES)
+
+    def test_stop_list_not_sent_for_cloud_model(self, engine):
+        kw = engine._build_kwargs("gemini/gemini-3.6-flash", {}, [])
+        assert "stop" not in kw
+
+    def test_stop_list_set_regardless_of_keep_alive(self, engine):
+        kw = engine._build_kwargs("ollama_chat/qwen2.5:14b", {"keep_alive": -1}, [])
+        assert kw["stop"] == list(engine._LOCAL_RUNAWAY_STOP_SEQUENCES)
+
+    def test_other_local_backend_prefixes_also_get_the_stop_list(self, engine):
+        for backend in ("lm_studio/model", "llamafile/model", "llama-cpp-python/model"):
+            kw = engine._build_kwargs(backend, {}, [])
+            assert kw["stop"] == list(engine._LOCAL_RUNAWAY_STOP_SEQUENCES), backend
+
+    def test_localhost_api_base_gets_the_stop_list_too(self, engine):
+        kw = engine._build_kwargs(
+            "openai/local-model", {"api_base": "http://127.0.0.1:8080"}, []
+        )
+        assert kw["stop"] == list(engine._LOCAL_RUNAWAY_STOP_SEQUENCES)
+
+
 class TestSelectTurnModel:
     """ADR-122: engine._select_turn_model, the guard that decides whether a
     turn is even eligible for local routing before handing off to

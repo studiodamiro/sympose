@@ -8,7 +8,7 @@ import argparse
 import os
 
 from sympose.cli import TerminalInterface
-from sympose.config import ConfigManager
+from sympose.config import config_manager
 from sympose.engine import PersonaEngine
 from sympose.profiles import ProfileManager
 from sympose.slack import MultiPersonaSlackRunner
@@ -90,7 +90,14 @@ def main():
         if os.path.isabs(args.config)
         else os.path.join(workspace_dir, args.config)
     )
-    config = ConfigManager(config_path)
+    # Point the shared singleton (imported by engine.py, vault.py, actions.py,
+    # etc.) at the resolved workspace config, instead of leaving it on the
+    # relative "config.yaml" default it loaded at import time — every module
+    # that reads config_manager off of `sympose.config` needs to see the same
+    # resolved path, not a second, throwaway instance.
+    config_manager.config_path = config_path
+    config_manager.reload()
+    config = config_manager
 
     profiles_dir = config.get("runtime.profiles_dir", "profiles")
     if not os.path.isabs(profiles_dir):

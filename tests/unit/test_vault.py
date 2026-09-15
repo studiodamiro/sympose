@@ -990,3 +990,28 @@ class TestResolveTurnContextConversational:
             VaultManager.has_recall_intent("can you pull up my note on grief") is True
         )
         assert VaultManager.has_recall_intent("what's the btc price right now") is False
+
+
+class TestWorkspaceDir:
+    """Regression coverage: `_workspace_dir` must delegate to the canonical
+    `resolve_workspace_dir()` resolver (which guards against cwd being "/" or
+    "~") rather than reverse-engineering a directory from
+    `config_manager.config_path`. That path stays the relative "config.yaml"
+    default whenever a caller loads config through a fresh ConfigManager
+    instead of the shared singleton, so deriving from it silently pointed the
+    vault manifest cache at the process's cwd — including "/" itself, which
+    crashed with a read-only-filesystem OSError."""
+
+    def test_delegates_to_resolve_workspace_dir(self, monkeypatch):
+        from sympose.config import config_manager
+        from sympose.vault import VaultManager
+
+        # Deliberately leave config_manager.config_path on its relative
+        # default and simulate a process launched from "/" — the exact
+        # conditions that produced the "/.vault_index" crash.
+        monkeypatch.setattr(config_manager, "config_path", "config.yaml")
+        monkeypatch.chdir("/")
+
+        assert VaultManager._workspace_dir() == os.path.join(
+            os.path.expanduser("~"), ".sympose"
+        )

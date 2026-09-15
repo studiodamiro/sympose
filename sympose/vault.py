@@ -21,6 +21,7 @@ from sympose import (
     vault_write,
 )
 from sympose.config import config_manager, is_safe_path
+from sympose.workspace import resolve_workspace_dir
 
 log = logging.getLogger(__name__)
 
@@ -422,7 +423,7 @@ class VaultManager:
 
     @staticmethod
     def _workspace_dir() -> str:
-        return os.path.dirname(os.path.abspath(config_manager.config_path)) or "."
+        return resolve_workspace_dir()
 
     @classmethod
     def _reindex_note_if_enabled(cls, mv: str, target_file: str) -> None:

@@ -900,6 +900,50 @@ paragraph with zero headers, bold titles, or lists — not perfectly terse
 (still a small-model, still has room to ramble), but structurally correct
 this time. 679 tests passing.
 
+### 3.27 An easier invented topic beat a real memory fact — "movies" over "Vault Roulette"
+
+A third live transcript arrived mid-fix: *"lets play our favorite game.
+lets do movies. g?"* got a fully invented "Guess the Movie" trivia game
+with numbered rules — nothing to do with Vault Roulette. Corrected twice
+("dont you remember our favorite game?", "dont you have it in your memory?
+or shared memory perhaps?"), she apologized both times and invented two
+*more* fake games ("Conceptual Collision," an "Aesthetic/Temporal/Motif"
+scheme) — never once landing on the real fact.
+
+Checked precisely what she had to work with: `resolve_turn_context`
+returns `None` for this message (nothing to search, no folder named) — so
+there was no competing vault content to blame, and `samantha_memory.md`
+genuinely has *"Damiro's favorite game is 'Vault Roulette'..."* sitting at
+the very end of the prompt, exactly where §3.19 put it. Reproduced the
+same two-turn exchange against the current, fully-patched engine and real
+model - same failure, unprompted: an invented *The Matrix* discussion,
+still no Vault Roulette. The fact was there. She just didn't check it -
+"movies" gave her an easier, plausible path (generate movie content from
+general knowledge) and she took it over consulting the specific fact she
+actually had.
+
+This is a different shape of problem than anything else this session -
+not a retrieval bug, not a formatting bug, a small local model preferring
+an easy fluent completion over an available fact when a message hands it
+one. Tried one targeted, structural addition rather than assuming it
+can't be helped: a short instruction wrapping the Persona Working Memory
+block itself, naming the exact failure pattern - "if the user references
+something a fact below already covers, that fact is the answer, even if
+their message also names an easier, unrelated topic to run with instead."
+General, not tied to "movies" or "Vault Roulette" specifically - it
+applies to whatever facts a persona's memory happens to hold.
+
+Verified live, three separate runs against the real model, same exact
+message: all three now correctly named "Vault Roulette" (one even
+interpreted "movies" sensibly, as a theme for the pull, referencing
+`Movies/If I Stay.md` - a real note that exists, though since no
+retrieval ran that turn this can't be confirmed as genuine grounding
+versus a lucky coincidence with a real film title). A real, verified
+improvement for this specific failure shape — not a claim that a small
+model will now always prefer a given fact over an easy invention in every
+case; that's the same residual-gap caveat as everything else model-
+behavior-related this session. 680 tests passing.
+
 ## 4. Skill coverage pass
 
 Samantha carries 9 skills. All got at least one live pass this session:

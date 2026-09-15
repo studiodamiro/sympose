@@ -407,7 +407,22 @@ class ProfileManager:
         # same memory content, only its position changed. Placing it as the
         # final block puts it closest to the query it needs to answer.
         if persona_mem:
-            prompt_parts.append(f"### Persona Working Memory:\n{persona_mem}")
+            # Live bug: "let's play our favorite game, let's do movies" -
+            # she has the real fact ("favorite game is Vault Roulette")
+            # right here, but "movies" gave her an easier, unrelated path
+            # (inventing a movie-trivia game) and she took it instead of
+            # checking what's actually below. This line names that exact
+            # failure shape so it can't be mistaken for ambiguity.
+            prompt_parts.append(
+                "### Persona Working Memory\n"
+                "If the user references something a fact below already "
+                "covers (a nickname for an activity, a preference, a "
+                "running joke), that fact is the answer — even if their "
+                "message also names an easier, unrelated topic to run "
+                "with instead. A fact you actually have always outranks a "
+                "plausible invention.\n\n"
+                f"{persona_mem}"
+            )
 
         # Deliberately last, same reasoning as the memory block above: a
         # small local model asked to do something playful or creative

@@ -138,6 +138,33 @@ class TestBuildSystemPromptOrdering:
 
         assert "Never promise an ongoing protocol that will keep saving" in prompt
 
+    def test_memory_block_instructs_facts_to_outrank_easier_inventions(
+        self, tmp_path
+    ):
+        """Live bug: "let's play our favorite game, let's do movies" - she
+        had the real fact ("favorite game is Vault Roulette") right there
+        in memory, but "movies" gave her an easier, unrelated path (a
+        movie-trivia game invented from scratch) and she took it instead
+        of checking what she actually had. Verified live: with this
+        instruction added, the same message correctly recalled "Vault
+        Roulette" across three separate runs against the real model."""
+        (tmp_path / "sam.yaml").write_text(
+            "name: Sam\nhandle: sam\nsoul_file: sam_soul.md\n"
+            "memory_file: sam_memory.md\n"
+        )
+        (tmp_path / "sam_soul.md").write_text("# Sam\nYou are Sam.\n")
+        (tmp_path / "sam_memory.md").write_text(
+            "# Memory\n- The user's favorite game is Vault Roulette.\n"
+        )
+
+        pm = ProfileManager(profiles_dir=str(tmp_path))
+        prompt = pm.build_system_prompt(pm.get_profile("sam"))
+
+        assert "always outranks a plausible invention" in prompt
+        assert prompt.index("always outranks a plausible invention") < prompt.index(
+            "Vault Roulette"
+        )
+
     def test_stay_in_character_and_no_phantom_actions_come_after_memory(
         self, tmp_path
     ):

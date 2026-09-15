@@ -8,6 +8,7 @@ session titling, and compaction itself.
 
 import logging
 import os
+import re
 import threading
 from collections.abc import Callable
 from typing import Any
@@ -66,6 +67,23 @@ def run_hygiene_task(target: Callable[..., Any], *args: Any, **kwargs: Any) -> N
 class MemoryCompactor:
     """Consolidates and prunes markdown working memory files when line counts exceed thresholds."""
 
+    # A bullet phrased as a question or hedge was never confirmed as fact - it
+    # must never be silently resolved into a flat assertion by compaction, no
+    # matter what the distillation LLM decides. Telling the LLM this via the
+    # compaction prompt alone was tried first and did not reliably hold once
+    # the file got large and complex (confirmed live: a denied premise still
+    # got asserted as settled fact) - this is the deterministic backstop.
+    _UNRESOLVED_RE = re.compile(
+        r"\?|\b(?:remember when|remember,? that we|didn'?t we|weren'?t we|"
+        r"haven'?t we|wasn'?t it|did we (?:agree|decide)|are we (?:still )?"
+        r"(?:planning|going) to)\b",
+        re.IGNORECASE,
+    )
+
+    @classmethod
+    def _looks_unresolved(cls, line: str) -> bool:
+        return bool(cls._UNRESOLVED_RE.search(line))
+
     @classmethod
     def count_bullet_lines(cls, filepath: str) -> int:
         """Counts actionable bullet lines in a markdown memory file."""
@@ -108,6 +126,26 @@ class MemoryCompactor:
         if not content:
             return False
 
+        # Auto-protect any bullet that already reads as an unresolved question
+        # or hedge, regardless of whether it's what triggered this particular
+        # pass - every compaction re-checks every line, so this holds even if
+        # an earlier pass somehow missed it. These are withheld from the LLM
+        # entirely (not just protected in the output) - a model that sees an
+        # unresolved claim can still draw its own confident conclusion from
+        # it even when told not to (confirmed live), so the only reliable
+        # fix is to never show it the claim in the first place.
+        protect = list(protect or []) + [
+            line
+            for line in initial_lines
+            if line.startswith(("- ", "* ")) and cls._looks_unresolved(line)
+        ]
+        protect_set = set(protect)
+        content_for_llm = "\n".join(
+            line for line in initial_lines if line not in protect_set
+        )
+        if not content_for_llm.strip():
+            return False
+
         target_model = model or config_manager.get(
             "session.exit_behavior.summarization_model", DEFAULT_SUB_AGENT_MODEL
         )
@@ -134,7 +172,7 @@ class MemoryCompactor:
             "or an unconfirmed premise (e.g. \"did we decide to...\", \"weren't we going to...\") "
             "is not a settled fact even if no contradicting entry exists. Preserve it verbatim, "
             "phrased with its original uncertainty, or drop it — never restate it as confirmed.\n\n"
-            f"### ORIGINAL MEMORY:\n{content}"
+            f"### ORIGINAL MEMORY:\n{content_for_llm}"
         )
 
         try:

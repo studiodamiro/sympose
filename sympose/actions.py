@@ -50,6 +50,19 @@ class ActionProcessor:
     # silent no-op.
     _LEGACY_TAG_RE = re.compile(r"\[(?:ACTION:)?SPAWN_WORKER:[^\]]*\]", re.IGNORECASE)
 
+    @staticmethod
+    def _op_failed(result: str) -> bool:
+        """True when a vault_write.py-style call returned one of its
+        established failure prefixes instead of a success message. Every
+        call site that shows a confirmation badge must check this first —
+        write_note/append_note/write_daily_note return a string either way,
+        and nothing upstream previously distinguished them, so a rejected
+        write (sandbox violation, the Daily/ boundary guard, a disk error)
+        was confirmed to the user as a success every time."""
+        return isinstance(result, str) and result.startswith(
+            ("Error", "Security Error", "Warning")
+        )
+
     @classmethod
     def parse_action_tags(cls, text: str) -> list[tuple[str, str, str]]:
         """Extracts all autonomic action tags supporting nested brackets while ignoring documentation template placeholders."""
@@ -150,43 +163,61 @@ class ActionProcessor:
                 parts = inner.split("|", 1)
                 filename, content = parts[0].strip(), parts[1].strip()
                 if filename and content:
-                    VaultManager.write_note(profile, filename, content)
-                    rel_path = (
-                        f"{vault_folder}/{filename}" if vault_folder else filename
-                    )
-                    if not rel_path.endswith(".md"):
-                        rel_path += ".md"
-                    badges.append(f"> 📝 **{name} saved note to Vault:** `{rel_path}`")
+                    result = VaultManager.write_note(profile, filename, content)
+                    if cls._op_failed(result):
+                        badges.append(f"> ⚠️ **{name} could not save note:** {result}")
+                    else:
+                        rel_path = (
+                            f"{vault_folder}/{filename}" if vault_folder else filename
+                        )
+                        if not rel_path.endswith(".md"):
+                            rel_path += ".md"
+                        badges.append(
+                            f"> 📝 **{name} saved note to Vault:** `{rel_path}`"
+                        )
 
             # 2. APPEND_NOTE
             elif tag == "APPEND_NOTE" and "|" in inner:
                 parts = inner.split("|", 1)
                 filename, content = parts[0].strip(), parts[1].strip()
                 if filename and content:
-                    VaultManager.append_note(profile, filename, content)
-                    rel_path = (
-                        f"{vault_folder}/{filename}" if vault_folder else filename
-                    )
-                    if not rel_path.endswith(".md"):
-                        rel_path += ".md"
-                    badges.append(
-                        f"> 📝 **{name} appended to Vault note:** `{rel_path}`"
-                    )
+                    result = VaultManager.append_note(profile, filename, content)
+                    if cls._op_failed(result):
+                        badges.append(
+                            f"> ⚠️ **{name} could not append to note:** {result}"
+                        )
+                    else:
+                        rel_path = (
+                            f"{vault_folder}/{filename}" if vault_folder else filename
+                        )
+                        if not rel_path.endswith(".md"):
+                            rel_path += ".md"
+                        badges.append(
+                            f"> 📝 **{name} appended to Vault note:** `{rel_path}`"
+                        )
 
             # 3. DAILY_NOTE
             elif tag == "DAILY_NOTE" and inner:
-                VaultManager.write_daily_note(profile, inner)
-                badges.append(f"> 📅 **{name} logged entry to Daily Notes**")
+                result = VaultManager.write_daily_note(profile, inner)
+                if cls._op_failed(result):
+                    badges.append(
+                        f"> ⚠️ **{name} could not log daily entry:** {result}"
+                    )
+                else:
+                    badges.append(f"> 📅 **{name} logged entry to Daily Notes**")
 
             # 4. REMEMBER
             elif tag == "REMEMBER" and inner:
-                profile_manager.append_memory(handle, inner)
-                mem_desc = (
-                    "working & shared team memory"
-                    if is_shared
-                    else f"private memory (`{profile.get('memory_file')}`)"
-                )
-                badges.append(f"> 🧠 **{name} updated {mem_desc}:** {inner}")
+                ok = profile_manager.append_memory(handle, inner)
+                if not ok:
+                    badges.append(f"> ⚠️ **{name} could not persist to memory:** {inner}")
+                else:
+                    mem_desc = (
+                        "working & shared team memory"
+                        if is_shared
+                        else f"private memory (`{profile.get('memory_file')}`)"
+                    )
+                    badges.append(f"> 🧠 **{name} updated {mem_desc}:** {inner}")
 
             # 4b. READ_NOTE / VIEW_NOTE
             elif tag in ("READ_NOTE", "VIEW_NOTE") and inner.strip():

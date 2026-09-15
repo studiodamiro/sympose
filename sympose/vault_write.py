@@ -24,6 +24,27 @@ from sympose.config import config_manager, is_safe_path
 
 log = logging.getLogger(__name__)
 
+
+def _daily_notes_root() -> str:
+    """First path segment of the daily-notes format - workspace_rules.md
+    tells personas this folder is off-limits for direct writes ("uses
+    [DAILY_NOTE] system instead"), but that was prompt-text only with no
+    code behind it until now: a model asked to write there directly just
+    did (confirmed live). `write_daily_note` below reads this exact env var
+    to place real daily notes, so this is the same folder, not a guess."""
+    fmt = os.getenv("DAILY_NOTES_FORMAT", "Daily/%Y/%m-%B/%Y-%m-%d.md")
+    return fmt.split("/")[0].split("\\")[0]
+
+
+def _targets_daily_root(target_file: str, mv: str) -> bool:
+    """True when `target_file` would create a new entry directly under the
+    daily-notes root, bypassing write_daily_note's format/tagging entirely."""
+    daily_root = _daily_notes_root()
+    if not daily_root:
+        return False
+    rel = os.path.relpath(target_file, mv).replace("\\", "/")
+    return rel.split("/")[0] == daily_root
+
 # Sentinels — mapped onto VaultManager.NOTE_* (same values) so the server
 # sees one consistent status vocabulary regardless of which module a result
 # actually came from.
@@ -120,6 +141,11 @@ def write_note(
     )
     if not any(is_safe_path(target_file, allowed) for allowed in allowed_dirs):
         return f"Security Error: Target path `{note_name}` is outside assigned sandbox."
+    if _targets_daily_root(target_file, mv):
+        return (
+            f"Warning: `{_daily_notes_root()}/` is reserved for daily entries — "
+            "use [DAILY_NOTE] instead of writing directly into that folder."
+        )
 
     now = datetime.datetime.now().astimezone()
     date_str, time_str, rel_display = (
@@ -335,6 +361,8 @@ def create_note(
     # stays correct even when `mv` sits under a symlink (macOS `/var`).
     target_file = os.path.normpath(os.path.join(base, clean_name))
     if not any(is_safe_path(target_file, allowed) for allowed in allowed_dirs):
+        return NOTE_DENIED
+    if _targets_daily_root(target_file, mv):
         return NOTE_DENIED
     if os.path.exists(target_file):
         return NOTE_EXISTS

@@ -159,6 +159,7 @@ one in [`docs/wiki/index.md`](./wiki/index.md) are kept in sync per the
 
 | Date | Entry |
 | ---- | ----- |
+| 2026-09-15 | [Samantha Live Testing Sweep — Six Bugs Found and Fixed](./journal/2026-09/2026-09-15_samantha-live-testing-bug-sweep.md) |
 | 2026-09-15 | [Worker → Sub-Agent Rename](./journal/2026-09/2026-09-15_worker-to-sub-agent-rename.md) |
 | 2026-09-11 | [ADR-094 — Settings Panel Density Cleanup](./journal/2026-09/2026-09-11_adr-094-settings-panel-density-cleanup.md) |
 | 2026-09-11 | [ADR-093 — Stage Action Group Order Swap & Explore Slide-Out](./journal/2026-09/2026-09-11_adr-093-stage-action-group-swap-and-explore-slide-out.md) |

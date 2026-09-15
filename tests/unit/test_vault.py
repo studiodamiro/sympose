@@ -983,6 +983,57 @@ class TestResolveTurnContextConversational:
         )
         assert ctx is not None and "quiet morning" in ctx
 
+    def test_topic_folder_search_is_a_digest_not_full_body(
+        self, tmp_vault_dir, monkeypatch
+    ):
+        """Regression: asking to discuss notes "in a folder" by topic, with
+        several matches, returns a multi-result search digest (titles + a
+        one-line snippet each) - not any note's full text. Live bug:
+        PersonaEngine trusted this digest as "real grounding" and disabled
+        its fabrication check entirely, so the model invented a whole essay
+        to fill the gap between a one-line snippet and a real conversation.
+        The fix keys off the "Exact Content" marker this context is missing -
+        this test locks in that it stays missing for a plain digest."""
+        from sympose.vault import VaultManager
+
+        monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
+        write_note(
+            str(tmp_vault_dir / "Thoughts" / "A.md"), "# A\n\nSome thoughts here.\n"
+        )
+        write_note(
+            str(tmp_vault_dir / "Thoughts" / "B.md"), "# B\n\nMore thoughts here.\n"
+        )
+        write_note(
+            str(tmp_vault_dir / "Thoughts" / "C.md"), "# C\n\nEven more thoughts.\n"
+        )
+
+        ctx = VaultManager.resolve_turn_context(
+            self._profile(), "lets talk about the thoughts in that folder"
+        )
+        assert ctx is not None
+        assert "Exact Content" not in ctx
+
+    def test_random_folder_sample_is_full_body(self, tmp_vault_dir, monkeypatch):
+        """The random-sample path (as opposed to the multi-result digest
+        above) does read a real note's full text - it must carry the same
+        "Exact Content" marker every other full-body context does, or
+        PersonaEngine._is_full_body_vault_ctx wrongly treats good grounding
+        as thin and re-engages strict mode's fabrication check needlessly."""
+        from sympose.vault import VaultManager
+
+        monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
+        write_note(
+            str(tmp_vault_dir / "Thoughts" / "A.md"), "# A\n\nSome thoughts here.\n"
+        )
+
+        ctx = VaultManager.resolve_turn_context(
+            self._profile(),
+            "you pull a random note to a folder we agreed, then well tell "
+            "each other thoughts about the note",
+        )
+        assert ctx is not None
+        assert "Exact Content" in ctx
+
     def test_fresh_recall_intent_detected(self):
         from sympose.vault import VaultManager
 

@@ -351,6 +351,39 @@ which swallowed a dict-*valued* leaf setting whose default is `{}` — fixed
 by only recursing into non-empty dicts, since every real namespace
 (`performance.*`, `vault.*`, ...) always has at least one key.
 
+### 3.16 A thin search digest was treated as strong enough grounding to disable the fabrication check entirely
+
+Live transcript: asked to play a "pull a random note, then discuss it"
+game, Samantha correctly cited a real note's real path
+(`Thoughts/I on Expressing Thoughts.md`, found via a real vault search) but
+then narrated an entire invented essay about its contents — a "Loss in
+Translation" theme, a three-part emotional structure, none of it in the
+actual note (which is about the user's father). Confronted, she admitted
+"I do not have the literal text stored in my active memory" — directly
+contradicting her own opening line, "I've pulled this one for us."
+
+Root cause: `chat_stream` computed `strict = grounding_mode == "strict" and
+not vault_ctx`. `vault_ctx` truthiness was used as a proxy for "real
+grounding already happened," but `VaultManager.resolve_turn_context` returns
+two very different shapes under that one variable — a note's full verbatim
+body (strong grounding), or a thin multi-result search digest of titles and
+one-line snippets (weak — nowhere near enough to discuss a note's actual
+content). Both disabled `strict` identically, so a digest this shallow
+turned off every fabrication check §3.13/§3.6 built, for the whole turn.
+
+Fix: `PersonaEngine._is_full_body_vault_ctx` checks for the literal "Exact
+Content" marker every full-body `vault.py` return already carries (`###
+Ground-Truth Sandboxed Vault Note (... - Exact Content):`), and `strict` now
+keys off that instead of bare truthiness. One gap found while auditing every
+`vault.py` return site for the marker: `get_random_sample_notes`'s header
+(the "pull a random note from this folder" path) reads real note bodies but
+never carried the marker — added it, or that genuinely-grounded path would
+have started tripping its own fabrication check for no reason. Verified
+end-to-end against the real failing message and the real vault: `vault_ctx`
+now correctly resolves as not-full-body, `strict` now computes `True` for
+that turn, and the actual fabricated reply text from the transcript now
+matches `_VAULT_CLAIM_RE` (via the `.md`-path alternative from §3.13).
+
 ## 4. Skill coverage pass
 
 Samantha carries 9 skills. All got at least one live pass this session:

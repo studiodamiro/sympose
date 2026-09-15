@@ -1421,7 +1421,7 @@ class VaultManager:
                             profile, folder_name, count=1
                         )
                         if samples:
-                            return f"### Ground-Truth Selected Note from `{folder_name}/`:\n{samples}"
+                            return f"### Ground-Truth Selected Note from `{folder_name}/` (Exact Content):\n{samples}"
                     if re.search(
                         r"\b(scan|analyze|summarize|all|overview|connections?|access)\b",
                         msg,

@@ -85,6 +85,45 @@ class TestVisibleStreamGate:
         assert "REMEMBER" not in out
 
 
+class TestIsFullBodyVaultCtx:
+    """Live bug: a persona was handed a thin search-results digest (titles +
+    one-line snippets, no full text) as pre-turn vault_ctx, and chat_stream's
+    `strict = ... and not vault_ctx` treated any non-empty vault_ctx as
+    "real grounding" and disabled the fabrication check entirely for the
+    turn - the model then invented a whole essay to fill the gap between a
+    one-line snippet and an actual conversation. Only a full verbatim note
+    body (marked "Exact Content" everywhere vault.py returns one) is strong
+    enough grounding to justify that."""
+
+    def test_none_and_empty_are_not_full_body(self, engine):
+        assert engine._is_full_body_vault_ctx(None) is False
+        assert engine._is_full_body_vault_ctx("") is False
+
+    def test_search_digest_is_not_full_body(self, engine):
+        assert not engine._is_full_body_vault_ctx(
+            "### Ground-Truth Vault Search Results for 'thoughts':\n"
+            "**[1] `Thoughts/A.md`** *(Title Match)*\n  > some snippet"
+        )
+
+    def test_backlink_digest_is_not_full_body(self, engine):
+        assert not engine._is_full_body_vault_ctx(
+            "### Ground-Truth Vault Backlink Index for `[[Dylan]]`:\n- People/Tin.md"
+        )
+
+    def test_exact_content_note_is_full_body(self, engine):
+        assert engine._is_full_body_vault_ctx(
+            "### Ground-Truth Sandboxed Vault Note (`People/Dylan.md` - Exact "
+            "Content):\n# Dylan\n\nson, born 2015-09-08."
+        )
+
+    def test_random_sample_note_is_full_body(self, engine):
+        assert engine._is_full_body_vault_ctx(
+            "### Ground-Truth Selected Note from `Thoughts/` (Exact Content):\n"
+            "### Ground-Truth Sandboxed Vault Note (`Thoughts/A.md` — Exact "
+            "Content, matched 'thoughts'):\nSome thoughts here."
+        )
+
+
 class TestGroundingModeKnob:
     """`vault_grounding: auto` derives strict/trust from the model: a local
     backend (or localhost api_base) → strict, cloud → trust. An explicit

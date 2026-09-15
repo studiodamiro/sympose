@@ -153,6 +153,21 @@ class PersonaEngine:
         }
     )
 
+    @staticmethod
+    def _is_full_body_vault_ctx(vault_ctx: str | None) -> bool:
+        """Pre-turn `vault_ctx` (VaultManager.resolve_turn_context) comes in two
+        shapes: a note's full verbatim body (every such payload carries the
+        literal "Exact Content" marker in its header — see vault.py's
+        `### Ground-Truth ... (... Exact Content):` returns), or a thin digest
+        (a search-results list, a backlink index, the structural manifest) that
+        only gives titles/snippets/counts. Only the former is strong enough
+        grounding to suspend strict mode's fabrication check for the turn —
+        live bug: a "thoughts" search digest (title + one-line snippet per
+        note) was enough to turn strict off entirely, and the model filled the
+        gap between snippet and full note with an invented essay that nothing
+        caught."""
+        return bool(vault_ctx) and "Exact Content" in vault_ctx
+
     def _grounding_mode(self, profile: dict[str, Any], target_model: str) -> str:
         """`strict` → the runtime enforces vault retrieval itself; `trust` →
         rely on the model to emit `[SPAWN_SUB_AGENT: vault_recall]`. An explicit
@@ -613,7 +628,9 @@ class PersonaEngine:
             handle, profile, clean_input, vault_ctx, target_model
         )
 
-        strict = self._grounding_mode(profile, call_model) == "strict" and not vault_ctx
+        strict = self._grounding_mode(
+            profile, call_model
+        ) == "strict" and not self._is_full_body_vault_ctx(vault_ctx)
 
         try:
             stream_val = bool(self.config.get("performance.stream"))

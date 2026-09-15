@@ -25,6 +25,72 @@ log = logging.getLogger(__name__)
 
 MAX_TOOL_OUTPUT_CHARS = 20000
 
+# Live bug: a vault_read sub-agent had no tool that actually does what its
+# own skill was for - only generic run_command/read_file - so every search
+# or "pick a random note" request got reconstructed by hand from grep/find/
+# shuf, burning tool-call budget on work Sympose's own vault layer already
+# does deterministically (search_structured's SQLite FTS index,
+# get_random_sample_notes' folder sampling). These wrap those directly so a
+# sub-agent gets one structured call instead of composing shell one-liners.
+_VAULT_TOOL_SCHEMAS: list[dict[str, Any]] = [
+    {
+        "type": "function",
+        "function": {
+            "name": "vault_search",
+            "description": (
+                "Full-text search over the indexed vault, ranked, with "
+                "snippets. Use for any keyword, topic, date, or tag lookup "
+                "instead of grep."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "Keyword(s), a date, or a tag to search for.",
+                    },
+                    "folder": {
+                        "type": "string",
+                        "description": "Optional: restrict the search to one top-level vault folder.",
+                    },
+                    "max_results": {
+                        "type": "integer",
+                        "description": "Maximum results to return (default 10).",
+                    },
+                },
+                "required": ["query"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "vault_sample",
+            "description": (
+                "Returns the real, full content of one or more randomly "
+                "sampled notes from a vault folder in a single call - use "
+                "whenever the request names a folder without naming a "
+                "specific note ('pick a random note', 'surprise me'). No "
+                "separate read step needed afterward."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "folder": {
+                        "type": "string",
+                        "description": "The vault folder to sample from.",
+                    },
+                    "count": {
+                        "type": "integer",
+                        "description": "How many notes to sample (default 1).",
+                    },
+                },
+                "required": ["folder"],
+            },
+        },
+    },
+]
+
 
 class SubAgentTask:
     """Specification for an isolated, ephemeral sub-agent execution."""
@@ -71,6 +137,7 @@ class SubAgentEngine:
         dict[str, MCPClient],  # tool_to_client
         list[dict[str, Any]],  # all_litellm_tools
         list[str] | None,  # allowed_dirs
+        dict[str, Any] | None,  # parent_prof
     ]:
         """Builds the shared execution context for both streaming and non-streaming sub-agents."""
         skills_text = skill_manager.format_skills_for_prompt(task.skills)
@@ -133,7 +200,7 @@ class SubAgentEngine:
         # ADR-078.7: hand a vault-skilled sub-agent the structural map so it
         # navigates from it instead of shelling out to find/ls/wc. No-op when
         # `vault.manifest.enabled` is off or no manifest exists yet.
-        if any(s in ("vault_recall", "vault_write") for s in task.skills):
+        if any(s in ("vault_read", "vault_write") for s in task.skills):
             try:
                 manifest = VaultManager.get_manifest()
                 if manifest and manifest.get("nodes"):
@@ -144,6 +211,11 @@ class SubAgentEngine:
                 log.debug(
                     "SubAgentEngine: manifest digest injection failed", exc_info=True
                 )
+
+        # Search/sample the vault deterministically instead of reconstructing
+        # it from find/grep/shuf every time - see _VAULT_TOOL_SCHEMAS.
+        if "vault_read" in task.skills:
+            all_litellm_tools.extend(_VAULT_TOOL_SCHEMAS)
 
         # Live bug: a sub-agent spawned to recall "our favorite game" had no
         # way to know the parent persona's memory already spells out exactly
@@ -193,6 +265,7 @@ class SubAgentEngine:
             tool_to_client,
             all_litellm_tools,
             allowed_dirs,
+            parent_prof,
         )
 
     @staticmethod
@@ -218,10 +291,45 @@ class SubAgentEngine:
         kwargs["timeout"] = float(config_manager.get("sub_agent.request_timeout"))
 
     @staticmethod
+    def _run_vault_tool(
+        t_name: str, args_dict: dict[str, Any], profile: dict[str, Any] | None
+    ) -> tuple[bool, str]:
+        """Dispatches `vault_search`/`vault_sample` - the deterministic vault
+        primitives from _VAULT_TOOL_SCHEMAS - against the parent persona's
+        own sandbox. Lives here rather than in NativeTools.execute because
+        these need the full persona `profile` (for get_allowed_dirs, ignore
+        folders, etc.), not just a bare `allowed_dirs` list."""
+        if not profile:
+            return False, "No parent persona profile resolved for this sub-agent."
+        if t_name == "vault_search":
+            query = str(args_dict.get("query", "")).strip()
+            if not query:
+                return False, "A `query` is required."
+            folder = args_dict.get("folder") or None
+            max_results = int(args_dict.get("max_results") or 10)
+            results = VaultManager.search_structured(
+                profile, query, target_folder=folder, max_results=max_results
+            )
+            if not results:
+                return True, f"No matches for '{query}'."
+            return True, VaultManager.format_search_digest(query, results)
+        if t_name == "vault_sample":
+            folder = str(args_dict.get("folder", "")).strip()
+            if not folder:
+                return False, "A `folder` is required."
+            count = int(args_dict.get("count") or 1)
+            payload = VaultManager.get_random_sample_notes(profile, folder, count)
+            if not payload:
+                return False, f"No notes found in `{folder}/`."
+            return True, payload
+        return False, f"Unknown vault tool `{t_name}`."
+
+    @staticmethod
     def _dispatch_tool_call(
         tc: Any,
         tool_to_client: dict[str, MCPClient],
         allowed_dirs: list[str] | None,
+        profile: dict[str, Any] | None = None,
     ) -> tuple[str, str, str, bool, str, dict[str, Any]]:
         """Parses a tool_call object and executes it. Returns (call_id, t_name, arg_summary, ok, tool_res, args_dict)."""
         fn = tc.function if hasattr(tc, "function") else tc.get("function", {})
@@ -243,13 +351,15 @@ class SubAgentEngine:
         arg_summary = ", ".join(
             f"{k}={v}"
             for k, v in args_dict.items()
-            if k in ("path", "query", "command", "file_path")
+            if k in ("path", "query", "command", "file_path", "folder", "count")
         )
 
         if t_name in ("run_command", "read_file", "web_search"):
             ok, tool_res = NativeTools.execute(
                 t_name, args_dict, allowed_dirs=allowed_dirs
             )
+        elif t_name in ("vault_search", "vault_sample"):
+            ok, tool_res = SubAgentEngine._run_vault_tool(t_name, args_dict, profile)
         else:
             client = tool_to_client.get(t_name)
             if client:
@@ -333,6 +443,7 @@ class SubAgentEngine:
         t_name: str,
         ok: bool,
         args_dict: dict[str, Any],
+        tool_res: str,
         read_paths: set[str],
     ) -> None:
         """Records what this tool call actually retrieved, if anything, for
@@ -346,6 +457,15 @@ class SubAgentEngine:
         elif t_name == "run_command":
             cmd = str(args_dict.get("command", ""))
             read_paths.update(cls._COMMAND_FILENAME_RE.findall(cmd))
+        elif t_name == "vault_sample":
+            # vault_sample hands back real note bodies directly (no separate
+            # read_file follow-up) - the path is in its own output header
+            # (`### Ground-Truth Sandboxed Vault Note (`path` - Exact
+            # Content)`), not in args_dict, so extract it from what it
+            # actually returned. vault_search deliberately isn't handled
+            # here - it returns ranked snippets, not full bodies, so finding
+            # a note via search doesn't mean its content was retrieved.
+            read_paths.update(VAULT_PATH_TOKEN_RE.findall(tool_res))
 
     @classmethod
     def _content_unread(cls, text: str, read_paths: set[str]) -> str | None:
@@ -412,6 +532,7 @@ class SubAgentEngine:
             tool_to_client,
             all_litellm_tools,
             allowed_dirs,
+            parent_prof,
         ) = cls._build_sub_agent_context(task)
 
         # Emit MCP connection warnings for stream consumers
@@ -465,9 +586,9 @@ class SubAgentEngine:
                     )
                     for tc in tool_calls:
                         call_id, t_name, _, ok, tool_res, args_dict = (
-                            cls._dispatch_tool_call(tc, tool_to_client, allowed_dirs)
+                            cls._dispatch_tool_call(tc, tool_to_client, allowed_dirs, parent_prof)
                         )
-                        cls._register_read(t_name, ok, args_dict, read_paths)
+                        cls._register_read(t_name, ok, args_dict, tool_res, read_paths)
                         yield f"> ⚙️ *Sub-agent calling tool:* `{t_name}`...\n"
                         messages.append(
                             {
@@ -519,6 +640,7 @@ class SubAgentEngine:
             tool_to_client,
             all_litellm_tools,
             allowed_dirs,
+            parent_prof,
         ) = cls._build_sub_agent_context(task)
 
         turn_count = 0
@@ -560,9 +682,9 @@ class SubAgentEngine:
                     )
                     for tc in tool_calls:
                         call_id, t_name, arg_summary, ok, tool_res, args_dict = (
-                            cls._dispatch_tool_call(tc, tool_to_client, allowed_dirs)
+                            cls._dispatch_tool_call(tc, tool_to_client, allowed_dirs, parent_prof)
                         )
-                        cls._register_read(t_name, ok, args_dict, read_paths)
+                        cls._register_read(t_name, ok, args_dict, tool_res, read_paths)
                         call_summary = (
                             f"{t_name}({arg_summary})" if arg_summary else f"{t_name}()"
                         )

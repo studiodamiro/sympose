@@ -4,7 +4,7 @@ Unit tests for sympose.memory — HeuristicGatedExtractor and SessionArchivist.
 Regression, found live: "Damiro likes his coffee black" and "Damiro likes
 his coffee black." (two independently-phrased identity/preference facts,
 same story) both ended up in the same persona's working memory, alongside
-lines like "Assistant invoked the vault_recall sub-agent skill to query the
+lines like "Assistant invoked the vault_read sub-agent skill to query the
 Obsidian workspace" — process narration, not a fact about the user at all.
 Root cause: neither extraction path (the per-turn HeuristicGatedExtractor,
 or SessionArchivist's end-of-session summary) was ever shown the memory

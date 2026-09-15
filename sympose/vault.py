@@ -1111,9 +1111,9 @@ class VaultManager:
 
     @classmethod
     def has_vault_skill(cls, profile: dict[str, Any]) -> bool:
-        """Verifies if the persona possesses the vault_recall skill."""
+        """Verifies if the persona possesses the vault_read skill."""
         skills = profile.get("skills") or []
-        return "vault_recall" in skills
+        return "vault_read" in skills
 
     @staticmethod
     def _allowed_rel_prefixes(mv: str, allowed_dirs: list[str]) -> list[str]:
@@ -1332,7 +1332,7 @@ class VaultManager:
 
     @classmethod
     def resolve_turn_context(cls, profile: dict[str, Any], message: str) -> str | None:
-        """Skill-gated, structure-agnostic pre-inference retrieval conforming to skills/vault_recall."""
+        """Skill-gated, structure-agnostic pre-inference retrieval conforming to skills/vault_read."""
         # 1. Skill Permission Gate: only proceed if persona is authorized for vault recall
         if not cls.has_vault_skill(profile):
             return None

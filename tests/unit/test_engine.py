@@ -40,13 +40,13 @@ class TestVisibleStreamGate:
         out, raw = self._run(
             engine,
             "Let me check the vault. ",
-            "[SPAWN_SUB_AGENT: vault_recall | Dylan] ",
+            "[SPAWN_SUB_AGENT: vault_read | Dylan] ",
             "Here is Dylan's note: Created 2021-06-15, a close friend...",
         )
         assert out == "Let me check the vault. "
         assert "close friend" not in out
         # the raw text still carries the tag for ActionProcessor
-        assert "[SPAWN_SUB_AGENT: vault_recall | Dylan]" in raw
+        assert "[SPAWN_SUB_AGENT: vault_read | Dylan]" in raw
 
     def test_cuts_at_search_tag_split_across_chunks(self, engine):
         out, raw = self._run(
@@ -56,9 +56,9 @@ class TestVisibleStreamGate:
         assert "70k" not in out
 
     def test_tag_only_reply_yields_nothing_visible(self, engine):
-        out, raw = self._run(engine, "[SPAWN_SUB_AGENT: vault_recall | grief]")
+        out, raw = self._run(engine, "[SPAWN_SUB_AGENT: vault_read | grief]")
         assert out == ""
-        assert raw == "[SPAWN_SUB_AGENT: vault_recall | grief]"
+        assert raw == "[SPAWN_SUB_AGENT: vault_read | grief]"
 
     def test_cuts_at_write_note_tag(self, engine):
         """Regression: only the 3 retrieval tags were ever gated - every other
@@ -561,7 +561,7 @@ class TestSelectTurnModel:
 class TestBuildSessionHistoryDigest:
     """The zero-round-trip 'what did we do last session?' answer: local JSONL
     session history (SessionManager, ADR-054) injected as ground-truth
-    context, same mechanism as vault_ctx — never a vault_recall sub-agent."""
+    context, same mechanism as vault_ctx — never a vault_read sub-agent."""
 
     @pytest.fixture(autouse=True)
     def _redirect_sessions_dir(self, tmp_sessions_dir, monkeypatch):
@@ -585,7 +585,7 @@ class TestBuildSessionHistoryDigest:
 
         digest = engine._build_session_history_digest("samantha", None)
         assert "Fix the workspace bug" in digest
-        assert "vault_recall" in digest
+        assert "vault_read" in digest
 
     def test_excludes_the_active_session(self, engine):
         from sympose.sessions import SessionManager

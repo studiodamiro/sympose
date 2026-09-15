@@ -1419,6 +1419,90 @@ selection more room to waste, not fixed it. The turn count wasn't the
 bottleneck in any of these runs; tool-call efficiency was, and the
 fabrication safety net now holds regardless of how many turns it takes.
 
+### 3.38 vault_read sub-agents get real vault tools instead of reconstructing find/grep by hand; skill renamed vault_recall → vault_read
+
+Follow-up to 3.37: damiro asked why a vault_recall sub-agent was shelling
+out to `find`/`grep`/`shuf` at all when Sympose already has a Nebula
+structure map *and* a real search engine (`vault_search.py`, SQLite
+FTS5, ADR-070.5) built in. Checked: neither was ever exposed to a
+sub-agent as a callable tool - `NativeTools.NATIVE_SCHEMAS` had only
+`run_command`/`read_file`/`web_search`. The Vault Structure Map digest
+already injected into a vault-skilled sub-agent's prompt (ADR-078.7)
+only carries folder counts/tags/hubs, deliberately no individual paths
+(token economy for large vaults), so even with it present a sub-agent
+had no way to actually name or fetch a specific file without shelling
+out - the skill's own "Discovery" section told it to do exactly that.
+
+Added two tools wrapping existing, already-sandboxed vault primitives
+directly rather than reinventing anything: `vault_search(query, folder,
+max_results)` → `VaultManager.search_structured` +
+`format_search_digest` (ranked snippets, folder-scoped); `vault_sample
+(folder, count)` → `VaultManager.get_random_sample_notes` (returns real,
+full note bodies in one call - no separate read step after). Both need
+the full persona `profile` (for `get_allowed_dirs`, ignore-folder
+config), not just the bare `allowed_dirs` list `_dispatch_tool_call` had
+before, so `_build_sub_agent_context`'s return grew an 8th element
+(`parent_prof`) threaded through to a new `_run_vault_tool` dispatcher.
+Offered only when `vault_read` is in the sub-agent's skills - a
+`vault_write`-only sub-agent doesn't need them. `_register_read` (3.37)
+now also credits a successful `vault_sample` call as "actually
+retrieved" content (path extracted from its own Ground-Truth header,
+since it isn't in args_dict) - `vault_search` deliberately isn't
+credited, since it returns snippets, not full bodies.
+
+Rewrote `vault_recall/SKILL.md`'s Discovery section, which previously
+told the sub-agent to locate notes "by non-destructive inspection
+(`find`, `ls`, pattern matching)" - the very instruction driving the
+redundant shell exploration in 3.37's live bug - to use the two tools
+above first, falling back to `find`/`ls`/`read_file` only for what they
+genuinely can't do (a specific already-known path, non-markdown
+assets).
+
+Bundled in the same pass, at damiro's request: renamed the skill itself
+from `vault_recall` to `vault_read`, for symmetry with the existing
+`vault_write` skill it's paired with everywhere (a `vault_write` /
+`vault_recall` pairing doesn't read as a pair; `vault_write` /
+`vault_read` does). Scoped carefully to avoid touching
+`sympose/vault_recall.py` - an unrelated module (conversational
+recall-*intent* detection: `has_recall_intent`, `extract_recall_
+subject`) that only shares the word for its own good reason. The
+identifier rename touched: the skill folder + frontmatter `name:`;
+every hardcoded `"vault_recall"` string in `engine.py` (including where
+it literally constructs the `[SPAWN_SUB_AGENT: vault_recall | ...]`
+tag), `vault.py`'s `has_vault_skill` gate, `bootstrap.py`/`profiles.py`
+default skill lists, `sympose_mastery/SKILL.md`, and
+`prompts/workspace_rules.md` (tells the *primary* persona which skill
+name to invoke - a lagging reference here breaks dispatch outright, no
+fuzzy-match bridges two totally different strings); the dev repo's
+`profiles/samantha.yaml` + `samantha_memory.md`; **and the live
+`~/.sympose/profiles/{samantha,anais,grace}.yaml`** (backed up first as
+`.bak-2026-09-16` before editing - real user data, not code, so no
+`git push` would have touched it). Left every historical ADR/journal
+mention of `vault_recall` untouched, same as the ADR-023 correction
+precedent - only current-state wiki docs
+(`anti-hallucination.md`, `architecture-standard.md`) were updated to
+match.
+
+Verified live against real `ollama/gemma4:e4b`, three runs of "pick a
+random note from Daily and quote it": every run called `vault_sample
+(folder=Daily, count=1)` as its very first tool call - the old runs
+needed 2-7 `find`/`grep`/`python` attempts before ever reaching real
+content, these needed one. Two of three runs then produced a clean,
+correctly-grounded answer quoting the real note verbatim. The third
+went on an unrelated tangent (misidentifying itself as "Gemma 4,
+developed by Google DeepMind" mid-task) and one leaked raw tool-call
+JSON scaffolding into its final text instead of prose - both are
+pre-existing gemma4:e4b erratic-output quirks, not vault content
+fabrication (no invented note content in either case - the JSON leak
+even still carried the real, correctly-sampled note text inside it) and
+outside what this session's fabrication checks are scoped to catch;
+noted as a residual, not fixed tonight.
+
+13 new tests added (`TestVaultToolSchemasAreOfferedOnlyToVaultReadSkill`,
+`TestRunVaultTool`, `TestDispatchToolCallRoutesVaultTools`, plus a
+`vault_sample`/`vault_search` case each in `TestRegisterRead`).
+748 tests passing.
+
 ## 6. Commits
 
 - `0e59da3` — fix(grounding): stop a denied premise from becoming settled

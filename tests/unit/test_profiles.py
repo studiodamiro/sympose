@@ -43,7 +43,7 @@ class TestBootstrapMissingArtifactsFallbackSoul:
 class TestSetPersonaField:
     def _seed(self, tmp_path):
         (tmp_path / "sam.yaml").write_text(
-            'name: "Sam"\nhandle: "sam"\nmodel: ""\nskills:\n  - vault_recall\n'
+            'name: "Sam"\nhandle: "sam"\nmodel: ""\nskills:\n  - vault_read\n'
         )
         return ProfileManager(profiles_dir=str(tmp_path))
 

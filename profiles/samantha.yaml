@@ -29,7 +29,7 @@ skills:
   - "strategic_analysis"
   - "discussion_moderation"
   - "subagent_spawn"
-  - "vault_recall"
+  - "vault_read"
   - "vault_write"
   - "web_search"
 

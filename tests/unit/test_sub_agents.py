@@ -38,6 +38,13 @@ def _fake_tool_call(name="read_file"):
     )
 
 
+def _fake_tool_call_named(name, arguments_json):
+    return types.SimpleNamespace(
+        id="call_1",
+        function=types.SimpleNamespace(name=name, arguments=arguments_json),
+    )
+
+
 @pytest.fixture
 def ctx(monkeypatch):
     """Stub _build_sub_agent_context so no real MCP / model setup runs."""
@@ -53,6 +60,7 @@ def ctx(monkeypatch):
                 {},
                 [{"type": "function", "function": {"name": "read_file"}}],
                 ["/vault"],
+                {"handle": task.parent_agent},
             )
         ),
     )
@@ -60,7 +68,7 @@ def ctx(monkeypatch):
         SubAgentEngine,
         "_dispatch_tool_call",
         staticmethod(
-            lambda tc, t2c, dirs: (
+            lambda tc, t2c, dirs, profile=None: (
                 "call_1",
                 "read_file",
                 "path=People/Tin.md",
@@ -485,6 +493,7 @@ class TestExecuteSubAgentStream:
                     {},
                     [],
                     None,
+                    None,
                 )
             ),
         )
@@ -636,7 +645,7 @@ class TestRegisterRead:
     def test_read_file_call_registers_its_path(self):
         paths: set[str] = set()
         SubAgentEngine._register_read(
-            "read_file", True, {"path": "Daily/2022-08-29.md"}, paths
+            "read_file", True, {"path": "Daily/2022-08-29.md"}, "", paths
         )
         assert "Daily/2022-08-29.md" in paths
 
@@ -646,6 +655,7 @@ class TestRegisterRead:
             "run_command",
             True,
             {"command": "cat /Users/x/garden/Daily/2022-08-29.md"},
+            "",
             paths,
         )
         assert "2022-08-29.md" in {p.rsplit("/", 1)[-1] for p in paths}
@@ -658,6 +668,7 @@ class TestRegisterRead:
             "run_command",
             True,
             {"command": "find /vault/Daily -name '*.md' | shuf -n 1"},
+            "",
             paths,
         )
         assert paths == set()
@@ -665,7 +676,33 @@ class TestRegisterRead:
     def test_a_failed_call_registers_nothing(self):
         paths: set[str] = set()
         SubAgentEngine._register_read(
-            "read_file", False, {"path": "Daily/2022-08-29.md"}, paths
+            "read_file", False, {"path": "Daily/2022-08-29.md"}, "", paths
+        )
+        assert paths == set()
+
+    def test_vault_sample_registers_the_path_from_its_own_output(self):
+        """vault_sample hands back real note content directly - the path
+        lives in its own Ground-Truth header, not in args_dict."""
+        paths: set[str] = set()
+        SubAgentEngine._register_read(
+            "vault_sample",
+            True,
+            {"folder": "Daily"},
+            "### Ground-Truth Sandboxed Vault Note (`Daily/2022-08-29.md` - Exact Content):\nbody",
+            paths,
+        )
+        assert "Daily/2022-08-29.md" in paths
+
+    def test_vault_search_registers_nothing(self):
+        """Search returns ranked snippets, not full bodies - finding a note
+        via search doesn't mean its content was actually retrieved."""
+        paths: set[str] = set()
+        SubAgentEngine._register_read(
+            "vault_search",
+            True,
+            {"query": "aliens"},
+            "**[1] `Daily/2022-08-29.md`** - ...snippet...",
+            paths,
         )
         assert paths == set()
 
@@ -715,3 +752,150 @@ class TestExecuteSubAgentTaskCatchesUnreadFabrication:
         task = SubAgentTask(task_prompt="find notes on Tin", max_tool_turns=4)
         out, _ = SubAgentEngine.execute_sub_agent_task(task)
         assert out == "People/Tin.md says Tin is Dylan's mother."
+
+
+# --------------------------------------------------------------------------- #
+#  vault_search / vault_sample - the deterministic vault primitives exposed   #
+#  as tools so a vault_read sub-agent gets one structured call instead of     #
+#  reconstructing a search or a random pick from find/grep/shuf every time.   #
+# --------------------------------------------------------------------------- #
+
+
+class TestVaultToolSchemasAreOfferedOnlyToVaultReadSkill:
+    def test_vault_read_skill_gets_the_tools(self, monkeypatch):
+        monkeypatch.setattr(
+            "sympose.sub_agents.ProfileManager",
+            lambda: types.SimpleNamespace(
+                get_profile=lambda h: {"handle": h}, get_persona_memory=lambda p: ""
+            ),
+        )
+        monkeypatch.setattr(
+            "sympose.sub_agents.VaultManager.get_allowed_dirs",
+            staticmethod(lambda p: ["/vault"]),
+        )
+        monkeypatch.setattr(
+            "sympose.sub_agents.skill_manager.format_skills_for_prompt",
+            lambda skills: "",
+        )
+        task = SubAgentTask(task_prompt="x", skills=["vault_read"])
+        *_, tools, _, _ = SubAgentEngine._build_sub_agent_context(task)
+        assert {"vault_search", "vault_sample"} <= {
+            t["function"]["name"] for t in tools
+        }
+
+    def test_other_skills_dont_get_the_tools(self, monkeypatch):
+        monkeypatch.setattr(
+            "sympose.sub_agents.ProfileManager",
+            lambda: types.SimpleNamespace(
+                get_profile=lambda h: {"handle": h}, get_persona_memory=lambda p: ""
+            ),
+        )
+        monkeypatch.setattr(
+            "sympose.sub_agents.VaultManager.get_allowed_dirs",
+            staticmethod(lambda p: ["/vault"]),
+        )
+        monkeypatch.setattr(
+            "sympose.sub_agents.skill_manager.format_skills_for_prompt",
+            lambda skills: "",
+        )
+        task = SubAgentTask(task_prompt="x", skills=["web_search"])
+        *_, tools, _, _ = SubAgentEngine._build_sub_agent_context(task)
+        assert not {"vault_search", "vault_sample"} & {
+            t["function"]["name"] for t in tools
+        }
+
+
+class TestRunVaultTool:
+    def test_search_formats_results_via_format_search_digest(self, monkeypatch):
+        monkeypatch.setattr(
+            "sympose.sub_agents.VaultManager.search_structured",
+            staticmethod(
+                lambda profile, query, target_folder=None, max_results=10: [
+                    {"rel_path": "Daily/2022-08-29.md", "snippet": "aliens"}
+                ]
+            ),
+        )
+        monkeypatch.setattr(
+            "sympose.sub_agents.VaultManager.format_search_digest",
+            staticmethod(lambda query, results: f"DIGEST for {query}: {len(results)} hit(s)"),
+        )
+        ok, res = SubAgentEngine._run_vault_tool(
+            "vault_search", {"query": "aliens"}, {"handle": "samantha"}
+        )
+        assert ok is True
+        assert res == "DIGEST for aliens: 1 hit(s)"
+
+    def test_search_with_no_matches_says_so_without_a_digest_call(self, monkeypatch):
+        monkeypatch.setattr(
+            "sympose.sub_agents.VaultManager.search_structured",
+            staticmethod(lambda *a, **kw: []),
+        )
+        ok, res = SubAgentEngine._run_vault_tool(
+            "vault_search", {"query": "nonexistent"}, {"handle": "samantha"}
+        )
+        assert ok is True
+        assert "No matches" in res
+
+    def test_search_without_a_query_fails_cleanly(self):
+        ok, res = SubAgentEngine._run_vault_tool(
+            "vault_search", {}, {"handle": "samantha"}
+        )
+        assert ok is False
+
+    def test_sample_returns_get_random_sample_notes_payload(self, monkeypatch):
+        monkeypatch.setattr(
+            "sympose.sub_agents.VaultManager.get_random_sample_notes",
+            staticmethod(
+                lambda profile, folder, count: f"### Ground-Truth Sandboxed Vault Note (`{folder}/x.md` - Exact Content):\nbody"
+            ),
+        )
+        ok, res = SubAgentEngine._run_vault_tool(
+            "vault_sample", {"folder": "Daily"}, {"handle": "samantha"}
+        )
+        assert ok is True
+        assert "Ground-Truth" in res
+
+    def test_sample_with_no_notes_found_fails_cleanly(self, monkeypatch):
+        monkeypatch.setattr(
+            "sympose.sub_agents.VaultManager.get_random_sample_notes",
+            staticmethod(lambda profile, folder, count: ""),
+        )
+        ok, res = SubAgentEngine._run_vault_tool(
+            "vault_sample", {"folder": "Ghost"}, {"handle": "samantha"}
+        )
+        assert ok is False
+        assert "No notes found" in res
+
+    def test_sample_without_a_folder_fails_cleanly(self):
+        ok, res = SubAgentEngine._run_vault_tool(
+            "vault_sample", {}, {"handle": "samantha"}
+        )
+        assert ok is False
+
+    def test_no_profile_fails_cleanly_for_either_tool(self):
+        ok, res = SubAgentEngine._run_vault_tool("vault_search", {"query": "x"}, None)
+        assert ok is False
+        ok, res = SubAgentEngine._run_vault_tool("vault_sample", {"folder": "x"}, None)
+        assert ok is False
+
+    def test_unknown_tool_name_fails_cleanly(self):
+        ok, res = SubAgentEngine._run_vault_tool(
+            "vault_teleport", {}, {"handle": "samantha"}
+        )
+        assert ok is False
+
+
+class TestDispatchToolCallRoutesVaultTools:
+    def test_vault_search_routes_through_run_vault_tool(self, monkeypatch):
+        monkeypatch.setattr(
+            SubAgentEngine,
+            "_run_vault_tool",
+            staticmethod(lambda t_name, args, profile: (True, f"ran {t_name} as {profile}")),
+        )
+        tc = _fake_tool_call_named("vault_search", '{"query": "aliens"}')
+        _, t_name, _, ok, res, _ = SubAgentEngine._dispatch_tool_call(
+            tc, {}, None, {"handle": "samantha"}
+        )
+        assert t_name == "vault_search"
+        assert ok is True
+        assert "ran vault_search" in res

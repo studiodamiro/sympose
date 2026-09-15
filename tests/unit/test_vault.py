@@ -934,7 +934,7 @@ class TestRecallHitConfidence:
 
 class TestResolveTurnContextConversational:
     def _profile(self):
-        return {"handle": "anais", "skills": ["vault_recall"], "vault_folders": ["*"]}
+        return {"handle": "anais", "skills": ["vault_read"], "vault_folders": ["*"]}
 
     def test_conversational_query_surfaces_matching_note(
         self, tmp_vault_dir, monkeypatch
@@ -968,7 +968,7 @@ class TestResolveTurnContextConversational:
             is None
         )
 
-    def test_gate_blocks_persona_without_vault_recall_skill(
+    def test_gate_blocks_persona_without_vault_read_skill(
         self, tmp_vault_dir, monkeypatch
     ):
         from sympose.vault import VaultManager
@@ -1280,7 +1280,7 @@ class TestResolveRitualRandomPull:
     memory fact is already confirmed to describe this ritual."""
 
     def _profile(self):
-        return {"handle": "samantha", "skills": ["vault_recall"], "vault_folders": ["*"]}
+        return {"handle": "samantha", "skills": ["vault_read"], "vault_folders": ["*"]}
 
     def test_folder_named_in_message_scopes_the_pull(self, tmp_vault_dir, monkeypatch):
         from sympose.vault import VaultManager
@@ -1328,7 +1328,7 @@ class TestResolveRitualRandomPull:
         )
         scoped = {
             "handle": "scoped",
-            "skills": ["vault_recall"],
+            "skills": ["vault_read"],
             "vault_folders": ["Movies"],
         }
 

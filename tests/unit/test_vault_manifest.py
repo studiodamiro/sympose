@@ -460,14 +460,14 @@ class TestResolveTurnContextStructureTier:
     def test_structure_query_returns_the_map_when_enabled(self, tmp_vault_dir, monkeypatch, q):
         from sympose.vault import VaultManager
         self._enable(monkeypatch, tmp_vault_dir)
-        prof = {"vault_folders": ["*"], "skills": ["vault_recall"], "handle": "t"}
+        prof = {"vault_folders": ["*"], "skills": ["vault_read"], "handle": "t"}
         out = VaultManager.resolve_turn_context(prof, q)
         assert out is not None and out.startswith("### Ground-Truth Vault Structure Map")
 
     def test_subject_query_does_not_hijack_search(self, tmp_vault_dir, monkeypatch):
         from sympose.vault import VaultManager
         self._enable(monkeypatch, tmp_vault_dir)
-        prof = {"vault_folders": ["*"], "skills": ["vault_recall"], "handle": "t"}
+        prof = {"vault_folders": ["*"], "skills": ["vault_read"], "handle": "t"}
         out = VaultManager.resolve_turn_context(prof, "what's in my vault about Rilke?")
         assert out is None or not out.startswith("### Ground-Truth Vault Structure Map")
 
@@ -480,7 +480,7 @@ class TestResolveTurnContextStructureTier:
         monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
         (tmp_vault_dir / "Daily").mkdir()
         (tmp_vault_dir / "Daily" / "2026-09-09.md").write_text("# Day\n#jour\n")
-        prof = {"vault_folders": ["*"], "skills": ["vault_recall"], "handle": "t"}
+        prof = {"vault_folders": ["*"], "skills": ["vault_read"], "handle": "t"}
         out = VaultManager.resolve_turn_context(prof, "how is my vault organised?")
         assert out is None or not out.startswith("### Ground-Truth Vault Structure Map")
 
@@ -590,12 +590,12 @@ class TestSubAgentManifestInjection:
         monkeypatch.setattr(config_manager, "get", lambda k, d=None: ov.get(k, real_get(k, d)))
         monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
 
-    def test_vault_recall_sub_agent_gets_the_structure_map(self, tmp_vault_dir, monkeypatch):
+    def test_vault_read_sub_agent_gets_the_structure_map(self, tmp_vault_dir, monkeypatch):
         from sympose.sub_agents import SubAgentEngine, SubAgentTask
         self._enable(monkeypatch, tmp_vault_dir)
         (tmp_vault_dir / "Projects").mkdir()
         (tmp_vault_dir / "Projects" / "x.md").write_text("# X\n[[y]]\n")
-        task = SubAgentTask("count notes", skills=["vault_recall"], parent_agent="samantha")
+        task = SubAgentTask("count notes", skills=["vault_read"], parent_agent="samantha")
         sysprompt = SubAgentEngine._build_sub_agent_context(task)[0]
         assert "Ground-Truth Vault Structure Map" in sysprompt
 

@@ -65,7 +65,7 @@ title: "Principal Research Specialist"
 model: "gemini/gemini-3.6-flash"
 vault_folders: ["General", "Research", "Daily"]
 share_memory: true
-skills: ["strategic_analysis", "vault_recall", "vault_write", "web_search"]
+skills: ["strategic_analysis", "vault_read", "vault_write", "web_search"]
 thinking_phrases:
   - "Formulating an empirical hypothesis..."
   - "Verifying first-principles evidence..."

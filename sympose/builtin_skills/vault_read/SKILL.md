@@ -1,5 +1,5 @@
 ---
-name: "vault_recall"
+name: "vault_read"
 title: "Obsidian Vault Historical Synthesis & Recall"
 description: "Tiered retrieval to locate, inspect, and synthesise historical notes and daily reflections from the vault."
 recommended_models:
@@ -22,30 +22,47 @@ topic, the conversation, or what sounds plausible; never invent a date, quote, o
 reflection.
 
 - Answer not already in your pre-turn context → emit
-  `[SPAWN_SUB_AGENT: vault_recall | <what to find>]` and stop; wait for the report.
+  `[SPAWN_SUB_AGENT: vault_read | <what to find>]` and stop; wait for the report.
 - Never fall back to web `[SEARCH]` for the user's own notes, journal, or history.
 - Retrieval comes back empty → "I have no record of that in your vault." Nothing more.
 
-## Discovery — read the map first, don't assume structure
+## Discovery — use the vault tools first, don't shell out
+
+Two dedicated tools already do what a hand-built `find`/`grep`/`shuf` chain
+was standing in for — use them first:
+
+- **`vault_search(query, folder=None, max_results=10)`** — full-text search
+  over the indexed vault, ranked, with snippets, optionally scoped to one
+  folder. Use it for any keyword, topic, or date lookup instead of `grep`.
+- **`vault_sample(folder, count=1)`** — returns the *real, full content* of
+  one or more randomly sampled notes from a folder in a single call. Use it
+  whenever the request names a folder without naming a specific note —
+  "pick a random note," "surprise me," "what's a note from Daily" — it
+  hands you the actual text directly, no separate read step after it.
 
 When a **Vault Structure Map** is in your context (folder counts, top tags,
-most-linked notes), it is the disk-true shape of the vault this turn — use it to
-choose where to look before touching the filesystem. If it already answers the
-question — a note count, which folders exist, what links where — answer from it
-directly, no tool call. It holds no note text, so it tells you *where*, never
-*what a note says*.
+most-linked notes), it is the disk-true shape of the vault this turn — use
+it to decide *which* folder to search or sample, and to answer whatever it
+already settles outright (a note count, which folders exist, what links
+where) with no tool call at all. It holds no note text, so it tells you
+*where*, never *what a note says*.
 
-Vaults vary (Flat, PARA, Johnny Decimal, Zettelkasten, date-nested). With or
-without the map, locate notes by non-destructive inspection (`find`, `ls`,
-pattern matching) across anchors:
+Vaults vary (Flat, PARA, Johnny Decimal, Zettelkasten, date-nested) — feed
+`vault_search` whatever anchor fits what you're looking for:
 
-- **Keywords** in filenames.
+- **Keywords** likely in the title or body.
 - **Dates** in any schema (`YYYY-MM-DD`, `YYYY/MM/DD`, `YYYYMMDD`).
 - **Frontmatter** keys (`tags:`, `type:`, `project:`).
 - **Wikilinks & backlinks** — follow `[[Note]]` outward and query incoming
   references to a concept/person/project to gather every entry touching it.
 
-Ignore hidden dirs (`.obsidian/`, `.git/`) and asset folders.
+Fall back to `find`/`ls`/`read_file` only for what the two tools above
+genuinely can't do — opening a specific path you already have, or a
+non-markdown asset. Never use them to reconstruct a search or a random pick
+that `vault_search` / `vault_sample` already does in one call; that
+reconstruction is slower, burns tool-call budget on redundant attempts, and
+is exactly what left past runs quoting invented content for notes they'd
+never actually opened.
 
 ## Extraction — small to big
 

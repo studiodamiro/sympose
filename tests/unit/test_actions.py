@@ -269,7 +269,7 @@ class TestInventedPseudoTagsAreStripped:
 
 
 class TestSubAgentReadNoteFoldsVerbatimContent:
-    """Regression: a `vault_recall` sub-agent that surfaced a note via
+    """Regression: a `vault_read` sub-agent that surfaced a note via
     `[READ_NOTE]` rendered it to the terminal panel only — the report handed
     back to the primary persona (and Slack) had no note text, so a weak
     model quoted a plausible fabrication. The sub-agent path must fold the
@@ -326,7 +326,7 @@ class TestExecuteActionsThreadsOnProgressToSubAgent:
         ActionProcessor.execute_actions(
             pm,
             "test",
-            "[SPAWN_SUB_AGENT: vault_recall | find my notes]",
+            "[SPAWN_SUB_AGENT: vault_read | find my notes]",
             on_progress=sentinel,
         )
         assert received["on_progress"] is sentinel
@@ -345,7 +345,7 @@ class TestExecuteActionsThreadsOnProgressToSubAgent:
         )
 
         ActionProcessor.execute_actions(
-            pm, "test", "[SPAWN_SUB_AGENT: vault_recall | find my notes]"
+            pm, "test", "[SPAWN_SUB_AGENT: vault_read | find my notes]"
         )
         assert received["on_progress"] is None
 
@@ -376,7 +376,7 @@ class TestSubAgentTaskCarriesTheUsersOwnWords:
         ActionProcessor.execute_actions(
             pm,
             "test",
-            "[SPAWN_SUB_AGENT: vault_recall | Roulette]",
+            "[SPAWN_SUB_AGENT: vault_read | Roulette]",
             user_prompt="lets play our favorite game. lets do from Daily folder. g?",
         )
         assert "Roulette" in received["task_prompt"]
@@ -398,7 +398,7 @@ class TestSubAgentTaskCarriesTheUsersOwnWords:
         ActionProcessor.execute_actions(
             pm,
             "test",
-            "[SPAWN_SUB_AGENT: vault_recall | pull a random note from Daily]",
+            "[SPAWN_SUB_AGENT: vault_read | pull a random note from Daily]",
             user_prompt="pull a random note from Daily",
         )
         assert received["task_prompt"].count("pull a random note from Daily") == 1
@@ -417,7 +417,7 @@ class TestSubAgentTaskCarriesTheUsersOwnWords:
         )
 
         ActionProcessor.execute_actions(
-            pm, "test", "[SPAWN_SUB_AGENT: vault_recall | Roulette]"
+            pm, "test", "[SPAWN_SUB_AGENT: vault_read | Roulette]"
         )
         assert received["task_prompt"] == "Roulette"
 

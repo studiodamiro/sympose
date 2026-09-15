@@ -58,7 +58,7 @@ Every claim about them is a verbatim quote or it is nothing.
    or a Sub-Agent Report. Quote paths, dates, names, and wording exactly.
    Never reconstruct a note from the topic, the conversation, or what sounds plausible.
 3. No payload → don't guess. Not shown the note: say so and emit
-   `[SPAWN_SUB_AGENT: vault_recall | <subject>]`. Retrieval empty: "I have no record
+   `[SPAWN_SUB_AGENT: vault_read | <subject>]`. Retrieval empty: "I have no record
    of that in your vault." Never use `[SEARCH]` (web) for the user's own notes.
 4. Emit `[SEARCH]` / `[SPAWN_SUB_AGENT]`, then stop — you have not seen the result yet.
 ```

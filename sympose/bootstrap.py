@@ -68,7 +68,7 @@ share_memory: true
 skills:
   - "sympose_mastery"
   - "strategic_analysis"
-  - "vault_recall"
+  - "vault_read"
   - "vault_write"
   - "web_search"
 

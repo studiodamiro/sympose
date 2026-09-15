@@ -223,7 +223,7 @@ class PersonaEngine:
 
     def _grounding_mode(self, profile: dict[str, Any], target_model: str) -> str:
         """`strict` → the runtime enforces vault retrieval itself; `trust` →
-        rely on the model to emit `[SPAWN_SUB_AGENT: vault_recall]`. An explicit
+        rely on the model to emit `[SPAWN_SUB_AGENT: vault_read]`. An explicit
         persona `vault_grounding: strict|trust` wins; otherwise `auto` derives it
         from the model (local backend or a localhost `api_base` → strict)."""
         explicit = str(profile.get("vault_grounding", "") or "").strip().lower()
@@ -259,7 +259,7 @@ class PersonaEngine:
                 "### Local Sympose Session History:\n"
                 "No prior Sympose session is recorded locally for this persona "
                 "yet. This is NOT the same as the Obsidian vault — do not spawn "
-                "a vault_recall sub-agent for this; just say so."
+                "a vault_read sub-agent for this; just say so."
             )
         lines = [
             f'- "{s.get("title", "Untitled Session")}" — {s.get("relative_time", "")} '
@@ -271,7 +271,7 @@ class PersonaEngine:
             + "\n".join(lines)
             + "\n\nThis is Sympose's own local conversation history, not the "
             "Obsidian vault — answer from it directly, do not spawn a "
-            "vault_recall sub-agent for this question."
+            "vault_read sub-agent for this question."
         )
 
     @staticmethod
@@ -872,7 +872,7 @@ class PersonaEngine:
                     _, fb = ActionProcessor.execute_actions(
                         self.pm,
                         handle,
-                        f"[SPAWN_SUB_AGENT: vault_recall | {subj}]",
+                        f"[SPAWN_SUB_AGENT: vault_read | {subj}]",
                         user_prompt=clean_input,
                         on_progress=on_sub_agent_progress,
                     )

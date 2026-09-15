@@ -268,6 +268,13 @@ class ProfileManager:
             self.reload_profiles()
         return list(self.profiles.values())
 
+    def get_persona_memory(self, profile: dict[str, Any]) -> str:
+        """Public accessor for a persona's raw working-memory file content, so
+        callers outside this class (e.g. sub_agents.py, which needs the
+        parent's memory reaching a delegated sub-agent task) don't reach into
+        the protected `_read_file_safe` helper directly."""
+        return self._read_file_safe(profile.get("memory_file"))
+
     def _read_file_safe(self, path: str | None) -> str:
         if not path:
             return ""

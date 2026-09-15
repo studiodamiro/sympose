@@ -75,7 +75,8 @@ class SubAgentEngine:
         skills_text = skill_manager.format_skills_for_prompt(task.skills)
 
         # Resolve parent agent sandbox whitelist
-        parent_prof = ProfileManager().get_profile(task.parent_agent)
+        pm = ProfileManager()
+        parent_prof = pm.get_profile(task.parent_agent)
         allowed_dirs = (
             VaultManager.get_allowed_dirs(parent_prof) if parent_prof else None
         )
@@ -141,6 +142,31 @@ class SubAgentEngine:
             except Exception:
                 log.debug(
                     "SubAgentEngine: manifest digest injection failed", exc_info=True
+                )
+
+        # Live bug: a sub-agent spawned to recall "our favorite game" had no
+        # way to know the parent persona's memory already spells out exactly
+        # what that means ("favorite game is Vault Roulette - pull a random
+        # note and discuss it") - it never receives the parent's working
+        # memory at all, so it was left to reconstruct the meaning from
+        # scratch via blind grep/find sweeps, which wandered into unrelated
+        # directories and still landed on a guessed, mismatched note. Handing
+        # it the same working-memory file the parent already has closes that
+        # gap at the source instead of asking it to re-derive a fact that was
+        # one read away. Appended last (same "lost in the middle" reasoning
+        # as build_system_prompt's own placement) since it's the block the
+        # very next tool call needs to have fresh in view.
+        if parent_prof:
+            persona_mem = pm.get_persona_memory(parent_prof)
+            if persona_mem:
+                system_prompt += (
+                    "\n\n### Parent Persona's Working Memory\n"
+                    "If the task below references something a fact here "
+                    "already covers (a nickname for an activity, a "
+                    "preference, a running joke), that fact is the answer - "
+                    "use it directly instead of searching for or guessing at "
+                    "what the term means.\n\n"
+                    f"{persona_mem}"
                 )
 
         # Resolve model: task override → skill recommendation → env default

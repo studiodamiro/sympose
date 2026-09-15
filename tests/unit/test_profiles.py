@@ -76,6 +76,31 @@ class TestSetPersonaField:
         assert not ok and "not found" in msg
 
 
+class TestGetPersonaMemory:
+    """Public accessor added so sub_agents.py can hand a delegated sub-agent
+    the parent persona's working memory without reaching into the protected
+    `_read_file_safe` helper."""
+
+    def test_returns_the_memory_files_content(self, tmp_path):
+        (tmp_path / "sam.yaml").write_text(
+            "name: Sam\nhandle: sam\nmemory_file: sam_memory.md\n"
+        )
+        (tmp_path / "sam_memory.md").write_text(
+            "- Favorite game is Vault Roulette.\n"
+        )
+
+        pm = ProfileManager(profiles_dir=str(tmp_path))
+        assert "Vault Roulette" in pm.get_persona_memory(pm.get_profile("sam"))
+
+    def test_returns_empty_string_when_no_memory_file(self, tmp_path):
+        (tmp_path / "sam.yaml").write_text("name: Sam\nhandle: sam\n")
+
+        pm = ProfileManager(profiles_dir=str(tmp_path))
+        profile = pm.get_profile("sam")
+        profile["memory_file"] = None
+        assert pm.get_persona_memory(profile) == ""
+
+
 class TestBuildSystemPromptOrdering:
     """Regression, found live: a small local model's recall of a fact in
     persona working memory was unreliable when that block sat early in the

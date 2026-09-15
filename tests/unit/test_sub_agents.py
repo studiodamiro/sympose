@@ -118,6 +118,87 @@ def test_forced_synthesis_empty_falls_back_to_notice(ctx, monkeypatch):
     assert "tool budget" in out
 
 
+class TestBuildSubAgentContextPersonaMemory:
+    """Regression: a sub-agent spawned to recall "our favorite game" had no
+    access to the parent persona's working memory, which already spelled out
+    exactly what that meant - it was left to reconstruct the meaning from
+    scratch via blind grep/find, wandered outside the vault, and still
+    returned a guessed, mismatched note. `_build_sub_agent_context` must now
+    fold the parent's working memory into the sub-agent's system prompt."""
+
+    @staticmethod
+    def _task(skills=None):
+        return SubAgentTask(
+            task_prompt="favorite game", skills=skills or [], parent_agent="samantha"
+        )
+
+    def test_parent_persona_memory_reaches_the_system_prompt(self, monkeypatch):
+        class FakeProfileManager:
+            def get_profile(self, handle):
+                return {"handle": handle, "memory_file": "mem.md"}
+
+            def get_persona_memory(self, profile):
+                return "Favorite game is Vault Roulette."
+
+        monkeypatch.setattr("sympose.sub_agents.ProfileManager", FakeProfileManager)
+        monkeypatch.setattr(
+            "sympose.sub_agents.VaultManager.get_allowed_dirs",
+            staticmethod(lambda p: ["/vault"]),
+        )
+        monkeypatch.setattr(
+            "sympose.sub_agents.skill_manager.format_skills_for_prompt",
+            lambda skills: "",
+        )
+
+        system_prompt, *_ = SubAgentEngine._build_sub_agent_context(self._task())
+        assert "Favorite game is Vault Roulette." in system_prompt
+
+    def test_no_memory_block_when_parent_has_none(self, monkeypatch):
+        class FakeProfileManager:
+            def get_profile(self, handle):
+                return {"handle": handle, "memory_file": "mem.md"}
+
+            def get_persona_memory(self, profile):
+                return ""
+
+        monkeypatch.setattr("sympose.sub_agents.ProfileManager", FakeProfileManager)
+        monkeypatch.setattr(
+            "sympose.sub_agents.VaultManager.get_allowed_dirs",
+            staticmethod(lambda p: ["/vault"]),
+        )
+        monkeypatch.setattr(
+            "sympose.sub_agents.skill_manager.format_skills_for_prompt",
+            lambda skills: "",
+        )
+
+        system_prompt, *_ = SubAgentEngine._build_sub_agent_context(self._task())
+        assert "Parent Persona's Working Memory" not in system_prompt
+
+    def test_memory_is_appended_after_skills_text(self, monkeypatch):
+        """Placed last, same "lost in the middle" reasoning as
+        build_system_prompt's own persona-memory placement."""
+
+        class FakeProfileManager:
+            def get_profile(self, handle):
+                return {"handle": handle, "memory_file": "mem.md"}
+
+            def get_persona_memory(self, profile):
+                return "MEMFACT"
+
+        monkeypatch.setattr("sympose.sub_agents.ProfileManager", FakeProfileManager)
+        monkeypatch.setattr(
+            "sympose.sub_agents.VaultManager.get_allowed_dirs",
+            staticmethod(lambda p: ["/vault"]),
+        )
+        monkeypatch.setattr(
+            "sympose.sub_agents.skill_manager.format_skills_for_prompt",
+            lambda skills: "SKILLTEXT",
+        )
+
+        system_prompt, *_ = SubAgentEngine._build_sub_agent_context(self._task())
+        assert system_prompt.index("MEMFACT") > system_prompt.index("SKILLTEXT")
+
+
 class TestOnProgressCallback:
     """The live terminal-status side-channel: fired the instant each tool
     call completes, not just once the whole multi-turn loop finishes."""

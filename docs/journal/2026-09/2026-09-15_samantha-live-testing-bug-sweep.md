@@ -991,6 +991,78 @@ actual `Movies/Her.md` file — genre, rating, IMDb link, tags, and created
 date all matched exactly. 686 tests passing, docs/wiki/reference/
 configuration.md regenerated for the new setting.
 
+### 3.29 A sub-agent with no access to the fact it was spawned to recall — plus a genuine non-bug: two diverged memory files
+
+A fourth live "movies" transcript, on `gemini/gemini-3.6-flash`: the first
+turn still invented a movie-guessing game (§3.27's fix lives in the parent
+persona's own system prompt — it never gets a chance to fire on a turn
+that doesn't spawn a sub-agent at all). Corrected once
+("dont you remember our favorite game?"), she now correctly delegated to
+`vault_recall` instead of inventing further — but the sub-agent's own
+grep sweep (`grep -rn -i "favorite"` / `"game"`) ran across
+`/Users/damiro/Development/garden` (the vault) *and*
+`/Users/damiro/Development/sympose` (Sympose's own dev checkout,
+including `read_file` on this very engineering journal), and still
+answered "no record of a favorite movie game." Told directly
+*"its the vault roulette,"* it grepped again, this time surfacing
+`docs/journal/…/2026-09-15_samantha-live-testing-bug-sweep.md` and
+`tests/unit/test_profiles.py` — i.e., reconstructed "Vault Roulette" from
+*this session's own bug-fix paper trail*, not from anything the user
+actually wrote — and reported finding one note
+(`Quotes/The core of our spirits come from new experiences..md`), while
+the persona's own final reply then rendered a completely different one
+(`Quotes/Awareness is better than knowledge.md`): the sub-agent's finding
+and the note actually shown to the user didn't match each other at all.
+
+Root-caused in two parts:
+
+1. **Real structural gap.** `SubAgentEngine._build_sub_agent_context`
+   (`sub_agents.py`) never included the parent persona's working-memory
+   file in the sub-agent's system prompt — only `task.task_prompt` (a
+   paraphrase) reaches it. So even though `samantha_memory.md` can state
+   the fact outright ("favorite game is Vault Roulette — pull a random
+   note and discuss it"), a delegated sub-agent has no way to know that;
+   it's left to reverse-engineer the term's meaning from scratch via
+   `run_command`/`read_file`, which is exactly what sent it hunting
+   through unrelated directories and eventually guessing. This is
+   independent of any one fact or persona — any sub-agent task touching
+   something the parent already has recorded hits the same blind spot.
+   Fixed by handing the sub-agent the parent's memory file content
+   directly (new `ProfileManager.get_persona_memory`, called from
+   `_build_sub_agent_context`), appended last in the system prompt for
+   the same "lost in the middle" reason `build_system_prompt` already
+   places its own memory block last (§3.19). Framed the same way as
+   §3.27's persona-level instruction — general, not "if the task
+   mentions X."
+
+2. **Not a bug — a genuinely diverged setup on this machine.** Checked
+   which memory file actually backed these live sessions:
+   `resolve_workspace_dir()` (`workspace.py`) uses "Local Project Mode"
+   whenever `cwd` contains a `profiles/` directory — true for
+   `~/Development/sympose` itself, since it ships its own `profiles/` for
+   development. Running the CLI from inside the repo (as every
+   transcript this session has) therefore reads
+   `sympose/profiles/samantha_memory.md`, *not*
+   `~/.sympose/profiles/samantha_memory.md` — a separate file, open in
+   the editor at the time, that does contain the Vault Roulette fact.
+   Confirmed directly: `grep -i roulette profiles/samantha_memory.md` in
+   the repo — no match. So this specific transcript's failure wasn't (only)
+   the code gap above; the fact genuinely isn't present in the memory file
+   these sessions actually read. Consistent with the standing note that
+   `~/.sympose` is a separate, intentionally-unsynced sandbox from the
+   repo's own dev workspace — left as-is; flagged to damiro rather than
+   "fixed" by copying personal memory content between the two, which
+   isn't a code change this repo should make unilaterally.
+
+Verified the code fix directly (not the live model, which hit an
+unrelated transient `503 UNAVAILABLE` from Gemini mid-retest — noted, not
+a Sympose issue): called `_build_sub_agent_context` with a task whose
+`parent_agent` resolves to a profile carrying a memory fact, confirmed
+the fact lands in the returned system prompt, appended after
+`skills_text`. Three new regression tests
+(`TestBuildSubAgentContextPersonaMemory`) plus two for the new
+`ProfileManager.get_persona_memory` accessor. 691 tests passing.
+
 ## 4. Skill coverage pass
 
 Samantha carries 9 skills. All got at least one live pass this session:

@@ -1,6 +1,7 @@
 import * as React from "react"
 
 import { getCookie, setCookie } from "@/lib/cookies"
+import { isOneOf } from "@/lib/utils"
 
 export type EditorSurface = "in-place" | "source"
 export type EditorReveal = "caret" | "never"
@@ -51,6 +52,18 @@ const DEFAULTS: EditorPreferences = {
   hideExtension: "on",
 }
 
+/** Reads a cookie-backed enum preference, falling back to `fallback` for a
+ *  missing cookie *and* for a well-formed-but-invalid one (a renamed enum
+ *  value left over from an older build) — unlike a bare `|| fallback`, which
+ *  only catches the missing case. */
+function decodeEnum<T extends string>(
+  raw: string | null,
+  allowed: readonly T[],
+  fallback: T
+): T {
+  return raw != null && isOneOf(raw, allowed) ? raw : fallback
+}
+
 /**
  * The markdown panel's editing preferences — cookie-backed per the UI
  * preference convention (UI_DESIGN_REFERENCE.md §5), not localStorage, and
@@ -62,22 +75,41 @@ export function useEditorPreferences(): readonly [
   <K extends keyof EditorPreferences>(key: K, value: EditorPreferences[K]) => void,
 ] {
   const [prefs, setPrefs] = React.useState<EditorPreferences>(() => ({
-    surface: (getCookie(COOKIES.surface) as EditorSurface) || DEFAULTS.surface,
-    reveal: (getCookie(COOKIES.reveal) as EditorReveal) || DEFAULTS.reveal,
-    selectionUI:
-      (getCookie(COOKIES.selectionUI) as EditorSelectionUI) ||
-      DEFAULTS.selectionUI,
-    tableEditing:
-      (getCookie(COOKIES.tableEditing) as EditorTableEditing) ||
-      DEFAULTS.tableEditing,
-    focusOutline:
-      (getCookie(COOKIES.focusOutline) as EditorFocusOutline) ||
-      DEFAULTS.focusOutline,
-    autosave:
-      (getCookie(COOKIES.autosave) as EditorAutosave) || DEFAULTS.autosave,
-    hideExtension:
-      (getCookie(COOKIES.hideExtension) as EditorHideExtension) ||
-      DEFAULTS.hideExtension,
+    surface: decodeEnum(
+      getCookie(COOKIES.surface),
+      ["in-place", "source"],
+      DEFAULTS.surface
+    ),
+    reveal: decodeEnum(
+      getCookie(COOKIES.reveal),
+      ["caret", "never"],
+      DEFAULTS.reveal
+    ),
+    selectionUI: decodeEnum(
+      getCookie(COOKIES.selectionUI),
+      ["menu", "bar"],
+      DEFAULTS.selectionUI
+    ),
+    tableEditing: decodeEnum(
+      getCookie(COOKIES.tableEditing),
+      ["source", "cells"],
+      DEFAULTS.tableEditing
+    ),
+    focusOutline: decodeEnum(
+      getCookie(COOKIES.focusOutline),
+      ["on", "off"],
+      DEFAULTS.focusOutline
+    ),
+    autosave: decodeEnum(
+      getCookie(COOKIES.autosave),
+      ["on", "off"],
+      DEFAULTS.autosave
+    ),
+    hideExtension: decodeEnum(
+      getCookie(COOKIES.hideExtension),
+      ["on", "off"],
+      DEFAULTS.hideExtension
+    ),
   }))
 
   const set = React.useCallback(

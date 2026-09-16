@@ -22,6 +22,7 @@ import time
 from collections.abc import Callable
 from typing import Any
 
+from sympose.compactor import get_or_create_lock
 from sympose.vault_manifest_build import (
     SCHEMA_VERSION,
     _delta_rebuild,
@@ -41,8 +42,7 @@ _last_check: dict[str, float] = {}
 
 
 def _lock_for(path: str) -> threading.Lock:
-    with _locks_guard:
-        return _locks.setdefault(path, threading.Lock())
+    return get_or_create_lock(_locks, _locks_guard, path)
 
 
 def manifest_path(workspace_dir: str, mv: str) -> str:

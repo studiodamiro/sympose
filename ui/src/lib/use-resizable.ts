@@ -8,6 +8,13 @@ const val = (b: Bound) => (typeof b === "function" ? b() : b)
 const clamp = (n: number, lo: number, hi: number) =>
   Math.min(Math.max(n, lo), hi)
 
+/** Minimum width for either of the two paired stage panels (`<ContentPanel>`
+ *  and `<MarkdownPanel>`) — an eighth of their own measured width, shared so
+ *  neither can be dragged narrower than the other. */
+export function eighthWidth(width: number): number {
+  return Math.round(width / 8)
+}
+
 export interface UseResizableOptions {
   /** Lower bound in px. A function is re-evaluated on window resize. */
   min: Bound

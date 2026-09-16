@@ -139,7 +139,7 @@ class SessionManager:
                     "model": model,
                     "messages": [{"role": "user", "content": prompt}],
                     "stream": False,
-                    "timeout": 4.0,
+                    "timeout": config.get("session.exit_behavior.title_timeout"),
                     "max_tokens": 20,
                 }
                 api_key = resolve_api_key(model)

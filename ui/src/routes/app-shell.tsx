@@ -289,10 +289,15 @@ export function AppShell() {
     }
     panels.toggle("chat")
   }
-  const toggleEditor = () => {
+  // Stable across renders where the panel set itself hasn't changed —
+  // `panels.isOpen`/`panels.toggle` are individually memoized by usePanels
+  // even though the `panels` object it returns isn't — so this can be a
+  // dependency of the mock chat transcript's own memoization below without
+  // defeating it on every unrelated render.
+  const toggleEditor = React.useCallback(() => {
     if (isPhone && !panels.isOpen("editor")) setMenuShown(false)
     panels.toggle("editor")
-  }
+  }, [isPhone, panels.isOpen, panels.toggle, setMenuShown])
 
   // Menu: on a small breakpoint it snaps to the rail (if the pref is on) — but
   // stays fully draggable, and a desktop trip back restores the expanded width
@@ -1104,39 +1109,42 @@ export function AppShell() {
     onExitComplete: onContentExitComplete,
   } = useSlideSwap(resolvedActive, contentBody, contentDirection)
 
-  const chatMessages = (
-    <>
-      <ChatMessage role="user" reaction={<HugeiconsIcon icon={ThumbsUpIcon} />}>
-        However some fonts, called variable fonts, can support a range of
-        weights with a more or less fine granularity
-      </ChatMessage>
-      <ChatMessage
-        role="persona"
-        handle="samantha"
-        latency="0.68 TTFT"
-        footer={
-          <ActionBadge
-            action="WRITE_NOTE"
-            detail="Projects/Sympose/Typography.md"
-            aria-pressed={editorOpen}
-            onClick={toggleEditor}
-          />
-        }
-      >
-        But I must explain to you how all this mistaken idea of denouncing
-        pleasure and praising pain was born and I will give you a complete
-        account of the system, and expound the actual teachings of the great
-        explorer of the truth, the master-builder of human happiness. No one
-        rejects, dislikes, or avoids pleasure itself, because it is pleasure,
-        but because
-      </ChatMessage>
-      <ChatMessage role="persona" handle="samantha">
-        I will give you a complete account of the system, and expound the actual
-        teachings of the great explorer of the truth, the master-builder of
-        human happiness. No one rejects, dislikes, or avoids pleasure itself,
-        because it is pleasure, but because
-      </ChatMessage>
-    </>
+  const chatMessages = React.useMemo(
+    () => (
+      <>
+        <ChatMessage role="user" reaction={<HugeiconsIcon icon={ThumbsUpIcon} />}>
+          However some fonts, called variable fonts, can support a range of
+          weights with a more or less fine granularity
+        </ChatMessage>
+        <ChatMessage
+          role="persona"
+          handle="samantha"
+          latency="0.68 TTFT"
+          footer={
+            <ActionBadge
+              action="WRITE_NOTE"
+              detail="Projects/Sympose/Typography.md"
+              aria-pressed={editorOpen}
+              onClick={toggleEditor}
+            />
+          }
+        >
+          But I must explain to you how all this mistaken idea of denouncing
+          pleasure and praising pain was born and I will give you a complete
+          account of the system, and expound the actual teachings of the great
+          explorer of the truth, the master-builder of human happiness. No one
+          rejects, dislikes, or avoids pleasure itself, because it is pleasure,
+          but because
+        </ChatMessage>
+        <ChatMessage role="persona" handle="samantha">
+          I will give you a complete account of the system, and expound the actual
+          teachings of the great explorer of the truth, the master-builder of
+          human happiness. No one rejects, dislikes, or avoids pleasure itself,
+          because it is pleasure, but because
+        </ChatMessage>
+      </>
+    ),
+    [editorOpen, toggleEditor]
   )
 
   return (

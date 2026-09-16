@@ -306,7 +306,10 @@ class SubAgentEngine:
             if not query:
                 return False, "A `query` is required."
             folder = args_dict.get("folder") or None
-            max_results = int(args_dict.get("max_results") or 10)
+            try:
+                max_results = int(args_dict.get("max_results") or 10)
+            except (TypeError, ValueError):
+                return False, "`max_results` must be an integer."
             results = VaultManager.search_structured(
                 profile, query, target_folder=folder, max_results=max_results
             )
@@ -317,7 +320,10 @@ class SubAgentEngine:
             folder = str(args_dict.get("folder", "")).strip()
             if not folder:
                 return False, "A `folder` is required."
-            count = int(args_dict.get("count") or 1)
+            try:
+                count = int(args_dict.get("count") or 1)
+            except (TypeError, ValueError):
+                return False, "`count` must be an integer."
             payload = VaultManager.get_random_sample_notes(profile, folder, count)
             if not payload:
                 return False, f"No notes found in `{folder}/`."

@@ -331,9 +331,12 @@ class NativeTools:
 
         elif tool_name == "web_search":
             query = args.get("query", "").strip()
-            max_results = int(args.get("max_results", 5))
             if not query:
                 return False, "Search query is required."
+            try:
+                max_results = int(args.get("max_results", 5))
+            except (TypeError, ValueError):
+                return False, "`max_results` must be an integer."
             try:
                 try:
                     from ddgs import DDGS

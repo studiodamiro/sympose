@@ -20,6 +20,18 @@ log = logging.getLogger(__name__)
 from sympose.config import DEFAULT_SUB_AGENT_MODEL, config_manager
 from sympose.models import resolve_api_key
 
+def get_or_create_lock(
+    registry: dict[str, threading.Lock], guard: threading.Lock, key: str
+) -> threading.Lock:
+    """Returns the lock for `key` in `registry`, creating it under `guard` if
+    this is the first request for that key. The one "get-or-create a lock per
+    key" implementation, shared by every keyed-lock registry in the app (the
+    per-vault-file locks below, and vault_manifest.py's per-manifest-path
+    locks) instead of each reimplementing it."""
+    with guard:
+        return registry.setdefault(key, threading.Lock())
+
+
 _FILE_LOCKS: dict[str, threading.Lock] = {}
 _GLOBAL_LOCK = threading.Lock()
 
@@ -27,10 +39,7 @@ _GLOBAL_LOCK = threading.Lock()
 def get_file_lock(filepath: str) -> threading.Lock:
     """Returns a process-wide mutex for the given file path to avoid write conflicts."""
     abs_p = os.path.abspath(filepath)
-    with _GLOBAL_LOCK:
-        if abs_p not in _FILE_LOCKS:
-            _FILE_LOCKS[abs_p] = threading.Lock()
-        return _FILE_LOCKS[abs_p]
+    return get_or_create_lock(_FILE_LOCKS, _GLOBAL_LOCK, abs_p)
 
 
 # ---------------------------------------------------------------------------

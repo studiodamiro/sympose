@@ -607,11 +607,26 @@ class ActionProcessor:
                             if target.endswith(".canvas") or target.endswith(".md")
                             else f"{target}.canvas"
                         )
-                        VaultManager.write_note(profile, fname, content)
-                        rel_path = f"{vault_folder}/{fname}" if vault_folder else fname
-                        badges.append(
-                            f"> 🎨 **{name} created Visual Canvas in Vault:** `{rel_path}`"
-                        )
+                        result = VaultManager.write_note(profile, fname, content)
+                        if cls._op_failed(result):
+                            badges.append(
+                                f"> ⚠️ **{name} could not save Visual Canvas:** {result}"
+                            )
+                        else:
+                            rel_path = (
+                                f"{vault_folder}/{fname}" if vault_folder else fname
+                            )
+                            badges.append(
+                                f"> 🎨 **{name} created Visual Canvas in Vault:** `{rel_path}`"
+                            )
+
+            # REACT is handled upstream by slack.py, which regex-matches it
+            # directly against the raw model output to drive emoji reactions
+            # (see strip_action_tags). It reaches this loop as an already
+            # recognized, already handled tag — no-op it here rather than
+            # falling into the malformed-tag branch below.
+            elif tag == "REACT":
+                pass
 
             # ADR-071: a recognized tag whose shape didn't match any branch above
             # (e.g. `[WRITE_NOTE: filename]` with no `|content`) previously did

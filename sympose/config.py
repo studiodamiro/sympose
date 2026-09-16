@@ -58,7 +58,6 @@ _LOCAL_MODEL_PREFIXES = (
     "ollama_chat",
     "ollama_completion",
     "lm_studio",
-    "text-completion-openai",
     "llamafile",
     "llama-cpp-python",
 )

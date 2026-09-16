@@ -1,6 +1,7 @@
 import * as React from "react"
 
 import { getCookie, setCookie } from "@/lib/cookies"
+import { isOneOf } from "@/lib/utils"
 import type { NebulaMode } from "@/components/sympose/knowledge-nebula-shared"
 
 /**
@@ -75,10 +76,24 @@ const SPEC: {
     cookie: string
     kind: Kind
     default: NebulaPreferences[K]
+    /** Closed set an "enum"-kind cookie value is validated against before
+     *  it's trusted; a stale or hand-edited value outside it falls back to
+     *  `default` instead of being cast blind. */
+    enumValues?: readonly string[]
   }
 } = {
-  interaction: { cookie: "sympose:nebula.interaction", kind: "enum", default: "focus" },
-  mode: { cookie: "sympose:nebula.mode", kind: "enum", default: "2d" },
+  interaction: {
+    cookie: "sympose:nebula.interaction",
+    kind: "enum",
+    default: "focus",
+    enumValues: ["explore", "focus"],
+  },
+  mode: {
+    cookie: "sympose:nebula.mode",
+    kind: "enum",
+    default: "2d",
+    enumValues: ["2d", "3d"],
+  },
   legend: { cookie: "sympose:nebula.legend", kind: "bool", default: true },
   dock: { cookie: "sympose:nebula.dock", kind: "bool", default: true },
   tags: { cookie: "sympose:nebula.tags", kind: "bool", default: true },
@@ -120,6 +135,7 @@ function decode<K extends keyof NebulaPreferences>(
     const n = Number(raw)
     return (Number.isFinite(n) ? n : spec.default) as NebulaPreferences[K]
   }
+  if (spec.enumValues && !isOneOf(raw, spec.enumValues)) return spec.default
   return raw as NebulaPreferences[K]
 }
 

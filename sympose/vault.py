@@ -108,7 +108,7 @@ class VaultManager:
             if is_safe_path(direct_target, allowed) and os.path.exists(direct_target):
                 try:
                     with open(
-                        direct_target, "r", encoding="utf-8", errors="ignore"
+                        direct_target, "r", encoding="utf-8", errors="replace"
                     ) as f:
                         return f.read().strip()
                 except Exception as e:
@@ -118,7 +118,7 @@ class VaultManager:
             target = os.path.join(allowed, os.path.basename(clean_name))
             if is_safe_path(target, allowed) and os.path.exists(target):
                 try:
-                    with open(target, "r", encoding="utf-8", errors="ignore") as f:
+                    with open(target, "r", encoding="utf-8", errors="replace") as f:
                         return f.read().strip()
                 except Exception as e:
                     return f"Error reading note `{clean_name}`: {e}"
@@ -146,7 +146,7 @@ class VaultManager:
                             if is_safe_path(fp, allowed):
                                 try:
                                     with open(
-                                        fp, "r", encoding="utf-8", errors="ignore"
+                                        fp, "r", encoding="utf-8", errors="replace"
                                     ) as f:
                                         return f.read().strip()
                                 except Exception as e:
@@ -326,7 +326,7 @@ class VaultManager:
         for fp in samples:
             rel = os.path.relpath(fp, mv)
             try:
-                with open(fp, "r", encoding="utf-8", errors="ignore") as f:
+                with open(fp, "r", encoding="utf-8", errors="replace") as f:
                     body = f.read().strip()
                 if body:
                     payloads.append(
@@ -454,7 +454,7 @@ class VaultManager:
                         continue
                     try:
                         with open(
-                            file_path, "r", encoding="utf-8", errors="ignore"
+                            file_path, "r", encoding="utf-8", errors="replace"
                         ) as f:
                             full_content = f.read()
                     except Exception as e:
@@ -490,7 +490,7 @@ class VaultManager:
         if config_manager.get("vault.search_mode", "direct") != "sqlite_fts":
             return
         try:
-            with open(target_file, "r", encoding="utf-8", errors="ignore") as f:
+            with open(target_file, "r", encoding="utf-8", errors="replace") as f:
                 full_content = f.read()
             meta, body = cls.parse_frontmatter(full_content)
             vault_index.upsert_note(
@@ -515,7 +515,7 @@ class VaultManager:
         if not config_manager.get("vault.manifest.enabled"):
             return
         try:
-            with open(target_file, "r", encoding="utf-8", errors="ignore") as f:
+            with open(target_file, "r", encoding="utf-8", errors="replace") as f:
                 full_content = f.read()
             meta, _ = cls.parse_frontmatter(full_content)
             vault_manifest.patch_note(
@@ -562,7 +562,7 @@ class VaultManager:
         for rel in rel_paths:
             fp = os.path.join(mv, rel)
             try:
-                with open(fp, "r", encoding="utf-8", errors="ignore") as f:
+                with open(fp, "r", encoding="utf-8", errors="replace") as f:
                     full_content = f.read()
             except OSError:
                 continue
@@ -1470,7 +1470,7 @@ class VaultManager:
                 selected_fp = random.choice(chrono_notes)
                 rel = os.path.relpath(selected_fp, mv)
                 try:
-                    with open(selected_fp, "r", encoding="utf-8", errors="ignore") as f:
+                    with open(selected_fp, "r", encoding="utf-8", errors="replace") as f:
                         body = f.read().strip()
                     if body:
                         return f"### Ground-Truth Sandboxed Vault Note (`{rel}` - Exact Content):\n{body[:3000]}"

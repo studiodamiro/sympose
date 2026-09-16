@@ -44,6 +44,7 @@ Every runtime knob Sympose reads. Global keys live in `config.yaml`, settable at
 | `session.exit_behavior.clear_terminal` | bool | `True` | — | yes | Clear the terminal on exit. |
 | `session.exit_behavior.obsidian_subfolder` | str | `Sessions` | — | yes | Vault subfolder for archived sessions. |
 | `session.exit_behavior.summarization_model` | str | *(unset)* | — | yes | Model for session summaries; empty = the active chat model. |
+| `session.exit_behavior.title_timeout` | float | `4.0` | ≥ 0 | yes | Timeout for the background session-auto-title generator, seconds. |
 | `memory.auto_compact` | bool | `True` | — | yes | Auto-compact working memory past the threshold. |
 | `memory.compaction_threshold` | int | `25` | ≥ 1 | yes | Working-memory line count that triggers compaction. |
 | `memory.extraction_timeout` | float | `8.0` | ≥ 0 | yes | Timeout for the background memory extractor, seconds. |

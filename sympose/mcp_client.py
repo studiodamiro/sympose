@@ -288,6 +288,7 @@ class MCPClient:
             except Exception:
                 try:
                     self.process.kill()
+                    self.process.wait()
                 except Exception as e:
                     log.debug(
                         "[MCP:%s] failed to kill process during stop(): %s",

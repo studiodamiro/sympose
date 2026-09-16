@@ -2,8 +2,26 @@ import * as React from "react"
 import type { ToolbarItem } from "@damiro/stylo"
 
 import { getCookie, setCookie } from "@/lib/cookies"
+import { isOneOf } from "@/lib/utils"
 
 const COOKIE = "sympose:editor.toolbar_items"
+
+// Mirrors stylo's `ToolbarCommandId` union (its own dist/types.d.ts) — that's
+// a type only, with nothing exported at runtime to validate a decoded cookie
+// element against, so the built-in id set is duplicated here. A
+// `ToolbarCustomItem` object is never a realistic cookie value: its `run`
+// callback can't survive a JSON.stringify/parse round trip, so validation
+// only needs to cover plain command-id strings and the `"|"` separator.
+const TOOLBAR_COMMAND_IDS = [
+  "undo", "redo", "save", "search", "h1", "h2", "h3", "body", "bold",
+  "italic", "strike", "underline", "code", "codeBlock", "link", "wikilink",
+  "quote", "bulletList", "orderedList", "task", "hr", "frontmatter", "table",
+  "math", "mathBlock",
+] as const
+
+function isValidToolbarItem(item: unknown): item is ToolbarItem {
+  return item === "|" || (typeof item === "string" && isOneOf(item, TOOLBAR_COMMAND_IDS))
+}
 
 /** Sympose's own curated starting set — stylo's default minus `undo`/`redo`/
  *  `link`/`wikilink`/`hr`/`frontmatter`/`table`/`math`, plus `underline`
@@ -32,7 +50,9 @@ function parse(raw: string | null): ToolbarItem[] | null {
   if (!raw) return null
   try {
     const parsed: unknown = JSON.parse(raw)
-    return Array.isArray(parsed) ? (parsed as ToolbarItem[]) : null
+    if (!Array.isArray(parsed)) return null
+    const valid = parsed.filter(isValidToolbarItem)
+    return valid.length > 0 ? valid : null
   } catch {
     return null
   }

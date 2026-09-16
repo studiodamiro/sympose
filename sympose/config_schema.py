@@ -200,6 +200,14 @@ SETTINGS: tuple[Setting, ...] = (
         _SESS,
     ),
     Setting(
+        "session.exit_behavior.title_timeout",
+        "float",
+        4.0,
+        "Timeout for the background session-auto-title generator, seconds.",
+        _SESS,
+        minimum=0,
+    ),
+    Setting(
         "memory.auto_compact",
         "bool",
         True,

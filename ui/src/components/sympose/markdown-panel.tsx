@@ -44,7 +44,7 @@ import {
 
 import { cn } from "@/lib/utils"
 import { getCookieBool, setCookieBool } from "@/lib/cookies"
-import { useResizable } from "@/lib/use-resizable"
+import { eighthWidth, useResizable } from "@/lib/use-resizable"
 import { useFillWidth } from "@/lib/use-fill-width"
 import { useTransientFlag } from "@/lib/use-transient-flag"
 import {
@@ -431,11 +431,12 @@ function MarkdownPanel({
   // editor tracks the content panel sliding out instead of lagging behind it.
   const fillToggling = useTransientFlag(fill)
 
-  // Minimum is an eighth of the shell row — the exact rule `<ContentPanel>`
-  // uses — so neither working panel can be dragged narrower than the other.
-  // Otherwise free up to two-thirds of the split area, defaulting to half; the
-  // `|| fallback` covers the first render before anything has been measured.
-  const min = React.useCallback(() => Math.round(shellW / 8) || 180, [shellW])
+  // Minimum is an eighth of the shell row — `eighthWidth` is the same rule
+  // `<ContentPanel>` uses — so neither working panel can be dragged narrower
+  // than the other. Otherwise free up to two-thirds of the split area,
+  // defaulting to half; the `|| fallback` covers the first render before
+  // anything has been measured.
+  const min = React.useCallback(() => eighthWidth(shellW) || 180, [shellW])
   const max = React.useCallback(
     () => Math.round((stageW * 2) / 3) || 9999,
     [stageW]

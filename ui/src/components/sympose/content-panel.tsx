@@ -2,7 +2,7 @@ import * as React from "react"
 
 import { cn } from "@/lib/utils"
 import { getCookieNumber, setCookie } from "@/lib/cookies"
-import { useResizable } from "@/lib/use-resizable"
+import { eighthWidth, useResizable } from "@/lib/use-resizable"
 import { ScrollThumb } from "@/components/sympose/scroll-thumb"
 
 // Module-level, not inline: a stable reference so `<ScrollThumb>`'s effect
@@ -137,11 +137,11 @@ function ContentPanel({
     [scrollKey]
   )
 
-  // An eighth of the stage, not a quarter — `<MarkdownPanel>`'s own `min`
-  // mirrors this exact rule (see its comment) so neither working panel can be
-  // dragged narrower than the other; keep the two in sync if this changes.
+  // An eighth of the stage, not a quarter — `eighthWidth` is the same rule
+  // `<MarkdownPanel>`'s own `min` applies, so neither working panel can be
+  // dragged narrower than the other.
   const min = React.useCallback(
-    () => Math.round(stageWidth(wrapRef.current) / 8),
+    () => eighthWidth(stageWidth(wrapRef.current)),
     []
   )
   // Normally capped at half the stage, same as always — but while `fill` is

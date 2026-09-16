@@ -16,7 +16,12 @@ from typing import Any
 
 log = logging.getLogger(__name__)
 
-SCHEMA_VERSION = 1
+# D2: bumped from 1 - node identity moved from bare filename stem to full
+# relative path (see _node/_resolve_links below), and each link dict grew a
+# `target_stem` field. An old (version-1) cached manifest fails the
+# schema_version check in vault_manifest.ensure_fresh and forces a full
+# rebuild rather than being reinterpreted under the new scheme.
+SCHEMA_VERSION = 2
 _WIKILINK = re.compile(r"\[\[([^\]\|#]+)(?:#[^\]\|]+)?(?:\|[^\]]+)?\]\]")
 _MD_EXT = (".md", ".markdown", ".txt")
 
@@ -46,11 +51,14 @@ def _mtime_of(path: str, fallback: float = 0.0) -> float:
 
 
 def _node(rel_path: str, meta: dict[str, Any], content: str, mtime: float) -> dict:
+    # D2: id is the full relative path, not the bare stem - two notes named
+    # the same thing in different folders used to collide on one node,
+    # silently dropping one whenever the other was edited/deleted/patched.
     st = _stem(rel_path)
     parts = rel_path.replace("\\", "/").split("/")
     meta = meta or {}
     return {
-        "id": st,
+        "id": rel_path.replace("\\", "/"),
         "rel_path": rel_path,
         "folder": parts[0] if len(parts) > 1 else "",
         "tags": _tags_of(meta),
@@ -61,13 +69,79 @@ def _node(rel_path: str, meta: dict[str, Any], content: str, mtime: float) -> di
     }
 
 
+def _pick_link_target(
+    stem: str, source_folder: str, by_stem: dict[str, list[dict]]
+) -> dict | None:
+    """Resolves a bare wikilink stem to the real node it most likely refers
+    to (D3's identical rationale, applied to the manifest's own link graph).
+    Exactly one candidate -> unambiguous. More than one (two notes share a
+    name in different folders) -> prefer one in the same top-level folder
+    as the linking note - Obsidian's own preference for an unqualified
+    link - else the alphabetically-first path: deterministic, and a real
+    existing note, instead of the single-node collision a stem-keyed
+    identity used to risk. No candidate at all -> None (a ghost node, same
+    as before)."""
+    candidates = by_stem.get(stem)
+    if not candidates:
+        return None
+    if len(candidates) == 1:
+        return candidates[0]
+    same_folder = [n for n in candidates if n["folder"] == source_folder]
+    return same_folder[0] if same_folder else sorted(candidates, key=lambda n: n["id"])[0]
+
+
+def _resolve_links(
+    nodes: list[dict], raw_links: list[dict]
+) -> tuple[list[dict], list[dict]]:
+    """Turns `{"source": <node id>, "target_stem": <bare wikilink stem>}`
+    entries into final `{"source", "target", "target_stem"}` links plus any
+    new ghost nodes - `target_stem` survives into the persisted link so a
+    later `_delta_rebuild` can always re-resolve from the original bare
+    text against the *current* node set, not from a possibly-already-
+    resolved `target`."""
+    by_stem: dict[str, list[dict]] = {}
+    for n in nodes:
+        if n.get("exists"):
+            by_stem.setdefault(_stem(n["id"]), []).append(n)
+    by_id = {n["id"]: n for n in nodes}
+
+    links: list[dict] = []
+    ghosts: dict[str, dict] = {}
+    for raw in raw_links:
+        stem = raw["target_stem"]
+        source = by_id.get(raw["source"])
+        source_folder = source["folder"] if source else ""
+        match = _pick_link_target(stem, source_folder, by_stem)
+        links.append(
+            {
+                "source": raw["source"],
+                "target": match["id"] if match else stem,
+                "target_stem": stem,
+            }
+        )
+        if match is None:
+            ghosts.setdefault(
+                stem,
+                {
+                    "id": stem,
+                    "rel_path": "",
+                    "folder": "",
+                    "tags": [],
+                    "title": stem,
+                    "bytes": 0,
+                    "mtime": 0.0,
+                    "exists": False,
+                },
+            )
+    return links, list(ghosts.values())
+
+
 def build(mv: str, notes: list[dict[str, Any]]) -> dict:
     """Pure projection of a `_get_vault_snapshot` entry list. Unresolved
     wikilink targets become ghost nodes (`exists: false`)."""
     nodes: list[dict] = []
-    by_stem: dict[str, dict] = {}
     folders: dict[str, int] = {}
-    links: list[dict] = []
+    raw_links: list[dict] = []
     for e in notes:
         rel = e["rel_path"]
         content = e.get("full_content") or e.get("body") or ""
@@ -75,26 +149,14 @@ def build(mv: str, notes: list[dict[str, Any]]) -> dict:
             rel, e.get("meta") or {}, content, _mtime_of(e.get("abs_path") or "")
         )
         nodes.append(node)
-        by_stem[node["id"]] = node
         parts = rel.replace("\\", "/").split("/")
         for d in range(1, len(parts)):
             key = "/".join(parts[:d])
             folders[key] = folders.get(key, 0) + 1
-        links += [{"source": node["id"], "target": t} for t in _targets_in(content)]
-    ghosts = {
-        link["target"]: {
-            "id": link["target"],
-            "rel_path": "",
-            "folder": "",
-            "tags": [],
-            "title": link["target"],
-            "bytes": 0,
-            "mtime": 0.0,
-            "exists": False,
-        }
-        for link in links
-        if link["target"] not in by_stem
-    }
+        raw_links += [
+            {"source": node["id"], "target_stem": t} for t in _targets_in(content)
+        ]
+    links, ghosts = _resolve_links(nodes, raw_links)
     return {
         "meta": {
             "vault_root": os.path.abspath(mv),
@@ -103,7 +165,7 @@ def build(mv: str, notes: list[dict[str, Any]]) -> dict:
             "note_count": len(nodes),
             "schema_version": SCHEMA_VERSION,
         },
-        "nodes": nodes + list(ghosts.values()),
+        "nodes": nodes + ghosts,
         "links": links,
         "folders": folders,
     }
@@ -153,14 +215,20 @@ def _delta_rebuild(
 
     entries = read_notes(changed) if changed else []
     dead = set(changed) | deleted
-    dead_stems = {_stem(r) for r in dead}
 
     nodes: dict[str, dict] = {
         n["id"]: n
         for n in prev["nodes"]
         if n.get("exists") and n["rel_path"].replace(os.sep, "/") not in dead
     }
-    links = [link for link in prev["links"] if link["source"] not in dead_stems]
+    # D2/D3: node id is now the full path, so this comparison is exact -
+    # unlike the old stem-based version, it can't drop a surviving,
+    # unrelated same-named node's outgoing links by mistake.
+    raw_links = [
+        {"source": link["source"], "target_stem": link["target_stem"]}
+        for link in prev["links"]
+        if link["source"] not in dead
+    ]
     for e in entries:
         rel = e["rel_path"]
         content = e.get("full_content") or e.get("body") or ""
@@ -171,7 +239,9 @@ def _delta_rebuild(
             _mtime_of(e.get("abs_path") or os.path.join(mv, rel)),
         )
         nodes[node["id"]] = node
-        links += [{"source": node["id"], "target": t} for t in _targets_in(content)]
+        raw_links += [
+            {"source": node["id"], "target_stem": t} for t in _targets_in(content)
+        ]
 
     folders: dict[str, int] = {}
     for n in nodes.values():
@@ -179,20 +249,14 @@ def _delta_rebuild(
         for d in range(1, len(parts)):
             key = "/".join(parts[:d])
             folders[key] = folders.get(key, 0) + 1
-    ghosts = {
-        link["target"]: {
-            "id": link["target"],
-            "rel_path": "",
-            "folder": "",
-            "tags": [],
-            "title": link["target"],
-            "bytes": 0,
-            "mtime": 0.0,
-            "exists": False,
-        }
-        for link in links
-        if link["target"] not in nodes
-    }
+
+    # Every link is re-resolved against the *current* full node set, not
+    # just the newly (re-)parsed ones - adding or removing any note can
+    # change how an unrelated, unaffected note's bare wikilink resolves
+    # (e.g. a second same-named note appearing elsewhere makes a
+    # previously-unambiguous link ambiguous). Pure in-memory - no new I/O,
+    # since every node's own data is already in `nodes`.
+    links, ghosts = _resolve_links(list(nodes.values()), raw_links)
     return {
         "meta": {
             "vault_root": os.path.abspath(mv),
@@ -201,7 +265,7 @@ def _delta_rebuild(
             "note_count": len(nodes),
             "schema_version": SCHEMA_VERSION,
         },
-        "nodes": list(nodes.values()) + list(ghosts.values()),
+        "nodes": list(nodes.values()) + ghosts,
         "links": links,
         "folders": folders,
     }

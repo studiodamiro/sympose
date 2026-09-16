@@ -6,14 +6,14 @@ import logging
 import os
 from typing import Any
 
-from fastapi import Depends, FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from sympose import slack_heartbeat
-from sympose.auth import require_dashboard_auth
+from sympose.auth import DashboardAuthMiddleware
 from sympose.config import get_version
 from sympose.vault import VaultManager
 from sympose.workspace import resolve_workspace_dir
@@ -88,8 +88,18 @@ def create_app(engine: Any, workspace_dir: str | None = None) -> FastAPI:
         description="FastAPI REST API & Standalone Vault Gateway for Sympose",
         docs_url="/docs",
         redoc_url="/redoc",
-        dependencies=[Depends(require_dashboard_auth)],
     )
+
+    # S1: the password guard is ASGI middleware, not a FastAPI route
+    # dependency — a route dependency can't reach the static-asset mount
+    # registered near the bottom of this function (a Starlette `Mount`
+    # never goes through FastAPI's dependency-injection tree). Added
+    # *before* CORSMiddleware below so CORS ends up outermost (Starlette
+    # runs the most-recently-added middleware first) and can answer a
+    # cross-origin preflight OPTIONS request directly — browsers send those
+    # with no credentials at all, so if auth ran first every preflight
+    # would 401 and cross-origin requests would never work.
+    app.add_middleware(DashboardAuthMiddleware)
 
     # Restrict allowed origins via env var; defaults to localhost-only for safety
     allowed_origins = [

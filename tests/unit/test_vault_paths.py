@@ -2,6 +2,9 @@
 Unit tests for sympose.vault_paths — vault root & sandbox path resolution.
 """
 
+import os
+import time
+
 from sympose import vault_paths
 
 
@@ -78,3 +81,71 @@ class TestGetPrimaryDir:
         assert vault_paths.get_primary_dir({"vault_folders": ["Notes"]}) == str(
             tmp_path / "Notes"
         )
+
+
+# ---------------------------------------------------------------------------
+# D6: dirs_mtime must catch an in-place content edit to an existing note, not
+# just an add/remove/rename - a directory's own mtime never moves for the
+# former, only the latter.
+# ---------------------------------------------------------------------------
+
+
+class TestDirsMtime:
+    def test_empty_dirs_list_returns_zero(self):
+        assert vault_paths.dirs_mtime([]) == 0.0
+
+    def test_reflects_a_new_file_being_added(self, tmp_path):
+        before = vault_paths.dirs_mtime([str(tmp_path)])
+        (tmp_path / "new.md").write_text("hello")
+        after = vault_paths.dirs_mtime([str(tmp_path)])
+        assert after > before
+
+    def test_in_place_edit_to_existing_file_moves_the_watermark(self, tmp_path):
+        """The actual D6 bug: editing an existing note's content changes the
+        file's own mtime but never its parent directory's - a watermark
+        built from directory mtimes alone would miss this indefinitely,
+        serving a stale cache/index/manifest forever until some unrelated
+        add/remove/rename happened to touch a watched directory."""
+        note = tmp_path / "note.md"
+        note.write_text("original")
+        dir_mtime_before = os.stat(tmp_path).st_mtime
+        before = vault_paths.dirs_mtime([str(tmp_path)])
+
+        # os.utime on an EXISTING file never touches its parent directory's
+        # mtime - only adding/removing/renaming an entry does. This isolates
+        # "the file's own mtime moved" from any directory-level side effect.
+        future = time.time() + 100
+        os.utime(note, (future, future))
+        assert os.stat(tmp_path).st_mtime == dir_mtime_before
+
+        after = vault_paths.dirs_mtime([str(tmp_path)])
+        assert after > before
+
+    def test_nested_file_edit_is_seen_without_requiring_the_subfolder_listed(
+        self, tmp_path
+    ):
+        """Not just the top-level directory - dirs_mtime walks the whole
+        tree, so a note several folders deep is covered by passing just the
+        vault root, the normal call shape."""
+        nested = tmp_path / "Projects" / "Sympose"
+        nested.mkdir(parents=True)
+        note = nested / "note.md"
+        note.write_text("original")
+        before = vault_paths.dirs_mtime([str(tmp_path)])
+
+        future = time.time() + 100
+        os.utime(note, (future, future))
+        after = vault_paths.dirs_mtime([str(tmp_path)])
+        assert after > before
+
+    def test_ignored_subfolder_is_not_walked(self, tmp_path):
+        ignored = tmp_path / "Attachments"
+        ignored.mkdir()
+        note = ignored / "image-note.md"
+        note.write_text("noise")
+        before = vault_paths.dirs_mtime([str(tmp_path)], {"attachments"})
+
+        future = time.time() + 100
+        os.utime(note, (future, future))
+        after = vault_paths.dirs_mtime([str(tmp_path)], {"attachments"})
+        assert after == before

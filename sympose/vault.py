@@ -42,6 +42,11 @@ VAULT_PATH_TOKEN_RE = re.compile(
 # ---------------------------------------------------------------------------
 _VAULT_SNAPSHOT_CACHE: dict[tuple[str, ...], tuple[float, list[dict[str, Any]]]] = {}
 
+# E8: _list_real_folders' own mtime-keyed cache — it was the one sibling
+# directory walk with no cache at all, doing a full uncached walk on every
+# dashboard tree request. Same key shape as _VAULT_SNAPSHOT_CACHE.
+_REAL_FOLDERS_CACHE: dict[tuple[Any, ...], tuple[float, list[str]]] = {}
+
 
 class VaultManager:
     """Manages sandboxed reading, writing, high-density manifests, and searching in Obsidian vaults."""
@@ -123,29 +128,16 @@ class VaultManager:
                 except Exception as e:
                     return f"Error reading note `{clean_name}`: {e}"
 
-        # Recursive case-insensitive / title lookup in allowed folders
+        # Recursive case-insensitive / title lookup in allowed folders.
+        # Routed through the cached vault snapshot (E7) rather than a fresh
+        # os.walk + re-read - the same content `get_folder_digest` and
+        # `search_structured` already reuse, now safe to share here too
+        # since D6 made the underlying cache actually notice an in-place
+        # content edit, not just directory-level add/remove/rename.
         stem_target = os.path.splitext(os.path.basename(clean_name))[0].lower()
-        raw_ignore = config_manager.get("vault.ignore_folders")
-        ignore_dirs = {str(d).lower().strip() for d in raw_ignore}
-        for allowed in allowed_dirs:
-            for root, dirs, files in os.walk(allowed):
-                dirs[:] = [
-                    d
-                    for d in dirs
-                    if d.lower() not in ignore_dirs and not d.startswith(".")
-                ]
-                for fn in files:
-                    if fn.endswith((".md", ".markdown", ".txt")):
-                        if os.path.splitext(fn)[0].lower() == stem_target:
-                            fp = os.path.join(root, fn)
-                            if is_safe_path(fp, allowed):
-                                try:
-                                    with open(
-                                        fp, "r", encoding="utf-8", errors="replace"
-                                    ) as f:
-                                        return f.read().strip()
-                                except Exception as e:
-                                    return f"Error reading note `{clean_name}`: {e}"
+        for entry in cls._get_vault_snapshot(mv, allowed_dirs):
+            if os.path.splitext(entry["file_name"])[0].lower() == stem_target:
+                return entry["full_content"].strip()
 
         return f"Note `{clean_name}` not found in allowed vault folders."
 
@@ -415,7 +407,7 @@ class VaultManager:
         # last touched the vault), so relying on mtime drift alone silently
         # kept serving a snapshot built under the old list.
         cache_key = (tuple(sorted(dirs)), tuple(sorted(ignore_dirs)))
-        current_mtime = vault_paths.dirs_mtime(dirs)
+        current_mtime = vault_paths.dirs_mtime(dirs, ignore_dirs)
         cached_mtime, cached_snapshot = _VAULT_SNAPSHOT_CACHE.get(cache_key, (0.0, []))
         if current_mtime == cached_mtime and cached_snapshot:
             return cached_snapshot
@@ -571,7 +563,9 @@ class VaultManager:
         (`val` = link degree + 1, scales the node radius), links
         `{source, target}`. `label` is clipped to ~64 chars — a `Quotes/` note
         is named after the whole quote, which is unreadable on a graph node;
-        `id` keeps the full stem for link resolution and search. Falls back to an
+        `id` is the node's full vault-relative path (D2) — unique across the
+        whole vault, unlike a bare stem, which two same-named notes in
+        different folders would otherwise collide on. Falls back to an
         ephemeral in-memory build when `vault.manifest.enabled` is off;
         `{nodes: [], links: []}` with no vault."""
         manifest = cls.get_manifest()
@@ -608,9 +602,17 @@ class VaultManager:
         """Vault-relative paths of every real subdirectory under `dirs` — a
         directory-only walk (no file reads, same ignore list as
         `_get_vault_snapshot`) so `build_tree` can show a folder that exists
-        on disk but holds no notes yet (ADR-098)."""
+        on disk but holds no notes yet (ADR-098). Mtime-cached (E8) the same
+        way `_get_vault_snapshot` is — this was the one sibling walk with no
+        cache at all, redone in full on every dashboard tree request."""
         raw_ignore = config_manager.get("vault.ignore_folders")
         ignore_dirs = {str(d).lower().strip() for d in raw_ignore}
+        cache_key = (tuple(sorted(dirs)), tuple(sorted(ignore_dirs)))
+        current_mtime = vault_paths.dirs_mtime(dirs, ignore_dirs)
+        cached_mtime, cached_folders = _REAL_FOLDERS_CACHE.get(cache_key, (0.0, []))
+        if current_mtime == cached_mtime and cached_folders:
+            return cached_folders
+
         seen: set = set()
         out: list[str] = []
         for base in dirs:
@@ -629,6 +631,7 @@ class VaultManager:
                     if rel not in seen:
                         seen.add(rel)
                         out.append(rel)
+        _REAL_FOLDERS_CACHE[cache_key] = (current_mtime, out)
         return out
 
     @classmethod
@@ -960,13 +963,19 @@ class VaultManager:
         return vault_write.resolve_existing_note(profile, note_name)
 
     @classmethod
-    def _rewrite_wikilink_targets(
-        cls, text: str, old_stem: str, new_stem: str
-    ) -> tuple[str, int]:
-        """Retarget every `[[old]]` / `![[old]]` / `[[old#h]]` / `[[old|a]]`
-        (and the `Folder/old` path form) to `new_stem`, leaving any `#heading`
-        and `|alias` intact. Returns the rewritten text and the hit count."""
-        return vault_write.rewrite_wikilink_targets(text, old_stem, new_stem)
+    def _find_notes_by_stem(cls, profile: dict[str, Any], stem: str) -> list[str]:
+        """Vault-relative paths of every real note sharing `stem` (D3) — lets
+        `rename_note` tell an unambiguous bare wikilink from one that could
+        mean a different, same-named note elsewhere."""
+        mv, allowed_dirs = cls._get_master_vault(), cls.get_allowed_dirs(profile)
+        if not mv or not allowed_dirs:
+            return []
+        want = stem.strip().lower()
+        return [
+            entry["rel_path"]
+            for entry in cls._get_vault_snapshot(mv, allowed_dirs)
+            if os.path.splitext(entry["file_name"])[0].lower() == want
+        ]
 
     @classmethod
     def rename_note(cls, profile: dict[str, Any], old_name: str, new_name: str) -> str:
@@ -979,6 +988,7 @@ class VaultManager:
             old_name,
             new_name,
             get_backlinks_fn=cls.get_backlinks,
+            find_notes_by_stem_fn=cls._find_notes_by_stem,
             reindex_hook=cls._reindex_note_if_enabled,
             manifest_hook=cls._update_manifest_if_enabled,
             on_backlinks_changed=vault_links.clear_cache,

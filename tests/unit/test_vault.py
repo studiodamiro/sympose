@@ -116,6 +116,53 @@ class TestReadNote:
         assert "Test content" in content_with
         assert "Test content" in content_without
 
+    def test_recursive_stem_fallback_finds_nested_note(
+        self, tmp_vault_dir, monkeypatch
+    ):
+        """E7: the fuzzy/title fallback now routes through the shared vault
+        snapshot cache (_get_vault_snapshot) instead of its own separate
+        os.walk + re-read - this exercises that it still finds a note
+        nested several folders deep, matched by stem, case-insensitively."""
+        from sympose.vault import VaultManager
+
+        nested = tmp_vault_dir / "Projects" / "Sympose"
+        nested.mkdir(parents=True)
+        write_note(str(nested / "Typography.md"), "# Typography\nBody text.")
+        monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
+        profile = {"vault_folders": ["*"]}
+
+        content = VaultManager.read_note(profile, "typography")
+        assert "Typography" in content
+        assert "Body text" in content
+
+    def test_recursive_stem_fallback_reflects_in_place_edit(
+        self, tmp_vault_dir, monkeypatch
+    ):
+        """E7 + D6 together: once the fallback is cache-backed, an in-place
+        edit to an already-cached nested note must still show up on the
+        next read - not served stale, now that the underlying cache's
+        watermark (D6) actually notices a content-only change."""
+        import time
+
+        from sympose.vault import VaultManager
+
+        nested = tmp_vault_dir / "Projects" / "Sympose"
+        nested.mkdir(parents=True)
+        note_path = nested / "Typography.md"
+        write_note(str(note_path), "original content")
+        monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
+        profile = {"vault_folders": ["*"]}
+
+        first = VaultManager.read_note(profile, "typography")
+        assert "original content" in first
+
+        write_note(str(note_path), "updated content")
+        future = time.time() + 100
+        os.utime(note_path, (future, future))
+
+        second = VaultManager.read_note(profile, "typography")
+        assert "updated content" in second
+
 
 # ---------------------------------------------------------------------------
 # VaultManager.resolve_asset_path
@@ -610,6 +657,22 @@ class TestCreateFolder:
 
         assert "Kept" in real_folders
         assert not any(f.startswith(".") or ".obsidian" in f for f in real_folders)
+
+    def test_cached_result_picks_up_a_new_folder(self, tmp_vault_dir, monkeypatch):
+        """E8: _list_real_folders is now mtime-cached, like its siblings -
+        this exercises that the cache actually invalidates on a real change
+        rather than serving a stale folder list forever."""
+        from sympose.vault import VaultManager
+
+        (tmp_vault_dir / "Kept").mkdir()
+        dirs = [str(tmp_vault_dir)]
+
+        first = VaultManager._list_real_folders(str(tmp_vault_dir), dirs)
+        assert first == ["Kept"]
+
+        (tmp_vault_dir / "NewOne").mkdir()
+        second = VaultManager._list_real_folders(str(tmp_vault_dir), dirs)
+        assert set(second) == {"Kept", "NewOne"}
 
 
 class TestDeleteFolder:

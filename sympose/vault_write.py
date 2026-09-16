@@ -183,8 +183,7 @@ def write_note(
                     f"{clean_content}\n"
                 )
 
-        with open(target_file, "w", encoding="utf-8") as f:
-            f.write(final_content)
+        vault_manifest.write_atomic_text(target_file, final_content)
         reindex_hook(mv, target_file)
         manifest_hook(mv, target_file)
         return f"Saved to note: `{rel_display}`"
@@ -310,8 +309,7 @@ def overwrite_note(
 
     rel_display = os.path.relpath(target_file, mv)
     try:
-        with open(target_file, "w", encoding="utf-8") as f:
-            f.write(content.rstrip("\n") + "\n")
+        vault_manifest.write_atomic_text(target_file, content.rstrip("\n") + "\n")
         reindex_hook(mv, target_file)
         manifest_hook(mv, target_file)
         return f"Saved note: `{rel_display}`"
@@ -380,8 +378,9 @@ def create_note(
     rel_display = os.path.relpath(target_file, mv)
     try:
         os.makedirs(os.path.dirname(target_file), exist_ok=True)
-        with open(target_file, "w", encoding="utf-8") as f:
-            f.write(content if content.endswith("\n") else content + "\n")
+        vault_manifest.write_atomic_text(
+            target_file, content if content.endswith("\n") else content + "\n"
+        )
         reindex_hook(mv, target_file)
         manifest_hook(mv, target_file)
         return f"Created note: `{rel_display}`"
@@ -498,25 +497,59 @@ def delete_folder(
 
 
 def rewrite_wikilink_targets(
-    text: str, old_stem: str, new_stem: str
+    text: str,
+    old_rel_path: str,
+    new_stem: str,
+    source_rel_path: str,
+    same_stem_paths: set[str],
 ) -> tuple[str, int]:
     """Retarget every `[[old]]` / `![[old]]` / `[[old#h]]` / `[[old|a]]`
-    (and the `Folder/old` path form) to `new_stem`, leaving any `#heading`
-    and `|alias` intact. Returns the rewritten text and the hit count."""
+    (and the `Folder/old` path form) that actually refers to the note being
+    renamed, leaving any `#heading` and `|alias` intact. Returns the
+    rewritten text and the hit count.
+
+    D3: a bare `[[old_stem]]` used to be rewritten on filename match alone,
+    regardless of which folder it lived in — retargeting a link that
+    genuinely meant a *different*, same-named note elsewhere. `same_stem_paths`
+    is every other real vault-relative path sharing the renamed note's stem;
+    when that set is non-empty, a bare link (no folder in its own text) is
+    only rewritten when this occurrence's own file (`source_rel_path`) sits
+    in the renamed note's own top-level folder — Obsidian's own preference
+    for resolving an unqualified link — otherwise it's left alone rather
+    than guessed at. A link that's already folder-qualified in its own text
+    (`[[Folder/old]]`) is unaffected by that ambiguity: it's only rewritten
+    when its own qualifying segments actually match the renamed note's own
+    path, not just its bare filename."""
+    old_stem = os.path.splitext(os.path.basename(old_rel_path))[0]
     old_l = old_stem.strip().lower()
+    old_segs_l = [s.lower() for s in old_rel_path.replace("\\", "/").split("/")[:-1]]
+    old_top = old_segs_l[0] if old_segs_l else ""
+    source_segs = source_rel_path.replace("\\", "/").split("/")[:-1]
+    source_top = source_segs[0].lower() if source_segs else ""
+    bare_is_safe = not same_stem_paths or source_top == old_top
+    rewritten = 0
 
     def repl(m: "re.Match[str]") -> str:
+        nonlocal rewritten
         bang, inner = m.group(1), m.group(2)
         head = re.match(r"^([^#|]*)(.*)$", inner)
         target, tail = head.group(1), head.group(2)
         segs = target.split("/")
         if segs[-1].strip().lower() != old_l:
             return m.group(0)
+        if len(segs) == 1:
+            if not bare_is_safe:
+                return m.group(0)
+        else:
+            qualifier = [s.lower() for s in segs[:-1]]
+            if qualifier != old_segs_l[-len(qualifier) :]:
+                return m.group(0)
+        rewritten += 1
         segs[-1] = new_stem
         return f"{bang}[[{'/'.join(segs)}{tail}]]"
 
-    new_text, n = _WIKILINK_RE.subn(repl, text)
-    return new_text, n
+    new_text = _WIKILINK_RE.sub(repl, text)
+    return new_text, rewritten
 
 
 def rename_note(
@@ -525,6 +558,9 @@ def rename_note(
     new_name: str,
     *,
     get_backlinks_fn: Callable[[dict[str, Any], str], list[dict[str, Any]]],
+    find_notes_by_stem_fn: Callable[[dict[str, Any], str], list[str]] = (
+        lambda profile, stem: []
+    ),
     reindex_hook: Callable[[str, str], None] = _NOOP_HOOK,
     manifest_hook: Callable[[str, str], None] = _NOOP_HOOK,
     on_backlinks_changed: Callable[[], None] = _NOOP_CALLBACK,
@@ -534,7 +570,9 @@ def rename_note(
     separator. `NOTE_NOT_FOUND` / `NOTE_EXISTS` / `NOTE_DENIED` as for the
     other note ops. `get_backlinks_fn` finds the referencing notes — vault.py
     passes `VaultManager.get_backlinks` (that logic hasn't moved out of
-    vault.py yet)."""
+    vault.py yet). `find_notes_by_stem_fn` (D3) finds every other real note
+    sharing the renamed note's stem, so a bare wikilink's rewrite can tell
+    an unambiguous case from one that could mean a different note."""
     mv, allowed_dirs = (
         vault_paths.get_master_vault(),
         vault_paths.get_allowed_dirs(profile),
@@ -566,6 +604,12 @@ def rename_note(
     old_stem = os.path.splitext(os.path.basename(src))[0]
     new_stem = os.path.splitext(os.path.basename(dst))[0]
     ref_files = sorted({b["rel_path"] for b in get_backlinks_fn(profile, old_stem)})
+    old_rel_norm = old_rel.replace("\\", "/")
+    same_stem_paths = {
+        p.replace("\\", "/")
+        for p in find_notes_by_stem_fn(profile, old_stem)
+        if p.replace("\\", "/") != old_rel_norm
+    }
 
     try:
         os.makedirs(os.path.dirname(dst), exist_ok=True)
@@ -586,7 +630,10 @@ def rename_note(
         try:
             with open(fp, "r", encoding="utf-8", errors="ignore") as f:
                 content = f.read()
-            rewritten, hits = rewrite_wikilink_targets(content, old_stem, new_stem)
+            source_rel = new_rel if rel == old_rel else rel
+            rewritten, hits = rewrite_wikilink_targets(
+                content, old_rel, new_stem, source_rel, same_stem_paths
+            )
             if hits:
                 with open(fp, "w", encoding="utf-8") as f:
                     f.write(rewritten)

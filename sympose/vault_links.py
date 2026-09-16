@@ -80,15 +80,16 @@ def build_backlink_index(profile: dict[str, Any]) -> dict[str, list[dict[str, An
     if not mv or not allowed_dirs:
         return {}
 
+    raw_ignore = config_manager.get("vault.ignore_folders")
+    ignore_dirs = {str(d).lower().strip() for d in raw_ignore}
+
     cache_key = tuple(sorted(allowed_dirs))
-    current_mtime = vault_paths.dirs_mtime(allowed_dirs)
+    current_mtime = vault_paths.dirs_mtime(allowed_dirs, ignore_dirs)
     cached_mtime, cached_index = _BACKLINK_CACHE.get(cache_key, (0.0, {}))
     if current_mtime == cached_mtime and cached_index:
         return cached_index
 
     inverted_index: dict[str, list[dict[str, Any]]] = defaultdict(list)
-    raw_ignore = config_manager.get("vault.ignore_folders")
-    ignore_dirs = {str(d).lower().strip() for d in raw_ignore}
 
     try:
         for allowed in allowed_dirs:
@@ -225,9 +226,15 @@ def format_manifest_digest(
         )
         or "—"
     )
+    # D2: node id is now the full relative path (not the bare stem), so the
+    # hub line displays each node's own title (already the stem when no
+    # frontmatter title is set) rather than the raw id - counting still
+    # happens by id above, so two same-named notes in different folders no
+    # longer collide into one inbound-link count.
+    titles = {n["id"]: n.get("title") or n["id"] for n in real}
     hub_line = (
         ", ".join(
-            f"[[{h}]] ({c})"
+            f"[[{titles.get(h, h)}]] ({c})"
             for h, c in sorted(inbound.items(), key=lambda kv: -kv[1])[:max_hubs]
         )
         or "—"

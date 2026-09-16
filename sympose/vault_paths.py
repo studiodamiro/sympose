@@ -67,15 +67,42 @@ def get_primary_dir(profile: dict[str, Any]) -> str | None:
     return dirs[0] if dirs else None
 
 
-def dirs_mtime(dirs: list[str]) -> float:
-    """Shallow top-level mtime watermark shared by every mtime-keyed vault
-    cache (the backlink index, the vault content snapshot, ...): touches to
-    a direct child dir invalidate; a write several levels deep only bubbles
-    up as far as its immediate parent's mtime."""
+def dirs_mtime(dirs: list[str], ignore: set[str] | None = None) -> float:
+    """Mtime watermark shared by every mtime-keyed vault cache (the backlink
+    index, the vault content snapshot, the manifest, the FTS index, ...).
+
+    Folds in every tracked note's own mtime, not just each directory's — a
+    directory's mtime only moves when an entry is added, removed, or
+    renamed inside it, never when an existing file's *content* changes, so
+    a watermark built from directory mtimes alone can miss an in-place edit
+    indefinitely (D6). Stat-only (opens nothing), so a full recursive walk
+    is cheap even at tens of thousands of files - the same trade-off
+    `vault_manifest_build._stat_tree` already makes for the ADR-078.4 delta
+    path. `ignore` (folder names, lowercased) skips subtrees like
+    `.trash`/`Attachments` that shouldn't force a rebuild when touched."""
+    ignore = ignore or set()
     mtime = 0.0
     for d in dirs:
         try:
             mtime = max(mtime, os.path.getmtime(d))
         except OSError:
             pass
+        for root, subdirs, files in os.walk(d):
+            subdirs[:] = [
+                sd
+                for sd in subdirs
+                if not sd.startswith(".") and sd.lower() not in ignore
+            ]
+            for sd in subdirs:
+                try:
+                    mtime = max(mtime, os.path.getmtime(os.path.join(root, sd)))
+                except OSError:
+                    pass
+            for f in files:
+                if not f.endswith((".md", ".markdown", ".txt")):
+                    continue
+                try:
+                    mtime = max(mtime, os.stat(os.path.join(root, f)).st_mtime)
+                except OSError:
+                    pass
     return mtime

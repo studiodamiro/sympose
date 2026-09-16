@@ -22,13 +22,14 @@ import time
 from collections.abc import Callable
 from typing import Any
 
+from sympose import vault_paths
 from sympose.compactor import get_or_create_lock
 from sympose.vault_manifest_build import (
     SCHEMA_VERSION,
     _delta_rebuild,
     _mtime_of,
     _node,
-    _stem,
+    _resolve_links,
     _targets_in,
     build,
 )
@@ -53,18 +54,11 @@ def manifest_path(workspace_dir: str, mv: str) -> str:
 
 
 def _top_level_watermark(mv: str, ignore: set) -> float:
-    dirs = [mv]
-    try:
-        dirs += [
-            e.path
-            for e in os.scandir(mv)
-            if e.is_dir()
-            and not e.name.startswith(".")
-            and e.name.lower() not in ignore
-        ]
-    except OSError:
-        pass
-    return max((_mtime_of(d) for d in dirs), default=0.0)
+    """D6: delegates to `vault_paths.dirs_mtime`, which folds every tracked
+    note's own mtime into the watermark - not just each directory's, which
+    never moves when an existing file's content changes, only when an entry
+    is added/removed/renamed."""
+    return vault_paths.dirs_mtime([mv], ignore)
 
 
 def _load_file(path: str) -> dict | None:
@@ -75,18 +69,35 @@ def _load_file(path: str) -> dict | None:
         return None
 
 
-def _write_atomic(path: str, manifest: dict) -> None:
+def write_atomic_text(path: str, content: str) -> None:
+    """Writes `content` to `path` via a tmp file + `os.replace` — the rename
+    is atomic on the same filesystem, so a crash mid-write can't leave
+    `path` truncated. D1: shared with `vault_write.py`'s note writers
+    (`write_note`/`overwrite_note`/`create_note`), which used to write in
+    place directly. Raises on failure — a note write reports the error back
+    to the caller rather than silently pretending it succeeded (see
+    `_write_atomic` below for the best-effort wrapper manifest writes use
+    instead, which tolerate a lost update)."""
     tmp = f"{path}.{os.getpid()}.tmp"
     try:
         with open(tmp, "w", encoding="utf-8") as f:
-            json.dump(manifest, f, ensure_ascii=False, separators=(",", ":"))
+            f.write(content)
         os.replace(tmp, path)
     except OSError:
-        log.debug("[vault_manifest] atomic write failed for %s", path, exc_info=True)
         try:
             os.unlink(tmp)
         except OSError:
             pass
+        raise
+
+
+def _write_atomic(path: str, manifest: dict) -> None:
+    try:
+        write_atomic_text(
+            path, json.dumps(manifest, ensure_ascii=False, separators=(",", ":"))
+        )
+    except OSError:
+        log.debug("[vault_manifest] atomic write failed for %s", path, exc_info=True)
 
 
 def load(workspace_dir: str, mv: str) -> dict | None:
@@ -125,12 +136,21 @@ def ensure_fresh(
         # changed since the stale manifest was built.
         return m.get("meta", {}).get("ignore_folders") != ignore_key
 
+    def _schema_stale(m: dict) -> bool:
+        # D2: same rationale as _ignore_changed - a pre-existing manifest
+        # written under an older schema (bare-stem node ids, no
+        # target_stem) can have a watermark that still matches if nothing
+        # on disk has changed since, so the watermark check alone would
+        # serve it forever without ever migrating to the current scheme.
+        return m.get("meta", {}).get("schema_version") != SCHEMA_VERSION
+
     cached = _mem_cache.get(path)
     if (
         cached is not None
         and debounce > 0
         and (now - _last_check.get(path, 0.0)) < debounce
         and not _ignore_changed(cached)
+        and not _schema_stale(cached)
     ):
         return cached
     _last_check[path] = now
@@ -141,6 +161,7 @@ def ensure_fresh(
         current is not None
         and current.get("meta", {}).get("watermark") == wm
         and not _ignore_changed(current)
+        and not _schema_stale(current)
     ):
         _mem_cache[path] = current
         return current
@@ -151,6 +172,7 @@ def ensure_fresh(
             current is not None
             and current.get("meta", {}).get("watermark") == wm
             and not _ignore_changed(current)
+            and not _schema_stale(current)
         ):
             _mem_cache[path] = current
             return current
@@ -211,37 +233,37 @@ def patch_note(
         m = _mem_cache.get(path) or _load_file(path)
         if m is None:
             return
-        st = _stem(rel_path)
-        m["nodes"] = [
-            n for n in m["nodes"] if n["id"] != st
-        ]  # drop prior real node or ghost
-        m["nodes"].append(
-            _node(
-                rel_path,
-                meta or {},
-                full_content,
-                _mtime_of(os.path.join(mv, rel_path), time.time()),
-            )
+        if m.get("meta", {}).get("schema_version") != SCHEMA_VERSION:
+            # D2: an old-schema manifest's node ids/links aren't in a shape
+            # this can patch incrementally - leave it alone; the next
+            # ensure_fresh call does a full rebuild under the current schema.
+            return
+        node_id = rel_path.replace("\\", "/")
+        real_nodes = {
+            n["id"]: n for n in m["nodes"] if n.get("exists") and n["id"] != node_id
+        }
+        real_nodes[node_id] = _node(
+            rel_path,
+            meta or {},
+            full_content,
+            _mtime_of(os.path.join(mv, rel_path), time.time()),
         )
-        m["links"] = [link for link in m["links"] if link["source"] != st]
-        m["links"] += [{"source": st, "target": t} for t in _targets_in(full_content)]
-        have = {n["id"] for n in m["nodes"]}
-        for link in m["links"]:
-            if link["target"] not in have:
-                m["nodes"].append(
-                    {
-                        "id": link["target"],
-                        "rel_path": "",
-                        "folder": "",
-                        "tags": [],
-                        "title": link["target"],
-                        "bytes": 0,
-                        "mtime": 0.0,
-                        "exists": False,
-                    }
-                )
-                have.add(link["target"])
-        m["meta"]["note_count"] = sum(1 for n in m["nodes"] if n.get("exists"))
+        raw_links = [
+            {"source": link["source"], "target_stem": link["target_stem"]}
+            for link in m.get("links", [])
+            if link["source"] != node_id
+        ]
+        raw_links += [
+            {"source": node_id, "target_stem": t} for t in _targets_in(full_content)
+        ]
+        # D2/D3: re-resolved against the *current* full node set, not just
+        # this note's own links - patching in a note can also change how an
+        # unrelated note's already-recorded bare wikilink resolves (e.g.
+        # this note is a new same-stem match that makes it ambiguous).
+        links, ghosts = _resolve_links(list(real_nodes.values()), raw_links)
+        m["nodes"] = list(real_nodes.values()) + ghosts
+        m["links"] = links
+        m["meta"]["note_count"] = len(real_nodes)
         m["meta"]["generated_at"] = time.time()
         m["meta"]["watermark"] = _top_level_watermark(mv, ignore)
         _write_atomic(path, m)
@@ -256,25 +278,34 @@ def remove_note(
     ignore_folders: list[str] | None = None,
 ) -> None:
     """Drop a note's node and its outgoing links after the file is deleted or
-    renamed away. Incoming links from other notes are left as-is — they resolve
-    to a ghost until those notes are themselves repatched (a rename repatches
-    them; a delete leaves the ghost, which is correct). No-op until a manifest
-    exists."""
+    renamed away, re-resolving what remains against the updated node set (a
+    remaining link may now resolve to a different real node sharing the
+    removed one's stem, or become a ghost if none do). No-op until a
+    manifest exists."""
     path = manifest_path(workspace_dir, mv)
     ignore = {str(d).lower().strip() for d in (ignore_folders or [])}
     with _lock_for(path):
         m = _mem_cache.get(path) or _load_file(path)
         if m is None:
             return
-        st = _stem(rel_path)
-        m["nodes"] = [n for n in m["nodes"] if n["id"] != st]
-        m["links"] = [link for link in m["links"] if link["source"] != st]
-        # keep a bare id only while something still points at it
-        referenced = {link["source"] for link in m["links"]} | {
-            link["target"] for link in m["links"]
-        }
-        m["nodes"] = [n for n in m["nodes"] if n.get("exists") or n["id"] in referenced]
-        m["meta"]["note_count"] = sum(1 for n in m["nodes"] if n.get("exists"))
+        if m.get("meta", {}).get("schema_version") != SCHEMA_VERSION:
+            return
+        node_id = rel_path.replace("\\", "/")
+        real_nodes = [n for n in m["nodes"] if n.get("exists") and n["id"] != node_id]
+        raw_links = [
+            {"source": link["source"], "target_stem": link["target_stem"]}
+            for link in m.get("links", [])
+            if link["source"] != node_id
+        ]
+        # Re-resolving (rather than the old "keep a bare id only while
+        # something still points at it" bookkeeping) naturally prunes any
+        # ghost this removal orphaned, and re-attaches a remaining link to
+        # a *different* real node sharing the removed one's stem if one
+        # exists, instead of leaving it pointed at a node that's now gone.
+        links, ghosts = _resolve_links(real_nodes, raw_links)
+        m["nodes"] = real_nodes + ghosts
+        m["links"] = links
+        m["meta"]["note_count"] = len(real_nodes)
         m["meta"]["generated_at"] = time.time()
         m["meta"]["watermark"] = _top_level_watermark(mv, ignore)
         _write_atomic(path, m)

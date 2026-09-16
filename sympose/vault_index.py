@@ -28,6 +28,8 @@ import sqlite3
 from collections.abc import Callable
 from typing import Any
 
+from sympose import vault_paths
+
 log = logging.getLogger(__name__)
 
 # db_path -> whether CREATE VIRTUAL TABLE succeeded on this Python's sqlite3
@@ -127,32 +129,29 @@ def remove_note(workspace_dir: str, mv: str, rel_path: str) -> None:
 
 
 def ensure_fresh(
-    workspace_dir: str, mv: str, snapshot_provider: Callable[[], list[dict[str, Any]]]
+    workspace_dir: str,
+    mv: str,
+    snapshot_provider: Callable[[], list[dict[str, Any]]],
+    *,
+    ignore_folders: list[str] | None = None,
 ) -> bool:
     """Full rebuild if the tracked mtime watermark drifted since the last
     rebuild. `snapshot_provider()` returns VaultManager._get_vault_snapshot's
     flat note list — the caller already knows how to walk the vault; this
     just owns freshness and storage. Returns whether the index is usable
-    (False => caller should fall back to `direct`)."""
+    (False => caller should fall back to `direct`).
+
+    D6: the watermark comes from `vault_paths.dirs_mtime`, which folds in
+    every tracked note's own mtime - not just each directory's, which never
+    moves when an existing file's content changes, only when an entry is
+    added/removed/renamed."""
     db_path = index_path(workspace_dir, mv)
     conn = _connect(db_path)
     if conn is None:
         return False
 
-    try:
-        watched = [mv] + [
-            os.path.join(mv, d)
-            for d in os.listdir(mv)
-            if os.path.isdir(os.path.join(mv, d)) and not d.startswith(".")
-        ]
-    except OSError:
-        watched = [mv]
-    current_mtime = 0.0
-    for d in watched:
-        try:
-            current_mtime = max(current_mtime, os.path.getmtime(d))
-        except OSError:
-            pass
+    ignore = {str(d).lower().strip() for d in (ignore_folders or [])}
+    current_mtime = vault_paths.dirs_mtime([mv], ignore)
 
     row = conn.execute("SELECT value FROM meta WHERE key = 'watermark'").fetchone()
     if row is not None and float(row[0]) == current_mtime:

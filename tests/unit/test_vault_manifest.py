@@ -63,7 +63,7 @@ class TestBuild:
     def test_one_real_node_per_note(self, tmp_path):
         m = vm.build(str(tmp_path), [_entry("a.md"), _entry("Sub/b.md")])
         real = [n for n in m["nodes"] if n["exists"]]
-        assert sorted(n["id"] for n in real) == ["a", "b"]
+        assert sorted(n["id"] for n in real) == ["Sub/b.md", "a.md"]
         assert m["meta"]["note_count"] == 2
 
     def test_folder_is_top_level_segment(self, tmp_path):
@@ -82,8 +82,8 @@ class TestBuild:
             _entry("b.md", tags="quote, not-mine"),
         ])
         by_id = {n["id"]: n for n in m["nodes"]}
-        assert by_id["a"]["tags"] == ["jour", "grief"]
-        assert by_id["b"]["tags"] == ["quote", "not-mine"]
+        assert by_id["a.md"]["tags"] == ["jour", "grief"]
+        assert by_id["b.md"]["tags"] == ["quote", "not-mine"]
 
     def test_nodes_carry_no_body(self, tmp_path):
         m = vm.build(str(tmp_path), [_entry("a.md", "secret body text")])
@@ -95,7 +95,9 @@ class TestBuild:
     def test_wikilinks_become_links(self, tmp_path):
         m = vm.build(str(tmp_path), [_entry("a.md", "see [[Other]] and [[Third]]"), _entry("Other.md")])
         pairs = {(l["source"], l["target"]) for l in m["links"]}
-        assert ("a", "Other") in pairs and ("a", "Third") in pairs
+        # "Other" resolves to the real Other.md node; "Third" has no match
+        # and stays an unresolved (bare-stem) ghost reference.
+        assert ("a.md", "Other.md") in pairs and ("a.md", "Third") in pairs
 
     def test_alias_and_heading_wikilinks_resolve_to_stem(self, tmp_path):
         m = vm.build(str(tmp_path), [_entry("a.md", "[[Note#Heading|the alias]]")])
@@ -105,8 +107,49 @@ class TestBuild:
         m = vm.build(str(tmp_path), [_entry("a.md", "[[Ghost]] [[Real]]"), _entry("Real.md")])
         by_id = {n["id"]: n for n in m["nodes"]}
         assert by_id["Ghost"]["exists"] is False
-        assert by_id["Real"]["exists"] is True
-        assert "Real" not in [n["id"] for n in m["nodes"] if not n["exists"]]
+        assert by_id["Real.md"]["exists"] is True
+        assert "Real.md" not in [n["id"] for n in m["nodes"] if not n["exists"]]
+
+    def test_same_named_notes_in_different_folders_both_get_nodes(self, tmp_path):
+        """D2: node identity used to be the bare stem, so ProjectA/Foo.md
+        and ProjectB/Foo.md collided into a single "Foo" node - the
+        last-processed one silently overwrote the other."""
+        m = vm.build(
+            str(tmp_path),
+            [_entry("ProjectA/Foo.md"), _entry("ProjectB/Foo.md")],
+        )
+        real_ids = {n["id"] for n in m["nodes"] if n["exists"]}
+        assert real_ids == {"ProjectA/Foo.md", "ProjectB/Foo.md"}
+        assert m["meta"]["note_count"] == 2
+
+    def test_bare_link_prefers_same_folder_candidate_when_ambiguous(self, tmp_path):
+        """D2/D3: a bare [[Foo]] with two same-named real candidates resolves
+        to the one sharing the linking note's own top-level folder, rather
+        than colliding both candidates into one node the way a stem-keyed
+        identity used to."""
+        m = vm.build(
+            str(tmp_path),
+            [
+                _entry("ProjectA/Foo.md"),
+                _entry("ProjectB/Foo.md"),
+                _entry("ProjectA/Referrer.md", "See [[Foo]]."),
+            ],
+        )
+        link = next(l for l in m["links"] if l["source"] == "ProjectA/Referrer.md")
+        assert link["target"] == "ProjectA/Foo.md"
+        assert link["target_stem"] == "Foo"
+
+    def test_bare_link_falls_back_to_first_path_when_no_folder_match(self, tmp_path):
+        m = vm.build(
+            str(tmp_path),
+            [
+                _entry("ProjectA/Foo.md"),
+                _entry("ProjectB/Foo.md"),
+                _entry("Elsewhere/Referrer.md", "See [[Foo]]."),
+            ],
+        )
+        link = next(l for l in m["links"] if l["source"] == "Elsewhere/Referrer.md")
+        assert link["target"] == "ProjectA/Foo.md"  # alphabetically first
 
 
 # ---------------------------------------------------------------------------
@@ -122,7 +165,7 @@ class TestEnsureFresh:
     def test_cold_build_writes_file(self, tmp_path):
         mv, ws = self._vault(tmp_path)
         m = vm.ensure_fresh(ws, mv, lambda: [_entry("Notes/a.md", "[[b]]")], debounce=0)
-        assert m is not None and m["nodes"][0]["id"] == "a"
+        assert m is not None and m["nodes"][0]["id"] == "Notes/a.md"
         assert os.path.exists(vm.manifest_path(ws, mv))
 
     def test_unchanged_watermark_skips_rebuild(self, tmp_path):
@@ -149,7 +192,7 @@ class TestEnsureFresh:
         _bump_mtime(mv)
         m = vm.ensure_fresh(ws, mv, provider, debounce=0)
         assert calls["n"] == 2
-        assert {n["id"] for n in m["nodes"]} == {"a", "c"}
+        assert {n["id"] for n in m["nodes"]} == {"Notes/a.md", "Notes/c.md"}
 
     def test_debounce_serves_cache_without_rescan(self, tmp_path):
         mv, ws = self._vault(tmp_path)
@@ -207,6 +250,32 @@ class TestEnsureFresh:
         vm.ensure_fresh(ws, mv, provider, ignore_folders=[], debounce=100)
         assert calls["n"] == 2
 
+    def test_stale_schema_version_forces_rebuild_despite_matching_watermark(
+        self, tmp_path
+    ):
+        """D2: a manifest written under an older schema (bare-stem node ids,
+        no target_stem on links) must not be served forever just because
+        the watermark still matches - same rationale as the ignore-folders
+        check just above, for a schema change instead of a config change."""
+        mv, ws = self._vault(tmp_path)
+        m = vm.ensure_fresh(ws, mv, lambda: [_entry("Notes/a.md")], debounce=0)
+        stale = dict(m)
+        stale["meta"] = dict(m["meta"])
+        stale["meta"]["schema_version"] = 1
+        with open(vm.manifest_path(ws, mv), "w") as f:
+            json.dump(stale, f)
+        vm._mem_cache.clear()
+
+        calls = {"n": 0}
+
+        def provider():
+            calls["n"] += 1
+            return [_entry("Notes/a.md")]
+
+        m2 = vm.ensure_fresh(ws, mv, provider, debounce=0)
+        assert calls["n"] == 1
+        assert m2["meta"]["schema_version"] == vm.SCHEMA_VERSION
+
     def test_max_nodes_truncates(self, tmp_path):
         mv, ws = self._vault(tmp_path)
         snap = [_entry(f"Notes/n{i}.md") for i in range(10)]
@@ -222,7 +291,7 @@ class TestEnsureFresh:
             raise RuntimeError("walk failed")
 
         m = vm.ensure_fresh(ws, mv, boom, debounce=0)
-        assert m is not None and m["nodes"][0]["id"] == "a"
+        assert m is not None and m["nodes"][0]["id"] == "Notes/a.md"
 
 
 # ---------------------------------------------------------------------------
@@ -283,7 +352,7 @@ class TestDeltaRead:
         m = vm.ensure_fresh(ws, mv, snap, read_notes=spy, debounce=0)
 
         assert seen["rels"] == ["b.md"]                       # only the changed note
-        assert ("b", "a") in {(l["source"], l["target"]) for l in m["links"]}
+        assert ("b.md", "a.md") in {(l["source"], l["target"]) for l in m["links"]}
 
     def test_delta_handles_add_and_delete(self, tmp_path):
         mv, ws = self._vault(tmp_path)
@@ -296,9 +365,11 @@ class TestDeltaRead:
         m = vm.ensure_fresh(ws, mv, snap, read_notes=read, debounce=0)
 
         ids = {n["id"] for n in m["nodes"] if n["exists"]}
-        assert "c" in ids and "b" not in ids
-        assert all(l["source"] != "b" for l in m["links"])
-        assert m["nodes"] and any(n["id"] == "b" and not n["exists"] for n in m["nodes"])  # b is now a ghost (a still links it)
+        assert "c.md" in ids and "b.md" not in ids
+        assert all(l["source"] != "b.md" for l in m["links"])
+        # b.md is gone, so a.md's existing [[b]] link can no longer resolve
+        # to a real node - it becomes an (unresolved, bare-stem) ghost.
+        assert m["nodes"] and any(n["id"] == "b" and not n["exists"] for n in m["nodes"])
 
     def test_delta_result_equals_a_full_build_for_the_same_disk_state(self, tmp_path):
         mv, ws = self._vault(tmp_path)
@@ -327,7 +398,11 @@ class TestDeltaRead:
         (tmp_path / "vault" / "b.md").write_text("# B changed\n")
         _bump_mtime(mv)
         m = vm.ensure_fresh(ws, mv, snap, debounce=0)  # no read_notes -> full
-        assert m is not None and {n["id"] for n in m["nodes"] if n["exists"]} == {"a", "b", "2026-09-09"}
+        assert m is not None and {n["id"] for n in m["nodes"] if n["exists"]} == {
+            "a.md",
+            "b.md",
+            "Daily/2026-09-09.md",
+        }
 
     def test_dirs_touched_but_no_note_change_reuses_prev(self, tmp_path):
         mv, ws = self._vault(tmp_path)
@@ -362,15 +437,17 @@ class TestPatchNote:
         vm.patch_note(ws, mv, "b.md", {"tags": ["new"]}, "links to [[a]]")
         m = vm.load(ws, mv)
         by_id = {n["id"]: n for n in m["nodes"]}
-        assert by_id["b"]["tags"] == ["new"]
-        assert ("b", "a") in {(l["source"], l["target"]) for l in m["links"]}
+        assert by_id["b.md"]["tags"] == ["new"]
+        assert ("b.md", "a.md") in {(l["source"], l["target"]) for l in m["links"]}
         assert m["meta"]["note_count"] == 2
 
     def test_patch_replaces_prior_links_for_that_note(self, tmp_path):
         mv, ws = self._vault(tmp_path)
         vm.ensure_fresh(ws, mv, lambda: [_entry("a.md", "[[old]]")], debounce=0)
         vm.patch_note(ws, mv, "a.md", {}, "now points [[new]]")
-        targets = {l["target"] for l in vm.load(ws, mv)["links"] if l["source"] == "a"}
+        targets = {
+            l["target"] for l in vm.load(ws, mv)["links"] if l["source"] == "a.md"
+        }
         assert targets == {"new"}
 
     def test_patch_promotes_a_ghost_to_a_real_node(self, tmp_path):
@@ -378,8 +455,12 @@ class TestPatchNote:
         vm.ensure_fresh(ws, mv, lambda: [_entry("a.md", "[[b]]")], debounce=0)
         assert [n for n in vm.load(ws, mv)["nodes"] if n["id"] == "b"][0]["exists"] is False
         vm.patch_note(ws, mv, "b.md", {}, "real now")
-        b_nodes = [n for n in vm.load(ws, mv)["nodes"] if n["id"] == "b"]
-        assert len(b_nodes) == 1 and b_nodes[0]["exists"] is True
+        nodes = vm.load(ws, mv)["nodes"]
+        # The old bare-stem ghost is gone now that "b" resolves to a real
+        # node - a.md's [[b]] link re-resolves to it, not a fresh ghost.
+        assert [n for n in nodes if n["id"] == "b"] == []
+        b_real = [n for n in nodes if n["id"] == "b.md"]
+        assert len(b_real) == 1 and b_real[0]["exists"] is True
 
     def test_patch_adds_ghost_for_new_unresolved_target(self, tmp_path):
         mv, ws = self._vault(tmp_path)
@@ -387,6 +468,36 @@ class TestPatchNote:
         vm.patch_note(ws, mv, "a.md", {}, "points at [[nowhere]]")
         by_id = {n["id"]: n for n in vm.load(ws, mv)["nodes"]}
         assert by_id["nowhere"]["exists"] is False
+
+    def test_patching_one_note_does_not_delete_an_unrelated_same_named_node(
+        self, tmp_path
+    ):
+        """The actual D2 bug: editing ProjectA/Foo.md used to silently drop
+        ProjectB/Foo.md's node too, since both collided on stem id "Foo"."""
+        mv, ws = self._vault(tmp_path)
+        vm.ensure_fresh(
+            ws,
+            mv,
+            lambda: [_entry("ProjectA/Foo.md"), _entry("ProjectB/Foo.md")],
+            debounce=0,
+        )
+        vm.patch_note(ws, mv, "ProjectA/Foo.md", {}, "edited content")
+        real_ids = {n["id"] for n in vm.load(ws, mv)["nodes"] if n["exists"]}
+        assert real_ids == {"ProjectA/Foo.md", "ProjectB/Foo.md"}
+
+    def test_removing_one_note_does_not_delete_an_unrelated_same_named_node(
+        self, tmp_path
+    ):
+        mv, ws = self._vault(tmp_path)
+        vm.ensure_fresh(
+            ws,
+            mv,
+            lambda: [_entry("ProjectA/Foo.md"), _entry("ProjectB/Foo.md")],
+            debounce=0,
+        )
+        vm.remove_note(ws, mv, "ProjectA/Foo.md")
+        real_ids = {n["id"] for n in vm.load(ws, mv)["nodes"] if n["exists"]}
+        assert real_ids == {"ProjectB/Foo.md"}
 
     def test_patch_restamps_watermark_so_ensure_fresh_skips(self, tmp_path):
         mv, ws = self._vault(tmp_path)
@@ -503,12 +614,23 @@ class TestVaultGraph:
         self._vault(tmp_vault_dir)
         g = VaultManager.get_vault_graph()
         by_id = {n["id"]: n for n in g["nodes"]}
-        assert set(by_id["hub"]) == {"id", "label", "folder", "tags", "val", "exists"}
+        assert set(by_id["Notes/hub.md"]) == {
+            "id",
+            "label",
+            "folder",
+            "tags",
+            "val",
+            "exists",
+        }
         # hub: 3 outbound -> val 4 ; a: 2 inbound -> val 3 ; b: 1 in + 1 out -> val 3
-        assert by_id["hub"]["val"] == 4
-        assert by_id["a"]["val"] == 3
+        assert by_id["Notes/hub.md"]["val"] == 4
+        assert by_id["Notes/a.md"]["val"] == 3
         assert by_id["ghost"]["exists"] is False
-        assert {(l["source"], l["target"]) for l in g["links"]} >= {("hub", "a"), ("hub", "ghost"), ("b", "a")}
+        assert {(l["source"], l["target"]) for l in g["links"]} >= {
+            ("Notes/hub.md", "Notes/a.md"),
+            ("Notes/hub.md", "ghost"),
+            ("Notes/b.md", "Notes/a.md"),
+        }
 
     def test_long_quote_style_label_is_clipped_but_id_is_whole(self, tmp_vault_dir, monkeypatch):
         from sympose.vault import VaultManager
@@ -517,8 +639,9 @@ class TestVaultGraph:
         quote = "Art is a lie that enables us to realize the truth, at least the truth that is given to us to understand"
         (tmp_vault_dir / "Quotes" / f"{quote}.md").write_text("---\ntags: [quote]\n---")
         g = VaultManager.get_vault_graph()
-        node = next(n for n in g["nodes"] if n["id"] == quote)
-        assert node["id"] == quote                       # full stem kept for links/search
+        full_id = f"Quotes/{quote}.md"
+        node = next(n for n in g["nodes"] if n["id"] == full_id)
+        assert node["id"] == full_id                      # full path kept for links/search
         assert len(node["label"]) <= 64 and node["label"].endswith("…")
 
     def test_works_with_knob_disabled_via_ephemeral_build(self, tmp_vault_dir, monkeypatch):
@@ -530,7 +653,7 @@ class TestVaultGraph:
         monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
         self._vault(tmp_vault_dir)
         g = VaultManager.get_vault_graph()
-        assert "hub" in {n["id"] for n in g["nodes"]} and g["links"]
+        assert "Notes/hub.md" in {n["id"] for n in g["nodes"]} and g["links"]
 
 
 class TestManifestBackedDiscovery:
@@ -638,8 +761,8 @@ class TestVaultManagerAccessor:
 
         m = VaultManager.get_manifest()
         assert m is not None
-        assert "seed" in {n["id"] for n in m["nodes"]}
+        assert "Notes/seed.md" in {n["id"] for n in m["nodes"]}
 
         VaultManager.write_note({"vault_folders": ["Notes"], "handle": "t"}, "fresh", "body [[seed]]")
         m2 = VaultManager.get_manifest()
-        assert "fresh" in {n["id"] for n in m2["nodes"] if n["exists"]}
+        assert "Notes/fresh.md" in {n["id"] for n in m2["nodes"] if n["exists"]}

@@ -44,7 +44,10 @@ def _search_fts(
     usable this run — the caller falls back to the `direct` walk below."""
     workspace_dir = _workspace_dir()
     fresh = vault_index.ensure_fresh(
-        workspace_dir, mv, lambda: get_vault_snapshot_fn(mv, [mv])
+        workspace_dir,
+        mv,
+        lambda: get_vault_snapshot_fn(mv, [mv]),
+        ignore_folders=config_manager.get("vault.ignore_folders"),
     )
     if not fresh:
         return None

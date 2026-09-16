@@ -14,7 +14,7 @@ what the hooks actually do.
 
 import os
 
-from sympose import vault_write
+from sympose import vault_manifest, vault_write
 
 
 def _write(path, content):
@@ -58,6 +58,84 @@ class TestWriteNoteHooks:
         )
         assert "Warning" in result or "Security Error" in result
         assert calls == []
+
+
+class TestAtomicWrite:
+    """D1: write_note/overwrite_note/create_note write via a tmp file +
+    os.replace (vault_manifest.write_atomic_text) instead of truncating the
+    real file in place - a crash partway through a write must leave any
+    pre-existing note untouched rather than truncated, and must still be
+    reported back to the caller as an error, not silently swallowed."""
+
+    def test_write_note_failure_leaves_existing_note_untouched(
+        self, tmp_path, monkeypatch
+    ):
+        monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_path))
+        note_path = tmp_path / "Note.md"
+        _write(str(note_path), "original content")
+
+        def _boom(*a, **k):
+            raise OSError("disk full")
+
+        monkeypatch.setattr(os, "replace", _boom)
+        result = vault_write.write_note({"vault_folders": ["*"]}, "Note.md", "new content")
+
+        assert "Error" in result
+        assert note_path.read_text() == "original content"
+
+    def test_overwrite_note_failure_leaves_existing_note_untouched(
+        self, tmp_path, monkeypatch
+    ):
+        monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_path))
+        note_path = tmp_path / "Note.md"
+        _write(str(note_path), "original content")
+
+        def _boom(*a, **k):
+            raise OSError("disk full")
+
+        monkeypatch.setattr(os, "replace", _boom)
+        result = vault_write.overwrite_note(
+            {"vault_folders": ["*"]}, "Note.md", "new content"
+        )
+
+        assert "Error" in result
+        assert note_path.read_text() == "original content"
+
+    def test_create_note_failure_reports_error_not_success(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_path))
+
+        def _boom(*a, **k):
+            raise OSError("disk full")
+
+        monkeypatch.setattr(os, "replace", _boom)
+        result = vault_write.create_note(
+            {"vault_folders": ["*"]}, "New.md", "hello"
+        )
+
+        assert "Error" in result
+        assert not (tmp_path / "New.md").exists()
+
+    def test_successful_write_leaves_no_tmp_file_behind(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_path))
+        vault_write.write_note({"vault_folders": ["*"]}, "Note.md", "hello")
+        leftovers = [p for p in os.listdir(tmp_path) if p.endswith(".tmp")]
+        assert leftovers == []
+
+    def test_write_atomic_text_cleans_up_tmp_file_on_failure(
+        self, tmp_path, monkeypatch
+    ):
+        target = tmp_path / "manifest.json"
+
+        def _boom(*a, **k):
+            raise OSError("disk full")
+
+        monkeypatch.setattr(os, "replace", _boom)
+        try:
+            vault_manifest.write_atomic_text(str(target), "{}")
+        except OSError:
+            pass
+        leftovers = [p for p in os.listdir(tmp_path) if p.endswith(".tmp")]
+        assert leftovers == []
 
 
 class TestDailyRootBoundaryGuard:
@@ -245,6 +323,128 @@ class TestRenameNoteBacklinksHook:
         )
         assert result == vault_write.NOTE_NOT_FOUND
         assert fired == []
+
+
+class TestRenameNoteCrossFolderCollision:
+    """D3: renaming ProjectA/Foo.md must not retarget a bare [[Foo]] link
+    that actually meant a different, same-named ProjectB/Foo.md."""
+
+    def _same_stem_finder(self, paths):
+        return lambda profile, stem: [
+            p for p in paths if os.path.splitext(os.path.basename(p))[0] == stem
+        ]
+
+    def test_bare_link_in_unrelated_folder_is_left_alone(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_path))
+        _write(str(tmp_path / "ProjectA" / "Foo.md"), "content A")
+        _write(str(tmp_path / "ProjectB" / "Foo.md"), "content B")
+        _write(str(tmp_path / "ProjectB" / "Referrer.md"), "See [[Foo]] for context.")
+
+        result = vault_write.rename_note(
+            {"vault_folders": ["*"]},
+            "ProjectA/Foo",
+            "Bar",
+            get_backlinks_fn=lambda profile, stem: [{"rel_path": "ProjectB/Referrer.md"}],
+            find_notes_by_stem_fn=self._same_stem_finder(
+                ["ProjectA/Foo.md", "ProjectB/Foo.md"]
+            ),
+        )
+
+        assert "relinked" not in result
+        assert (
+            tmp_path / "ProjectB" / "Referrer.md"
+        ).read_text() == "See [[Foo]] for context."
+
+    def test_bare_link_in_renamed_notes_own_folder_is_still_rewritten(
+        self, tmp_path, monkeypatch
+    ):
+        monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_path))
+        _write(str(tmp_path / "ProjectA" / "Foo.md"), "content A")
+        _write(str(tmp_path / "ProjectB" / "Foo.md"), "content B")
+        _write(
+            str(tmp_path / "ProjectA" / "Referrer.md"), "See [[Foo]] for context."
+        )
+
+        result = vault_write.rename_note(
+            {"vault_folders": ["*"]},
+            "ProjectA/Foo",
+            "Bar",
+            get_backlinks_fn=lambda profile, stem: [{"rel_path": "ProjectA/Referrer.md"}],
+            find_notes_by_stem_fn=self._same_stem_finder(
+                ["ProjectA/Foo.md", "ProjectB/Foo.md"]
+            ),
+        )
+
+        assert "1 file relinked" in result
+        assert (
+            tmp_path / "ProjectA" / "Referrer.md"
+        ).read_text() == "See [[Bar]] for context."
+
+    def test_qualified_link_naming_the_other_folder_is_left_alone(
+        self, tmp_path, monkeypatch
+    ):
+        """Even without any ambiguity signal, a link that already names a
+        *different* folder than the one being renamed must never be
+        rewritten - it's unambiguously not about this note."""
+        monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_path))
+        _write(str(tmp_path / "ProjectA" / "Foo.md"), "content A")
+        _write(str(tmp_path / "ProjectB" / "Foo.md"), "content B")
+        _write(
+            str(tmp_path / "Referrer.md"), "See [[ProjectB/Foo]] for context."
+        )
+
+        result = vault_write.rename_note(
+            {"vault_folders": ["*"]},
+            "ProjectA/Foo",
+            "Bar",
+            get_backlinks_fn=lambda profile, stem: [{"rel_path": "Referrer.md"}],
+        )
+
+        assert "relinked" not in result
+        assert (tmp_path / "Referrer.md").read_text() == "See [[ProjectB/Foo]] for context."
+
+    def test_qualified_link_naming_the_renamed_notes_folder_is_rewritten(
+        self, tmp_path, monkeypatch
+    ):
+        monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_path))
+        _write(str(tmp_path / "ProjectA" / "Foo.md"), "content A")
+        _write(
+            str(tmp_path / "Referrer.md"), "See [[ProjectA/Foo]] for context."
+        )
+
+        result = vault_write.rename_note(
+            {"vault_folders": ["*"]},
+            "ProjectA/Foo",
+            "Bar",
+            get_backlinks_fn=lambda profile, stem: [{"rel_path": "Referrer.md"}],
+        )
+
+        assert "1 file relinked" in result
+        assert (tmp_path / "Referrer.md").read_text() == "See [[ProjectA/Bar]] for context."
+
+    def test_no_ambiguity_when_no_other_note_shares_the_stem(
+        self, tmp_path, monkeypatch
+    ):
+        """The common case: only one note vault-wide has this name, so a
+        bare link is unambiguous and rewritten exactly as before."""
+        monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_path))
+        _write(str(tmp_path / "ProjectA" / "Foo.md"), "content A")
+        _write(
+            str(tmp_path / "ProjectB" / "Referrer.md"), "See [[Foo]] for context."
+        )
+
+        result = vault_write.rename_note(
+            {"vault_folders": ["*"]},
+            "ProjectA/Foo",
+            "Bar",
+            get_backlinks_fn=lambda profile, stem: [{"rel_path": "ProjectB/Referrer.md"}],
+            find_notes_by_stem_fn=self._same_stem_finder(["ProjectA/Foo.md"]),
+        )
+
+        assert "1 file relinked" in result
+        assert (
+            tmp_path / "ProjectB" / "Referrer.md"
+        ).read_text() == "See [[Bar]] for context."
 
 
 class TestDeleteNoteBacklinksHook:

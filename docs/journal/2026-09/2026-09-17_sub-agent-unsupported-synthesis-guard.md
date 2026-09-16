@@ -176,6 +176,86 @@ echo-laundering run, three times on `gemma4:e4b`:
   (there's no claim about vault content to check the words of) — see "Open
   follow-up" below.
 
+## Third pass: `/code-review` on the pushed commit, and what it caught
+
+Damiro asked for a final error check on the pushed commit. Ran `/code-review`
+(medium effort), which forked into 8 parallel angles (line-by-line diff,
+removed-behavior audit, reuse, efficiency, architecture/altitude,
+simplification, `CLAUDE.md` convention compliance, cross-file tracing) — all
+converging independently on the same handful of real issues, a strong signal
+they were genuine rather than review noise. Reported via `ReportFindings`,
+then fixed the confirmed correctness and convention issues in a second
+commit, same day:
+
+1. **The echo-laundering fix had its own loophole.** Round one (above) only
+   blocked a *bare* `echo` with no filename in it; `echo "According to
+   notes/foo.md, our favorite game is X"` still matched
+   `_COMMAND_FILENAME_RE` on the filename mentioned *inside the fabricated
+   text itself* and got trusted again. Fixed by checking the command's
+   *leading word* against `_TEXT_GENERATING_COMMANDS` (`echo`/`printf`/
+   `print`) instead of scanning the whole string for a filename - structural
+   (what the command does), not a phrase list (what it says).
+2. **`web_search` was invisible to both checks.** A real, default-enabled
+   tool returning genuine external content, but absent from the "does this
+   count as retrieval" logic entirely — a fabrication after a real web
+   search would never have been caught. Added alongside `vault_search`
+   (ranked results count as evidence, don't count toward `read_paths` since
+   they're not a full body).
+3. **A failed tool call could override an honest answer.** `retrieval_attempted`
+   was being set from the tool name alone, before checking whether the call
+   actually succeeded — so a `read_file` on a path that doesn't exist could
+   cause an already-honest "I couldn't find that" explanation to get
+   replaced by the generic fallback message. Fixed by making
+   `_register_read` itself the single source of truth: it now returns
+   whether a call counts as an attempt, True only when the call *succeeded*
+   and was retrieval-shaped by name — a failed call returns False (honest
+   failure isn't second-guessed), but a call that succeeded and got excluded
+   as self-authored (echo laundering) still returns True, since that
+   *is* the case this whole guard exists to catch. Conflating "attempted"
+   with "trusted" was itself a bug introduced mid-fix today — caught by my
+   own new unit test before it shipped, not by review.
+4. **Short retrieved content made the overlap check unwinnable.** A fixed
+   4-word shingle meant any source under 4 words (a short note title, a
+   brief snippet) produced an empty shingle set, and `isdisjoint` against
+   an empty set is always `True` — so a reply correctly quoting a *short*
+   source verbatim still got flagged unsupported. Shingle size now adapts
+   down to `min(4, shorter side's word count)`. Surfaced its own tokenizer
+   bug while writing the test for this: `_WORD_RE` let a leading apostrophe
+   from single-quote-style quoting attach to the next word (`'favorite`
+   instead of `favorite`), breaking an otherwise-exact match — tightened to
+   require an alnum start, contractions like "don't" still match correctly.
+5. **Ordering: a weaker recovery could pre-empt a better one.** When
+   `_content_unread` fires on a citation that doesn't resolve to a real
+   note, *and* real `tool_outputs` material exists from the same turn (e.g.
+   a genuine `vault_search` result, alongside a separately invented
+   citation), the old `if/elif` let the content-free "I never opened it,
+   ask again" win even though the real material would have been a
+   materially better answer. Consolidated both checks into one
+   `_finalize_synthesis` helper (also fixing the streaming/non-streaming
+   duplication multiple review angles flagged) that prefers real
+   `tool_outputs` over a bare apology when both exist.
+6. **New thresholds were hardcoded instead of declared settings.** Against
+   the project's own ADR-077 rule ("every runtime setting is declared once
+   in `config_schema.py`"). Added `sub_agent.unsupported_synthesis_min_words`
+   as a proper `Setting` (default 15, `minimum=1`), matching the existing
+   `sub_agent.*` section; regenerated `docs/wiki/reference/configuration.md`
+   (test-enforced to stay in sync).
+
+Consciously left open: the truncation-before-shingling edge case (needs
+>20000 chars of retrieved content to trigger — rare, and fixing it well
+means restructuring the truncation flow, not a quick patch) and the file's
+LOC count (already flagged after round one, a deliberate deferral, not an
+oversight — splitting `sub_agents.py` is its own scoped task).
+
+Full suite: 775 passed (was 763). Re-verified live after this pass too:
+gemini answered the original "favorite game" prompt correctly *without*
+calling any tool at all (the fact is already in persona working memory, so
+no retrieval happened — confirming the guard doesn't punish an already-
+grounded, tool-free reply); `gemma4:e4b`'s repeat echo-spam run now gets the
+clean "I didn't manage to retrieve anything real" honest fallback instead of
+either a fabrication or a confusing dump; the "getting old" pass-through
+case still produced an accurate, verbatim-quoting summary, untouched.
+
 ## No ADR
 
 A second, narrower instance of the same structural swap-in pattern e80674b

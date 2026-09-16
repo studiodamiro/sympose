@@ -437,6 +437,33 @@ class SubAgentEngine:
         r"[\w][\w./\-]*\.(?:md|markdown|txt)\b", re.IGNORECASE
     )
 
+    # Live bug, round two (2026-09-17, found by /code-review on the fix
+    # below): the echo-laundering check only blocked a *bare* echo with no
+    # filename in it. `run_command(echo "According to notes/foo.md, our
+    # favorite game is X")` still matched `_COMMAND_FILENAME_RE` on the
+    # filename mentioned *inside the fabricated text itself*, so the model's
+    # own invention got trusted again just by naming something plausible.
+    # The real distinguishing signal was never "does a filename appear
+    # somewhere in the command" - it's "is this command capable of reading a
+    # file at all." echo/printf/print only ever emit text the model wrote;
+    # no filename-shaped substring inside that text changes that. Blocking
+    # by leading command word is structural (what the command *does*), not a
+    # phrase list (what it *says*) - it doesn't care what the model writes,
+    # only whether the command could have read anything real.
+    _TEXT_GENERATING_COMMANDS = frozenset({"echo", "printf", "print"})
+
+    # Which tool names are even shaped like a retrieval attempt, for the
+    # return value below - deliberately by name alone (not by whether this
+    # particular call ends up trusted), so a sub-agent doing an unrelated
+    # git/shell task doesn't have its reply judged against vault content it
+    # never tried to fetch, but a `run_command` that *did* try (even if it
+    # turned out to be an echoed guess, not a real read) still counts as an
+    # attempt - see `_content_unsupported`'s docstring for why that
+    # distinction matters.
+    _RETRIEVAL_TOOL_NAMES = frozenset(
+        {"read_file", "run_command", "vault_sample", "vault_search", "web_search"}
+    )
+
     @classmethod
     def _register_read(
         cls,
@@ -445,11 +472,27 @@ class SubAgentEngine:
         args_dict: dict[str, Any],
         tool_res: str,
         read_paths: set[str],
-        tool_outputs: list[str] | None = None,
-    ) -> None:
+        tool_outputs: list[str],
+    ) -> bool:
         """Records what this tool call actually retrieved, if anything, for
         `_content_unread` (via `read_paths`) and `_content_unsupported` (via
         `tool_outputs`) to check a synthesis against.
+
+        Returns True whenever a retrieval-shaped tool call *succeeded* this
+        turn - `retrieval_attempted`, for `_content_unsupported` - regardless
+        of whether its content ended up trusted into `tool_outputs`. That's
+        deliberate and distinct from "was this call's content trustworthy":
+        a *failed* call (e.g. `read_file` on a path that doesn't exist)
+        returns False, so an honest explanation of a real failure isn't
+        second-guessed the same way an unsupported claim is - but a call
+        that *succeeded* and got excluded as self-authored (the echo-
+        laundering case right below) still returns True, because the
+        attempt genuinely happened and a confident claim built on top of
+        nothing real is exactly the shape this whole check exists to catch.
+        Conflating "attempted" with "trusted" here was itself a live bug
+        (2026-09-17, found by /code-review): an earlier version returned
+        False for an excluded echo, which silently un-set retrieval_attempted
+        and let the exact fabrication this check was built for back through.
 
         Live bug (2026-09-17, `gemma4:e4b`): a sub-agent ran
         `run_command(echo "I have found two mentions of...")` - a real,
@@ -459,26 +502,30 @@ class SubAgentEngine:
         output as grounding evidence let a fabrication "cite" itself as its
         own source. `tool_outputs` is deliberately scoped to the same
         externally-sourced calls `read_paths` already trusts (a real file
-        read, or a real vault index lookup) - `vault_search`'s ranked
-        snippets are added too (real index data, just not a full body), but
-        an arbitrary `run_command` whose text doesn't name a real vault file
-        is excluded from both, on the same reasoning: content the model
-        wrote itself isn't evidence for anything, no matter which tool
-        carried it."""
-        if not ok:
-            return
+        read, or a real vault index lookup) - `vault_search`'s and
+        `web_search`'s ranked results are added too (real, externally
+        sourced data, just not a full body), but an arbitrary `run_command`
+        whose text doesn't name a real vault file, or whose command is one
+        of `_TEXT_GENERATING_COMMANDS` (round two of the same bug: a filename
+        merely *mentioned* inside fabricated echoed text used to still count
+        - blocking by the command's leading word instead is structural, not
+        a phrase list, since it doesn't care what the model writes, only
+        whether the command could have read anything real), is excluded from
+        both."""
+        if not ok or t_name not in cls._RETRIEVAL_TOOL_NAMES:
+            return False
         if t_name == "read_file":
             p = str(args_dict.get("path", "")).strip()
             if p:
                 read_paths.add(p)
-                if tool_outputs is not None:
-                    tool_outputs.append(tool_res)
+                tool_outputs.append(tool_res)
         elif t_name == "run_command":
-            cmd = str(args_dict.get("command", ""))
-            named_files = cls._COMMAND_FILENAME_RE.findall(cmd)
-            if named_files:
-                read_paths.update(named_files)
-                if tool_outputs is not None:
+            cmd = str(args_dict.get("command", "")).strip()
+            first_word = cmd.split(None, 1)[0].lower() if cmd else ""
+            if first_word not in cls._TEXT_GENERATING_COMMANDS:
+                named_files = cls._COMMAND_FILENAME_RE.findall(cmd)
+                if named_files:
+                    read_paths.update(named_files)
                     tool_outputs.append(tool_res)
         elif t_name == "vault_sample":
             # vault_sample hands back real note bodies directly (no separate
@@ -487,15 +534,16 @@ class SubAgentEngine:
             # Content)`), not in args_dict, so extract it from what it
             # actually returned.
             read_paths.update(VAULT_PATH_TOKEN_RE.findall(tool_res))
-            if tool_outputs is not None:
-                tool_outputs.append(tool_res)
-        elif t_name == "vault_search" and tool_outputs is not None:
-            # Doesn't count toward read_paths - ranked snippets aren't a full
-            # body, so finding a note via search doesn't mean its content was
-            # retrieved. But the snippets themselves are real index data (not
+            tool_outputs.append(tool_res)
+        else:
+            # vault_search / web_search: neither counts toward read_paths -
+            # ranked results aren't a full body, so finding a note or page
+            # doesn't mean its content was retrieved. But the results
+            # themselves are real, externally-sourced data (not
             # model-authored), so they're valid grounding evidence for
             # `_content_unsupported`.
             tool_outputs.append(tool_res)
+        return True
 
     @classmethod
     def _content_unread(cls, text: str, read_paths: set[str]) -> str | None:
@@ -524,19 +572,35 @@ class SubAgentEngine:
         return sorted(named)[0]
 
     @staticmethod
-    def _swap_in_unread_note(offending: str, task: "SubAgentTask") -> str:
+    def _resolve_real_note(offending: str, task: "SubAgentTask") -> str:
+        """Looks up `offending` in the parent persona's vault for real (plain
+        file I/O, not another model call). Returns the real content, or ""
+        when it doesn't resolve to a real, readable note. Shared by
+        `_swap_in_unread_note` (to build its recovery message) and
+        `_finalize_synthesis` (to decide whether that recovery has anything
+        real to show, or whether `tool_outputs` from the same turn would be
+        a materially better answer)."""
+        parent_prof = ProfileManager().get_profile(task.parent_agent)
+        real = VaultManager.read_note(parent_prof, offending) if parent_prof else ""
+        if (
+            real
+            and not real.startswith("⚠️")
+            and not real.startswith("Error reading note")
+            and "not found in allowed vault folders" not in real
+        ):
+            return real
+        return ""
+
+    @classmethod
+    def _swap_in_unread_note(cls, offending: str, task: "SubAgentTask") -> str:
         """Deterministic, zero-round-trip recovery for a synthesis flagged by
-        `_content_unread`: reads the named note for real (plain file I/O, not
-        another model call) via the same sandboxed lookup the rest of the
-        vault layer uses, so the user gets the actual content instead of
+        `_content_unread`: reads the named note for real via
+        `_resolve_real_note`, so the user gets the actual content instead of
         whatever the sub-agent invented for it. Falls back to an honest
         admission when the name doesn't resolve to a real, readable note -
         it was likely a plausible-sounding guess, not a genuine miss."""
-        parent_prof = ProfileManager().get_profile(task.parent_agent)
-        real = VaultManager.read_note(parent_prof, offending) if parent_prof else ""
-        if real and not real.startswith("⚠️") and not real.startswith(
-            "Error reading note"
-        ) and "not found in allowed vault folders" not in real:
+        real = cls._resolve_real_note(offending, task)
+        if real:
             return (
                 f"That's not what I actually have — I never opened `{offending}` "
                 f"this turn. Here's its real content:\n\n{real}"
@@ -560,30 +624,23 @@ class SubAgentEngine:
     # substantive reply sharing not even one short run of words with
     # anything actually retrieved this turn is exactly the shape of an
     # unsupported conclusion, regardless of topic or phrasing.
-    _WORD_RE = re.compile(r"[a-z0-9']+")
+    # Alnum runs with an internal apostrophe allowed (contractions like
+    # "don't"/"that's"), but a bare leading/trailing apostrophe from quoting
+    # style ('...' rather than "...") doesn't attach to the word - found by
+    # a same-day test using single-quotes to wrap a verbatim quote, which
+    # turned "favorite" into "'favorite" and broke an otherwise-exact match.
+    _WORD_RE = re.compile(r"[a-z0-9]+(?:'[a-z0-9]+)*")
+    # Upper bound on shingle size - actual size used is min(this, however many
+    # words the *shorter* side has; see `_content_unsupported`). A fixed 4-word
+    # shingle made a correct reply that verbatim-quotes a short source (e.g. a
+    # 3-word note title) unmatchable by construction - live-verified failure,
+    # not hypothetical (see 2026-09-17 journal, "empty-shingle false positive").
     _SHINGLE_SIZE = 4
-    # Live-verified against gemini/gemini-3.6-flash and ollama/gemma4:e4b
-    # (2026-09-17): 25 was too high a bar - a real gemma4:e4b run produced a
-    # complete, confident, specific fabrication ("Of course! I remember. Our
-    # favorite game is **'Vault Roulette'**...") in only 22 words, slipping
-    # under the gate untouched. Lowered so a fully-formed factual claim like
-    # that one is judged, while a bare acknowledgment ("Sure, let's do
-    # another round.") still isn't.
-    _MIN_WORDS_TO_JUDGE = 15
-
-    # Which tool calls even count as a retrieval *attempt*, for the "nothing
-    # to judge against" silence below - deliberately the same tool names
-    # `_register_read` classifies, not literally any tool (a sub-agent doing
-    # an unrelated git/shell task shouldn't have its reply judged against
-    # vault content it never tried to fetch).
-    _RETRIEVAL_TOOL_NAMES = frozenset(
-        {"read_file", "run_command", "vault_sample", "vault_search"}
-    )
 
     @classmethod
-    def _shingles(cls, text: str) -> set[str]:
-        words = cls._WORD_RE.findall(text.lower())
-        n = cls._SHINGLE_SIZE
+    def _shingles(cls, words: list[str], n: int) -> set[str]:
+        if n <= 0 or len(words) < n:
+            return set()
         return {" ".join(words[i : i + n]) for i in range(len(words) - n + 1)}
 
     @classmethod
@@ -592,8 +649,9 @@ class SubAgentEngine:
     ) -> bool:
         """True when `text` is a substantive reply that shares no verbatim
         run of words with anything actually, externally retrieved this turn
-        (`tool_outputs`), despite a retrieval-shaped tool call having been
-        attempted (`retrieval_attempted`).
+        (`tool_outputs`), despite a retrieval-shaped tool call having
+        genuinely succeeded (`retrieval_attempted` - see `_register_read`'s
+        return value, which is the single source of truth for what counts).
 
         Live bug (2026-09-17): a first version of this gated on `tool_outputs`
         alone - "not tool_outputs: return False" - meant to mean "nothing was
@@ -602,19 +660,36 @@ class SubAgentEngine:
         output (the "echo laundering" loophole; see its own docstring),
         `tool_outputs` could be empty even when a tool call *was* made and
         the reply *did* make a confident claim - the worst case, not the
-        safe one. `retrieval_attempted` (did the sub-agent even try to fetch
-        something) is tracked separately from `tool_outputs` (did that
-        attempt yield anything externally sourced) so those two states -
-        "never tried, purely conversational" vs. "tried and came up empty,
-        answered anyway" - aren't conflated. Silent on short replies (a few
-        words is too little to reliably judge, and punishes honest
-        brevity)."""
+        safe one. `retrieval_attempted` (did a retrieval-shaped call actually
+        succeed) is tracked separately from `tool_outputs` (did that success
+        yield anything externally sourced, vs. excluded as self-authored) so
+        those two states - "never tried, purely conversational" vs. "tried,
+        succeeded, came up with nothing real, answered anyway" - aren't
+        conflated. A *failed* call (e.g. `read_file` on a path that doesn't
+        exist) is deliberately not "attempted" here - `_register_read` never
+        returns True for it - so an honest explanation of a real failure
+        isn't second-guessed the same way an unsupported claim is.
+
+        Silent on short replies (a few words is too little to reliably
+        judge, and punishes honest brevity). Shingle size adapts down to
+        whichever side (reply or source) has fewer words, capped at
+        `_SHINGLE_SIZE` - a fixed size made any source shorter than it
+        structurally unmatchable, flagging a correct short verbatim quote as
+        unsupported (2026-09-17 live-verified false positive)."""
         if not retrieval_attempted:
             return False
-        if len(cls._WORD_RE.findall(text.lower())) < cls._MIN_WORDS_TO_JUDGE:
+        reply_words = cls._WORD_RE.findall(text.lower())
+        min_words = int(
+            config_manager.get("sub_agent.unsupported_synthesis_min_words", 15)
+        )
+        if len(reply_words) < min_words:
             return False
-        reply_shingles = cls._shingles(text)
-        source_shingles = cls._shingles("\n".join(tool_outputs)) if tool_outputs else set()
+        source_words = cls._WORD_RE.findall("\n".join(tool_outputs).lower())
+        if not source_words:
+            return True
+        n = min(cls._SHINGLE_SIZE, len(source_words))
+        reply_shingles = cls._shingles(reply_words, n)
+        source_shingles = cls._shingles(source_words, n)
         return reply_shingles.isdisjoint(source_shingles)
 
     @staticmethod
@@ -644,6 +719,40 @@ class SubAgentEngine:
             "this turn — here's the raw material instead, so you're not "
             f"working off a guess:\n\n{combined}"
         )
+
+    @classmethod
+    def _finalize_synthesis(
+        cls,
+        final_synthesis: str,
+        read_paths: set[str],
+        tool_outputs: list[str],
+        retrieval_attempted: bool,
+        task: "SubAgentTask",
+    ) -> str:
+        """Runs the structural grounding guards against a completed
+        synthesis, in priority order, and returns the (possibly swapped-in)
+        result. Shared by the streaming and non-streaming execution methods
+        so the two can't drift out of sync as more guards get added here.
+
+        Live bug (2026-09-17, found by /code-review on the same-day fix): a
+        plain `if _content_unread(...): ... elif _content_unsupported(...):
+        ...` let a citation-shaped fabrication's recovery win even when it
+        had nothing real to show, while real material sat unused in
+        `tool_outputs` from the same turn - e.g. a genuine `vault_search`
+        result, alongside a separately invented citation to a note that was
+        never opened and doesn't resolve to a real one. When
+        `_content_unread` fires but the named note doesn't resolve, real
+        `tool_outputs` material from this turn is a strictly better answer
+        than a content-free "I never opened it" admission, so it's preferred
+        when available."""
+        offending = cls._content_unread(final_synthesis, read_paths)
+        if offending:
+            if not cls._resolve_real_note(offending, task) and tool_outputs:
+                return cls._swap_in_unsupported(tool_outputs)
+            return cls._swap_in_unread_note(offending, task)
+        if cls._content_unsupported(final_synthesis, tool_outputs, retrieval_attempted):
+            return cls._swap_in_unsupported(tool_outputs)
+        return final_synthesis
 
     # ------------------------------------------------------------------ #
     #  Public execution methods                                            #
@@ -718,11 +827,9 @@ class SubAgentEngine:
                         call_id, t_name, _, ok, tool_res, args_dict = (
                             cls._dispatch_tool_call(tc, tool_to_client, allowed_dirs, parent_prof)
                         )
-                        if t_name in cls._RETRIEVAL_TOOL_NAMES:
-                            retrieval_attempted = True
-                        cls._register_read(
+                        retrieval_attempted = cls._register_read(
                             t_name, ok, args_dict, tool_res, read_paths, tool_outputs
-                        )
+                        ) or retrieval_attempted
                         yield f"> ⚙️ *Sub-agent calling tool:* `{t_name}`...\n"
                         messages.append(
                             {
@@ -744,11 +851,9 @@ class SubAgentEngine:
                     "⚠️ Sub-agent hit its tool budget before finishing; retry with a narrower ask."
                 )
 
-            offending = cls._content_unread(final_synthesis, read_paths)
-            if offending:
-                final_synthesis = cls._swap_in_unread_note(offending, task)
-            elif cls._content_unsupported(final_synthesis, tool_outputs, retrieval_attempted):
-                final_synthesis = cls._swap_in_unsupported(tool_outputs)
+            final_synthesis = cls._finalize_synthesis(
+                final_synthesis, read_paths, tool_outputs, retrieval_attempted, task
+            )
             yield final_synthesis
 
         except Exception as e:
@@ -822,11 +927,9 @@ class SubAgentEngine:
                         call_id, t_name, arg_summary, ok, tool_res, args_dict = (
                             cls._dispatch_tool_call(tc, tool_to_client, allowed_dirs, parent_prof)
                         )
-                        if t_name in cls._RETRIEVAL_TOOL_NAMES:
-                            retrieval_attempted = True
-                        cls._register_read(
+                        retrieval_attempted = cls._register_read(
                             t_name, ok, args_dict, tool_res, read_paths, tool_outputs
-                        )
+                        ) or retrieval_attempted
                         call_summary = (
                             f"{t_name}({arg_summary})" if arg_summary else f"{t_name}()"
                         )
@@ -859,11 +962,9 @@ class SubAgentEngine:
                     "⚠️ Sub-agent hit its tool budget before finishing; retry with a narrower ask."
                 )
 
-            offending = cls._content_unread(final_synthesis, read_paths)
-            if offending:
-                final_synthesis = cls._swap_in_unread_note(offending, task)
-            elif cls._content_unsupported(final_synthesis, tool_outputs, retrieval_attempted):
-                final_synthesis = cls._swap_in_unsupported(tool_outputs)
+            final_synthesis = cls._finalize_synthesis(
+                final_synthesis, read_paths, tool_outputs, retrieval_attempted, task
+            )
 
             return final_synthesis, tool_calls_executed
         except Exception as e:

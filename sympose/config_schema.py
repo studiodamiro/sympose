@@ -355,6 +355,19 @@ SETTINGS: tuple[Setting, ...] = (
         _SUB_AGENT,
         minimum=1,
     ),
+    Setting(
+        "sub_agent.unsupported_synthesis_min_words",
+        "int",
+        15,
+        "Minimum word count before a sub-agent's synthesis is checked for "
+        "verbatim overlap with what it actually retrieved (_content_unsupported) "
+        "- below this, a reply is too short to reliably judge. Live-tuned once "
+        "already (25 -> 15) after a real fabrication slipped under the original "
+        "bar; expect to retune this in either direction as more live failures "
+        "surface.",
+        _SUB_AGENT,
+        minimum=1,
+    ),
     # Persona-scoped — set with `/persona set @<handle> <key> <value>`, not /config.
     Setting(
         "vault_grounding",

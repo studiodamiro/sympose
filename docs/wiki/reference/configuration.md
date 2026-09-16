@@ -78,6 +78,7 @@ Every runtime knob Sympose reads. Global keys live in `config.yaml`, settable at
 | `sub_agent.shell_allowlist` | list | `[]` | — | **restart** | argv[0] allowlist for the sub-agent `run_command` tool (read-only commands only). |
 | `sub_agent.shell_command_timeout` | float | `20.0` | ≥ 1 | yes | Hard wall-clock cap on a single `run_command` execution, seconds. |
 | `sub_agent.request_timeout` | float | `120.0` | ≥ 1 | yes | A sub-agent's own LLM call timeout, seconds - one call per tool-use turn, up to max_sub_agent_tool_turns of them. Deliberately separate from performance.request_timeout: that one bounds a live, streamed chat reply's TTFT, but a sub-agent's report is delivered as a single block once the whole tool-calling loop finishes, so there's no TTFT reason to use the short cloud timeout even when its model is a cloud one. |
+| `sub_agent.unsupported_synthesis_min_words` | int | `15` | ≥ 1 | yes | Minimum word count before a sub-agent's synthesis is checked for verbatim overlap with what it actually retrieved (_content_unsupported) - below this, a reply is too short to reliably judge. Live-tuned once already (25 -> 15) after a real fabrication slipped under the original bar; expect to retune this in either direction as more live failures surface. |
 
 ## Persona (set in profiles/<handle>.yaml)
 

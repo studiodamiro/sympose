@@ -691,6 +691,38 @@ class TestContentUnsupported:
             is False
         )
 
+    def test_short_source_content_verbatim_quoted_is_not_flagged(self):
+        """Live bug (2026-09-17, found by /code-review): a fixed 4-word
+        shingle made any source shorter than 4 words structurally
+        unmatchable - `isdisjoint` against an always-empty shingle set is
+        always True - so a reply correctly quoting a short note verbatim
+        still got flagged as unsupported. Shingle size now adapts down to
+        the shorter side's word count."""
+        reply = (
+            "I checked and your vault says, verbatim: 'Favorite game: chess.' "
+            "That's the exact line from the note you asked about, word for word."
+        )
+        assert (
+            SubAgentEngine._content_unsupported(
+                reply, ["Favorite game: chess."], True
+            )
+            is False
+        )
+
+    def test_short_source_content_not_quoted_is_still_flagged(self):
+        """Same short-source case, but the reply invents something the short
+        source never said - the adaptive shingle size shouldn't make this
+        any more permissive than the fixed-size version was."""
+        reply = (
+            _LONG_UNRELATED_REPLY  # shares no words with the short source below
+        )
+        assert (
+            SubAgentEngine._content_unsupported(
+                reply, ["Favorite game: chess."], True
+            )
+            is True
+        )
+
     def test_retrieval_attempted_but_nothing_external_gathered_is_flagged(self):
         """The "echo laundering" case one level up: a retrieval-shaped tool
         call happened this turn, but everything it returned got excluded
@@ -718,6 +750,82 @@ class TestSwapInUnsupported:
         out = SubAgentEngine._swap_in_unsupported(["a" * (MAX_TOOL_OUTPUT_CHARS + 500)])
         assert "truncated" in out
         assert len(out) < MAX_TOOL_OUTPUT_CHARS + 500
+
+
+class TestFinalizeSynthesis:
+    """Live bug (2026-09-17, found by /code-review): a plain `if
+    _content_unread: ... elif _content_unsupported: ...` let a content-free
+    'I never opened it' recovery win even when real tool_outputs material
+    from the same turn would have made a strictly better answer.
+    `_finalize_synthesis` is the shared, ordering-aware helper both
+    execution methods now call."""
+
+    def test_unresolved_citation_prefers_real_tool_outputs_over_bare_apology(
+        self, monkeypatch
+    ):
+        monkeypatch.setattr(
+            "sympose.sub_agents.ProfileManager",
+            lambda: types.SimpleNamespace(get_profile=lambda h: {"handle": h}),
+        )
+        monkeypatch.setattr(
+            "sympose.sub_agents.VaultManager.read_note",
+            staticmethod(lambda profile, name: "Note `ghost.md` not found in allowed vault folders."),
+        )
+        task = SubAgentTask(task_prompt="x", parent_agent="samantha")
+        text = "The note `ghost.md` says something relevant."
+        out = SubAgentEngine._finalize_synthesis(
+            text, set(), ["real snippet from vault_search"], True, task
+        )
+        assert "isn't actually backed by anything" in out
+        assert "real snippet from vault_search" in out
+        assert "never actually opened it" not in out
+
+    def test_unresolved_citation_with_no_tool_outputs_falls_back_to_bare_apology(
+        self, monkeypatch
+    ):
+        monkeypatch.setattr(
+            "sympose.sub_agents.ProfileManager",
+            lambda: types.SimpleNamespace(get_profile=lambda h: {"handle": h}),
+        )
+        monkeypatch.setattr(
+            "sympose.sub_agents.VaultManager.read_note",
+            staticmethod(lambda profile, name: "Note `ghost.md` not found in allowed vault folders."),
+        )
+        task = SubAgentTask(task_prompt="x", parent_agent="samantha")
+        text = "The note `ghost.md` says something relevant."
+        out = SubAgentEngine._finalize_synthesis(text, set(), [], True, task)
+        assert "never actually opened it" in out
+
+    def test_resolved_citation_wins_regardless_of_tool_outputs(self, monkeypatch):
+        monkeypatch.setattr(
+            "sympose.sub_agents.ProfileManager",
+            lambda: types.SimpleNamespace(get_profile=lambda h: {"handle": h}),
+        )
+        monkeypatch.setattr(
+            "sympose.sub_agents.VaultManager.read_note",
+            staticmethod(lambda profile, name: "The real note body."),
+        )
+        task = SubAgentTask(task_prompt="x", parent_agent="samantha")
+        text = "The note `real.md` says something relevant."
+        out = SubAgentEngine._finalize_synthesis(
+            text, set(), ["unrelated real snippet"], True, task
+        )
+        assert "The real note body." in out
+        assert "unrelated real snippet" not in out
+
+    def test_no_citation_falls_through_to_unsupported_check(self):
+        task = SubAgentTask(task_prompt="x", parent_agent="samantha")
+        out = SubAgentEngine._finalize_synthesis(
+            _LONG_UNRELATED_REPLY, set(), ["note body: Tin is Dylan's mother."], True, task
+        )
+        assert "isn't actually backed by anything" in out
+
+    def test_nothing_flagged_returns_original_synthesis_untouched(self):
+        task = SubAgentTask(task_prompt="x", parent_agent="samantha")
+        out = SubAgentEngine._finalize_synthesis(
+            "Sure, let's do another round.", set(), [], False, task
+        )
+        assert out == "Sure, let's do another round."
 
 
 class TestExecuteSubAgentTaskCatchesUnsupportedSynthesis:
@@ -865,67 +973,165 @@ class TestRegisterRead:
 
     def test_read_file_call_registers_its_path(self):
         paths: set[str] = set()
-        SubAgentEngine._register_read(
-            "read_file", True, {"path": "Daily/2022-08-29.md"}, "", paths
+        outputs: list[str] = []
+        attempted = SubAgentEngine._register_read(
+            "read_file", True, {"path": "Daily/2022-08-29.md"}, "real content", paths, outputs
         )
         assert "Daily/2022-08-29.md" in paths
+        assert outputs == ["real content"]
+        assert attempted is True
 
     def test_cat_via_run_command_registers_the_filename(self):
         paths: set[str] = set()
-        SubAgentEngine._register_read(
+        outputs: list[str] = []
+        attempted = SubAgentEngine._register_read(
             "run_command",
             True,
             {"command": "cat /Users/x/garden/Daily/2022-08-29.md"},
-            "",
+            "real content",
             paths,
+            outputs,
         )
         assert "2022-08-29.md" in {p.rsplit("/", 1)[-1] for p in paths}
+        assert outputs == ["real content"]
+        assert attempted is True
 
     def test_find_with_a_glob_registers_nothing(self):
         """No literal filename in the command - it located candidates, it
-        didn't retrieve any one file's content."""
+        didn't retrieve any one file's content. Still counts as an attempt
+        (the tool genuinely ran), just not as trusted content."""
         paths: set[str] = set()
-        SubAgentEngine._register_read(
+        outputs: list[str] = []
+        attempted = SubAgentEngine._register_read(
             "run_command",
             True,
             {"command": "find /vault/Daily -name '*.md' | shuf -n 1"},
             "",
             paths,
+            outputs,
         )
         assert paths == set()
+        assert outputs == []
+        assert attempted is True
 
-    def test_a_failed_call_registers_nothing(self):
+    def test_a_failed_call_registers_nothing_and_is_not_an_attempt(self):
         paths: set[str] = set()
-        SubAgentEngine._register_read(
-            "read_file", False, {"path": "Daily/2022-08-29.md"}, "", paths
+        outputs: list[str] = []
+        attempted = SubAgentEngine._register_read(
+            "read_file", False, {"path": "Daily/2022-08-29.md"}, "", paths, outputs
         )
         assert paths == set()
+        assert outputs == []
+        assert attempted is False
 
     def test_vault_sample_registers_the_path_from_its_own_output(self):
         """vault_sample hands back real note content directly - the path
         lives in its own Ground-Truth header, not in args_dict."""
         paths: set[str] = set()
-        SubAgentEngine._register_read(
-            "vault_sample",
-            True,
-            {"folder": "Daily"},
-            "### Ground-Truth Sandboxed Vault Note (`Daily/2022-08-29.md` - Exact Content):\nbody",
-            paths,
+        outputs: list[str] = []
+        content = "### Ground-Truth Sandboxed Vault Note (`Daily/2022-08-29.md` - Exact Content):\nbody"
+        attempted = SubAgentEngine._register_read(
+            "vault_sample", True, {"folder": "Daily"}, content, paths, outputs
         )
         assert "Daily/2022-08-29.md" in paths
+        assert outputs == [content]
+        assert attempted is True
 
-    def test_vault_search_registers_nothing(self):
+    def test_vault_search_registers_nothing_in_read_paths_but_counts_as_output(self):
         """Search returns ranked snippets, not full bodies - finding a note
-        via search doesn't mean its content was actually retrieved."""
+        via search doesn't mean its content was actually retrieved, but the
+        snippets are still real externally-sourced evidence."""
         paths: set[str] = set()
-        SubAgentEngine._register_read(
-            "vault_search",
-            True,
-            {"query": "aliens"},
-            "**[1] `Daily/2022-08-29.md`** - ...snippet...",
-            paths,
+        outputs: list[str] = []
+        content = "**[1] `Daily/2022-08-29.md`** - ...snippet..."
+        attempted = SubAgentEngine._register_read(
+            "vault_search", True, {"query": "aliens"}, content, paths, outputs
         )
         assert paths == set()
+        assert outputs == [content]
+        assert attempted is True
+
+    def test_web_search_counts_as_output_same_as_vault_search(self):
+        paths: set[str] = set()
+        outputs: list[str] = []
+        content = "Result: https://example.com - some real web content"
+        attempted = SubAgentEngine._register_read(
+            "web_search", True, {"query": "x"}, content, paths, outputs
+        )
+        assert paths == set()
+        assert outputs == [content]
+        assert attempted is True
+
+    def test_unrelated_tool_is_not_an_attempt(self):
+        paths: set[str] = set()
+        outputs: list[str] = []
+        attempted = SubAgentEngine._register_read(
+            "git_status", True, {}, "clean", paths, outputs
+        )
+        assert outputs == []
+        assert attempted is False
+
+
+class TestRegisterReadEchoLaundering:
+    """Round two of the echo-laundering fix (2026-09-17, found by
+    /code-review on round one): blocking a *bare* echo wasn't enough - an
+    echo whose fabricated text merely *mentions* a real-looking filename
+    still matched the filename regex and got trusted. Blocking by the
+    command's leading word is structural (what the command does), not a
+    phrase list (what it says)."""
+
+    def test_echo_mentioning_a_plausible_filename_is_still_excluded(self):
+        paths: set[str] = set()
+        outputs: list[str] = []
+        attempted = SubAgentEngine._register_read(
+            "run_command",
+            True,
+            {
+                "command": (
+                    'echo "According to Daily/2026-09-17.md, our favorite '
+                    'game is Vault Roulette"'
+                )
+            },
+            "According to Daily/2026-09-17.md, our favorite game is Vault Roulette",
+            paths,
+            outputs,
+        )
+        assert paths == set()
+        assert outputs == []
+        # Still a genuine attempt - the tool call itself succeeded, even
+        # though nothing trustworthy came of it - so a confident claim built
+        # on top of this must still be judged by _content_unsupported.
+        assert attempted is True
+
+    def test_printf_is_excluded_the_same_way(self):
+        paths: set[str] = set()
+        outputs: list[str] = []
+        SubAgentEngine._register_read(
+            "run_command",
+            True,
+            {"command": 'printf "notes/foo.md says X"'},
+            "notes/foo.md says X",
+            paths,
+            outputs,
+        )
+        assert paths == set()
+        assert outputs == []
+
+    def test_cat_of_a_file_mentioned_alongside_is_not_excluded(self):
+        """The exclusion is specifically about the leading command word, not
+        about filenames in general - a genuine read is untouched."""
+        paths: set[str] = set()
+        outputs: list[str] = []
+        SubAgentEngine._register_read(
+            "run_command",
+            True,
+            {"command": "cat notes/foo.md"},
+            "real file content",
+            paths,
+            outputs,
+        )
+        assert "notes/foo.md" in paths
+        assert outputs == ["real file content"]
 
 
 class TestExecuteSubAgentTaskCatchesUnreadFabrication:

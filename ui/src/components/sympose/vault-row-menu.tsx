@@ -21,14 +21,10 @@ import {
   ContextMenuContent,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu"
-import {
-  createVaultNote,
-  deleteVaultFolder,
-  deleteVaultNote,
-  renameVaultNote,
-} from "@/lib/vault-note-api"
+import { createVaultNote, deleteVaultFolder } from "@/lib/vault-note-api"
 import { confirm } from "@/lib/confirm-store"
 import { notify } from "@/lib/notify"
+import { useVaultNoteActions } from "@/lib/use-vault-note-actions"
 import type { VaultNode } from "@/components/sympose/vault-tree"
 
 /**
@@ -90,75 +86,25 @@ function VaultRowMenu({
 }) {
   const isNote = node.type === "note"
   const stem = node.name.replace(/\.md$/i, "")
-  const [renaming, setRenaming] = React.useState<string | null>(null)
-  // Rename mode is entered only once the menu that launched it has fully
-  // closed — see `enterRenameAfterClose`.
-  const [pendingRename, setPendingRename] = React.useState(false)
-  const [busy, setBusy] = React.useState(false)
 
-  // `autoFocus` on the inline field is unreliable here: it mounts on the same
-  // tick the menu closes, and Base UI's modal focus restoration (plus the
-  // `inert` it briefly leaves on the rest of the page) can swallow it, so the
-  // field ends up unfocused and keystrokes fall through to global shortcuts.
-  // Focus it imperatively on the next frame instead, and ignore any `onBlur`
-  // that fires before the field has actually held focus.
-  const inputRef = React.useRef<HTMLInputElement>(null)
-  const sawFocusRef = React.useRef(false)
-  const renameActive = renaming !== null
-  React.useEffect(() => {
-    if (!renameActive) return
-    sawFocusRef.current = false
-    const id = requestAnimationFrame(() => {
-      const el = inputRef.current
-      if (el) {
-        el.focus()
-        el.select()
-      }
-    })
-    return () => cancelAnimationFrame(id)
-  }, [renameActive])
-
-  // Both menus defer entering the inline field to their `onOpenChangeComplete`:
-  // flipping `renaming` on the item click unmounts the trigger mid-close, and
-  // the focus Base UI then hands back lands on <body> — blurring the freshly
-  // mounted input and cancelling rename on the same frame.
-  const enterRenameAfterClose = (stillOpen: boolean) => {
-    if (!stillOpen && pendingRename) {
-      setPendingRename(false)
-      setRenaming(stem)
-    }
-  }
-
-  const submitRename = async () => {
-    const name = (renaming ?? "")
-      .trim()
-      .replace(/\.md$/i, "")
-      .replace(/^\/+|\/+$/g, "")
-    if (!name || busy || name === stem) {
-      setRenaming(null)
-      return
-    }
-    setBusy(true)
-    const res = await renameVaultNote(node.path, name, persona)
-    setBusy(false)
-    if (res.ok) {
-      setRenaming(null)
-      onRenamed(node.path, res.path)
-      notify.success(res.detail)
-    } else {
-      notify.error(res.error)
-    }
-  }
-
-  const runDelete = async () => {
-    const res = await deleteVaultNote(node.path, persona)
-    if (res.ok) {
-      onDeleted(node.path)
-      notify.success(res.detail)
-    } else {
-      notify.error(res.error)
-    }
-  }
+  const {
+    renaming,
+    setRenaming,
+    setPendingRename,
+    busy,
+    inputRef,
+    onMenuOpenChangeComplete: enterRenameAfterClose,
+    handleInputFocus,
+    handleInputBlur,
+    handleInputKeyDown,
+    runDelete,
+  } = useVaultNoteActions({
+    path: node.path,
+    persona,
+    stem,
+    onRenamed: (newPath) => onRenamed(node.path, newPath),
+    onDeleted: () => onDeleted(node.path),
+  })
 
   const runDeleteFolder = async () => {
     const res = await deleteVaultFolder(node.path, persona)
@@ -267,17 +213,12 @@ function VaultRowMenu({
             disabled={busy}
             aria-label={`Rename ${stem}`}
             onChange={(e) => setRenaming(e.target.value)}
-            onFocus={() => {
-              sawFocusRef.current = true
-            }}
-            onBlur={() => {
-              if (sawFocusRef.current) setRenaming(null)
-            }}
+            onFocus={handleInputFocus}
+            onBlur={handleInputBlur}
             onClick={(e) => e.stopPropagation()}
             onKeyDown={(e) => {
               e.stopPropagation()
-              if (e.key === "Enter") void submitRename()
-              else if (e.key === "Escape") setRenaming(null)
+              handleInputKeyDown(e)
             }}
             style={{ paddingLeft: `${paddingLeft + 20}px` }}
             className="absolute inset-y-0 right-1 left-0 my-auto h-6 rounded-md border border-border bg-background pr-2 font-mono text-xs outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:opacity-50"

@@ -22,22 +22,39 @@ def _trash(vault, rel, content="junk"):
 
 
 # ---------------------------------------------------------------------------
-# vault_trash._original_relpath — clash-suffix stripping
+# vault_trash._original_relpath — clash-suffix resolution via the sidecar
+# index (D4: no longer inferred by stripping a trailing `-\d{14}`, which
+# false-positived on a legitimately timestamp-named file).
 # ---------------------------------------------------------------------------
 
 
 class TestOriginalRelpath:
-    def test_plain_path_unchanged(self):
-        assert vault_trash._original_relpath("Notes/idea.md") == "Notes/idea.md"
-
-    def test_strips_delete_note_timestamp_suffix(self):
+    def test_no_index_entry_returns_path_unchanged(self, tmp_path):
         assert (
-            vault_trash._original_relpath("Notes/idea-20260910120000.md")
+            vault_trash._original_relpath(str(tmp_path), "Notes/idea.md")
             == "Notes/idea.md"
         )
 
-    def test_leaves_other_trailing_digits_alone(self):
-        assert vault_trash._original_relpath("Notes/part-2.md") == "Notes/part-2.md"
+    def test_naturally_timestamp_suffixed_name_is_not_stripped(self, tmp_path):
+        """D4's actual false positive: with no index entry recorded, a name
+        that merely *looks* like it carries a disambiguating suffix (but
+        never went through a real clash) is left exactly as-is."""
+        assert (
+            vault_trash._original_relpath(
+                str(tmp_path), "Notes/idea-20260910120000.md"
+            )
+            == "Notes/idea-20260910120000.md"
+        )
+
+    def test_recorded_clash_resolves_via_index(self, tmp_path):
+        troot = str(tmp_path)
+        vault_trash.record_clash(
+            troot, "Notes/idea-20260910120000.md", "Notes/idea.md"
+        )
+        assert (
+            vault_trash._original_relpath(troot, "Notes/idea-20260910120000.md")
+            == "Notes/idea.md"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -103,7 +120,13 @@ class TestRestoreFromTrash:
         assert (tmp_vault_dir / "Notes" / "reborn.md").read_text() == "# Reborn\n"
         assert not (tmp_vault_dir / ".trash" / "Notes").exists()  # empty dir pruned
 
-    def test_strips_clash_suffix_on_restore(self, tmp_vault_dir, monkeypatch):
+    def test_naturally_timestamp_named_file_restores_to_itself(
+        self, tmp_vault_dir, monkeypatch
+    ):
+        """D4: a file sitting in trash that was never actually involved in a
+        clash (dropped straight in, the way a real one predating this fix
+        might be) restores to its own name unchanged, not a name-minus-
+        suffix guess."""
         from sympose.vault import VaultManager
 
         _trash(tmp_vault_dir, "dupe-20260910120000.md", "recovered")
@@ -113,8 +136,36 @@ class TestRestoreFromTrash:
             {"vault_folders": ["*"]}, "dupe-20260910120000.md"
         )
 
+        assert result == "Restored to `dupe-20260910120000.md`"
+        assert (tmp_vault_dir / "dupe-20260910120000.md").read_text() == "recovered"
+
+    def test_real_clash_restores_second_copy_to_its_true_original_path(
+        self, tmp_vault_dir, monkeypatch
+    ):
+        """End-to-end through delete_note: two notes deleted at the same
+        vault-relative path clash in the trash, so the second gets a
+        timestamp suffix. Restoring that suffixed entry must land back at
+        the real original path (D4) - recorded explicitly at delete time,
+        not inferred from the filename afterward."""
+        from sympose.vault import VaultManager
+
+        monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
+        profile = {"vault_folders": ["*"]}
+
+        write_note(str(tmp_vault_dir / "dupe.md"), "first version")
+        VaultManager.delete_note(profile, "dupe.md")
+
+        write_note(str(tmp_vault_dir / "dupe.md"), "second version")
+        VaultManager.delete_note(profile, "dupe.md")
+
+        rows = VaultManager.list_trash(profile)
+        assert {r["original_path"] for r in rows} == {"dupe.md"}
+        suffixed = next(r for r in rows if r["trash_path"] != "dupe.md")
+
+        result = VaultManager.restore_from_trash(profile, suffixed["trash_path"])
+
         assert result == "Restored to `dupe.md`"
-        assert (tmp_vault_dir / "dupe.md").read_text() == "recovered"
+        assert (tmp_vault_dir / "dupe.md").read_text() == "second version"
 
     def test_missing_entry_not_found(self, tmp_vault_dir, monkeypatch):
         from sympose.vault import VaultManager

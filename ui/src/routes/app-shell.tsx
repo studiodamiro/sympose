@@ -526,17 +526,22 @@ export function AppShell() {
   // Main menu = the vault's surface (top-level folders + root notes like
   // README.md), in the tree's own order, with curated icons where the folder
   // name is known. The two footer sentinels (Settings, Persona) stay separate.
-  const menuItems: MainMenuItem[] = vaultTree.map((node) => ({
-    id: node.path,
-    label:
-      editorPrefs.hideExtension === "on"
-        ? stripMdExtension(node.name)
-        : node.name,
-    icon: menuIconFor(node),
-    type: node.type,
-  }))
-  const noteIds = new Set(
-    vaultTree.filter((n) => n.type === "note").map((n) => n.path)
+  const menuItems: MainMenuItem[] = React.useMemo(
+    () =>
+      vaultTree.map((node) => ({
+        id: node.path,
+        label:
+          editorPrefs.hideExtension === "on"
+            ? stripMdExtension(node.name)
+            : node.name,
+        icon: menuIconFor(node),
+        type: node.type,
+      })),
+    [vaultTree, editorPrefs.hideExtension]
+  )
+  const noteIds = React.useMemo(
+    () => new Set(vaultTree.filter((n) => n.type === "note").map((n) => n.path)),
+    [vaultTree]
   )
 
   // A `[[wikilink]]` clicked inside the open note — resolve it against the
@@ -608,12 +613,15 @@ export function AppShell() {
   // The content panel shows the *contents* of the selected surface entry — a
   // folder's own subtree, or a single root note — not the whole vault tree.
   const activeNode = vaultTree.find((n) => n.path === resolvedActive)
-  const panelNodes: VaultNode[] =
-    activeNode?.type === "folder"
-      ? (activeNode.children ?? [])
-      : activeNode
-        ? [activeNode]
-        : []
+  const panelNodes: VaultNode[] = React.useMemo(
+    () =>
+      activeNode?.type === "folder"
+        ? (activeNode.children ?? [])
+        : activeNode
+          ? [activeNode]
+          : [],
+    [activeNode]
+  )
 
   // Two tiers, kept visually separate rather than flattened together: matches
   // inside the folder currently in view, then — since `panelNodes` alone
@@ -622,16 +630,23 @@ export function AppShell() {
   // second tier costs nothing extra. Browsing (no query) shows just the
   // folder in view via `panelNodes`, unfiltered.
   const vaultSearchQuery = vaultSearch.trim()
-  const searchedPanelNodes = vaultSearchQuery
-    ? filterTreeByQuery(panelNodes, vaultSearchQuery)
-    : panelNodes
-  const beyondFolderMatches =
-    vaultSearchQuery && searchPrefs.beyondFolder
-      ? flatSearchTree(
-          vaultTree.filter((n) => n.path !== resolvedActive),
-          vaultSearchQuery
-        )
-      : []
+  const searchedPanelNodes = React.useMemo(
+    () =>
+      vaultSearchQuery
+        ? filterTreeByQuery(panelNodes, vaultSearchQuery)
+        : panelNodes,
+    [panelNodes, vaultSearchQuery]
+  )
+  const beyondFolderMatches = React.useMemo(
+    () =>
+      vaultSearchQuery && searchPrefs.beyondFolder
+        ? flatSearchTree(
+            vaultTree.filter((n) => n.path !== resolvedActive),
+            vaultSearchQuery
+          )
+        : [],
+    [vaultTree, resolvedActive, vaultSearchQuery, searchPrefs.beyondFolder]
+  )
 
   // Pinned is scoped to the current *root* folder (the top-level menu entry
   // — `activeNode` itself, since the content panel never changes which
@@ -643,25 +658,35 @@ export function AppShell() {
   // resolves to a folder is silently dropped rather than shown broken.
   const activeRootFolder =
     activeNode?.type === "folder" ? activeNode : undefined
-  const pinnedNodes = activeRootFolder
-    ? pinnedPaths
-        .filter((path) => path.startsWith(`${activeRootFolder.path}/`))
-        .map((path) => findNodeByPath(vaultTree, path))
-        .filter((node): node is VaultNode => node?.type === "note")
-    : []
+  const pinnedNodes = React.useMemo(
+    () =>
+      activeRootFolder
+        ? pinnedPaths
+            .filter((path) => path.startsWith(`${activeRootFolder.path}/`))
+            .map((path) => findNodeByPath(vaultTree, path))
+            .filter((node): node is VaultNode => node?.type === "note")
+        : [],
+    [activeRootFolder, pinnedPaths, vaultTree]
+  )
   // A pinned row shown outside the folder it lives in only needs its full
   // path spelled out when that root folder actually has nested subfolders
   // (e.g. Daily's year/month structure) — a flat root folder's own bare
   // filenames are already unambiguous.
-  const pinnedShowPath =
-    activeRootFolder?.children?.some((n) => n.type === "folder") ?? false
+  const pinnedShowPath = React.useMemo(
+    () => activeRootFolder?.children?.some((n) => n.type === "folder") ?? false,
+    [activeRootFolder]
+  )
 
   // Recent, unlike Pinned, is genuinely vault-wide (ADR-107) — each path is
   // resolved against the *full* tree regardless of which folder is
   // currently in view, so a note surfaces there no matter where it lives.
-  const recentNodes = recentPaths
-    .map((path) => findNodeByPath(vaultTree, path))
-    .filter((node): node is VaultNode => node?.type === "note")
+  const recentNodes = React.useMemo(
+    () =>
+      recentPaths
+        .map((path) => findNodeByPath(vaultTree, path))
+        .filter((node): node is VaultNode => node?.type === "note"),
+    [recentPaths, vaultTree]
+  )
   // Only gates the "this folder is empty" message — while searching, an
   // empty *current* folder shouldn't hide vault-wide matches found elsewhere.
   const panelEmpty = !vaultSearchQuery && panelNodes.length === 0

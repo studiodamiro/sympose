@@ -125,12 +125,7 @@ class VaultManager:
 
         # Recursive case-insensitive / title lookup in allowed folders
         stem_target = os.path.splitext(os.path.basename(clean_name))[0].lower()
-        raw_ignore = config_manager.get("vault.ignore_folders") or [
-            ".obsidian",
-            ".git",
-            "Attachments",
-            ".trash",
-        ]
+        raw_ignore = config_manager.get("vault.ignore_folders")
         ignore_dirs = {str(d).lower().strip() for d in raw_ignore}
         for allowed in allowed_dirs:
             for root, dirs, files in os.walk(allowed):
@@ -300,12 +295,7 @@ class VaultManager:
         if not target_dir or not os.path.exists(target_dir):
             return ""
 
-        raw_ignore = config_manager.get("vault.ignore_folders") or [
-            ".obsidian",
-            ".git",
-            "Attachments",
-            ".trash",
-        ]
+        raw_ignore = config_manager.get("vault.ignore_folders")
         ignore_dirs = {str(d).lower().strip() for d in raw_ignore}
         valid_files = []
         for root, dirs, files in os.walk(target_dir):
@@ -416,12 +406,7 @@ class VaultManager:
         frontmatter, body, raw content), rebuilt only when a dir's mtime changes.
         Shared by search_structured() and get_folder_digest() so neither has to
         re-walk + re-read the vault from disk on every call."""
-        raw_ignore = config_manager.get("vault.ignore_folders") or [
-            ".obsidian",
-            ".git",
-            "Attachments",
-            ".trash",
-        ]
+        raw_ignore = config_manager.get("vault.ignore_folders")
         ignore_dirs = {str(d).lower().strip() for d in raw_ignore}
         # Folded into the cache key (not just used to filter the walk) so an
         # ignore-list edit invalidates this cache on its own - a changed
@@ -624,12 +609,7 @@ class VaultManager:
         directory-only walk (no file reads, same ignore list as
         `_get_vault_snapshot`) so `build_tree` can show a folder that exists
         on disk but holds no notes yet (ADR-098)."""
-        raw_ignore = config_manager.get("vault.ignore_folders") or [
-            ".obsidian",
-            ".git",
-            "Attachments",
-            ".trash",
-        ]
+        raw_ignore = config_manager.get("vault.ignore_folders")
         ignore_dirs = {str(d).lower().strip() for d in raw_ignore}
         seen: set = set()
         out: list[str] = []
@@ -772,12 +752,7 @@ class VaultManager:
                 return os.path.relpath(candidate, mv), candidate
 
         # 4. Recursive lookup in allowed dirs
-        raw_ignore = config_manager.get("vault.ignore_folders") or [
-            ".obsidian",
-            ".git",
-            "Attachments",
-            ".trash",
-        ]
+        raw_ignore = config_manager.get("vault.ignore_folders")
         ignore_dirs = {str(d).lower().strip() for d in raw_ignore}
         for allowed in allowed_dirs:
             for root, dirs, files in os.walk(allowed):
@@ -1163,13 +1138,7 @@ class VaultManager:
                     hits.append(os.path.join(mv, n["rel_path"]))
             return hits
 
-        raw_ignore = config_manager.get("vault.ignore_folders") or [
-            ".obsidian",
-            ".git",
-            "Attachments",
-            ".trash",
-            "Drawings",
-        ]
+        raw_ignore = config_manager.get("vault.ignore_folders")
         ignore_dirs = {str(d).lower().strip() for d in raw_ignore}
         date_pattern = re.compile(r"^\d{4}-\d{2}-\d{2}\.(?:md|markdown|txt)$")
 
@@ -1233,13 +1202,7 @@ class VaultManager:
                         discovered[rest.lower()] = os.path.join(mv, key)
             return discovered
 
-        raw_ignore = config_manager.get("vault.ignore_folders") or [
-            ".obsidian",
-            ".git",
-            "Attachments",
-            ".trash",
-            "Drawings",
-        ]
+        raw_ignore = config_manager.get("vault.ignore_folders")
         ignore_dirs = {str(d).lower().strip() for d in raw_ignore}
         discovered: dict[str, str] = {}
 
@@ -1494,27 +1457,7 @@ class VaultManager:
 
         # 7. Dynamic Real-Directory Discovery & Sampling (Zero Hardcoding)
         discovered_dirs = cls.get_discovered_folders(profile)
-        triggers = config_manager.get("vault.search_triggers") or [
-            "vault",
-            "note",
-            "notes",
-            "folder",
-            "journal",
-            "backlink",
-            "backlinks",
-            "search",
-            "find",
-            "lookup",
-            "look up",
-            "recall",
-            "remind me",
-            "pull up",
-            "what did i write",
-            "what did i say",
-            "do i have",
-            "do we have",
-        ]
-        has_intent = any(k in msg.lower() for k in triggers)
+        has_intent = any(k in msg.lower() for k in vault_recall.search_triggers())
 
         # Set when the message names a real folder case 7 below actually
         # tried and came up empty for - used to keep case 8 from then

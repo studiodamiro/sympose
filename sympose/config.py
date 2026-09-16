@@ -128,15 +128,30 @@ class ConfigManager:
         for key, value in override.items():
             if isinstance(value, dict) and key in base and isinstance(base[key], dict):
                 self._deep_merge(base[key], value)
+            elif value is None and isinstance(base.get(key), dict):
+                # A bare `key:` with no sub-values in config.yaml (e.g. an
+                # empty `performance:` section) parses to None, not {} -
+                # without this guard it would replace the whole materialized
+                # default subtree with None instead of leaving it untouched.
+                continue
             else:
                 base[key] = value
 
     def _apply_runtime_settings(self) -> None:
         """Applies loaded performance knobs to third-party libraries like LiteLLM and loads MCP registry."""
         if litellm is not None:
-            perf = self.data.get("performance", {})
-            litellm.request_timeout = float(perf.get("request_timeout", 10.0))
-            litellm.drop_params = bool(perf.get("drop_unsupported_params", True))
+            perf = self.data.get("performance") or {}
+            litellm.request_timeout = float(
+                perf.get(
+                    "request_timeout", default_for("performance.request_timeout")
+                )
+            )
+            litellm.drop_params = bool(
+                perf.get(
+                    "drop_unsupported_params",
+                    default_for("performance.drop_unsupported_params"),
+                )
+            )
 
         try:
             from sympose.mcp import mcp_registry

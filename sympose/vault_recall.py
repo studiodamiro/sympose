@@ -264,6 +264,43 @@ def extract_recall_subject(message: str) -> tuple[str, bool]:
     return best
 
 
+# The fixed set of keywords that flag a message as vault-related, regardless
+# of caller (this module's own recall-intent check, and vault.py's separate
+# directory-discovery trigger) — one canonical list instead of two
+# independently hand-kept ones that had drifted out of agreement.
+_BUILTIN_SEARCH_TRIGGERS: tuple[str, ...] = (
+    "vault",
+    "note",
+    "notes",
+    "folder",
+    "journal",
+    "backlink",
+    "backlinks",
+    "search",
+    "find",
+    "lookup",
+    "look up",
+    "recall",
+    "remind me",
+    "pull up",
+    "what did i write",
+    "what did i say",
+    "do i have",
+    "do we have",
+)
+
+
+def search_triggers() -> list[str]:
+    """The full set of keywords that flag a message as a vault query: the
+    fixed built-ins above, plus whatever `vault.search_triggers` adds on top.
+    Additive, per that setting's own documented contract ("added to the
+    built-ins") — a configured list augments this one, it doesn't replace
+    it, so an explicit empty override (`[]`) is indistinguishable from no
+    override and neither one can accidentally drop a built-in trigger."""
+    extra = config_manager.get("vault.search_triggers") or []
+    return [*_BUILTIN_SEARCH_TRIGGERS, *extra]
+
+
 def has_recall_intent(message: str) -> bool:
     """True when the message is itself a fresh vault-recall request (a recall
     lead-in was consumed, or a configured search trigger appears). The engine
@@ -274,14 +311,7 @@ def has_recall_intent(message: str) -> bool:
     _, had_leadin = extract_recall_subject(message)
     if had_leadin:
         return True
-    triggers = config_manager.get("vault.search_triggers") or [
-        "vault",
-        "note",
-        "notes",
-        "journal",
-        "recall",
-    ]
-    return any(k in message.lower() for k in triggers)
+    return any(k in message.lower() for k in search_triggers())
 
 
 def recall_candidates(subject: str, drop: str = "") -> list[str]:

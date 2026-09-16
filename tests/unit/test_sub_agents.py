@@ -594,6 +594,34 @@ class TestContentUnread:
         )
         assert SubAgentEngine._content_unread(text, {"Daily/2024/01-January/2024-01-01.md"}) is None
 
+    def test_same_named_note_in_different_folder_is_still_flagged(self):
+        """C7: comparing by bare basename let a citation to a note in one
+        folder incorrectly pass just because a same-named note in a
+        *different* folder was actually read - a real cross-folder
+        collision, not a hypothetical one, given the same filename showing
+        up in more than one vault folder is unremarkable (e.g. every
+        project keeping its own README.md)."""
+        offending = SubAgentEngine._content_unread(
+            "Per Projects/Foo.md, the answer is yes.",
+            {"Archive/Foo.md"},
+        )
+        assert offending == "foo.md"
+
+    def test_absolute_read_path_still_matches_relative_citation(self):
+        """_path_tail_match must keep tolerating an absolute read_file path
+        against a vault-relative citation of the same file (see
+        test_matching_is_case_insensitive_and_basename_only above) even
+        after the folder-qualified comparison stopped being basename-only -
+        the fix is comparing more trailing segments, not requiring an exact
+        whole-string match."""
+        assert (
+            SubAgentEngine._content_unread(
+                "See Thoughts/Mountain.md for the full entry.",
+                {"/Users/x/garden/Thoughts/Mountain.md"},
+            )
+            is None
+        )
+
 
 class TestSwapInUnreadNote:
     def test_swaps_in_the_real_note_when_it_resolves(self, monkeypatch):

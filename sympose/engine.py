@@ -946,14 +946,14 @@ class PersonaEngine:
                 except Exception as e:
                     log.debug("Forced synthesis stream failed: %s", e)
 
-            history.extend(
-                [
-                    {"role": "user", "content": user_message},
-                    {"role": "assistant", "content": assistant_record},
-                ]
-            )
             h_key = self._get_history_key(handle, session_id)
             with self._lock:
+                history.extend(
+                    [
+                        {"role": "user", "content": user_message},
+                        {"role": "assistant", "content": assistant_record},
+                    ]
+                )
                 self.histories[h_key] = history[-(self.max_turns * 2) :]
             meta = SessionManager.append_turn(
                 curr_session_id, handle, user_message, assistant_record

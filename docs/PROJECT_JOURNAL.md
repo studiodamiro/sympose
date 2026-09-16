@@ -159,6 +159,7 @@ one in [`docs/wiki/index.md`](./wiki/index.md) are kept in sync per the
 
 | Date | Entry |
 | ---- | ----- |
+| 2026-09-17 | [Code-Audit Tier 2 — Moderate Fixes, Grouped Where the Report Said To](./journal/2026-09/2026-09-17_code-audit-tier2-moderate-fixes.md) |
 | 2026-09-17 | [Code-Audit Tier 1 — 14 Quick Fixes, Fact-Checked Before Touching Anything](./journal/2026-09/2026-09-17_code-audit-tier1-quick-fixes.md) |
 | 2026-09-17 | [Sub-Agent Guard Against Unsupported Synthesis (extends e80674b)](./journal/2026-09/2026-09-17_sub-agent-unsupported-synthesis-guard.md) |
 | 2026-09-15 | [Samantha Live Testing Sweep — Six Bugs Found and Fixed](./journal/2026-09/2026-09-15_samantha-live-testing-bug-sweep.md) |

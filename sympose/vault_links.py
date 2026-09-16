@@ -87,12 +87,7 @@ def build_backlink_index(profile: dict[str, Any]) -> dict[str, list[dict[str, An
         return cached_index
 
     inverted_index: dict[str, list[dict[str, Any]]] = defaultdict(list)
-    raw_ignore = config_manager.get("vault.ignore_folders") or [
-        ".obsidian",
-        ".git",
-        "Attachments",
-        ".trash",
-    ]
+    raw_ignore = config_manager.get("vault.ignore_folders")
     ignore_dirs = {str(d).lower().strip() for d in raw_ignore}
 
     try:

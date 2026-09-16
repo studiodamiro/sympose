@@ -551,6 +551,24 @@ class SubAgentEngine:
             tool_outputs.append(tool_res)
         return True
 
+    @staticmethod
+    def _path_tail_match(cited: str, read_path: str) -> bool:
+        """True when `cited` (a lowercased, folder-qualified citation) names
+        the same file as `read_path` (a lowercased, actually-read path) -
+        checking whether `read_path`'s own last two segments (immediate
+        folder + filename) appear verbatim in `cited`, not just its bare
+        filename (which would let a fabricated citation to a same-named
+        note in a *different* folder pass). A substring check rather than
+        an exact match on both sides, because `read_path` (a real
+        `read_file` path arg) is clean but `cited` isn't guaranteed to be:
+        it can be absolute while the citation is vault-relative for the
+        identical file, and `VAULT_PATH_TOKEN_RE` itself can sweep in a few
+        words of leading prose ahead of the real path (its segment pattern
+        tolerates spaces, to match real folder names like "Book Notes") -
+        the genuine trailing segments are still in there as a substring
+        either way."""
+        return "/".join(read_path.rsplit("/", 2)[-2:]) in cited
+
     @classmethod
     def _content_unread(cls, text: str, read_paths: set[str]) -> str | None:
         """Returns the offending note name when `text` names a specific
@@ -567,15 +585,28 @@ class SubAgentEngine:
         stays silent when `text` names no path at all - the same prose-only
         residual gap the primary check leaves open, for the same
         round-trip-frugal reason (no second model call to compare
-        meaning)."""
-        named = {p.rsplit("/", 1)[-1].lower() for p in VAULT_PATH_TOKEN_RE.findall(text)}
-        named |= {m.lower() for m in cls._BARE_CITED_FILENAME_RE.findall(text)}
-        if not named:
+        meaning).
+
+        A folder-qualified citation (`VAULT_PATH_TOKEN_RE` requires a `/`)
+        is matched against `read_paths` by `_path_tail_match`, not by bare
+        filename - a citation naming `OtherFolder/Foo.md` doesn't pass just
+        because some other folder's same-named `Foo.md` was actually read.
+        A bare citation with no folder in the text at all
+        (`_BARE_CITED_FILENAME_RE`) has nothing more specific to compare, so
+        basename is the only signal available for those."""
+        qualified = {p.lower() for p in VAULT_PATH_TOKEN_RE.findall(text)}
+        bare = {m.lower() for m in cls._BARE_CITED_FILENAME_RE.findall(text)}
+        if not qualified and not bare:
             return None
-        read_names = {p.rsplit("/", 1)[-1].lower() for p in read_paths if p}
-        if named & read_names:
+        read_lower = {p.lower() for p in read_paths if p}
+        read_basenames = {p.rsplit("/", 1)[-1] for p in read_lower}
+        qualified_read = any(
+            cls._path_tail_match(p, r) for p in qualified for r in read_lower
+        )
+        if qualified_read or (bare & read_basenames):
             return None
-        return sorted(named)[0]
+        named_basenames = {p.rsplit("/", 1)[-1] for p in qualified} | bare
+        return sorted(named_basenames)[0]
 
     @staticmethod
     def _resolve_real_note(offending: str, task: "SubAgentTask") -> str:

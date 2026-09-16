@@ -262,12 +262,7 @@ def resolve_existing_note(profile: dict[str, Any], note_name: str) -> str | None
         if is_safe_path(cand, allowed) and os.path.isfile(cand):
             return cand
     stem = os.path.splitext(os.path.basename(clean))[0].lower()
-    raw_ignore = config_manager.get("vault.ignore_folders") or [
-        ".obsidian",
-        ".git",
-        "Attachments",
-        ".trash",
-    ]
+    raw_ignore = config_manager.get("vault.ignore_folders")
     ignore_dirs = {str(d).lower().strip() for d in raw_ignore}
     for allowed in allowed_dirs:
         for root, dirs, files in os.walk(allowed):
@@ -644,11 +639,14 @@ def delete_note(
     # rather than trust that invariant from a distance.
     if not is_safe_path(dest, mv):
         return NOTE_DENIED
+    troot = os.path.join(mv, vault_trash.TRASH_DIRNAME)
+    clashed = False
     try:
         os.makedirs(os.path.dirname(dest), exist_ok=True)
         if os.path.exists(dest):
             stem, ext = os.path.splitext(dest)
             dest = f"{stem}-{datetime.datetime.now().astimezone().strftime('%Y%m%d%H%M%S')}{ext}"
+            clashed = True
         os.rename(src, dest)
         # `os.rename` keeps the note's own mtime; stamp it to now so the
         # trash view's "deleted N ago" (ADR-085) reflects the deletion, not
@@ -656,6 +654,12 @@ def delete_note(
         os.utime(dest, None)
     except OSError as e:
         return f"Error: Failed to delete note: {e}"
+    if clashed:
+        # D4: record the real original path explicitly rather than leaving
+        # it to be inferred later from the suffixed filename, which
+        # false-positives on a legitimately timestamp-named note.
+        dest_rel = os.path.relpath(dest, troot).replace(os.sep, "/")
+        vault_trash.record_clash(troot, dest_rel, old_rel)
 
     ws = _workspace_dir()
     try:

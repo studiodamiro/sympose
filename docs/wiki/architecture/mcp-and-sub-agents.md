@@ -93,6 +93,12 @@ To eliminate LLM simulation/hallucination, every sub-agent is automatically equi
 * `run_command(command)`: Real subprocess command execution (e.g. `git status`, `pytest`, `ls`).
 * `read_file(path)`: Safe text file inspection directly from disk.
 
+> [!NOTE]
+> A tool executing for real only guarantees the *call* wasn't simulated — it
+> doesn't guarantee the model's *final answer* actually reflects what the
+> tool returned. That's a separate, post-hoc check; see
+> [Deterministic Structural Backstops](../memory/anti-hallucination.md#3-deterministic-structural-backstops).
+
 ### Manual Slash Command
 You can also trigger a sub-agent directly in the terminal:
 ```bash

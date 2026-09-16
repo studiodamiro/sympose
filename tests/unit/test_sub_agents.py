@@ -636,6 +636,227 @@ class TestSwapInUnreadNote:
         assert "never actually opened it" in out
 
 
+# --------------------------------------------------------------------------- #
+#  _content_unsupported / _swap_in_unsupported — catching a sub-agent that    #
+#  draws a confident conclusion with no verbatim trace back to anything it    #
+#  actually retrieved, without ever naming a specific note - the prose-only   #
+#  shape `_content_unread` deliberately leaves uncovered (its own docstring   #
+#  calls this out). Live example: "Of course I remember - our favorite game   #
+#  is X" stitched from real search/read hits but never quoting any of them.   #
+# --------------------------------------------------------------------------- #
+
+_LONG_UNRELATED_REPLY = (
+    "Of course I remember our favorite game is random note discovery where "
+    "we pick something unexpected from your vault and talk through whatever "
+    "themes or feelings come up together as we go along today"
+)
+
+
+class TestContentUnsupported:
+    def test_no_retrieval_attempted_is_silent(self):
+        """No retrieval-shaped tool call this turn at all - purely
+        conversational, nothing to judge against."""
+        assert (
+            SubAgentEngine._content_unsupported(_LONG_UNRELATED_REPLY, [], False) is False
+        )
+
+    def test_short_reply_is_silent_even_with_no_overlap(self):
+        assert (
+            SubAgentEngine._content_unsupported(
+                "Sure, let's do another round.",
+                ["note body: Tin is Dylan's mother."],
+                True,
+            )
+            is False
+        )
+
+    def test_substantive_reply_with_no_overlap_is_flagged(self):
+        assert (
+            SubAgentEngine._content_unsupported(
+                _LONG_UNRELATED_REPLY, ["note body: Tin is Dylan's mother."], True
+            )
+            is True
+        )
+
+    def test_substantive_reply_quoting_the_retrieved_content_is_not_flagged(self):
+        reply = (
+            "Here's what I actually found this turn, quoting it exactly: "
+            "'note body: Tin is Dylan's mother.' It's a short but clear entry "
+            "about your family, worth sitting with for a while longer."
+        )
+        assert (
+            SubAgentEngine._content_unsupported(
+                reply, ["note body: Tin is Dylan's mother."], True
+            )
+            is False
+        )
+
+    def test_retrieval_attempted_but_nothing_external_gathered_is_flagged(self):
+        """The "echo laundering" case one level up: a retrieval-shaped tool
+        call happened this turn, but everything it returned got excluded
+        from `tool_outputs` (e.g. `_register_read` classified it as
+        self-authored) - `tool_outputs` ends up empty, same as "nothing
+        attempted," but `retrieval_attempted` tells them apart. A confident,
+        substantive claim with zero real evidence is exactly the case that
+        must still be caught, not silently waved through."""
+        assert (
+            SubAgentEngine._content_unsupported(_LONG_UNRELATED_REPLY, [], True) is True
+        )
+
+
+class TestSwapInUnsupported:
+    def test_returns_the_raw_retrieved_material(self):
+        out = SubAgentEngine._swap_in_unsupported(
+            ["note body: Tin is Dylan's mother."]
+        )
+        assert "isn't actually backed by anything" in out
+        assert "note body: Tin is Dylan's mother." in out
+
+    def test_combines_multiple_outputs_and_truncates_when_oversized(self):
+        from sympose.sub_agents import MAX_TOOL_OUTPUT_CHARS
+
+        out = SubAgentEngine._swap_in_unsupported(["a" * (MAX_TOOL_OUTPUT_CHARS + 500)])
+        assert "truncated" in out
+        assert len(out) < MAX_TOOL_OUTPUT_CHARS + 500
+
+
+class TestExecuteSubAgentTaskCatchesUnsupportedSynthesis:
+    """End-to-end through execute_sub_agent_task: a long, confident synthesis
+    with no verbatim tie to what was actually retrieved gets overridden -
+    even when it never names a specific note for `_content_unread` to catch."""
+
+    def test_unsupported_conclusion_gets_swapped_for_raw_material(self, ctx, monkeypatch):
+        def fake_completion(**kwargs):
+            if "tools" not in kwargs:
+                return _resp(content=_LONG_UNRELATED_REPLY)
+            return _resp(tool_calls=[_fake_tool_call()])
+
+        monkeypatch.setattr("sympose.sub_agents.litellm.completion", fake_completion)
+        task = SubAgentTask(task_prompt="what's our favorite game?", max_tool_turns=4)
+        out, _ = SubAgentEngine.execute_sub_agent_task(task)
+
+        assert "random note discovery" not in out
+        assert "note body: Tin is Dylan's mother." in out
+
+    def test_grounded_conclusion_quoting_the_retrieval_is_untouched(self, ctx, monkeypatch):
+        reply = (
+            "Here's what I actually found this turn, quoting it exactly: "
+            "'note body: Tin is Dylan's mother.' It's a short but clear entry "
+            "about your family, worth sitting with for a while longer."
+        )
+
+        def fake_completion(**kwargs):
+            if "tools" not in kwargs:
+                return _resp(content=reply)
+            return _resp(tool_calls=[_fake_tool_call()])
+
+        monkeypatch.setattr("sympose.sub_agents.litellm.completion", fake_completion)
+        task = SubAgentTask(task_prompt="what's our favorite game?", max_tool_turns=4)
+        out, _ = SubAgentEngine.execute_sub_agent_task(task)
+        assert out == reply
+
+
+# --------------------------------------------------------------------------- #
+#  The "echo laundering" loophole - live bug (2026-09-17, gemma4:e4b): a      #
+#  successful run_command whose output is just the model's own invented text #
+#  (e.g. `echo "I found two mentions of..."`) used to count as grounding     #
+#  evidence for `_content_unsupported`, letting a fabrication "cite" itself   #
+#  as its own source. `_register_read`'s `tool_outputs` param now only       #
+#  accepts externally-sourced tool results.                                   #
+# --------------------------------------------------------------------------- #
+
+
+class TestRegisterReadToolOutputsLaundering:
+    def test_echo_with_no_real_filename_is_excluded_from_tool_outputs(self):
+        outputs: list[str] = []
+        SubAgentEngine._register_read(
+            "run_command",
+            True,
+            {"command": 'echo "I found two mentions of getting old in your vault"'},
+            'I found two mentions of getting old in your vault',
+            set(),
+            outputs,
+        )
+        assert outputs == []
+
+    def test_cat_of_a_real_file_is_included_in_tool_outputs(self):
+        outputs: list[str] = []
+        SubAgentEngine._register_read(
+            "run_command",
+            True,
+            {"command": "cat /Users/x/garden/Daily/2022-08-29.md"},
+            "real file content",
+            set(),
+            outputs,
+        )
+        assert outputs == ["real file content"]
+
+    def test_read_file_is_included_in_tool_outputs(self):
+        outputs: list[str] = []
+        SubAgentEngine._register_read(
+            "read_file", True, {"path": "Daily/2022-08-29.md"}, "real content", set(), outputs
+        )
+        assert outputs == ["real content"]
+
+    def test_vault_search_snippets_are_included_in_tool_outputs(self):
+        outputs: list[str] = []
+        SubAgentEngine._register_read(
+            "vault_search",
+            True,
+            {"query": "aliens"},
+            "**[1] `Daily/2022-08-29.md`** - ...snippet...",
+            set(),
+            outputs,
+        )
+        assert outputs == ["**[1] `Daily/2022-08-29.md`** - ...snippet..."]
+
+    def test_a_failed_call_registers_no_output(self):
+        outputs: list[str] = []
+        SubAgentEngine._register_read(
+            "run_command", False, {"command": "cat x.md"}, "content", set(), outputs
+        )
+        assert outputs == []
+
+
+class TestExecuteSubAgentTaskCatchesEchoLaunderedFabrication:
+    """End to end: a synthesis that only 'agrees with itself' via a
+    self-authored echo command still gets caught, since that echo no longer
+    counts as grounding evidence."""
+
+    def test_self_confirmed_guess_via_echo_gets_swapped(self, ctx, monkeypatch):
+        laundered = (
+            "I found two mentions of getting old in your vault: a philosophical "
+            "note about turning forty, and a personal reflection from last December "
+            "about feeling older while everyone around you grows up fast."
+        )
+
+        def fake_dispatch(tc, t2c, dirs, profile=None):
+            return (
+                "call_1",
+                "run_command",
+                "command=echo ...",
+                True,
+                laundered,
+                {"command": f'echo "{laundered}"'},
+            )
+
+        monkeypatch.setattr(
+            "sympose.sub_agents.SubAgentEngine._dispatch_tool_call",
+            staticmethod(fake_dispatch),
+        )
+
+        def fake_completion(**kwargs):
+            if "tools" not in kwargs:
+                return _resp(content=laundered)
+            return _resp(tool_calls=[_fake_tool_call("run_command")])
+
+        monkeypatch.setattr("sympose.sub_agents.litellm.completion", fake_completion)
+        task = SubAgentTask(task_prompt="what have I written about getting old?", max_tool_turns=4)
+        out, _ = SubAgentEngine.execute_sub_agent_task(task)
+
+        assert "isn't actually backed by anything" in out
+
+
 class TestRegisterRead:
     """What counts as "actually retrieved this run" - not limited to the
     dedicated read_file tool, since a local model reads files via

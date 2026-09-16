@@ -160,3 +160,21 @@ its own fabrication/sanity check in the same spirit as 3.37's
 `_content_unread` and the counting-question defect noted above — assume
 the model calling it will occasionally go off-script, because on a small
 local model it reliably does.
+
+**Reproduced again, 2026-09-17**, same model, a new specific trigger: asked to
+summarize a real note in its own words, `gemma4:e4b` called a tool name
+(`assistant()`) that was never offered to it in the schema, then on one run
+recovered by continuing (later corrected via `_content_unsupported` +
+`_content_unread` — see the
+[2026-09-17 journal entry](../../journal/2026-09/2026-09-17_sub-agent-unsupported-synthesis-guard.md))
+and on another derailed entirely into self-identification
+(`{"name": "Gemma 4", "developer": "Google DeepMind", ...}`) instead of
+answering at all — the same "unrelated tangent" shape from the bullet list
+above, just with a hallucinated-tool-call trigger this time. Confirms
+implication (2) still holds even with two more structural checks live: a
+grounding check can only catch an *unsupported claim*, and this case makes
+no claim to check — it just gives up on the task. The actual fix for this
+shape is narrowing the tool surface per model tier (fewer live choices per
+turn = less room to invent one that isn't there), which is exactly what
+ADR-122 (Local/Cloud Model Routing by Message Complexity — accepted, still
+implementation-pending) already proposes. Not yet built.

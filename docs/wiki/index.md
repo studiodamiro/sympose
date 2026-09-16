@@ -62,7 +62,7 @@ graph TD
 * **[Memory Architecture Standard](./memory/architecture-standard.md):** The definitive triad memory standard — grounding pillars, shadow extraction, and Obsidian integration.
 * **[Selective Memory Sharing & Privacy Rings](./memory/selective-sharing.md):** Air-gapping private offline personas (Aurelius) while allowing cloud personas (Samantha & Grace) to share team project memory.
 * **[Heuristic Gated Shadow Extractor](./memory/shadow-extractor.md):** Frictionless, zero-keyword memory capture running in detached background daemon threads.
-* **[Anti-Hallucination & Grounding](./memory/anti-hallucination.md):** Eliminating sycophancy with the 4 grounding pillars and honest ignorance protocols.
+* **[Anti-Hallucination & Grounding](./memory/anti-hallucination.md):** Eliminating sycophancy with the 4 grounding pillars, honest ignorance protocols, and a post-hoc deterministic structural backstop for when a model doesn't comply anyway.
 * **[Session Archival & Distillation](./memory/session-archival.md):** Working memory consolidation on exit and sovereign `.jsonl` conversation history.
 
 ### 🎭 [Persona & Skills Ecosystem](./personas/profile-system.md)

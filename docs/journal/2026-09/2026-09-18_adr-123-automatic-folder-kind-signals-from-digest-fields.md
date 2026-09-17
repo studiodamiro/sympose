@@ -15,12 +15,15 @@ tags:
   discussion after the
   [2026-09-17 ritual-continuation fix](./2026-09-17_ritual-continuation-carries-no-grounding.md):
   "defining each folder in the vault will make the agents' decisions more
-  reliable." Originally documented ahead of any build decision; a follow-up
-  discussion the same day (see **ADR-123.4** below) refined the design to
-  also cover write-shaped turns, explicitly framed as raising response
-  reliability rather than as a wholesale replacement for the recall-intent
-  keyword check it sits behind — no live incident yet demonstrates the
-  specific failure mode this would close (see **Revisit trigger** below).
+  reliable." Originally documented ahead of any build decision; a same-day
+  follow-up discussion refined it twice more — first to also cover
+  write-shaped turns (**ADR-123.4**), then to a broader underlying
+  principle damiro named directly: "every thing on the vault [is] already
+  defined... it's the agent's job to find, confirm, and if it's not there,
+  tell the user - not everything needs an action" (**ADR-123.5**). No live
+  incident yet demonstrates the specific failure mode this would close (see
+  **Revisit trigger** below) — this ADR documents where the design has
+  landed, ahead of building any of it.
 - **Date:** 2026-09-18
 - **Deciders:** damiro (Lead Architect); Grace (Engineering Partner)
 
@@ -103,6 +106,52 @@ Proposed, not yet implemented:
   catch-phrase list to a coarse gate elsewhere, and this is the same
   direction applied to `has_intent`'s specific role here, not a general
   mandate to remove it.
+- **ADR-123.5 — The underlying principle: the vault is ground truth; find,
+  confirm, then judge.** Talking this through surfaced something bigger
+  than folder signals on their own. Every real thing in a Sympose vault -
+  every person, project, note, folder - already exists as a fact on disk.
+  Whatever the user says is just their own wording of something that
+  either maps onto one of those facts or doesn't; it's the agent's job to
+  check which, not the user's job to phrase things in a way that trips the
+  right trigger. That reframes ADR-123.4 from a narrow fix (loosen one
+  gate for folder names) into a general instance of a wider mechanism
+  that's mostly already built:
+
+  - **Finding and confirming is mechanical, so it should stay
+    mechanical.** `vault_grounding.py`'s `real_vault_referents_from_snapshot()`
+    already builds a cached, cheap, vault-wide set of every real note
+    stem, title, and folder name - built for ADR-124, but only ever run
+    on the *model's own reply*, to catch it naming something that doesn't
+    exist. The exact same check, run on the *user's incoming message*
+    instead, answers "does this text refer to something real?" with no
+    wording assumptions at all - a plain mention of "Dylan" matches if
+    and only if something real named Dylan actually exists, independent
+    of recall keywords, folder names, or any phrase list. This is the
+    natural generalization of ADR-123.4's folder-name gate: the real
+    referent set already includes folder names as a subset, so the same
+    mechanism that fixes the write-path gap for folders extends to
+    people, projects, and individual notes for free.
+  - **Deciding what a hit or a miss *means* is not mechanical, so it
+    shouldn't be forced into one.** A confirmed hit grounds the reply
+    (with its folder's kind-signal from ADR-123.1-123.3 attached). A
+    miss is handed to the model as a plain fact - "no vault entry found
+    for 'Dylan'" - and nothing more is decided in code. Whether that fact
+    is worth surfacing to the user at all depends on whether the
+    conversation actually implied wanting something done about it, which
+    is a judgment call about the whole shape of what was said, not
+    something a keyword or a rule can reliably make. Most mentions need
+    no action; forcing every miss into an "offer to create an entry"
+    response would be exactly the kind of guessed, unwanted proactivity
+    this project's zero-bloat instincts already push against. The
+    system's job stops at supplying the fact; the model's job is
+    deciding what, if anything, follows from it.
+
+  Put together, ADR-124 and ADR-123 turn out to be the same idea applied
+  in two directions: ADR-124 checks the model's *outbound* claims against
+  what's real; ADR-123.5 checks the user's *inbound* mentions against the
+  same ground truth. Neither needs an enumerated phrase list, because
+  neither is asking "does this sound like a request" - both are asking
+  "does this refer to something that demonstrably exists."
 
 ## Consequences
 
@@ -135,6 +184,20 @@ Proposed, not yet implemented:
   `get_random_sample_notes` run per session versus today's narrower gate.
   Still zero-round-trip (no LLM call added), just more frequent disk-cache
   reads against an already-cheap, already-cached statistic.
+- ADR-123.5 runs the referent check on every incoming message, not just
+  ones that already look folder-scoped - a wider surface than 123.4 alone.
+  Still hot-path safe on the same terms `first_unverified_referent` already
+  established for the outbound direction: one cached frozenset build per
+  vault-freshness-window, one regex scan over the (short) incoming message
+  per turn, one set-membership test per candidate - no unbounded work, no
+  added LLM call, consistent with the sub-1s TTFT SLA.
+- ADR-123.5 deliberately leaves "was an action implied?" undecided in
+  code - a real cost is that this ADR cannot promise consistent behavior
+  here the way a hard rule could; it depends on the model's own judgment
+  per turn, same as any other conversational nuance. That's an accepted
+  tradeoff, not an oversight: a wrong hard-coded rule (offering to create
+  an entry on every passing mention, or never offering at all) would be
+  worse than variance driven by actual conversational judgment.
 
 ## Alternatives rejected
 
@@ -162,6 +225,24 @@ Proposed, not yet implemented:
   (even if amortized/cached) for a benefit that ADR-123.1's zero-cost
   structural statistic may already deliver. Worth a look only if the
   structural signal proves too coarse in practice.
+- **A hard-coded rule for when a miss should offer to create an entry**
+  (e.g. "always offer" or a heuristic guessing whether the mention was a
+  request). Rejected per ADR-123.5's own reasoning: judging whether an
+  action was implied depends on the whole shape of the conversation, not
+  a pattern that can be enumerated correctly in either direction - always
+  offering is noisy proactivity nobody asked for, never offering wastes
+  the fact that was already found. Left to the model, informed by the
+  plain fact of a confirmed miss.
+- **Guessing which folder a brand-new, not-yet-existing subject belongs
+  in** (e.g. inferring "Dylan" is person-shaped from message wording
+  alone, to pre-select a folder before any note exists). Rejected: the
+  folder-kind signal (123.1) only describes folders that already contain
+  notes of that kind, so there is no structural fact to check a guess
+  against for something that doesn't exist yet - guessing here would be
+  exactly the kind of invented certainty this whole ADR exists to avoid.
+  If the model raises the idea of creating an entry, which folder it goes
+  in stays a question for the user to answer, not a classification the
+  system performs on their behalf.
 
 **Revisit trigger:** a live incident where the model has genuine, real
 content in hand (i.e. the 2026-09-17 fix already did its job) but visibly

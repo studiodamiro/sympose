@@ -171,6 +171,10 @@ class TurnContextMixin:
         if hit:
             return hit
 
+        hit = cls._resolve_real_referent_case(profile, msg, folder_scope_matched)
+        if hit:
+            return hit
+
         return cls._resolve_conversational_fallback_case(
             profile, subject, had_leadin, has_intent, folder_scope_matched
         )
@@ -444,6 +448,49 @@ class TurnContextMixin:
             )
             if hit:
                 return hit
+        return None
+
+    @classmethod
+    def _resolve_real_referent_case(
+        cls, profile: dict[str, Any], msg: str, folder_scope_matched: bool
+    ) -> str | None:
+        """Case 7.5 (ADR-123.5) - the vault is ground truth: a message
+        naming something real (a note's filename stem or frontmatter
+        title, not just a folder name) gets that note surfaced, with no
+        recall-keyword or lead-in required. This is ADR-123.4's real-name
+        gate generalized beyond folders, reusing
+        `VaultManager.first_unverified_referent` (ADR-124's structural
+        referent index, built to catch the model's own replies naming
+        something real, applied here to the *inbound* message instead) -
+        the same mechanical fact-check, run in the other direction.
+
+        Skipped once a folder name already matched (case 7 already
+        searched that scope) - same guard `_resolve_conversational_fallback_case`
+        uses, for the same reason: re-running an unscoped lookup after a
+        folder-scoped one already ran risks surfacing an unrelated
+        vault-wide hit for a message that named a specific folder.
+
+        Reads the confirmed candidate directly via `read_note` (the same
+        resolution case 3 already trusts for a quoted title) instead of
+        `_recall_hit`'s ranked-search path - live bug, found against a
+        real vault: an ordinary sentence-initial common word ("Life is
+        good today.") can itself be a stub note's exact name somewhere in
+        an 800-note vault (a near-empty placeholder sitting in a catch-all
+        folder), and a *ranked* search for that word matches on loose
+        body-text relevance rather than the specific note the referent
+        check just confirmed - it surfaced an unrelated Quotes/ note that
+        merely mentioned the word, not the confirmed one. A direct read
+        has no such ranking step: it either returns that exact note's own
+        content, or nothing (an empty stub correctly yields nothing to
+        show, rather than a wrong substitute)."""
+        if folder_scope_matched:
+            return None
+        candidate = cls.first_unverified_referent(msg, profile)
+        if not candidate:
+            return None
+        content = cls.read_note(profile, candidate)
+        if content and not content.startswith(("⚠️", "Error reading", "Note `")):
+            return f"### Ground-Truth Sandboxed Vault Note (`{candidate}` - Exact Content):\n{content}"
         return None
 
     @classmethod

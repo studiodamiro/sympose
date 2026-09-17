@@ -1211,8 +1211,55 @@ class TestResolveTurnContextConversational:
         ctx = VaultManager.resolve_turn_context(
             self._profile(), "Add Dylan's birthday to People."
         )
+        assert ctx is not None and "2015-09-08" in ctx
+
+    def test_write_shaped_message_naming_a_real_note_with_no_folder_or_keyword(
+        self, tmp_vault_dir, monkeypatch
+    ):
+        """ADR-123.5: the same real-name gate generalized past folders - a
+        message naming a real note's own title/filename stem, with no
+        recall keyword *and* no folder name in it at all, still gets that
+        note's real content instead of nothing. Reuses
+        `VaultManager.first_unverified_referent` (ADR-124's structural
+        referent index) run on the inbound message rather than the
+        model's outbound reply."""
+        from sympose.vault import VaultManager
+
+        monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
+        write_note(
+            str(tmp_vault_dir / "People" / "Dylan.md"),
+            "# Dylan\n\nson, born 2015-09-08, links to [[Tin]].\n",
+        )
+
+        ctx = VaultManager.resolve_turn_context(
+            self._profile(), "Update the info for Dylan with his new school."
+        )
         assert ctx is not None
         assert "2015-09-08" in ctx
+
+    def test_real_referent_that_is_an_empty_stub_yields_no_hit(
+        self, tmp_vault_dir, monkeypatch
+    ):
+        """Regression, found live against a real vault: a near-empty
+        placeholder note ("Limbo/Life.md", 0 bytes) is still a real
+        referent by name, so an ordinary sentence-initial common word that
+        happens to share it ("Life is good today.") used to fall through
+        to a *ranked* vault-wide search for "Life", which surfaced a
+        wholly unrelated Quotes/ note that merely contained the word - a
+        confident-looking but wrong substitute. Reading the confirmed
+        referent directly must yield nothing here instead, since the real
+        note itself has nothing to show."""
+        from sympose.vault import VaultManager
+
+        monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
+        write_note(str(tmp_vault_dir / "Limbo" / "Life.md"), "")
+        write_note(
+            str(tmp_vault_dir / "Quotes" / "An unexamined life is not worth living.md"),
+            "---\nAuthor: Unknown\n---\n",
+        )
+
+        ctx = VaultManager.resolve_turn_context(self._profile(), "Life is good today.")
+        assert ctx is None
 
     def test_game_reference_decomposed_to_a_common_word_is_not_trusted_as_a_digest(
         self, tmp_vault_dir, monkeypatch

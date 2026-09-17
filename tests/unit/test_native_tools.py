@@ -6,7 +6,6 @@ segment of a `&&`/`||`/`;`/`|`-chained command line) whose first word is on
 `sub_agent.shell_allowlist` (or the built-in default) may execute.
 """
 
-import pytest
 from sympose.native_tools import NativeTools
 
 

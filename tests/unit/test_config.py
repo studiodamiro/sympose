@@ -3,9 +3,7 @@ Unit tests for sympose.config
 Covers: ConfigManager deep-merge, dotpath get/set, is_safe_path, convert_md_to_slack_mrkdwn.
 """
 
-import os
 import textwrap
-import pytest
 
 from sympose.config import (
     ConfigManager,

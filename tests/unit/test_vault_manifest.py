@@ -345,7 +345,11 @@ class TestDeltaRead:
         vm.ensure_fresh(ws, mv, snap, read_notes=read, debounce=0)  # cold: full build
 
         seen = {"rels": None}
-        spy = lambda rels: (seen.__setitem__("rels", list(rels)), read(rels))[1]
+
+        def spy(rels):
+            seen["rels"] = list(rels)
+            return read(rels)
+
         (tmp_path / "vault" / "b.md").write_text("# B\nnow links [[a]]\n")
         _bump_mtime(os.path.join(mv, "b.md"))
         _bump_mtime(mv)
@@ -409,7 +413,11 @@ class TestDeltaRead:
         snap, read = _fs_providers(mv)
         vm.ensure_fresh(ws, mv, snap, read_notes=read, debounce=0)
         called = {"n": 0}
-        spy = lambda rels: (called.__setitem__("n", called["n"] + 1), read(rels))[1]
+
+        def spy(rels):
+            called["n"] += 1
+            return read(rels)
+
         (tmp_path / "vault" / "Daily" / "sub").mkdir()  # touches Daily mtime, no .md change
         _bump_mtime(mv)
         vm.ensure_fresh(ws, mv, snap, read_notes=spy, debounce=0)

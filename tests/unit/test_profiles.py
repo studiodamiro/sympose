@@ -4,8 +4,6 @@ the fallback soul-file scaffold used when a persona manifest doesn't provide
 `soul_content` (ADR-075.2) — and `set_persona_field`, the `/persona set` write path.
 """
 
-import os
-import pytest
 import yaml
 
 from sympose.profiles import ProfileManager

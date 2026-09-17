@@ -8,7 +8,6 @@ real config.yaml on disk.
 
 import os
 import json
-import tempfile
 import textwrap
 import pytest
 
@@ -100,13 +99,14 @@ def sample_session_jsonl():
     Creates a minimal single-turn JSONL session file in the active sessions dir
     and returns (fpath, session_id) so tests can manipulate it directly.
     """
-    import datetime, uuid
+    import datetime
+    import uuid
     # Import here so monkeypatch has already applied resolve_workspace_dir
     from sympose.sessions import SessionManager
     session_id = f"samantha_20240101_120000_{uuid.uuid4().hex[:6]}"
     sessions_dir = SessionManager.get_sessions_dir()
     fpath = os.path.join(sessions_dir, f"{session_id}.jsonl")
-    now = datetime.datetime.now().isoformat()
+    now = datetime.datetime.now(datetime.timezone.utc).isoformat()
     meta = {
         "type": "meta",
         "session_id": session_id,

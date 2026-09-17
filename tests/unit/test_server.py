@@ -2,7 +2,6 @@
 Unit tests for sympose.server.create_app — frontend resolution.
 """
 
-import os
 from unittest.mock import MagicMock
 
 from sympose.server import create_app

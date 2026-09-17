@@ -13,7 +13,6 @@ vault_folders: ["*"] (full vault access, nothing auto-created).
 
 import os
 import yaml
-import pytest
 
 from sympose.bootstrap import SAMANTHA_YAML, ensure_workspace
 from sympose.vault import VaultManager

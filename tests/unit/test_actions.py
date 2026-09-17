@@ -4,7 +4,6 @@ Covers: parse_action_tags (all tag names, nested brackets, placeholder filtering
         ACTION: prefix variant, malformed tags) and CONFIG_SET logic.
 """
 
-import pytest
 from sympose.actions import ActionProcessor
 
 

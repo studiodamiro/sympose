@@ -5,7 +5,6 @@ generate-once-and-persist pattern.
 """
 
 import os
-import pytest
 
 from sympose.tls import ensure_dashboard_tls_choice
 

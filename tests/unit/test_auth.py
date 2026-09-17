@@ -2,7 +2,8 @@
 Unit tests for sympose.auth — the ADR-064.1 dashboard password guard.
 """
 
-import os
+from typing import ClassVar
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -11,14 +12,14 @@ from sympose.auth import DASHBOARD_USER
 
 
 class _FakeConfig:
-    data = {"runtime": {"default_persona": "samantha"}}
+    data: ClassVar[dict] = {"runtime": {"default_persona": "samantha"}}
 
     def get(self, key, default=None):
         return default
 
 
 class _FakePM:
-    profiles = {"samantha": {"name": "Samantha"}}
+    profiles: ClassVar[dict] = {"samantha": {"name": "Samantha"}}
 
 
 class _FakeEngine:

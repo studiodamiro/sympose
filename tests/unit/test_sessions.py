@@ -6,10 +6,7 @@ Covers: create_session, append_turn, update_session_title, load_session,
 """
 
 import os
-import json
-import datetime
 import pytest
-from unittest.mock import patch
 
 from sympose.sessions import SessionManager
 
@@ -220,7 +217,7 @@ class TestPruneGhostSessions:
     def test_active_session_not_pruned(self):
         meta = SessionManager.create_session("samantha")
         sid = meta["session_id"]
-        count = SessionManager.prune_ghost_sessions(active_session_id=sid)
+        SessionManager.prune_ghost_sessions(active_session_id=sid)
         # Active session should be skipped
         assert SessionManager.load_session(sid) is not None
 
@@ -228,7 +225,7 @@ class TestPruneGhostSessions:
         meta = SessionManager.create_session("samantha", title="Deep Dive")
         sid = meta["session_id"]
         SessionManager.append_turn(sid, "samantha", "What is quantum computing?", "It's...")
-        count = SessionManager.prune_ghost_sessions()
+        SessionManager.prune_ghost_sessions()
         assert SessionManager.load_session(sid) is not None
 
 

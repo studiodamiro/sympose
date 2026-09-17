@@ -166,7 +166,7 @@ class TurnContextMixin:
             return hit
 
         hit, folder_scope_matched = cls._resolve_folder_scope_case(
-            profile, msg, subject, is_sample_request, has_intent
+            profile, msg, subject, is_sample_request
         )
         if hit:
             return hit
@@ -373,16 +373,25 @@ class TurnContextMixin:
         msg: str,
         subject: str,
         is_sample_request: bool,
-        has_intent: bool,
     ) -> tuple[str | None, bool]:
         """Case 7 - dynamic real-directory discovery & sampling (zero
         hardcoding). Returns (hit, folder_scope_matched) - the latter is set
         as soon as the message names a real folder, even when nothing under
         it actually resolves, so case 8 knows not to re-broaden the same
-        request to the whole vault."""
+        request to the whole vault.
+
+        ADR-123.4: gated purely on a real folder name appearing in the
+        message, not on `has_intent` (a fixed recall-keyword list) - a
+        write-shaped message ("add Dylan's birthday to People/") names a
+        real folder just as validly as a recall-shaped one, and the
+        folder-name match is already structural (it's checked against
+        `get_discovered_folders`' real directory names, not an enumerated
+        vocabulary), so it doesn't need a keyword gate in front of it the
+        way the vault-wide fallback in case 8 still does - see that case's
+        own docstring for why *that* one stays conservative."""
         discovered_dirs = cls.get_discovered_folders(profile)
         folder_scope_matched = False
-        if has_intent and discovered_dirs:
+        if discovered_dirs:
             for folder_name, folder_path in discovered_dirs.items():
                 f_stem = folder_name.rstrip("s")
                 if re.search(rf"\b{re.escape(f_stem)}\w*\b", msg, re.IGNORECASE):

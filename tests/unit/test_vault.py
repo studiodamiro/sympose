@@ -1190,6 +1190,30 @@ class TestResolveTurnContextConversational:
         assert ctx is not None
         assert "entropy" in ctx and "insurance" not in ctx
 
+    def test_write_shaped_message_naming_a_real_folder_still_gets_context(
+        self, tmp_vault_dir, monkeypatch
+    ):
+        """ADR-123.4: a message with no recall-keyword lead-in ("add",
+        not "pull up"/"recall"/etc.) used to get zero folder context at
+        all, because the folder-scope case (case 7) was gated behind
+        `has_intent` - a fixed recall-keyword list - even though it
+        already matches against real, discovered folder names. A write
+        naming a real folder is just as valid a signal as a recall
+        naming one; the folder-name match is now the gate on its own."""
+        from sympose.vault import VaultManager
+
+        monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
+        write_note(
+            str(tmp_vault_dir / "People" / "Dylan.md"),
+            "# Dylan\n\nson, born 2015-09-08, links to [[Tin]].\n",
+        )
+
+        ctx = VaultManager.resolve_turn_context(
+            self._profile(), "Add Dylan's birthday to People."
+        )
+        assert ctx is not None
+        assert "2015-09-08" in ctx
+
     def test_game_reference_decomposed_to_a_common_word_is_not_trusted_as_a_digest(
         self, tmp_vault_dir, monkeypatch
     ):

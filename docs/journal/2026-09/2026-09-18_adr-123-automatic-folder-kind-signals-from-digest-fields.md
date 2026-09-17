@@ -11,8 +11,13 @@ tags:
 
 # ADR-123 — Automatic Folder-Kind Signals, Derived From Existing Digest Fields
 
-- **Status:** Accepted (design; implementation pending). Raised by damiro in
-  discussion after the
+- **Status:** Partially implemented. ADR-123.1-123.3 (the folder-kind
+  signal itself, its cache reuse, and surfacing it on both
+  `get_folder_digest` and `get_random_sample_notes`) shipped 2026-09-18 -
+  see `sympose/vault_folders.py`'s `_folder_kind_signal` and 16 tests in
+  `tests/unit/test_vault_folders.py`. ADR-123.4 (the write-path gate) and
+  ADR-123.5 (the inbound referent-matching generalization) remain design
+  only, not yet built. Raised by damiro in discussion after the
   [2026-09-17 ritual-continuation fix](./2026-09-17_ritual-continuation-carries-no-grounding.md):
   "defining each folder in the vault will make the agents' decisions more
   reliable." Originally documented ahead of any build decision; a same-day

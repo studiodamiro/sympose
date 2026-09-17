@@ -32,6 +32,14 @@ _KIND_SIGNAL_MIN_NOTES = 3
 # it covers this share of the folder's notes - "mostly", not "sometimes".
 _KIND_SIGNAL_PRESENCE_THRESHOLD = 0.6
 _KIND_SIGNAL_MAX_FIELDS = 3
+# A field this common *everywhere* in the vault (e.g. every note gets a
+# `created` timestamp by convention) tells you nothing distinctive about
+# any one folder - confirmed against a real vault, not just theorized: a
+# `Code/` and a `Projects/` folder both surfaced "created, title" before
+# this existed, which doesn't actually distinguish either one. A field
+# only counts as a signal once its presence *here* clears its own
+# vault-wide presence by at least this many percentage points.
+_KIND_SIGNAL_DISTINCTIVENESS_MARGIN = 0.25
 
 
 def _normalize_field_tokens(value: Any) -> list[str]:
@@ -53,7 +61,10 @@ def _normalize_field_tokens(value: Any) -> list[str]:
     return [v.lower()] if v else []
 
 
-def _folder_kind_signal(entries: list[dict[str, Any]]) -> str:
+def _folder_kind_signal(
+    entries: list[dict[str, Any]],
+    vault_wide_entries: list[dict[str, Any]] | None = None,
+) -> str:
     """ADR-123.1 — a structural, zero-configuration one-line hint about
     what kind of folder this is, derived purely from which frontmatter
     keys (and, where one value clearly dominates, which value) actually
@@ -63,12 +74,21 @@ def _folder_kind_signal(entries: list[dict[str, Any]]) -> str:
     naming conventions - a vault that uses `status:` gets a signal built
     on `status`; one with almost no frontmatter gets silence, correctly.
 
+    `vault_wide_entries` (optional - every note in the whole vault, same
+    shape) lets a field's local presence be judged against how common it
+    is *everywhere*, not just in isolation - confirmed necessary against
+    a real vault, where `created`/`title` were common enough vault-wide
+    that they surfaced for every folder without distinguishing any of
+    them. Omit it (e.g. from a plain unit test) to skip that comparison
+    and score on local presence alone.
+
     Silent (empty string) whenever nothing clears the bar: too few notes
-    to trust a fraction, or - the concentration-vs-catch-all case a real
-    vault can have (e.g. a `Code/` folder where most notes share one
-    dominant tag, next to a `Limbo/` catch-all where nothing repeats
-    enough to dominate) - a folder that's genuinely a mix of unrelated
-    notes gets no signal rather than a guessed one.
+    to trust a fraction, a field that isn't actually distinctive once
+    weighed against the whole vault, or - the concentration-vs-catch-all
+    case a real vault can have (e.g. a `Code/` folder where most notes
+    share one dominant tag, next to a `Limbo/` catch-all where nothing
+    repeats enough to dominate) - a folder that's genuinely a mix of
+    unrelated notes gets no signal rather than a guessed one.
 
     Known, accepted limitation (see ADR-123's Consequences): this is a
     correlation, not semantic understanding, and a field that's present
@@ -81,7 +101,11 @@ def _folder_kind_signal(entries: list[dict[str, Any]]) -> str:
         return ""
 
     presence, value_counts, multi_valued = _tally_field_values(entries)
-    signals = _score_field_signals(presence, value_counts, multi_valued, total)
+    baseline = _tally_field_values(vault_wide_entries) if vault_wide_entries else None
+    baseline_total = len(vault_wide_entries) if vault_wide_entries else 0
+    signals = _score_field_signals(
+        presence, value_counts, multi_valued, total, baseline, baseline_total
+    )
     if not signals:
         return ""
     signals.sort(key=lambda s: -s[0])
@@ -138,11 +162,29 @@ def _tally_field_values(
     return presence, value_counts, multi_valued
 
 
+def _is_distinctive(
+    local_fraction: float,
+    baseline_counts: dict[str, int] | None,
+    baseline_key: str,
+    baseline_total: int,
+) -> bool:
+    """True when `local_fraction` clears its own vault-wide baseline by
+    the distinctiveness margin - or when there's no baseline to compare
+    against at all (a plain unit test, or an empty vault), in which case
+    local presence alone is trusted, same as before this existed."""
+    if not baseline_counts or not baseline_total:
+        return True
+    baseline_fraction = baseline_counts.get(baseline_key, 0) / baseline_total
+    return local_fraction - baseline_fraction >= _KIND_SIGNAL_DISTINCTIVENESS_MARGIN
+
+
 def _score_field_signals(
     presence: dict[str, int],
     value_counts: dict[str, dict[str, int]],
     multi_valued: set[str],
     total: int,
+    baseline: tuple[dict[str, int], dict[str, dict[str, int]], set[str]] | None,
+    baseline_total: int,
 ) -> list[tuple[float, str]]:
     """Second pass: which fields clear the presence threshold, and for
     those, whether one value dominates strongly enough to name it directly
@@ -150,7 +192,10 @@ def _score_field_signals(
     A list-shaped field with no dominant value contributes no signal at
     all - a scattered `tags` list is a genuine catch-all, not a defining
     trait - while a scalar field like `created` still signals on presence
-    alone, since its values are expected to differ every note."""
+    alone, since its values are expected to differ every note. Either way,
+    the field (or its dominant value) must also be distinctive against
+    `baseline`, not just locally common - see `_is_distinctive`."""
+    baseline_presence, baseline_value_counts, _ = baseline or ({}, {}, set())
     signals: list[tuple[float, str]] = []
     for key, count in presence.items():
         fraction = count / total
@@ -161,8 +206,16 @@ def _score_field_signals(
         )
         dominant_fraction = dominant_count / total
         if dominant_fraction >= _KIND_SIGNAL_PRESENCE_THRESHOLD:
-            signals.append((dominant_fraction, f"{key}: {dominant_value}"))
-        elif key not in multi_valued:
+            if _is_distinctive(
+                dominant_fraction,
+                baseline_value_counts.get(key),
+                dominant_value,
+                baseline_total,
+            ):
+                signals.append((dominant_fraction, f"{key}: {dominant_value}"))
+        elif key not in multi_valued and _is_distinctive(
+            fraction, baseline_presence, key, baseline_total
+        ):
             signals.append((fraction, key))
     return signals
 
@@ -181,7 +234,9 @@ class FoldersMixin(DiscoveryMixin):
             return f"Folder `{folder_name}` not found in allowed vault directories."
 
         snapshot_entries = cls._get_vault_snapshot(mv, [target_dir])[:max_files]
-        kind_signal = _folder_kind_signal(snapshot_entries)
+        kind_signal = _folder_kind_signal(
+            snapshot_entries, cls._get_vault_snapshot(mv, [mv])
+        )
 
         entries: list[str] = []
         for entry in snapshot_entries:
@@ -253,7 +308,9 @@ class FoldersMixin(DiscoveryMixin):
         samples = cls._sample_and_read_notes(mv, valid_files, count)
         if not samples:
             return samples
-        kind_signal = _folder_kind_signal(cls._get_vault_snapshot(mv, [target_dir]))
+        kind_signal = _folder_kind_signal(
+            cls._get_vault_snapshot(mv, [target_dir]), cls._get_vault_snapshot(mv, [mv])
+        )
         return f"{kind_signal}\n\n{samples}" if kind_signal else samples
 
     @classmethod

@@ -156,6 +156,52 @@ class TestFolderKindSignal:
         assert "tags: code" in _folder_kind_signal(entries)
 
 
+class TestFolderKindSignalVaultWideBaseline:
+    """ADR-123.1's distinctiveness fix: a field this common *everywhere* in
+    the vault shouldn't count as a defining trait of any one folder - found
+    testing against a real vault, where `created`/`title` looked like a
+    signal for every folder alike before this existed."""
+
+    def test_field_common_everywhere_is_not_distinctive(self):
+        folder_entries = [
+            _entry({"created": "2024-01-01"}),
+            _entry({"created": "2024-02-01"}),
+            _entry({"created": "2024-03-01"}),
+        ]
+        # The whole vault (including this folder) is just as saturated
+        # with `created` - nothing about this folder stands out.
+        vault_wide = folder_entries * 10
+        assert _folder_kind_signal(folder_entries, vault_wide) == ""
+
+    def test_field_concentrated_in_one_folder_is_still_distinctive(self):
+        folder_entries = [
+            _entry({"tags": ["person"]}),
+            _entry({"tags": ["person"]}),
+            _entry({"tags": ["person"]}),
+        ]
+        # Vault-wide, "person" is rare - mostly unrelated tags elsewhere.
+        vault_wide = folder_entries + [
+            _entry({"tags": ["journal"]}),
+            _entry({"tags": ["recipe"]}),
+            _entry({"tags": ["quote"]}),
+            _entry({"tags": ["idea"]}),
+            _entry({"tags": ["misc"]}),
+        ]
+        signal = _folder_kind_signal(folder_entries, vault_wide)
+        assert "tags: person" in signal
+
+    def test_no_baseline_falls_back_to_local_presence_only(self):
+        """Callers that don't pass vault_wide_entries (e.g. plain unit
+        tests) get the pre-baseline behavior unchanged."""
+        entries = [
+            _entry({"created": "2024-01-01"}),
+            _entry({"created": "2024-02-01"}),
+            _entry({"created": "2024-03-01"}),
+        ]
+        assert "created" in _folder_kind_signal(entries)
+        assert "created" in _folder_kind_signal(entries, vault_wide_entries=None)
+
+
 # ---------------------------------------------------------------------------
 # Integration: get_folder_digest / get_random_sample_notes prepend the signal
 # ---------------------------------------------------------------------------
@@ -168,6 +214,17 @@ class TestGetFolderDigestKindSignal:
             VaultManager, "get_allowed_dirs", classmethod(lambda cls, profile: [str(vault_dir)])
         )
 
+    def _seed_rest_of_vault(self, tmp_vault_dir):
+        """Unrelated notes elsewhere in the vault, so the distinctiveness
+        check has a real, different baseline to compare a folder against -
+        without this, a test vault containing *only* the folder under test
+        makes every one of its fields trivially "100% vault-wide" too,
+        which the real distinctiveness margin correctly refuses to call
+        distinctive."""
+        other = tmp_vault_dir / "Other"
+        for i, tag in enumerate(["journal", "recipe", "quote", "idea", "misc"]):
+            _write_note(other / f"note{i}.md", f"---\ntags: [{tag}]\n---\n\nStuff {i}\n")
+
     def test_digest_is_prefixed_with_kind_signal_when_one_is_found(self, tmp_vault_dir, monkeypatch):
         folder = tmp_vault_dir / "Code"
         for i in range(3):
@@ -175,6 +232,7 @@ class TestGetFolderDigestKindSignal:
                 folder / f"note{i}.md",
                 f"---\ntags: [code, python]\n---\n\nSnippet {i}\n",
             )
+        self._seed_rest_of_vault(tmp_vault_dir)
         self._wire_vault(monkeypatch, tmp_vault_dir)
 
         digest = VaultManager.get_folder_digest({}, "Code")
@@ -186,6 +244,7 @@ class TestGetFolderDigestKindSignal:
         tags = ["journal", "recipe", "quote", "idea"]
         for i, tag in enumerate(tags):
             _write_note(folder / f"note{i}.md", f"---\ntags: [{tag}]\n---\n\nStuff {i}\n")
+        self._seed_rest_of_vault(tmp_vault_dir)
         self._wire_vault(monkeypatch, tmp_vault_dir)
 
         digest = VaultManager.get_folder_digest({}, "Limbo")
@@ -201,6 +260,7 @@ class TestGetFolderDigestKindSignal:
                 folder / f"note{i}.md",
                 f"---\ntags: [code, python]\n---\n\nSnippet body {i}\n",
             )
+        self._seed_rest_of_vault(tmp_vault_dir)
         self._wire_vault(monkeypatch, tmp_vault_dir)
 
         sample = VaultManager.get_random_sample_notes({}, "Code", count=1)

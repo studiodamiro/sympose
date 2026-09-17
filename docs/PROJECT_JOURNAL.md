@@ -159,6 +159,7 @@ one in [`docs/wiki/index.md`](./wiki/index.md) are kept in sync per the
 
 | Date | Entry |
 | ---- | ----- |
+| 2026-09-17 | [Code-Audit Tier 4 — Patch the Heuristics, Then Fix the Root Cause](./journal/2026-09/2026-09-17_code-audit-tier4-grounding-heuristics-and-redesign.md) |
 | 2026-09-17 | [Code-Audit Tier 3 — Structural Fixes, and Where the Report Undersold the Work](./journal/2026-09/2026-09-17_code-audit-tier3-structural-fixes.md) |
 | 2026-09-17 | [Code-Audit Tier 2 — Moderate Fixes, Grouped Where the Report Said To](./journal/2026-09/2026-09-17_code-audit-tier2-moderate-fixes.md) |
 | 2026-09-17 | [Code-Audit Tier 1 — 14 Quick Fixes, Fact-Checked Before Touching Anything](./journal/2026-09/2026-09-17_code-audit-tier1-quick-fixes.md) |

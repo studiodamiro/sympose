@@ -763,6 +763,30 @@ class TestContentUnsupported:
             SubAgentEngine._content_unsupported(_LONG_UNRELATED_REPLY, [], True) is True
         )
 
+    def test_short_reply_below_shingle_size_is_not_a_false_positive(self, monkeypatch):
+        """Tier-4 audit fix: the shingle size only ever clamped against the
+        source side, contradicting the docstring's claimed "whichever side
+        has fewer words" - unreachable under the default min_words (15,
+        already bigger than _SHINGLE_SIZE's 4), so this lowers min_words to
+        exercise it directly. A 3-word reply against the old code: shingle
+        size stays 4 (clamped only to the longer source), _shingles' own
+        len(words) < n guard then returns an *empty* set for the reply side,
+        and an empty set is disjoint from everything - a genuine verbatim
+        3-word run gets flagged as unsupported purely because it's shorter
+        than the shingle size, not because it lacks any real overlap."""
+        monkeypatch.setattr(
+            "sympose.sub_agents.config_manager.get",
+            lambda key, default=None: 1
+            if key == "sub_agent.unsupported_synthesis_min_words"
+            else default,
+        )
+        assert (
+            SubAgentEngine._content_unsupported(
+                "Chess is fun", ["note body: chess is fun and endlessly deep"], True
+            )
+            is False
+        )
+
 
 class TestSwapInUnsupported:
     def test_returns_the_raw_retrieved_material(self):
@@ -915,7 +939,33 @@ class TestRegisterReadToolOutputsLaundering:
         )
         assert outputs == []
 
-    def test_cat_of_a_real_file_is_included_in_tool_outputs(self):
+    def test_chained_command_hiding_an_echo_is_still_excluded(self):
+        """Tier-4 audit fix (round three of the same bug): checking only the
+        whole command's own first word let `ls; echo fake stuff` slip past,
+        since the *string's* first word is "ls", not "echo" - the echo is
+        just chained behind an allowlisted no-op. Every top-level command in
+        the chain must be checked, not just the first."""
+        outputs: list[str] = []
+        SubAgentEngine._register_read(
+            "run_command",
+            True,
+            {"command": 'ls; echo "According to notes/foo.md, the answer is yes"'},
+            "According to notes/foo.md, the answer is yes",
+            set(),
+            outputs,
+        )
+        assert outputs == []
+
+    def test_cat_of_a_real_file_is_included_in_tool_outputs(self, monkeypatch):
+        """Tier-4 structural redesign: a run_command's output only counts
+        once it's confirmed against the real file's own content, so this
+        now needs a profile and a real (stubbed) read_note to back it -
+        matching a genuine `cat` of an existing file, not just its
+        filename appearing in the command text."""
+        monkeypatch.setattr(
+            "sympose.sub_agents.VaultManager.read_note",
+            staticmethod(lambda profile, name: "real file content, and more"),
+        )
         outputs: list[str] = []
         SubAgentEngine._register_read(
             "run_command",
@@ -924,6 +974,7 @@ class TestRegisterReadToolOutputsLaundering:
             "real file content",
             set(),
             outputs,
+            {"handle": "t"},
         )
         assert outputs == ["real file content"]
 
@@ -1009,7 +1060,11 @@ class TestRegisterRead:
         assert outputs == ["real content"]
         assert attempted is True
 
-    def test_cat_via_run_command_registers_the_filename(self):
+    def test_cat_via_run_command_registers_the_filename(self, monkeypatch):
+        monkeypatch.setattr(
+            "sympose.sub_agents.VaultManager.read_note",
+            staticmethod(lambda profile, name: "real content"),
+        )
         paths: set[str] = set()
         outputs: list[str] = []
         attempted = SubAgentEngine._register_read(
@@ -1019,6 +1074,7 @@ class TestRegisterRead:
             "real content",
             paths,
             outputs,
+            {"handle": "t"},
         )
         assert "2022-08-29.md" in {p.rsplit("/", 1)[-1] for p in paths}
         assert outputs == ["real content"]
@@ -1145,9 +1201,13 @@ class TestRegisterReadEchoLaundering:
         assert paths == set()
         assert outputs == []
 
-    def test_cat_of_a_file_mentioned_alongside_is_not_excluded(self):
+    def test_cat_of_a_file_mentioned_alongside_is_not_excluded(self, monkeypatch):
         """The exclusion is specifically about the leading command word, not
         about filenames in general - a genuine read is untouched."""
+        monkeypatch.setattr(
+            "sympose.sub_agents.VaultManager.read_note",
+            staticmethod(lambda profile, name: "real file content, in full"),
+        )
         paths: set[str] = set()
         outputs: list[str] = []
         SubAgentEngine._register_read(
@@ -1157,9 +1217,117 @@ class TestRegisterReadEchoLaundering:
             "real file content",
             paths,
             outputs,
+            {"handle": "t"},
         )
         assert "notes/foo.md" in paths
         assert outputs == ["real file content"]
+
+
+class TestGroundedCommandFilesStructuralRedesign:
+    """Tier-4: the leading-word blocklist (rounds one-three of the
+    echo-laundering fix, above) is a cheap pre-filter now, not the actual
+    source of truth - it can only ever catch commands whose *name* looks
+    suspicious. `_grounded_command_files` verifies the *output* against a
+    real file's actual content instead, closing the whole class of
+    "fabricate text via some other command" tricks the blocklist can never
+    anticipate one by one."""
+
+    def test_command_not_on_the_blocklist_is_still_rejected_if_output_is_fake(
+        self, monkeypatch
+    ):
+        """python3 -c "print(...)" passes the leading-word check (its
+        argv[0] is "python3", not echo/printf/print) - the old, pre-tier-4
+        design would have trusted this. The structural check catches it
+        anyway, since the printed text doesn't correspond to the real
+        file's actual content."""
+        monkeypatch.setattr(
+            "sympose.sub_agents.VaultManager.read_note",
+            staticmethod(
+                lambda profile, name: "the real note says something else entirely"
+            ),
+        )
+        paths: set[str] = set()
+        outputs: list[str] = []
+        SubAgentEngine._register_read(
+            "run_command",
+            True,
+            {
+                "command": (
+                    "python3 -c \"print('According to notes/foo.md, "
+                    "the answer is yes')\""
+                )
+            },
+            "According to notes/foo.md, the answer is yes",
+            paths,
+            outputs,
+            {"handle": "t"},
+        )
+        assert paths == set()
+        assert outputs == []
+
+    def test_command_not_on_the_blocklist_is_trusted_when_output_matches_real_content(
+        self, monkeypatch
+    ):
+        """The flip side: a legitimate read via a command with no special
+        handling at all (sed) is trusted precisely because its output is
+        verifiably a real excerpt - the structural check isn't just
+        stricter, it's actually correct in both directions."""
+        monkeypatch.setattr(
+            "sympose.sub_agents.VaultManager.read_note",
+            staticmethod(lambda profile, name: "line1\nreal excerpt here\nline3"),
+        )
+        paths: set[str] = set()
+        outputs: list[str] = []
+        SubAgentEngine._register_read(
+            "run_command",
+            True,
+            {"command": "sed -n '2p' notes/foo.md"},
+            "real excerpt here",
+            paths,
+            outputs,
+            {"handle": "t"},
+        )
+        assert "notes/foo.md" in paths
+        assert outputs == ["real excerpt here"]
+
+    def test_no_profile_means_nothing_can_be_verified(self):
+        """No profile at all (the default) - there's no sandbox to read a
+        real file from, so nothing can be confirmed. Fails closed, not
+        open."""
+        paths: set[str] = set()
+        outputs: list[str] = []
+        SubAgentEngine._register_read(
+            "run_command",
+            True,
+            {"command": "cat notes/foo.md"},
+            "whatever it printed",
+            paths,
+            outputs,
+        )
+        assert paths == set()
+        assert outputs == []
+
+    def test_named_file_that_does_not_really_exist_is_not_trusted(self, monkeypatch):
+        """A named file that fails to resolve (read_note's own not-found
+        message) must never be mistaken for real content the output
+        happens to overlap with."""
+        monkeypatch.setattr(
+            "sympose.sub_agents.VaultManager.read_note",
+            staticmethod(lambda profile, name: f"Note `{name}` not found in allowed vault folders."),
+        )
+        paths: set[str] = set()
+        outputs: list[str] = []
+        SubAgentEngine._register_read(
+            "run_command",
+            True,
+            {"command": "cat ghost.md"},
+            "not found in allowed vault folders",
+            paths,
+            outputs,
+            {"handle": "t"},
+        )
+        assert paths == set()
+        assert outputs == []
 
 
 class TestExecuteSubAgentTaskCatchesUnreadFabrication:

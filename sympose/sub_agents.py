@@ -458,6 +458,40 @@ class SubAgentEngine:
     # only whether the command could have read anything real.
     _TEXT_GENERATING_COMMANDS = frozenset({"echo", "printf", "print"})
 
+    @classmethod
+    def _grounded_command_files(
+        cls,
+        named_files: list[str],
+        tool_res: str,
+        profile: dict[str, Any] | None,
+    ) -> list[str]:
+        """Tier-4 structural redesign: the blocklist above (and its
+        compound-command fix) is a cheap first-pass filter, kept as
+        defense-in-depth, not the actual source of truth. This is - rather
+        than trusting a `run_command`'s output because its command *looks*
+        safe, verify the output is *actually* the real, current content of
+        one of the files it named. That closes the whole class of
+        "fabricate command output" tricks, not just the ones on the
+        blocklist: piping invented text through `base64 -d`, an inline
+        `python3 -c "print(...)"`, `awk 'BEGIN{...}'`, or any command that
+        isn't literally echo/printf/print gains nothing, since the output
+        still has to match something real to be trusted. Returns only the
+        subset of `named_files` actually confirmed - not every file merely
+        mentioned in the command line - so `read_paths` never claims a file
+        was read when the model just named it in passing."""
+        if not profile or not tool_res.strip():
+            return []
+        verified = []
+        for rel in named_files:
+            content = VaultManager.read_note(profile, rel)
+            if (
+                content
+                and not content.startswith(("⚠️", "Error", "Note `"))
+                and tool_res.strip() in content
+            ):
+                verified.append(rel)
+        return verified
+
     # Which tool names are even shaped like a retrieval attempt, for the
     # return value below - deliberately by name alone (not by whether this
     # particular call ends up trusted), so a sub-agent doing an unrelated
@@ -479,6 +513,7 @@ class SubAgentEngine:
         tool_res: str,
         read_paths: set[str],
         tool_outputs: list[str],
+        profile: dict[str, Any] | None = None,
     ) -> bool:
         """Records what this tool call actually retrieved, if anything, for
         `_content_unread` (via `read_paths`) and `_content_unsupported` (via
@@ -510,14 +545,21 @@ class SubAgentEngine:
         externally-sourced calls `read_paths` already trusts (a real file
         read, or a real vault index lookup) - `vault_search`'s and
         `web_search`'s ranked results are added too (real, externally
-        sourced data, just not a full body), but an arbitrary `run_command`
-        whose text doesn't name a real vault file, or whose command is one
-        of `_TEXT_GENERATING_COMMANDS` (round two of the same bug: a filename
-        merely *mentioned* inside fabricated echoed text used to still count
-        - blocking by the command's leading word instead is structural, not
-        a phrase list, since it doesn't care what the model writes, only
-        whether the command could have read anything real), is excluded from
-        both."""
+        sourced data, just not a full body).
+
+        `run_command`'s own trust decision went through two textual-heuristic
+        rounds (a filename-in-the-command check, then a leading-command-word
+        check) before this: a tier-4 audit concluded that whole *style* of
+        defense - pattern-matching the command's text or syntax - would keep
+        needing a new patch for each new way to fabricate output, since it
+        never actually looks at whether anything real was produced.
+        `_grounded_command_files` (`profile`, passed through from the
+        dispatch loop) is the structural fix: it verifies the command's
+        output is the real, current content of a file it named, so
+        `read_paths`/`tool_outputs` only ever get a `run_command` result
+        once something real backs it - regardless of which command produced
+        it. The leading-word blocklist stays as a cheap pre-filter, not the
+        actual source of truth anymore."""
         if not ok or t_name not in cls._RETRIEVAL_TOOL_NAMES:
             return False
         if t_name == "read_file":
@@ -527,11 +569,20 @@ class SubAgentEngine:
                 tool_outputs.append(tool_res)
         elif t_name == "run_command":
             cmd = str(args_dict.get("command", "")).strip()
-            first_word = cmd.split(None, 1)[0].lower() if cmd else ""
-            if first_word not in cls._TEXT_GENERATING_COMMANDS:
+            # Cheap first-pass filter (round three of the same bug,
+            # 2026-09-17: checking only the *whole* command's first word let
+            # `ls; echo fake stuff` slip past, since its own first word is
+            # "ls" - the echo is just chained behind an allowlisted no-op.
+            # NativeTools._segment_commands, already ADR-073's own
+            # quote-aware splitter, gives every top-level command's own
+            # leading word). Kept as defense-in-depth even though it's no
+            # longer the actual source of truth - see _grounded_command_files.
+            argv0s = NativeTools._segment_commands(cmd) if cmd else []
+            if not (set(argv0s) & cls._TEXT_GENERATING_COMMANDS):
                 named_files = cls._COMMAND_FILENAME_RE.findall(cmd)
-                if named_files:
-                    read_paths.update(named_files)
+                grounded = cls._grounded_command_files(named_files, tool_res, profile)
+                if grounded:
+                    read_paths.update(grounded)
                     tool_outputs.append(tool_res)
         elif t_name == "vault_sample":
             # vault_sample hands back real note bodies directly (no separate
@@ -724,7 +775,14 @@ class SubAgentEngine:
         source_words = cls._WORD_RE.findall("\n".join(tool_outputs).lower())
         if not source_words:
             return True
-        n = min(cls._SHINGLE_SIZE, len(source_words))
+        # Tier-4 audit: this only ever clamped against the source side, not
+        # the reply's own word count, contradicting the docstring's claimed
+        # "whichever side has fewer words" - unreachable today only because
+        # the default sub_agent.unsupported_synthesis_min_words (15) already
+        # exceeds _SHINGLE_SIZE (4), but a lowered min_words would hit the
+        # exact empty-shingle false positive this function's docstring says
+        # was already fixed once.
+        n = min(cls._SHINGLE_SIZE, len(source_words), len(reply_words))
         reply_shingles = cls._shingles(reply_words, n)
         source_shingles = cls._shingles(source_words, n)
         return reply_shingles.isdisjoint(source_shingles)
@@ -865,7 +923,13 @@ class SubAgentEngine:
                             cls._dispatch_tool_call(tc, tool_to_client, allowed_dirs, parent_prof)
                         )
                         retrieval_attempted = cls._register_read(
-                            t_name, ok, args_dict, tool_res, read_paths, tool_outputs
+                            t_name,
+                            ok,
+                            args_dict,
+                            tool_res,
+                            read_paths,
+                            tool_outputs,
+                            parent_prof,
                         ) or retrieval_attempted
                         yield f"> ⚙️ *Sub-agent calling tool:* `{t_name}`...\n"
                         messages.append(
@@ -965,7 +1029,13 @@ class SubAgentEngine:
                             cls._dispatch_tool_call(tc, tool_to_client, allowed_dirs, parent_prof)
                         )
                         retrieval_attempted = cls._register_read(
-                            t_name, ok, args_dict, tool_res, read_paths, tool_outputs
+                            t_name,
+                            ok,
+                            args_dict,
+                            tool_res,
+                            read_paths,
+                            tool_outputs,
+                            parent_prof,
                         ) or retrieval_attempted
                         call_summary = (
                             f"{t_name}({arg_summary})" if arg_summary else f"{t_name}()"

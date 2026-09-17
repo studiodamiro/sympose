@@ -11,13 +11,16 @@ tags:
 
 # ADR-123 — Automatic Folder-Kind Signals, Derived From Existing Digest Fields
 
-- **Status:** Proposed, not yet implemented. Raised by damiro in discussion
-  after the
+- **Status:** Accepted (design; implementation pending). Raised by damiro in
+  discussion after the
   [2026-09-17 ritual-continuation fix](./2026-09-17_ritual-continuation-carries-no-grounding.md):
   "defining each folder in the vault will make the agents' decisions more
-  reliable." Documented here per his request, ahead of any decision to
-  build it — no live incident yet demonstrates the specific failure mode
-  this would close (see **Revisit trigger** below).
+  reliable." Originally documented ahead of any build decision; a follow-up
+  discussion the same day (see **ADR-123.4** below) refined the design to
+  also cover write-shaped turns, explicitly framed as raising response
+  reliability rather than as a wholesale replacement for the recall-intent
+  keyword check it sits behind — no live incident yet demonstrates the
+  specific failure mode this would close (see **Revisit trigger** below).
 - **Date:** 2026-09-18
 - **Deciders:** damiro (Lead Architect); Grace (Engineering Partner)
 
@@ -71,13 +74,35 @@ Proposed, not yet implemented:
   `get_folder_digest`'s existing `_get_vault_snapshot` mtime cache
   ([vault.py](../../../sympose/vault.py)) rather than re-scanning per
   turn - it is a byproduct of a walk that already happens, not a new one.
-- **ADR-123.3 — Surface as one line, not a paragraph.** When a folder's
-  digest or a full-body note from that folder is injected as ground-truth
-  context, prepend a single structural line (e.g. "This folder's notes
-  mostly carry: birthday, aka - likely personal/contact records.") derived
-  from the cached statistic. Silent (no line at all) when no recognizable
-  field clears a presence threshold - a folder of free-form prose gets no
-  signal, rather than a guessed one.
+- **ADR-123.3 — Surface as one line, not a paragraph.** Whenever a folder's
+  digest, a full-body note from that folder, or a random sample from it is
+  injected as ground-truth context — on a read turn *or* immediately before
+  a write action targets that folder — prepend a single structural line
+  (e.g. "This folder's notes mostly carry: birthday, aka - likely
+  personal/contact records.") derived from the cached statistic. Silent (no
+  line at all) when no recognizable field clears a presence threshold - a
+  folder of free-form prose gets no signal, rather than a guessed one.
+- **ADR-123.4 — The write-path gap, and narrowing the keyword gate rather
+  than widening it.** `resolve_turn_context`'s folder-scope case
+  (`vault_turn_context.py`'s `_resolve_folder_scope_case`) already matches
+  a message against real, discovered folder names — a structural check, not
+  an enumerated one. But it only runs when `has_intent` is true, and
+  `has_intent` (`vault_recall.py`'s `search_triggers()`) is itself a fixed
+  list of recall keywords ("remember," "recall," "what do I know about," …).
+  A write-shaped message ("add Dylan's birthday to People/") rarely trips
+  it, so today writes mostly get no folder context — digest signal or
+  otherwise — at all. The fix is not to add write-shaped phrases to that
+  list (more of the same enumerable pattern this project keeps moving away
+  from); it's to make the real-folder-name match the primary gate on its
+  own, independent of `has_intent`, and demote the keyword list to
+  disambiguating *what kind* of content to pull once a folder is already
+  matched (digest vs. a random sample vs. a targeted search) rather than
+  deciding whether folder-context fires at all. Framed deliberately as a
+  reliability improvement, not a claim that this replaces catch-phrase
+  gating everywhere in the codebase — ADR-124 already narrowed a different
+  catch-phrase list to a coarse gate elsewhere, and this is the same
+  direction applied to `has_intent`'s specific role here, not a general
+  mandate to remove it.
 
 ## Consequences
 
@@ -103,6 +128,13 @@ Proposed, not yet implemented:
   bounded addition, not a new subsystem.
 - Does not, on its own, fix any failure observed so far - see **Revisit
   trigger**.
+- ADR-123.4 means more turns pull a folder digest than do today - any
+  message naming a real folder, not just ones phrased as a recall
+  request. That's the intended effect (writes stop being blind to folder
+  context), but it does raise how often `get_folder_digest`/
+  `get_random_sample_notes` run per session versus today's narrower gate.
+  Still zero-round-trip (no LLM call added), just more frequent disk-cache
+  reads against an already-cheap, already-cached statistic.
 
 ## Alternatives rejected
 
@@ -117,6 +149,14 @@ Proposed, not yet implemented:
   more of the same enumerable-phrase-list pattern that the 2026-09-17 fix
   deliberately moved away from; it doesn't generalize to wording nobody
   has enumerated yet.
+- **Adding write-shaped phrases ("add," "create," "new entry for," …) to
+  `vault_recall.search_triggers()` so writes trip `has_intent` too.**
+  Considered as the obvious minimal patch for ADR-123.4's gap and
+  rejected: it's the same enumerable-list pattern applied to a new set of
+  words, and just as brittle against phrasing nobody thought to list. The
+  real-folder-name match already sitting in `_resolve_folder_scope_case`
+  is the structural signal that should gate this, not a second keyword
+  list running in parallel with the first.
 - **One-time LLM classification per folder, cached.** Not rejected
   outright, but not proposed here: it would add real round-trip cost
   (even if amortized/cached) for a benefit that ADR-123.1's zero-cost

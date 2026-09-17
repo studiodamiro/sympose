@@ -101,6 +101,7 @@ list and is kept in sync per the
 
 | ADR | Title | Status | Date |
 | --- | ----- | ------ | ---- |
+| [ADR-123](../journal/2026-09/2026-09-18_adr-123-automatic-folder-kind-signals-from-digest-fields.md) | Automatic Folder-Kind Signals, Derived From Existing Digest Fields | Proposed | 2026-09-18 |
 | [ADR-122](../journal/2026-09/2026-09-14_adr-122-local-cloud-model-complexity-routing.md) | Local/Cloud Model Routing by Message Complexity | Accepted (design; implementation pending) | 2026-09-14 |
 | [ADR-121](../journal/2026-09/2026-09-14_adr-121-ruff-as-standing-dev-dependency.md) | ruff as a Standing Dev Dependency, With a Narrow, Audited Rule Set | Accepted | 2026-09-14 |
 | [ADR-120](../journal/2026-09/2026-09-14_adr-120-click-drag-cumulative-displacement.md) | Click-vs-Drag Detection: Cumulative Displacement Instead of Per-Event Delta (amends ADR-096, ADR-114) | Accepted | 2026-09-14 |

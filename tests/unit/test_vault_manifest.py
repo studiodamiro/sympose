@@ -94,7 +94,7 @@ class TestBuild:
 
     def test_wikilinks_become_links(self, tmp_path):
         m = vm.build(str(tmp_path), [_entry("a.md", "see [[Other]] and [[Third]]"), _entry("Other.md")])
-        pairs = {(l["source"], l["target"]) for l in m["links"]}
+        pairs = {(link["source"], link["target"]) for link in m["links"]}
         # "Other" resolves to the real Other.md node; "Third" has no match
         # and stays an unresolved (bare-stem) ghost reference.
         assert ("a.md", "Other.md") in pairs and ("a.md", "Third") in pairs
@@ -135,7 +135,7 @@ class TestBuild:
                 _entry("ProjectA/Referrer.md", "See [[Foo]]."),
             ],
         )
-        link = next(l for l in m["links"] if l["source"] == "ProjectA/Referrer.md")
+        link = next(entry for entry in m["links"] if entry["source"] == "ProjectA/Referrer.md")
         assert link["target"] == "ProjectA/Foo.md"
         assert link["target_stem"] == "Foo"
 
@@ -148,7 +148,7 @@ class TestBuild:
                 _entry("Elsewhere/Referrer.md", "See [[Foo]]."),
             ],
         )
-        link = next(l for l in m["links"] if l["source"] == "Elsewhere/Referrer.md")
+        link = next(entry for entry in m["links"] if entry["source"] == "Elsewhere/Referrer.md")
         assert link["target"] == "ProjectA/Foo.md"  # alphabetically first
 
 
@@ -324,7 +324,7 @@ def _fs_providers(mv):
 def _norm(m):
     return (
         sorted((n["id"], n["rel_path"], n["folder"], n["bytes"], n["exists"]) for n in m["nodes"]),
-        sorted((l["source"], l["target"]) for l in m["links"]),
+        sorted((link["source"], link["target"]) for link in m["links"]),
         dict(sorted(m["folders"].items())),
         m["meta"]["note_count"],
     )
@@ -352,7 +352,7 @@ class TestDeltaRead:
         m = vm.ensure_fresh(ws, mv, snap, read_notes=spy, debounce=0)
 
         assert seen["rels"] == ["b.md"]                       # only the changed note
-        assert ("b.md", "a.md") in {(l["source"], l["target"]) for l in m["links"]}
+        assert ("b.md", "a.md") in {(link["source"], link["target"]) for link in m["links"]}
 
     def test_delta_handles_add_and_delete(self, tmp_path):
         mv, ws = self._vault(tmp_path)
@@ -366,7 +366,7 @@ class TestDeltaRead:
 
         ids = {n["id"] for n in m["nodes"] if n["exists"]}
         assert "c.md" in ids and "b.md" not in ids
-        assert all(l["source"] != "b.md" for l in m["links"])
+        assert all(link["source"] != "b.md" for link in m["links"])
         # b.md is gone, so a.md's existing [[b]] link can no longer resolve
         # to a real node - it becomes an (unresolved, bare-stem) ghost.
         assert m["nodes"] and any(n["id"] == "b" and not n["exists"] for n in m["nodes"])
@@ -438,7 +438,7 @@ class TestPatchNote:
         m = vm.load(ws, mv)
         by_id = {n["id"]: n for n in m["nodes"]}
         assert by_id["b.md"]["tags"] == ["new"]
-        assert ("b.md", "a.md") in {(l["source"], l["target"]) for l in m["links"]}
+        assert ("b.md", "a.md") in {(link["source"], link["target"]) for link in m["links"]}
         assert m["meta"]["note_count"] == 2
 
     def test_patch_replaces_prior_links_for_that_note(self, tmp_path):
@@ -446,7 +446,7 @@ class TestPatchNote:
         vm.ensure_fresh(ws, mv, lambda: [_entry("a.md", "[[old]]")], debounce=0)
         vm.patch_note(ws, mv, "a.md", {}, "now points [[new]]")
         targets = {
-            l["target"] for l in vm.load(ws, mv)["links"] if l["source"] == "a.md"
+            link["target"] for link in vm.load(ws, mv)["links"] if link["source"] == "a.md"
         }
         assert targets == {"new"}
 
@@ -626,7 +626,7 @@ class TestVaultGraph:
         assert by_id["Notes/hub.md"]["val"] == 4
         assert by_id["Notes/a.md"]["val"] == 3
         assert by_id["ghost"]["exists"] is False
-        assert {(l["source"], l["target"]) for l in g["links"]} >= {
+        assert {(link["source"], link["target"]) for link in g["links"]} >= {
             ("Notes/hub.md", "Notes/a.md"),
             ("Notes/hub.md", "ghost"),
             ("Notes/b.md", "Notes/a.md"),

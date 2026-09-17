@@ -40,7 +40,7 @@ class TestExtractWikilinks:
 
     def test_multiple_links(self):
         links = vault_links.extract_wikilinks("[[A]] and [[B]] and [[C]]")
-        assert [l["target"] for l in links] == ["A", "B", "C"]
+        assert [link["target"] for link in links] == ["A", "B", "C"]
 
 
 class TestGetForwardLinks:

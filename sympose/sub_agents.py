@@ -119,6 +119,128 @@ class SubAgentTask:
         self.parent_agent = parent_agent
 
 
+def _resolve_skill_mcp_servers(task: SubAgentTask) -> list[str]:
+    """`task.mcp_servers` plus whatever its skills declare as MCP
+    dependencies, de-duplicated."""
+    resolved = list(task.mcp_servers)
+    for s_name in task.skills:
+        skill = skill_manager.get_skill(s_name)
+        if skill and skill.mcp_servers:
+            for s in skill.mcp_servers:
+                if s not in resolved:
+                    resolved.append(s)
+    return resolved
+
+
+def _resolve_mcp_and_tools(
+    task: SubAgentTask,
+) -> tuple[dict[str, MCPClient], dict[str, MCPClient], list[dict[str, Any]]]:
+    """Connects to every MCP server the task (directly, or via its skills)
+    needs, folding their tool schemas in alongside the native built-ins.
+    Returns (active_clients, tool_to_client, all_litellm_tools)."""
+    active_clients: dict[str, MCPClient] = {}
+    tool_to_client: dict[str, MCPClient] = {}
+    all_litellm_tools: list[dict[str, Any]] = list(NativeTools.NATIVE_SCHEMAS)
+
+    for server_name in _resolve_skill_mcp_servers(task):
+        client = mcp_registry.get_client(server_name)
+        if client and client.start():
+            active_clients[server_name] = client
+            for t in client.get_litellm_tools():
+                tool_name = t["function"]["name"]
+                tool_to_client[tool_name] = client
+                all_litellm_tools.append(t)
+        elif server_name not in ("shell", "git", "native"):
+            log.debug(
+                "SubAgentEngine: could not connect to MCP server [%s]", server_name
+            )
+
+    return active_clients, tool_to_client, all_litellm_tools
+
+
+def _build_base_system_prompt(task: SubAgentTask, skills_text: str) -> str:
+    mv = os.getenv("MASTER_VAULT_PATH")
+    env_lines = [f"- Workspace Directory: `{os.getcwd()}`"] + (
+        [f"- Obsidian Vault Directory: `{mv}`"] if mv else []
+    )
+    tmpl = load_prompt(
+        "sub_agent_system.md",
+        "You are an ephemeral Sub-Agent in Sympose on macOS dispatched by parent agent @{{parent_agent}}.\n\n"
+        "### RUNTIME ENVIRONMENT:\n{{environment}}\n\n"
+        "### UNIVERSAL OPERATIONAL DIRECTIVES:\n"
+        "1. GROUND-TRUTH EXECUTION: Use tools directly.\n"
+        "2. ZERO HAND-WAVING: Output factual deliverables.\n"
+        "3. RAPID COMPLETION.",
+    )
+    system_prompt = tmpl.replace("{{parent_agent}}", task.parent_agent).replace(
+        "{{environment}}", "\n".join(env_lines)
+    )
+    if skills_text:
+        system_prompt += f"\n\n{skills_text}"
+    return system_prompt
+
+
+def _append_vault_manifest_digest(system_prompt: str, task: SubAgentTask) -> str:
+    """ADR-078.7: hand a vault-skilled sub-agent the structural map so it
+    navigates from it instead of shelling out to find/ls/wc. No-op when
+    `vault.manifest.enabled` is off or no manifest exists yet."""
+    if not any(s in ("vault_read", "vault_write") for s in task.skills):
+        return system_prompt
+    try:
+        manifest = VaultManager.get_manifest()
+        if manifest and manifest.get("nodes"):
+            return system_prompt + "\n\n" + VaultManager.format_manifest_digest(
+                manifest
+            )
+    except Exception:
+        log.debug(
+            "SubAgentEngine: manifest digest injection failed", exc_info=True
+        )
+    return system_prompt
+
+
+def _append_parent_memory(
+    system_prompt: str, pm: ProfileManager, parent_prof: dict[str, Any] | None
+) -> str:
+    """Live bug: a sub-agent spawned to recall "our favorite game" had no
+    way to know the parent persona's memory already spells out exactly
+    what that means ("favorite game is Vault Roulette - pull a random note
+    and discuss it") - it never receives the parent's working memory at
+    all, so it was left to reconstruct the meaning from scratch via blind
+    grep/find sweeps, which wandered into unrelated directories and still
+    landed on a guessed, mismatched note. Handing it the same working-
+    memory file the parent already has closes that gap at the source
+    instead of asking it to re-derive a fact that was one read away.
+    Appended last (same "lost in the middle" reasoning as
+    build_system_prompt's own placement) since it's the block the very
+    next tool call needs to have fresh in view."""
+    if not parent_prof:
+        return system_prompt
+    persona_mem = pm.get_persona_memory(parent_prof)
+    if not persona_mem:
+        return system_prompt
+    return system_prompt + (
+        "\n\n### Parent Persona's Working Memory\n"
+        "If the task below references something a fact here "
+        "already covers (a nickname for an activity, a "
+        "preference, a running joke), that fact is the answer - "
+        "use it directly instead of searching for or guessing at "
+        "what the term means.\n\n"
+        f"{persona_mem}"
+    )
+
+
+def _resolve_target_model(task: SubAgentTask) -> str:
+    """Task override → skill recommendation → env default."""
+    if task.model:
+        return task.model
+    for s_name in task.skills:
+        s_obj = skill_manager.get_skill(s_name)
+        if s_obj and s_obj.recommended_models:
+            return s_obj.recommended_models[0]
+    return DEFAULT_SUB_AGENT_MODEL
+
+
 class SubAgentEngine:
     """Executes single/multi-turn sub-agent runs with tool calling and skill playbooks."""
 
@@ -149,108 +271,20 @@ class SubAgentEngine:
             VaultManager.get_allowed_dirs(parent_prof) if parent_prof else None
         )
 
-        # Resolve MCP Clients & Tools + Native Built-in Tools
-        active_clients: dict[str, MCPClient] = {}
-        tool_to_client: dict[str, MCPClient] = {}
-        all_litellm_tools: list[dict[str, Any]] = list(NativeTools.NATIVE_SCHEMAS)
-
-        resolved_mcp_servers = list(task.mcp_servers)
-        for s_name in task.skills:
-            skill = skill_manager.get_skill(s_name)
-            if skill and skill.mcp_servers:
-                for s in skill.mcp_servers:
-                    if s not in resolved_mcp_servers:
-                        resolved_mcp_servers.append(s)
-
-        for server_name in resolved_mcp_servers:
-            client = mcp_registry.get_client(server_name)
-            if client and client.start():
-                active_clients[server_name] = client
-                for t in client.get_litellm_tools():
-                    tool_name = t["function"]["name"]
-                    tool_to_client[tool_name] = client
-                    all_litellm_tools.append(t)
-            elif server_name not in ("shell", "git", "native"):
-                log.debug(
-                    "SubAgentEngine: could not connect to MCP server [%s]",
-                    server_name,
-                )
-
-        # Load system prompt template
-        mv = os.getenv("MASTER_VAULT_PATH")
-        env_lines = [f"- Workspace Directory: `{os.getcwd()}`"] + (
-            [f"- Obsidian Vault Directory: `{mv}`"] if mv else []
-        )
-        tmpl = load_prompt(
-            "sub_agent_system.md",
-            "You are an ephemeral Sub-Agent in Sympose on macOS dispatched by parent agent @{{parent_agent}}.\n\n"
-            "### RUNTIME ENVIRONMENT:\n{{environment}}\n\n"
-            "### UNIVERSAL OPERATIONAL DIRECTIVES:\n"
-            "1. GROUND-TRUTH EXECUTION: Use tools directly.\n"
-            "2. ZERO HAND-WAVING: Output factual deliverables.\n"
-            "3. RAPID COMPLETION.",
+        active_clients, tool_to_client, all_litellm_tools = _resolve_mcp_and_tools(
+            task
         )
 
-        system_prompt = tmpl.replace("{{parent_agent}}", task.parent_agent).replace(
-            "{{environment}}", "\n".join(env_lines)
-        )
-        if skills_text:
-            system_prompt += f"\n\n{skills_text}"
-
-        # ADR-078.7: hand a vault-skilled sub-agent the structural map so it
-        # navigates from it instead of shelling out to find/ls/wc. No-op when
-        # `vault.manifest.enabled` is off or no manifest exists yet.
-        if any(s in ("vault_read", "vault_write") for s in task.skills):
-            try:
-                manifest = VaultManager.get_manifest()
-                if manifest and manifest.get("nodes"):
-                    system_prompt += "\n\n" + VaultManager.format_manifest_digest(
-                        manifest
-                    )
-            except Exception:
-                log.debug(
-                    "SubAgentEngine: manifest digest injection failed", exc_info=True
-                )
+        system_prompt = _build_base_system_prompt(task, skills_text)
+        system_prompt = _append_vault_manifest_digest(system_prompt, task)
 
         # Search/sample the vault deterministically instead of reconstructing
         # it from find/grep/shuf every time - see _VAULT_TOOL_SCHEMAS.
         if "vault_read" in task.skills:
             all_litellm_tools.extend(_VAULT_TOOL_SCHEMAS)
 
-        # Live bug: a sub-agent spawned to recall "our favorite game" had no
-        # way to know the parent persona's memory already spells out exactly
-        # what that means ("favorite game is Vault Roulette - pull a random
-        # note and discuss it") - it never receives the parent's working
-        # memory at all, so it was left to reconstruct the meaning from
-        # scratch via blind grep/find sweeps, which wandered into unrelated
-        # directories and still landed on a guessed, mismatched note. Handing
-        # it the same working-memory file the parent already has closes that
-        # gap at the source instead of asking it to re-derive a fact that was
-        # one read away. Appended last (same "lost in the middle" reasoning
-        # as build_system_prompt's own placement) since it's the block the
-        # very next tool call needs to have fresh in view.
-        if parent_prof:
-            persona_mem = pm.get_persona_memory(parent_prof)
-            if persona_mem:
-                system_prompt += (
-                    "\n\n### Parent Persona's Working Memory\n"
-                    "If the task below references something a fact here "
-                    "already covers (a nickname for an activity, a "
-                    "preference, a running joke), that fact is the answer - "
-                    "use it directly instead of searching for or guessing at "
-                    "what the term means.\n\n"
-                    f"{persona_mem}"
-                )
-
-        # Resolve model: task override → skill recommendation → env default
-        target_model = task.model
-        if not target_model:
-            for s_name in task.skills:
-                s_obj = skill_manager.get_skill(s_name)
-                if s_obj and s_obj.recommended_models:
-                    target_model = s_obj.recommended_models[0]
-                    break
-        target_model = target_model or DEFAULT_SUB_AGENT_MODEL
+        system_prompt = _append_parent_memory(system_prompt, pm, parent_prof)
+        target_model = _resolve_target_model(task)
 
         messages: list[dict[str, Any]] = [
             {"role": "system", "content": system_prompt},

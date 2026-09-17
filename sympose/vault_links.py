@@ -71,6 +71,67 @@ def get_forward_links(
     return extract_wikilinks(content)
 
 
+def _wikilink_backlink_entries(
+    line: str, line_idx: int, fn: str, rel_path: str
+) -> list[dict[str, Any]]:
+    """One line's wikilink matches, each shaped as a backlink-index entry."""
+    entries = []
+    for match in _WIKILINK_PATTERN.finditer(line):
+        target = match.group(1).strip()
+        heading = match.group(2).strip() if match.group(2) else None
+        alias = match.group(3).strip() if match.group(3) else None
+        stem = os.path.splitext(os.path.basename(target))[0].lower().strip()
+        entries.append(
+            {
+                "source_file": fn,
+                "rel_path": rel_path,
+                "target": target,
+                "target_stem": stem,
+                "heading": heading,
+                "alias": alias,
+                "line_no": line_idx,
+                "context_snippet": line.strip(),
+            }
+        )
+    return entries
+
+
+def _index_file_backlinks(
+    inverted_index: dict[str, list[dict[str, Any]]], fp: str, fn: str, mv: str
+) -> None:
+    rel_path = os.path.relpath(fp, mv)
+    try:
+        with open(fp, "r", encoding="utf-8", errors="ignore") as f:
+            for line_idx, line in enumerate(f, start=1):
+                for entry in _wikilink_backlink_entries(line, line_idx, fn, rel_path):
+                    inverted_index[entry["target_stem"]].append(entry)
+    except Exception as e:
+        log.debug(
+            "Skipping unreadable file in backlink index %s: %s", rel_path, e
+        )
+
+
+def _index_dir_backlinks(
+    inverted_index: dict[str, list[dict[str, Any]]],
+    allowed: str,
+    mv: str,
+    ignore_dirs: set[str],
+) -> None:
+    if not os.path.exists(allowed):
+        return
+    for root, dirs, files in os.walk(allowed):
+        dirs[:] = [
+            d for d in dirs if d.lower() not in ignore_dirs and not d.startswith(".")
+        ]
+        for fn in sorted(files):
+            if not fn.endswith((".md", ".markdown", ".txt")):
+                continue
+            fp = os.path.join(root, fn)
+            if not is_safe_path(fp, allowed):
+                continue
+            _index_file_backlinks(inverted_index, fp, fn, mv)
+
+
 def build_backlink_index(profile: dict[str, Any]) -> dict[str, list[dict[str, Any]]]:
     """Constructs an inverted backlink index, using a mtime cache to skip re-walks on unchanged vaults."""
     mv, allowed_dirs = (
@@ -90,63 +151,9 @@ def build_backlink_index(profile: dict[str, Any]) -> dict[str, list[dict[str, An
         return cached_index
 
     inverted_index: dict[str, list[dict[str, Any]]] = defaultdict(list)
-
     try:
         for allowed in allowed_dirs:
-            if not os.path.exists(allowed):
-                continue
-            for root, dirs, files in os.walk(allowed):
-                dirs[:] = [
-                    d
-                    for d in dirs
-                    if d.lower() not in ignore_dirs and not d.startswith(".")
-                ]
-                for fn in sorted(files):
-                    if fn.endswith((".md", ".markdown", ".txt")):
-                        fp = os.path.join(root, fn)
-                        if not is_safe_path(fp, allowed):
-                            continue
-                        rel_path = os.path.relpath(fp, mv)
-                        try:
-                            with open(fp, "r", encoding="utf-8", errors="ignore") as f:
-                                for line_idx, line in enumerate(f, start=1):
-                                    for match in _WIKILINK_PATTERN.finditer(line):
-                                        target = match.group(1).strip()
-                                        heading = (
-                                            match.group(2).strip()
-                                            if match.group(2)
-                                            else None
-                                        )
-                                        alias = (
-                                            match.group(3).strip()
-                                            if match.group(3)
-                                            else None
-                                        )
-                                        stem = (
-                                            os.path.splitext(os.path.basename(target))[
-                                                0
-                                            ]
-                                            .lower()
-                                            .strip()
-                                        )
-                                        inverted_index[stem].append(
-                                            {
-                                                "source_file": fn,
-                                                "rel_path": rel_path,
-                                                "target": target,
-                                                "target_stem": stem,
-                                                "heading": heading,
-                                                "alias": alias,
-                                                "line_no": line_idx,
-                                                "context_snippet": line.strip(),
-                                            }
-                                        )
-                        except Exception as e:
-                            log.debug(
-                                "Skipping unreadable file in backlink index %s: %s",
-                                rel_path,
-                                e,
-                            )
+            _index_dir_backlinks(inverted_index, allowed, mv, ignore_dirs)
     except Exception as e:
         log.debug("Backlink index build ended early: %s", e)
 

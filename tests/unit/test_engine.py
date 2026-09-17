@@ -376,6 +376,47 @@ class TestVaultClaimRegex:
         assert not engine._VAULT_CLAIM_RE.search("check src/app.py for that")
 
 
+class TestResolveStrictGroundingSubject:
+    """ADR-124 added a structural (index-backed) check alongside the phrase
+    lists above, to catch a claim naming something real regardless of
+    wording. A code-review pass on that same change caught a second,
+    unscoped copy of the check running directly on the user's own raw
+    message - exactly the false positive ADR-124 itself documents and
+    rejects: a vault note titled "Coffee" would turn an ordinary "Coffee is
+    great this morning" into a spurious vault fetch. That copy was removed;
+    these lock in both halves of the fix."""
+
+    def test_casual_mention_of_a_real_vault_name_is_not_a_subject(
+        self, engine, tmp_vault_dir, monkeypatch
+    ):
+        coffee = tmp_vault_dir / "Coffee"
+        coffee.mkdir()
+        (coffee / "Notes.md").write_text("# Notes\n")
+        monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
+        profile = {"vault_folders": ["*"]}
+
+        subj = engine._resolve_strict_grounding_subject(
+            profile, "Coffee is great this morning", "Sounds lovely!", []
+        )
+        assert subj == ""
+
+    def test_reply_naming_a_real_folder_with_no_recognized_phrasing_is_still_caught(
+        self, engine, tmp_vault_dir, monkeypatch
+    ):
+        """The live gap ADR-124 exists to close: the model's own reply names
+        a real folder with wording no phrase list anticipated."""
+        people = tmp_vault_dir / "People"
+        people.mkdir()
+        (people / "Dylan.md").write_text("# Dylan\n")
+        monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
+        profile = {"vault_folders": ["*"]}
+
+        subj = engine._resolve_strict_grounding_subject(
+            profile, "tell me more", "this one is from the People directory", []
+        )
+        assert subj == "People"
+
+
 class TestResolveKeepAlive:
     """keep_alive is a property of which model is loaded into Ollama, not
     which persona calls it. `performance.local_model_keep_alive` (keyed by

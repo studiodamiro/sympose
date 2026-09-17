@@ -184,6 +184,196 @@ class NativeTools:
         }
 
     @classmethod
+    def _check_sibling_folder_sandbox(
+        cls, cmd: str, allowed_dirs: list[str] | None
+    ) -> str | None:
+        """Blocks a `run_command` mentioning a vault subfolder outside a
+        scoped persona's sandbox, e.g. `cat Journal/secret.md` for a persona
+        only allowed into `Thoughts/`. Returns an error message, or None
+        when the command may run (including when there's no vault sandbox
+        to check, or the persona has full vault access)."""
+        if not allowed_dirs:
+            return None
+        mv = os.getenv("MASTER_VAULT_PATH")
+        # A persona with full vault access (`vault_folders: ["*"]`) has an
+        # `allowed_dirs` of just the vault root itself, whose relpath to
+        # itself is "." - every real subfolder name then fails the "not in
+        # allowed_rel" check below and gets rejected as a "sibling" outside
+        # the sandbox, even though the whole vault *is* the sandbox. Live
+        # bug: a full-access persona's sub-agent got a fabricated-looking
+        # "Security Error" blocking `Thoughts/` (and would block every
+        # other top-level folder identically) purely because of how full
+        # access happens to be represented, not any real boundary.
+        has_full_vault_access = bool(mv) and any(
+            os.path.realpath(d) == os.path.realpath(mv) for d in allowed_dirs
+        )
+        if not mv or not os.path.exists(mv) or has_full_vault_access:
+            return None
+
+        allowed_rel = {os.path.relpath(d, mv).lower() for d in allowed_dirs}
+        try:
+            all_subdirs = [
+                d
+                for d in os.listdir(mv)
+                if os.path.isdir(os.path.join(mv, d)) and not d.startswith(".")
+            ]
+            for f_sub in [d for d in all_subdirs if d.lower() not in allowed_rel]:
+                if re.search(
+                    rf"(?:^|[/\\s\"']){re.escape(f_sub.lower())}(?:[/\\s\"'\.]|$)",
+                    cmd.lower(),
+                ):
+                    return (
+                        f"Security Error: Command targets `{f_sub}/` which is "
+                        "outside assigned vault sandbox."
+                    )
+        except Exception as e:
+            # Secondary, defense-in-depth check only — the primary argv[0]
+            # allowlist already gated this command, so failing here fails
+            # open rather than blocking a legitimate command over a
+            # transient os.listdir error. Still worth a loud log: a
+            # security check silently not running is worth knowing about.
+            log.warning("Sibling-folder sandbox check failed, skipping it: %s", e)
+        return None
+
+    @classmethod
+    def _check_shell_command_allowed(
+        cls, cmd: str, allowed_dirs: list[str] | None
+    ) -> str | None:
+        """Security gates for `run_command`: balanced quotes (needed for the
+        allowlist check below to be trustworthy), the argv[0] allowlist
+        (ADR-073), then the sibling-folder sandbox check. Returns an error
+        message, or None if the command may run."""
+        # `_segment_commands`' quote-aware split is only guaranteed correct
+        # when the command's quotes are evenly balanced overall — an odd
+        # count means it can no longer tell whether an operator is
+        # genuinely inside a quoted string, which is exactly the ambiguity
+        # a disallowed command could hide in. Fail closed rather than guess.
+        if cmd.count('"') % 2 or cmd.count("'") % 2:
+            return (
+                "Security Error: Command has unbalanced quotes and can't be "
+                "safely checked against the shell allowlist (ADR-073)."
+            )
+
+        allowlist = cls._shell_allowlist()
+        argv0s = cls._segment_commands(cmd)
+        disallowed = sorted({w for w in argv0s if w not in allowlist})
+        if disallowed:
+            return (
+                f"Security Error: Command blocked by sub-agent shell allowlist (ADR-073): "
+                f"`{', '.join(disallowed)}` not permitted. Add to `sub_agent.shell_allowlist` "
+                f"in config.yaml to allow it."
+            )
+
+        return cls._check_sibling_folder_sandbox(cmd, allowed_dirs)
+
+    @classmethod
+    def _run_shell_command(cls, cmd: str) -> tuple[bool, str]:
+        cmd_timeout = cls._shell_command_timeout()
+        try:
+            res = subprocess.run(
+                cmd,
+                shell=True,
+                capture_output=True,
+                text=True,
+                timeout=cmd_timeout,
+                cwd=os.getcwd(),
+                env=cls._scrubbed_env(),
+                check=False,  # deliberate — a non-zero exit is reported
+                # back as output below, not raised (e.g. `grep` finding
+                # nothing is exit 1, not a tool failure worth crashing on)
+            )
+            stdout = res.stdout.strip()
+            stderr = res.stderr.strip()
+            output = stdout
+            if stderr:
+                output = (
+                    (output + f"\n[stderr]:\n{stderr}").strip()
+                    if output
+                    else f"[stderr]:\n{stderr}"
+                )
+            if not output:
+                output = "(Command executed successfully with no stdout output)"
+            return (res.returncode == 0), output
+        except subprocess.TimeoutExpired:
+            return False, f"Command timed out after {cmd_timeout:g}s: `{cmd}`"
+        except Exception as e:
+            return False, f"Error executing command: {e}"
+
+    @classmethod
+    def _execute_run_command(
+        cls, args: dict[str, Any], allowed_dirs: list[str] | None
+    ) -> tuple[bool, str]:
+        cmd = args.get("command", "").strip()
+        if not cmd:
+            return False, "Error: No command provided."
+        error = cls._check_shell_command_allowed(cmd, allowed_dirs)
+        if error:
+            return False, error
+        return cls._run_shell_command(cmd)
+
+    @classmethod
+    def _execute_read_file(
+        cls, args: dict[str, Any], allowed_dirs: list[str] | None
+    ) -> tuple[bool, str]:
+        raw_path = args.get("path", "").strip()
+        if not raw_path:
+            return False, "File path is required."
+        mv = os.getenv("MASTER_VAULT_PATH")
+        target = raw_path
+        if not os.path.exists(target) and mv:
+            vault_candidate = os.path.join(mv, raw_path)
+            if os.path.exists(vault_candidate):
+                target = vault_candidate
+        if not os.path.exists(target):
+            return False, f"File not found: `{raw_path}`"
+
+        # Check sandbox boundary if allowed_dirs is enforced
+        if allowed_dirs:
+            from sympose.config import is_safe_path
+
+            target_abs = os.path.abspath(target)
+            is_in_workspace = is_safe_path(target_abs, os.getcwd())
+            is_in_allowed_vault = any(
+                is_safe_path(target_abs, d) for d in allowed_dirs
+            )
+            if not (is_in_workspace or is_in_allowed_vault):
+                return (
+                    False,
+                    f"Security Error: Access to `{raw_path}` is outside assigned vault sandbox.",
+                )
+
+        try:
+            with open(target, "r", encoding="utf-8", errors="ignore") as f:
+                return True, f.read()
+        except Exception as e:
+            return False, f"Error reading `{raw_path}`: {e}"
+
+    @staticmethod
+    def _execute_web_search(args: dict[str, Any]) -> tuple[bool, str]:
+        query = args.get("query", "").strip()
+        if not query:
+            return False, "Search query is required."
+        try:
+            max_results = int(args.get("max_results", 5))
+        except (TypeError, ValueError):
+            return False, "`max_results` must be an integer."
+        try:
+            try:
+                from ddgs import DDGS
+            except ImportError:
+                from duckduckgo_search import DDGS
+            results = list(DDGS().text(query, max_results=max_results))
+            if not results:
+                return True, "No search results found."
+            formatted = [
+                f"- **{r.get('title', 'Result')}**: {r.get('body', '')} (URL: {r.get('href', '')})"
+                for r in results
+            ]
+            return True, "\n".join(formatted)
+        except Exception as e:
+            return False, f"Web search error: {e}"
+
+    @classmethod
     def execute(
         cls,
         tool_name: str,
@@ -192,165 +382,9 @@ class NativeTools:
     ) -> tuple[bool, str]:
         """Executes a built-in native tool and returns (success, output)."""
         if tool_name == "run_command":
-            cmd = args.get("command", "").strip()
-            if not cmd:
-                return False, "Error: No command provided."
-
-            # `_segment_commands`' quote-aware split (below) is only
-            # guaranteed correct when the command's quotes are evenly
-            # balanced overall — an odd count means it can no longer tell
-            # whether an operator is genuinely inside a quoted string, which
-            # is exactly the ambiguity a disallowed command could hide in.
-            # Fail closed rather than guess.
-            if cmd.count('"') % 2 or cmd.count("'") % 2:
-                return False, (
-                    "Security Error: Command has unbalanced quotes and can't be "
-                    "safely checked against the shell allowlist (ADR-073)."
-                )
-
-            allowlist = cls._shell_allowlist()
-            argv0s = cls._segment_commands(cmd)
-            disallowed = sorted({w for w in argv0s if w not in allowlist})
-            if disallowed:
-                return False, (
-                    f"Security Error: Command blocked by sub-agent shell allowlist (ADR-073): "
-                    f"`{', '.join(disallowed)}` not permitted. Add to `sub_agent.shell_allowlist` "
-                    f"in config.yaml to allow it."
-                )
-
-            if allowed_dirs:
-                mv = os.getenv("MASTER_VAULT_PATH")
-                # A persona with full vault access (`vault_folders: ["*"]`)
-                # has an `allowed_dirs` of just the vault root itself, whose
-                # relpath to itself is "." - every real subfolder name then
-                # fails the `not in allowed_rel` check below and gets
-                # rejected as a "sibling" outside the sandbox, even though
-                # the whole vault *is* the sandbox. Live bug: a full-access
-                # persona's sub-agent got a fabricated-looking "Security
-                # Error" blocking `Thoughts/` (and would block every other
-                # top-level folder identically) purely because of how full
-                # access happens to be represented, not any real boundary.
-                has_full_vault_access = bool(mv) and any(
-                    os.path.realpath(d) == os.path.realpath(mv) for d in allowed_dirs
-                )
-                if mv and os.path.exists(mv) and not has_full_vault_access:
-                    allowed_rel = {os.path.relpath(d, mv).lower() for d in allowed_dirs}
-                    try:
-                        all_subdirs = [
-                            d
-                            for d in os.listdir(mv)
-                            if os.path.isdir(os.path.join(mv, d))
-                            and not d.startswith(".")
-                        ]
-                        for f_sub in [
-                            d for d in all_subdirs if d.lower() not in allowed_rel
-                        ]:
-                            if re.search(
-                                rf"(?:^|[/\\s\"']){re.escape(f_sub.lower())}(?:[/\\s\"'\.]|$)",
-                                cmd.lower(),
-                            ):
-                                return (
-                                    False,
-                                    f"Security Error: Command targets `{f_sub}/` which is outside assigned vault sandbox.",
-                                )
-                    except Exception as e:
-                        # Secondary, defense-in-depth check only — the primary
-                        # argv[0] allowlist above already gated this command,
-                        # so failing here fails open rather than blocking a
-                        # legitimate command over a transient os.listdir error.
-                        # Still worth a loud log: a security check silently
-                        # not running is worth knowing about.
-                        log.warning(
-                            "Sibling-folder sandbox check failed, skipping it: %s", e
-                        )
-
-            cmd_timeout = cls._shell_command_timeout()
-            try:
-                res = subprocess.run(
-                    cmd,
-                    shell=True,
-                    capture_output=True,
-                    text=True,
-                    timeout=cmd_timeout,
-                    cwd=os.getcwd(),
-                    env=cls._scrubbed_env(),
-                    check=False,  # deliberate — a non-zero exit is reported
-                    # back as output below, not raised (e.g. `grep` finding
-                    # nothing is exit 1, not a tool failure worth crashing on)
-                )
-                stdout = res.stdout.strip()
-                stderr = res.stderr.strip()
-                output = stdout
-                if stderr:
-                    output = (
-                        (output + f"\n[stderr]:\n{stderr}").strip()
-                        if output
-                        else f"[stderr]:\n{stderr}"
-                    )
-                if not output:
-                    output = "(Command executed successfully with no stdout output)"
-                return (res.returncode == 0), output
-            except subprocess.TimeoutExpired:
-                return False, f"Command timed out after {cmd_timeout:g}s: `{cmd}`"
-            except Exception as e:
-                return False, f"Error executing command: {e}"
-
-        elif tool_name == "read_file":
-            raw_path = args.get("path", "").strip()
-            if not raw_path:
-                return False, "File path is required."
-            mv = os.getenv("MASTER_VAULT_PATH")
-            target = raw_path
-            if not os.path.exists(target) and mv:
-                vault_candidate = os.path.join(mv, raw_path)
-                if os.path.exists(vault_candidate):
-                    target = vault_candidate
-            if not os.path.exists(target):
-                return False, f"File not found: `{raw_path}`"
-
-            # Check sandbox boundary if allowed_dirs is enforced
-            if allowed_dirs:
-                from sympose.config import is_safe_path
-
-                target_abs = os.path.abspath(target)
-                is_in_workspace = is_safe_path(target_abs, os.getcwd())
-                is_in_allowed_vault = any(
-                    is_safe_path(target_abs, d) for d in allowed_dirs
-                )
-                if not (is_in_workspace or is_in_allowed_vault):
-                    return (
-                        False,
-                        f"Security Error: Access to `{raw_path}` is outside assigned vault sandbox.",
-                    )
-
-            try:
-                with open(target, "r", encoding="utf-8", errors="ignore") as f:
-                    return True, f.read()
-            except Exception as e:
-                return False, f"Error reading `{raw_path}`: {e}"
-
-        elif tool_name == "web_search":
-            query = args.get("query", "").strip()
-            if not query:
-                return False, "Search query is required."
-            try:
-                max_results = int(args.get("max_results", 5))
-            except (TypeError, ValueError):
-                return False, "`max_results` must be an integer."
-            try:
-                try:
-                    from ddgs import DDGS
-                except ImportError:
-                    from duckduckgo_search import DDGS
-                results = list(DDGS().text(query, max_results=max_results))
-                if not results:
-                    return True, "No search results found."
-                formatted = [
-                    f"- **{r.get('title', 'Result')}**: {r.get('body', '')} (URL: {r.get('href', '')})"
-                    for r in results
-                ]
-                return True, "\n".join(formatted)
-            except Exception as e:
-                return False, f"Web search error: {e}"
-
+            return cls._execute_run_command(args, allowed_dirs)
+        if tool_name == "read_file":
+            return cls._execute_read_file(args, allowed_dirs)
+        if tool_name == "web_search":
+            return cls._execute_web_search(args)
         return False, f"Unknown native tool: `{tool_name}`"

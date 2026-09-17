@@ -480,6 +480,15 @@ def build_default_config() -> dict[str, Any]:
     return out
 
 
+def _coerce_bool(raw: str, r: str) -> bool:
+    low = r.lower()
+    if low in ("true", "1", "yes", "on"):
+        return True
+    if low in ("false", "0", "no", "off"):
+        return False
+    raise ValueError(f"`{raw}` is not a boolean (use true/false)")
+
+
 def coerce(setting: Setting, raw: Any) -> Any:
     """Turn a raw CLI/tag string into the setting's declared type.
     Raises ValueError with a human message on a bad value."""
@@ -492,12 +501,7 @@ def coerce(setting: Setting, raw: Any) -> Any:
         if setting.type == "float":
             return float(r)
         if setting.type == "bool":
-            low = r.lower()
-            if low in ("true", "1", "yes", "on"):
-                return True
-            if low in ("false", "0", "no", "off"):
-                return False
-            raise ValueError(f"`{raw}` is not a boolean (use true/false)")
+            return _coerce_bool(raw, r)
         if setting.type == "list":
             return [p.strip() for p in r.split(",") if p.strip()]
         if setting.type == "dict":

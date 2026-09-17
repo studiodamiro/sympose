@@ -7,18 +7,29 @@ request at all.
 `resolve_turn_context` — the orchestrator that ties this together with
 nearly every other vault capability (search, backlinks, folder discovery,
 the manifest digest, chronological sampling) to answer a turn from real
-vault content, or not at all — deliberately stays a VaultManager method in
-vault.py rather than moving here. It coordinates across roughly a dozen
-not-yet-extracted VaultManager methods (read_note, get_manifest,
-find_chronological_notes, get_discovered_folders, get_random_sample_notes,
-get_folder_digest, has_vault_skill, ...); splitting it out would mean
-threading that many hook parameters through the single most
-safety-critical function in the app for a mechanical file-organization
-win. The actual anti-hallucination guarantee lives in how this function is
-*used* — it only ever answers from a real retrieval, never a guess — not
-in which file its orchestration code lives in, so this was judged not
-worth the added risk. What moved here is everything self-contained: pure
-text processing, no I/O, no cross-cluster dependency.
+vault content, or not at all — originally stayed a VaultManager method
+directly in vault.py rather than moving anywhere, because it coordinated
+across roughly a dozen not-yet-extracted VaultManager methods and
+splitting it out then would have meant threading that many hook
+parameters through the single most safety-critical function in the app
+for a mechanical file-organization win.
+
+ADR-125 revisits that: `resolve_turn_context` is now decomposed into 8
+small, independently-parametered `_resolve_*_case` methods (a separate,
+prior change, not a file-organization move on its own), which removes the
+parameter-threading risk this module's decision was originally about -
+each case already takes only the few things it needs, not a dozen
+dependencies threaded through one function. With that risk gone, the
+whole cluster (the case methods, `_recall_hit`, `_recall_prep`,
+`refresh_note_context`, `resolve_ritual_random_pull`, ...) moves to
+`vault_turn_context.py` as a `TurnContextMixin` — a mixin, not free
+functions, so `cls.read_note`/`cls.get_manifest`/etc. keep resolving
+through `VaultManager`'s own MRO with no parameters threaded at all. This
+module keeps the pieces that were always pure text processing with no
+`cls` dependency, `describes_random_pull_ritual` included as of ADR-125 -
+the anti-hallucination guarantee lives in how `resolve_turn_context` is
+*used* (it only ever answers from a real retrieval, never a guess), not
+in which file its orchestration code lives in.
 """
 
 import re
@@ -201,6 +212,57 @@ _SUBJECT_STOPWORDS: frozenset = frozenset(
 )
 
 
+def _strip_leadin(q: str) -> tuple[str, bool]:
+    """Strips politeness wrappers ('can you please …') and recall lead-ins
+    ('pull up', 'tell me about', …) off the front of a clause, repeating
+    until neither matches. Returns (remainder, had_leadin)."""
+    had_leadin = False
+    changed = True
+    while changed:
+        changed = False
+        for phrase in _RECALL_WRAPPERS:
+            if q.startswith(phrase + " "):
+                q, changed = q[len(phrase) :].strip(), True
+                break
+        for phrase in _RECALL_LEADINS:
+            if q.startswith(phrase + " "):
+                q, changed, had_leadin = q[len(phrase) :].strip(), True, True
+                break
+    return q, had_leadin
+
+
+def _trim_subject_clause(q: str) -> str:
+    """Strips a trailing 'in my journal/vault/…' clause and everything past
+    a conjunction, then trims stopwords from both ends of what remains."""
+    m = re.search(
+        r"\b(?:about|on|regarding|mentioning|discussing|concerning)\s+(.+)$", q
+    )
+    if m:
+        q = m.group(1).strip()
+    q = re.sub(
+        r"\s+(?:in|from|within|inside)\s+(?:my|our|the\s+)?\s*"
+        r"(?:journal|diary|vault|notes?|daily|entries|reflections?|logs?)\b.*$",
+        "",
+        q,
+    ).strip()
+    # A recall request rarely spans a conjunction ("… and see if my
+    # memory's right"); keep only the head clause.
+    q = re.split(r"\s+(?:and|but|so|then)\s+", q, maxsplit=1)[0].strip()
+    toks = [t for t in re.split(r"\s+", q) if t]
+    while toks and toks[0] in _SUBJECT_STOPWORDS:
+        toks.pop(0)
+    while toks and toks[-1] in _SUBJECT_STOPWORDS:
+        toks.pop()
+    return " ".join(toks).strip()
+
+
+def _extract_subject_from_clause(q: str) -> tuple[str, bool]:
+    """One clause's (subject, had_leadin) — lead-in/wrapper stripping, then
+    subject trimming."""
+    q, had_leadin = _strip_leadin(q)
+    return _trim_subject_clause(q), had_leadin
+
+
 def extract_recall_subject(message: str) -> tuple[str, bool]:
     """Best-effort extraction of the *subject* of a conversational recall
     request: 'pull up my notes on Rilke' -> 'rilke', 'what did I write about
@@ -217,46 +279,12 @@ def extract_recall_subject(message: str) -> tuple[str, bool]:
     # still matches the note that only ever spells it "Dylan".
     raw = re.sub(r"(\w)['’]s\b", r"\1", raw)
 
-    def _from_clause(q: str) -> tuple[str, bool]:
-        had_leadin = False
-        changed = True
-        while changed:
-            changed = False
-            for phrase in _RECALL_WRAPPERS:
-                if q.startswith(phrase + " "):
-                    q, changed = q[len(phrase) :].strip(), True
-                    break
-            for phrase in _RECALL_LEADINS:
-                if q.startswith(phrase + " "):
-                    q, changed, had_leadin = q[len(phrase) :].strip(), True, True
-                    break
-        m = re.search(
-            r"\b(?:about|on|regarding|mentioning|discussing|concerning)\s+(.+)$", q
-        )
-        if m:
-            q = m.group(1).strip()
-        q = re.sub(
-            r"\s+(?:in|from|within|inside)\s+(?:my|our|the\s+)?\s*"
-            r"(?:journal|diary|vault|notes?|daily|entries|reflections?|logs?)\b.*$",
-            "",
-            q,
-        ).strip()
-        # A recall request rarely spans a conjunction ("… and see if my
-        # memory's right"); keep only the head clause.
-        q = re.split(r"\s+(?:and|but|so|then)\s+", q, maxsplit=1)[0].strip()
-        toks = [t for t in re.split(r"\s+", q) if t]
-        while toks and toks[0] in _SUBJECT_STOPWORDS:
-            toks.pop(0)
-        while toks and toks[-1] in _SUBJECT_STOPWORDS:
-            toks.pop()
-        return " ".join(toks).strip(), had_leadin
-
     # "i wish i could do that. can you pull up X" — process each sentence and
     # prefer the one that actually carries a recall lead-in.
     clauses = [c.strip() for c in re.split(r"[.?!]+\s+", raw) if c.strip()] or [raw]
     best = ("", False)
     for c in clauses:
-        subj, lead = _from_clause(c)
+        subj, lead = _extract_subject_from_clause(c)
         if lead and subj:
             return subj, True
         if subj and not best[0]:
@@ -312,6 +340,19 @@ def has_recall_intent(message: str) -> bool:
     if had_leadin:
         return True
     return any(k in message.lower() for k in search_triggers())
+
+
+def describes_random_pull_ritual(fact: str) -> bool:
+    """Generic detector for a persona-memory fact that itself describes a
+    "pull a random note and discuss it" ritual, by whatever name the user
+    gave it - not tied to any one wording or persona. Used to decide
+    whether to honor such a fact for real (see
+    VaultManager.resolve_ritual_random_pull) rather than let the model
+    invent a plausible-sounding title."""
+    low = (fact or "").lower()
+    return "random" in low and any(
+        w in low for w in ("note", "entry", "page", "pull", "pulled", "picked")
+    )
 
 
 def recall_candidates(subject: str, drop: str = "") -> list[str]:

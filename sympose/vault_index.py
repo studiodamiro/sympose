@@ -12,7 +12,7 @@ Kept fresh two ways: an exact single-row upsert called directly from
 write_note/append_note (searchable on the very next query, independent of
 mtime timing), and a full rebuild whenever the tracked directory-mtime
 watermark drifts — catches edits made outside Sympose. Same directory-mtime
-tradeoff as `_VAULT_SNAPSHOT_CACHE` (vault.py): a write several levels below
+tradeoff as `_VAULT_SNAPSHOT_CACHE` (vault_snapshot.py): a write several levels below
 a watched directory only bubbles up as far as its immediate parent's mtime.
 
 If this Python's sqlite3 wasn't built with FTS5, every function here

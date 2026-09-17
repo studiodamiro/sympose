@@ -25,6 +25,8 @@ one in [`docs/wiki/index.md`](./wiki/index.md) are kept in sync per the
 
 | ADR | Title | Status | Date | Source |
 | --- | ----- | ------ | ---- | ------ |
+| ADR-125 | Splitting vault.py and engine.py Into Focused, Under-200-LOC Modules | Implemented | 2026-09-18 | [2026-09-18_adr-125-splitting-vault-and-engine-under-200-loc.md](./journal/2026-09/2026-09-18_adr-125-splitting-vault-and-engine-under-200-loc.md) |
+| ADR-124 | Index-Backed Grounding Checks, With Catch-Phrase Lists Reduced to a Coarse Gate | Accepted | 2026-09-18 | [2026-09-18_adr-124-index-backed-grounding-checks-over-catch-phrases.md](./journal/2026-09/2026-09-18_adr-124-index-backed-grounding-checks-over-catch-phrases.md) |
 | ADR-123 | Automatic Folder-Kind Signals, Derived From Existing Digest Fields | Proposed | 2026-09-18 | [2026-09-18_adr-123-automatic-folder-kind-signals-from-digest-fields.md](./journal/2026-09/2026-09-18_adr-123-automatic-folder-kind-signals-from-digest-fields.md) |
 | ADR-122 | Local/Cloud Model Routing by Message Complexity | Accepted (design; implementation pending) | 2026-09-14 | [2026-09-14_adr-122-local-cloud-model-complexity-routing.md](./journal/2026-09/2026-09-14_adr-122-local-cloud-model-complexity-routing.md) |
 | ADR-121 | ruff as a Standing Dev Dependency, With a Narrow, Audited Rule Set | Accepted | 2026-09-14 | [2026-09-14_adr-121-ruff-as-standing-dev-dependency.md](./journal/2026-09/2026-09-14_adr-121-ruff-as-standing-dev-dependency.md) |
@@ -160,6 +162,7 @@ one in [`docs/wiki/index.md`](./wiki/index.md) are kept in sync per the
 
 | Date | Entry |
 | ---- | ----- |
+| 2026-09-18 | [Closing Every mccabe Complexity (C901) Finding in sympose/](./journal/2026-09/2026-09-18_c901-complexity-sweep-full-remediation.md) |
 | 2026-09-17 | [The Random-Pull Ritual Didn't Carry Across Turns](./journal/2026-09/2026-09-17_ritual-continuation-carries-no-grounding.md) |
 | 2026-09-17 | [Code-Audit Tier 4 — Patch the Heuristics, Then Fix the Root Cause](./journal/2026-09/2026-09-17_code-audit-tier4-grounding-heuristics-and-redesign.md) |
 | 2026-09-17 | [Code-Audit Tier 3 — Structural Fixes, and Where the Report Undersold the Work](./journal/2026-09/2026-09-17_code-audit-tier3-structural-fixes.md) |

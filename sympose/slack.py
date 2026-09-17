@@ -278,132 +278,166 @@ class SlackDaemon:
             return channel_id
         return f"{channel_id}:{event.get('thread_ts') or event.get('ts') or channel_id}"
 
-    def _process_message(self, client: Any, event: dict[str, Any], say: Any) -> None:
-        channel_id, msg_ts, raw_text = (
-            event.get("channel", ""),
-            event.get("ts", ""),
-            event.get("text", ""),
-        )
+    def _should_skip_message(
+        self, raw_text: str, msg_ts: str, sender: str, sender_bot: str
+    ) -> bool:
+        """True for an empty/stale message, or one that's this bot's own
+        echo of its own reply."""
         if not raw_text.strip() or float(msg_ts or 0) < (
             getattr(self, "boot_ts", 0) - 5.0
         ):
-            return
-        sender = event.get("user") or ""
-        sender_bot = event.get("bot_id") or ""
-        if (getattr(self, "bot_user_id", "") and sender == self.bot_user_id) or (
-            getattr(self, "bot_id", "") and sender_bot == self.bot_id
-        ):
-            return
-
-        is_dm = event.get("channel_type") == "im"
-        thread_ts = (
-            event.get("thread_ts")
-            if is_dm
-            else (event.get("thread_ts") or event.get("ts", ""))
+            return True
+        return bool(
+            (getattr(self, "bot_user_id", "") and sender == self.bot_user_id)
+            or (getattr(self, "bot_id", "") and sender_bot == self.bot_id)
         )
-        thread_id = self._conversation_key(channel_id, is_dm, event)
 
-        handle, prompt = self._resolve_persona_and_prompt(raw_text, thread_id)
-        if (
-            bool(os.getenv(f"SLACK_{handle.upper()}_BOT_TOKEN"))
-            and handle != self.default_persona
-        ):
-            return
-
-        if bool(
+    def _maybe_append_bot_streak_notice(
+        self,
+        client: Any,
+        channel_id: str,
+        event: dict[str, Any],
+        sender: str,
+        sender_bot: str,
+        prompt: str,
+    ) -> str:
+        """Appends a turn-limit notice to `prompt` when this message is
+        itself from another bot and the thread has hit
+        `performance.max_consecutive_bot_turns` consecutive bot replies —
+        keeps two bots from talking forever."""
+        is_bot_message = bool(
             sender_bot
             or sender in self.bot_user_ids
             or event.get("subtype") == "bot_message"
-        ) and event.get("thread_ts"):
-            try:
-                msgs = client.conversations_replies(
-                    channel=channel_id, ts=event.get("thread_ts"), limit=8
-                ).get("messages", [])
-                streak = sum(
-                    1
-                    for m in reversed(msgs)
-                    if (
-                        m.get("bot_id")
-                        or m.get("user") in self.bot_user_ids
-                        or m.get("subtype") == "bot_message"
-                    )
-                )
-                if streak >= int(
-                    self.config.get("performance.max_consecutive_bot_turns")
-                ):
-                    prompt += "\n\n[SYSTEM: Discussion turn limit reached. Deliver concluding summary for the user without tagging other bots.]"
-            except Exception as e:
-                log.debug(
-                    "[_process_message] bot-streak lookup failed for %s: %s",
-                    channel_id,
-                    e,
-                )
-
-        name = (
-            self.pm.get_profile(handle).get("name", handle)
-            if self.pm.get_profile(handle)
-            else handle
         )
-        slack_ctx = self._fetch_slack_context(
-            client, channel_id, event.get("thread_ts"), msg_ts, prompt
-        )
-        full_prompt = f"{slack_ctx}\n\nUser Request: {prompt}" if slack_ctx else prompt
-
-        log.info(
-            "[Slack Event] @%s (%s) handling message: %s", handle, name, prompt[:60]
-        )
+        if not (is_bot_message and event.get("thread_ts")):
+            return prompt
         try:
-            client.reactions_add(channel=channel_id, timestamp=msg_ts, name="eyes")
+            msgs = client.conversations_replies(
+                channel=channel_id, ts=event.get("thread_ts"), limit=8
+            ).get("messages", [])
+            streak = sum(
+                1
+                for m in reversed(msgs)
+                if (
+                    m.get("bot_id")
+                    or m.get("user") in self.bot_user_ids
+                    or m.get("subtype") == "bot_message"
+                )
+            )
+            if streak >= int(self.config.get("performance.max_consecutive_bot_turns")):
+                prompt += "\n\n[SYSTEM: Discussion turn limit reached. Deliver concluding summary for the user without tagging other bots.]"
         except Exception as e:
-            log.debug("[_process_message] reactions_add(eyes) failed: %s", e)
+            log.debug(
+                "[_process_message] bot-streak lookup failed for %s: %s",
+                channel_id,
+                e,
+            )
+        return prompt
 
-        th_key = f"{thread_id}:{handle}"
-        if bool(
+    def _delete_thread_messages(
+        self, client: Any, channel_id: str, thread_ts_val: str, thread_id: str
+    ) -> None:
+        try:
+            for m in client.conversations_replies(
+                channel=channel_id, ts=thread_ts_val, limit=100
+            ).get("messages", []):
+                try:
+                    client.chat_delete(channel=channel_id, ts=m.get("ts"))
+                except Exception as e:
+                    log.debug(
+                        "[thread wipe] chat_delete failed for ts=%s: %s",
+                        m.get("ts"),
+                        e,
+                    )
+        except Exception as e:
+            log.debug(
+                "[thread wipe] conversations_replies failed for %s: %s",
+                thread_id,
+                e,
+            )
+
+    def _handle_thread_wipe_request(
+        self,
+        client: Any,
+        event: dict[str, Any],
+        channel_id: str,
+        msg_ts: str,
+        thread_ts: str,
+        thread_id: str,
+        handle: str,
+        prompt: str,
+        say: Any,
+    ) -> bool:
+        """If `prompt` is a wipe request ("delete our thread", "/clear", …),
+        clears local + Slack-side history for this thread. Returns True so
+        the caller stops processing this message as a normal chat turn."""
+        is_wipe = bool(
             re.search(
                 r"\b(?:delete|clear|wipe|erase|purge|reset)\s+(?:our\s+|the\s+|this\s+)?(?:thread|chat|conversation|history|session|context|messages?)",
                 prompt,
                 re.IGNORECASE,
             )
-        ) or prompt.strip() in ("/clear", "/delete", "/wipe", "/reset"):
-            self.thread_histories.pop(th_key, None)
-            self.engine.reset_history(handle, session_id=th_key)
-            if event.get("thread_ts"):
-                try:
-                    for m in client.conversations_replies(
-                        channel=channel_id, ts=event.get("thread_ts"), limit=100
-                    ).get("messages", []):
-                        try:
-                            client.chat_delete(channel=channel_id, ts=m.get("ts"))
-                        except Exception as e:
-                            log.debug(
-                                "[thread wipe] chat_delete failed for ts=%s: %s",
-                                m.get("ts"),
-                                e,
-                            )
-                except Exception as e:
-                    log.debug(
-                        "[thread wipe] conversations_replies failed for %s: %s",
-                        thread_id,
-                        e,
-                    )
-            try:
-                client.reactions_remove(
-                    channel=channel_id, timestamp=msg_ts, name="eyes"
-                )
-                client.reactions_add(channel=channel_id, timestamp=msg_ts, name="broom")
-            except Exception as e:
-                log.debug("[thread wipe] reaction swap (eyes->broom) failed: %s", e)
-            if not re.search(
-                r"\b(?:do\s*not\s*reply|no\s*reply|do\s*not\s*acknowledge|no\s*response|silent|silence)\b",
-                prompt,
-                re.IGNORECASE,
-            ):
-                say(
-                    text=f"🧹 Conversation history deleted for @{handle}.",
-                    thread_ts=thread_ts,
-                )
-            return
+        ) or prompt.strip() in ("/clear", "/delete", "/wipe", "/reset")
+        if not is_wipe:
+            return False
 
+        th_key = f"{thread_id}:{handle}"
+        self.thread_histories.pop(th_key, None)
+        self.engine.reset_history(handle, session_id=th_key)
+        if event.get("thread_ts"):
+            self._delete_thread_messages(
+                client, channel_id, event.get("thread_ts"), thread_id
+            )
+        try:
+            client.reactions_remove(channel=channel_id, timestamp=msg_ts, name="eyes")
+            client.reactions_add(channel=channel_id, timestamp=msg_ts, name="broom")
+        except Exception as e:
+            log.debug("[thread wipe] reaction swap (eyes->broom) failed: %s", e)
+        if not re.search(
+            r"\b(?:do\s*not\s*reply|no\s*reply|do\s*not\s*acknowledge|no\s*response|silent|silence)\b",
+            prompt,
+            re.IGNORECASE,
+        ):
+            say(
+                text=f"🧹 Conversation history deleted for @{handle}.",
+                thread_ts=thread_ts,
+            )
+        return True
+
+    def _react_after_reply(
+        self, client: Any, channel_id: str, msg_ts: str, raw_text: str, is_silent: bool
+    ) -> None:
+        try:
+            client.reactions_remove(channel=channel_id, timestamp=msg_ts, name="eyes")
+        except Exception as e:
+            log.debug("[_process_message] reactions_remove(eyes) failed: %s", e)
+        emojis = [
+            m.group(1).strip().strip(":")
+            for m in re.finditer(
+                r"\[(?:ACTION:)?REACT:\s*([a-zA-Z0-9_\-+:]+?)\]",
+                raw_text,
+                re.IGNORECASE,
+            )
+        ] or (["white_check_mark"] if is_silent else [])
+        for em in emojis:
+            try:
+                client.reactions_add(channel=channel_id, timestamp=msg_ts, name=em)
+            except Exception as e:
+                log.debug("[_process_message] reactions_add(%s) failed: %s", em, e)
+
+    def _run_chat_turn_and_reply(
+        self,
+        client: Any,
+        channel_id: str,
+        msg_ts: str,
+        thread_ts: str,
+        th_key: str,
+        handle: str,
+        full_prompt: str,
+        name: str,
+        say: Any,
+    ) -> None:
         try:
             chunks = [
                 c
@@ -429,27 +463,68 @@ class SlackDaemon:
                     ),
                     thread_ts=thread_ts,
                 )
-            try:
-                client.reactions_remove(
-                    channel=channel_id, timestamp=msg_ts, name="eyes"
-                )
-            except Exception as e:
-                log.debug("[_process_message] reactions_remove(eyes) failed: %s", e)
-            for em in [
-                m.group(1).strip().strip(":")
-                for m in re.finditer(
-                    r"\[(?:ACTION:)?REACT:\s*([a-zA-Z0-9_\-+:]+?)\]",
-                    raw_text,
-                    re.IGNORECASE,
-                )
-            ] or (["white_check_mark"] if is_silent else []):
-                try:
-                    client.reactions_add(channel=channel_id, timestamp=msg_ts, name=em)
-                except Exception as e:
-                    log.debug("[_process_message] reactions_add(%s) failed: %s", em, e)
+            self._react_after_reply(client, channel_id, msg_ts, raw_text, is_silent)
         except Exception as e:
             log.error("[Slack Error] @%s: %s", handle, e, exc_info=True)
             say(text=f"⚠️ *{name} encountered an error:* `{e}`", thread_ts=thread_ts)
+
+    def _process_message(self, client: Any, event: dict[str, Any], say: Any) -> None:
+        channel_id, msg_ts, raw_text = (
+            event.get("channel", ""),
+            event.get("ts", ""),
+            event.get("text", ""),
+        )
+        sender = event.get("user") or ""
+        sender_bot = event.get("bot_id") or ""
+        if self._should_skip_message(raw_text, msg_ts, sender, sender_bot):
+            return
+
+        is_dm = event.get("channel_type") == "im"
+        thread_ts = (
+            event.get("thread_ts")
+            if is_dm
+            else (event.get("thread_ts") or event.get("ts", ""))
+        )
+        thread_id = self._conversation_key(channel_id, is_dm, event)
+
+        handle, prompt = self._resolve_persona_and_prompt(raw_text, thread_id)
+        if (
+            bool(os.getenv(f"SLACK_{handle.upper()}_BOT_TOKEN"))
+            and handle != self.default_persona
+        ):
+            return
+
+        prompt = self._maybe_append_bot_streak_notice(
+            client, channel_id, event, sender, sender_bot, prompt
+        )
+
+        name = (
+            self.pm.get_profile(handle).get("name", handle)
+            if self.pm.get_profile(handle)
+            else handle
+        )
+        slack_ctx = self._fetch_slack_context(
+            client, channel_id, event.get("thread_ts"), msg_ts, prompt
+        )
+        full_prompt = f"{slack_ctx}\n\nUser Request: {prompt}" if slack_ctx else prompt
+
+        log.info(
+            "[Slack Event] @%s (%s) handling message: %s", handle, name, prompt[:60]
+        )
+        try:
+            client.reactions_add(channel=channel_id, timestamp=msg_ts, name="eyes")
+        except Exception as e:
+            log.debug("[_process_message] reactions_add(eyes) failed: %s", e)
+
+        th_key = f"{thread_id}:{handle}"
+        if self._handle_thread_wipe_request(
+            client, event, channel_id, msg_ts, thread_ts, thread_id, handle, prompt, say
+        ):
+            return
+
+        self._run_chat_turn_and_reply(
+            client, channel_id, msg_ts, thread_ts, th_key, handle, full_prompt, name, say
+        )
 
     def setup(self) -> bool:
         if self._is_setup and self.handler:

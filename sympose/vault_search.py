@@ -73,6 +73,153 @@ def _search_fts(
     return results
 
 
+def _resolve_search_dirs(
+    allowed_dirs: list[str], target_folder: str | None
+) -> list[str]:
+    """`allowed_dirs` narrowed to `target_folder`. `allowed_dirs` only ever
+    holds the persona's *root* access points (for a full-vault `["*"]`
+    persona, that's just the vault itself) - matching a named folder
+    against their basenames alone misses any actual subfolder, like
+    `Thoughts/` under the vault root, so it's resolved the same way
+    discovery elsewhere in the vault module does: either an allowed dir's
+    own name, or an immediate child of one. A named folder that can't be
+    resolved is a scope miss, not an invitation to search the whole vault
+    instead - that silent widening is exactly what let an unrelated note
+    answer a request meant to be confined to one folder."""
+    if not target_folder:
+        return allowed_dirs
+    tf_lower = target_folder.lower()
+    resolved = next(
+        (d for d in allowed_dirs if os.path.basename(d).lower() == tf_lower),
+        None,
+    )
+    if resolved is None:
+        for d in allowed_dirs:
+            candidate = os.path.join(d, target_folder)
+            if os.path.isdir(candidate) and is_safe_path(candidate, d):
+                resolved = candidate
+                break
+    return [resolved] if resolved else []
+
+
+def _normalize_tags(meta: dict[str, Any]) -> list[str]:
+    tags = meta.get("tags", [])
+    if isinstance(tags, str):
+        return [t.strip() for t in tags.replace(",", " ").split() if t.strip()]
+    if isinstance(tags, list):
+        return tags
+    return []
+
+
+def _extract_title_match_snippet(body: str) -> str:
+    fl = next(
+        (
+            line.strip("# \t\r")
+            for line in body.splitlines()
+            if line.strip() and not line.startswith("---") and ":" not in line
+        ),
+        "",
+    )
+    clean_fl = " ".join(fl.split())
+    if len(clean_fl) > 70:
+        clean_fl = clean_fl[:67].rstrip() + "..."
+    return clean_fl or "Exact title match"
+
+
+def _extract_content_match(full_content: str, query_clean: str) -> tuple[int, str]:
+    for line_idx, line in enumerate(full_content.splitlines(), start=1):
+        if query_clean in line.lower():
+            clean_l = " ".join(line.strip().strip("#*-> ").split())
+            q_idx = clean_l.lower().find(query_clean)
+            if q_idx > 25:
+                clean_l = "..." + clean_l[max(q_idx - 15, 0) :]
+            if len(clean_l) > 70:
+                clean_l = clean_l[:67].rstrip() + "..."
+            return line_idx, clean_l
+    return 1, ""
+
+
+def _base_match_result(
+    entry: dict[str, Any], match_type: str, tags: list[str]
+) -> dict[str, Any]:
+    file, meta = entry["file_name"], entry["meta"]
+    return {
+        "file_name": file,
+        "rel_path": entry["rel_path"],
+        "abs_path": entry["abs_path"],
+        "match_type": match_type,
+        "line_no": 1,
+        "snippet": "",
+        "title": meta.get("title") or meta.get("name") or os.path.splitext(file)[0],
+        "tags": tags,
+        "meta": meta,
+    }
+
+
+def _classify_snapshot_entry(
+    entry: dict[str, Any], query_clean: str
+) -> dict[str, Any] | None:
+    """One vault_snapshot entry classified as a title/tag/content match (in
+    that priority order — a note tagged `#urgent` is a deliberate tag
+    match even though "urgent" would also satisfy the content check), or
+    None when it matches nothing. Filename only for the title check, not
+    the whole rel_path — matching an ancestor *folder* name would
+    otherwise flood results with folder-name coincidences and hide
+    genuine tag/content hits elsewhere in the vault."""
+    file, full_content, meta, body = (
+        entry["file_name"],
+        entry["full_content"],
+        entry["meta"],
+        entry["body"],
+    )
+    tags = _normalize_tags(meta)
+
+    if query_clean in file.lower():
+        result = _base_match_result(entry, "title", tags)
+        result["snippet"] = _extract_title_match_snippet(body)
+        return result
+
+    matched_tags = [t for t in tags if query_clean in str(t).lower()]
+    if matched_tags:
+        result = _base_match_result(entry, "tag", tags)
+        result["snippet"] = " ".join(f"#{t}" for t in matched_tags)
+        return result
+
+    if query_clean in full_content.lower():
+        line_no, snippet = _extract_content_match(full_content, query_clean)
+        result = _base_match_result(entry, "content", tags)
+        result["line_no"] = line_no
+        result["snippet"] = snippet or f"Match found on line {line_no}"
+        return result
+
+    return None
+
+
+def _scan_snapshot_for_matches(
+    get_vault_snapshot_fn: Callable[[str, list[str]], list[dict[str, Any]]],
+    mv: str,
+    search_dirs: list[str],
+    query_clean: str,
+    max_results: int,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
+    """The `direct` search path's snapshot walk, classifying and bucketing
+    each entry until 2x `max_results` total matches accumulate (title/tag
+    matches are cheap and usually plenty; capping early keeps a huge vault
+    from being fully re-scanned on a broad query). Returns
+    (title_matches, tag_matches, content_matches)."""
+    buckets: dict[str, list[dict[str, Any]]] = {"title": [], "tag": [], "content": []}
+    try:
+        for entry in get_vault_snapshot_fn(mv, search_dirs):
+            result = _classify_snapshot_entry(entry, query_clean)
+            if result is not None:
+                buckets[result["match_type"]].append(result)
+            if sum(len(b) for b in buckets.values()) >= max_results * 2:
+                break
+    except Exception as e:
+        log.debug("Vault search ended early: %s", e)
+    return buckets["title"], buckets["tag"], buckets["content"]
+
+
 def search_structured(
     profile: dict[str, Any],
     query: str,
@@ -89,32 +236,7 @@ def search_structured(
     if not mv or not allowed_dirs:
         return []
 
-    if target_folder:
-        # `allowed_dirs` only ever holds the persona's *root* access points
-        # (for a full-vault `["*"]` persona, that's just the vault itself) -
-        # matching a named folder against their basenames alone misses any
-        # actual subfolder, like `Thoughts/` under the vault root. Resolve it
-        # the same way discovery elsewhere in the vault module does: either
-        # an allowed dir's own name, or an immediate child of one.
-        tf_lower = target_folder.lower()
-        resolved = next(
-            (d for d in allowed_dirs if os.path.basename(d).lower() == tf_lower),
-            None,
-        )
-        if resolved is None:
-            for d in allowed_dirs:
-                candidate = os.path.join(d, target_folder)
-                if os.path.isdir(candidate) and is_safe_path(candidate, d):
-                    resolved = candidate
-                    break
-        # A named folder that can't be resolved is a scope miss, not an
-        # invitation to search the whole vault instead - that silent
-        # widening is exactly what let an unrelated note answer a request
-        # meant to be confined to one folder.
-        search_dirs = [resolved] if resolved else []
-    else:
-        search_dirs = allowed_dirs
-
+    search_dirs = _resolve_search_dirs(allowed_dirs, target_folder)
     query_clean = query.lower().strip().strip("\"'")
     if not query_clean:
         return []
@@ -134,122 +256,9 @@ def search_structured(
         # Index unusable this run (no FTS5, or a rebuild failure) — fall
         # through to `direct` below rather than return an empty result.
 
-    title_matches: list[dict[str, Any]] = []
-    tag_matches: list[dict[str, Any]] = []
-    content_matches: list[dict[str, Any]] = []
-
-    try:
-        for entry in get_vault_snapshot_fn(mv, search_dirs):
-            file, rel_path, full_content, meta, body = (
-                entry["file_name"],
-                entry["rel_path"],
-                entry["full_content"],
-                entry["meta"],
-                entry["body"],
-            )
-            tags = meta.get("tags", [])
-            if isinstance(tags, str):
-                tags = [t.strip() for t in tags.replace(",", " ").split() if t.strip()]
-            elif not isinstance(tags, list):
-                tags = []
-
-            # Filename only, not the whole `rel_path` — the old
-            # rel_path-inclusive check meant a query matching an ancestor
-            # *folder* name (e.g. "quote" -> "Quotes/") classified every
-            # note in that folder as a "title" match, flooding the
-            # `max_results` cap with folder-name coincidences and hiding
-            # genuine tag/content hits elsewhere in the vault.
-            is_title_match = query_clean in file.lower()
-            matched_tags = [t for t in tags if query_clean in str(t).lower()]
-
-            if is_title_match:
-                fl = next(
-                    (
-                        line.strip("# \t\r")
-                        for line in body.splitlines()
-                        if line.strip()
-                        and not line.startswith("---")
-                        and ":" not in line
-                    ),
-                    "",
-                )
-                clean_fl = " ".join(fl.split())
-                if len(clean_fl) > 70:
-                    clean_fl = clean_fl[:67].rstrip() + "..."
-                title_matches.append(
-                    {
-                        "file_name": file,
-                        "rel_path": rel_path,
-                        "abs_path": entry["abs_path"],
-                        "match_type": "title",
-                        "line_no": 1,
-                        "snippet": clean_fl or "Exact title match",
-                        "title": meta.get("title")
-                        or meta.get("name")
-                        or os.path.splitext(file)[0],
-                        "tags": tags,
-                        "meta": meta,
-                    }
-                )
-            # Checked ahead of the raw full-content substring test below so
-            # a note tagged `#urgent` classifies as a deliberate tag match
-            # rather than an incidental content hit that merely happens to
-            # contain the tag's literal text in its frontmatter block.
-            elif matched_tags:
-                tag_matches.append(
-                    {
-                        "file_name": file,
-                        "rel_path": rel_path,
-                        "abs_path": entry["abs_path"],
-                        "match_type": "tag",
-                        "line_no": 1,
-                        "snippet": " ".join(f"#{t}" for t in matched_tags),
-                        "title": meta.get("title")
-                        or meta.get("name")
-                        or os.path.splitext(file)[0],
-                        "tags": tags,
-                        "meta": meta,
-                    }
-                )
-            elif query_clean in full_content.lower():
-                matched_line_no = 1
-                matched_snippet = ""
-                for line_idx, line in enumerate(full_content.splitlines(), start=1):
-                    if query_clean in line.lower():
-                        matched_line_no = line_idx
-                        clean_l = " ".join(line.strip().strip("#*-> ").split())
-                        q_idx = clean_l.lower().find(query_clean)
-                        if q_idx > 25:
-                            clean_l = "..." + clean_l[max(q_idx - 15, 0) :]
-                        if len(clean_l) > 70:
-                            clean_l = clean_l[:67].rstrip() + "..."
-                        matched_snippet = clean_l
-                        break
-                content_matches.append(
-                    {
-                        "file_name": file,
-                        "rel_path": rel_path,
-                        "abs_path": entry["abs_path"],
-                        "match_type": "content",
-                        "line_no": matched_line_no,
-                        "snippet": matched_snippet
-                        or f"Match found on line {matched_line_no}",
-                        "title": meta.get("title")
-                        or meta.get("name")
-                        or os.path.splitext(file)[0],
-                        "tags": tags,
-                        "meta": meta,
-                    }
-                )
-
-            if (
-                len(title_matches) + len(tag_matches) + len(content_matches)
-                >= max_results * 2
-            ):
-                break
-    except Exception as e:
-        log.debug("Vault search ended early: %s", e)
-
+    title_matches, tag_matches, content_matches = _scan_snapshot_for_matches(
+        get_vault_snapshot_fn, mv, search_dirs, query_clean, max_results
+    )
     all_results = (title_matches + tag_matches + content_matches)[:max_results]
     for idx, res in enumerate(all_results, start=1):
         res["index"] = idx

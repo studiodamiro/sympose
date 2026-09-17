@@ -46,6 +46,79 @@ def _link_neighbours(links: list[dict[str, Any]]) -> dict[str, list[str]]:
     return {k: sorted(v) for k, v in out.items()}
 
 
+def _get_or_create_folder(container: dict[str, Any], name: str, path: str) -> dict[str, Any]:
+    """Container's per-folder entry (VaultNode + nested children dict),
+    creating it on first reference so a `real_folders` entry and a note's
+    parent directory both resolve to the same node."""
+    entry = container.get(name)
+    if entry is None:
+        entry = {
+            "node": {"name": name, "path": path, "type": "folder", "children": []},
+            "children": {},
+        }
+        container[name] = entry
+    return entry["children"]
+
+
+def _fold_note_nodes(
+    roots: dict[str, Any],
+    nodes: list[dict[str, Any]],
+    allowed_prefixes: list[str],
+    neighbours: dict[str, list[str]],
+) -> None:
+    for n in nodes:
+        rel = (n.get("rel_path") or "").replace("\\", "/")
+        if not rel or not n.get("exists", True):
+            continue
+        if not _within(rel, allowed_prefixes):
+            continue
+        parts = rel.split("/")
+        container = roots
+        for depth, part in enumerate(parts[:-1]):
+            container = _get_or_create_folder(
+                container, part, "/".join(parts[: depth + 1])
+            )
+        container[parts[-1]] = {
+            "node": {
+                "name": parts[-1],
+                "path": rel,
+                "type": "note",
+                "tags": n.get("tags", []),
+                "links": neighbours.get(n.get("id", ""), []),
+            },
+            "children": {},
+        }
+
+
+def _fold_real_folders(
+    roots: dict[str, Any], real_folders: list[str], allowed_prefixes: list[str]
+) -> None:
+    for rel in real_folders:
+        rel = rel.replace("\\", "/").strip("/")
+        if not rel or not _within(rel, allowed_prefixes):
+            continue
+        parts = rel.split("/")
+        container = roots
+        for depth, part in enumerate(parts):
+            container = _get_or_create_folder(
+                container, part, "/".join(parts[: depth + 1])
+            )
+
+
+def _emit_tree(container: dict[str, Any]) -> list[dict[str, Any]]:
+    folders, notes = [], []
+    for entry in container.values():
+        node = entry["node"]
+        if node["type"] == "folder":
+            node["children"] = _emit_tree(entry["children"])
+            folders.append(node)
+        else:
+            notes.append(node)
+    folders.sort(key=lambda x: x["name"].lower())
+    notes.sort(key=lambda x: x["name"].lower())
+    return folders + notes
+
+
 def build_tree(
     nodes: list[dict[str, Any]],
     allowed_prefixes: list[str],
@@ -61,58 +134,6 @@ def build_tree(
     neighbours = _link_neighbours(list(links))
     # folder path -> {"node": <VaultNode dict>, "children": {name -> entry}}
     roots: dict[str, dict[str, Any]] = {}
-
-    def _folder(container: dict[str, Any], name: str, path: str) -> dict[str, Any]:
-        entry = container.get(name)
-        if entry is None:
-            entry = {
-                "node": {"name": name, "path": path, "type": "folder", "children": []},
-                "children": {},
-            }
-            container[name] = entry
-        return entry["children"]
-
-    for n in nodes:
-        rel = (n.get("rel_path") or "").replace("\\", "/")
-        if not rel or not n.get("exists", True):
-            continue
-        if not _within(rel, allowed_prefixes):
-            continue
-        parts = rel.split("/")
-        container = roots
-        for depth, part in enumerate(parts[:-1]):
-            container = _folder(container, part, "/".join(parts[: depth + 1]))
-        container[parts[-1]] = {
-            "node": {
-                "name": parts[-1],
-                "path": rel,
-                "type": "note",
-                "tags": n.get("tags", []),
-                "links": neighbours.get(n.get("id", ""), []),
-            },
-            "children": {},
-        }
-
-    for rel in real_folders:
-        rel = rel.replace("\\", "/").strip("/")
-        if not rel or not _within(rel, allowed_prefixes):
-            continue
-        parts = rel.split("/")
-        container = roots
-        for depth, part in enumerate(parts):
-            container = _folder(container, part, "/".join(parts[: depth + 1]))
-
-    def _emit(container: dict[str, Any]) -> list[dict[str, Any]]:
-        folders, notes = [], []
-        for entry in container.values():
-            node = entry["node"]
-            if node["type"] == "folder":
-                node["children"] = _emit(entry["children"])
-                folders.append(node)
-            else:
-                notes.append(node)
-        folders.sort(key=lambda x: x["name"].lower())
-        notes.sort(key=lambda x: x["name"].lower())
-        return folders + notes
-
-    return _emit(roots)
+    _fold_note_nodes(roots, nodes, allowed_prefixes, neighbours)
+    _fold_real_folders(roots, real_folders, allowed_prefixes)
+    return _emit_tree(roots)

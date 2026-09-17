@@ -119,6 +119,76 @@ _RULES_MD_FALLBACK = """# 🏛️ Sympose: Universal Workspace & Action Rules
 DEFAULT_RULES_MD = load_prompt("workspace_rules.md", _RULES_MD_FALLBACK)
 
 
+def _seed_config(workspace_dir: str) -> bool:
+    """Seeds config.yaml. Returns True if it didn't already exist."""
+    config_file = os.path.join(workspace_dir, "config.yaml")
+    if os.path.exists(config_file):
+        return False
+    with open(config_file, "w", encoding="utf-8") as f:
+        f.write(render_seed_config())
+    return True
+
+
+def _seed_samantha_profile(profiles_dir: str) -> bool:
+    """Seeds the starter Samantha profile. Returns True if samantha.yaml
+    didn't already exist (the soul file alone doesn't count as "fresh")."""
+    is_fresh = False
+    sam_yaml_file = os.path.join(profiles_dir, "samantha.yaml")
+    if not os.path.exists(sam_yaml_file):
+        is_fresh = True
+        with open(sam_yaml_file, "w", encoding="utf-8") as f:
+            f.write(SAMANTHA_YAML)
+
+    sam_soul_file = os.path.join(profiles_dir, "samantha_soul.md")
+    if not os.path.exists(sam_soul_file):
+        with open(sam_soul_file, "w", encoding="utf-8") as f:
+            f.write(SAMANTHA_SOUL_MD)
+    return is_fresh
+
+
+def _seed_user_and_shared_memory(profiles_dir: str) -> None:
+    user_card = os.path.join(profiles_dir, "user_profile.md")
+    if not os.path.exists(user_card):
+        with open(user_card, "w", encoding="utf-8") as f:
+            f.write(
+                f"# Universal User Profile\n\n- **Primary User**: {os.getenv('USER', 'User')}\n- **Environment**: {sys.platform}\n"
+            )
+
+    shared_mem = os.path.join(profiles_dir, "_shared_memory.md")
+    if not os.path.exists(shared_mem):
+        with open(shared_mem, "w", encoding="utf-8") as f:
+            f.write(
+                "# Shared Team Working Memory\n\n- **Active Workspace**: Initialized\n"
+            )
+
+
+def _seed_workspace_rules(prompts_dir: str) -> None:
+    rules_file = os.path.join(prompts_dir, "workspace_rules.md")
+    if not os.path.exists(rules_file) or os.path.getsize(rules_file) < 300:
+        with open(rules_file, "w", encoding="utf-8") as f:
+            f.write(DEFAULT_RULES_MD)
+
+
+def _seed_builtin_skills(skills_dir: str) -> None:
+    try:
+        import shutil
+
+        builtin_skills_dir = os.path.join(os.path.dirname(__file__), "builtin_skills")
+        if not os.path.exists(builtin_skills_dir):
+            return
+        for item in os.listdir(builtin_skills_dir):
+            s_src = os.path.join(builtin_skills_dir, item)
+            s_dst = os.path.join(skills_dir, item)
+            if os.path.exists(s_dst):
+                continue
+            if os.path.isdir(s_src):
+                shutil.copytree(s_src, s_dst)
+            elif os.path.isfile(s_src) and s_src.endswith(".md"):
+                shutil.copy2(s_src, s_dst)
+    except Exception as e:
+        log.warning("Failed to seed builtin skills into %s: %s", skills_dir, e)
+
+
 def ensure_workspace(workspace_dir: str) -> bool:
     """
     Ensures that the workspace directory exists and contains starter assets (Samantha only).
@@ -135,64 +205,11 @@ def ensure_workspace(workspace_dir: str) -> bool:
     os.makedirs(skills_dir, exist_ok=True)
     os.makedirs(sessions_dir, exist_ok=True)
 
-    is_fresh = False
-
-    # 1. Config file
-    config_file = os.path.join(workspace_dir, "config.yaml")
-    if not os.path.exists(config_file):
-        is_fresh = True
-        with open(config_file, "w", encoding="utf-8") as f:
-            f.write(render_seed_config())
-
-    # 2. Starter Samantha Profile
-    sam_yaml_file = os.path.join(profiles_dir, "samantha.yaml")
-    if not os.path.exists(sam_yaml_file):
-        is_fresh = True
-        with open(sam_yaml_file, "w", encoding="utf-8") as f:
-            f.write(SAMANTHA_YAML)
-
-    sam_soul_file = os.path.join(profiles_dir, "samantha_soul.md")
-    if not os.path.exists(sam_soul_file):
-        with open(sam_soul_file, "w", encoding="utf-8") as f:
-            f.write(SAMANTHA_SOUL_MD)
-
-    # 3. User Card & Shared Memory
-    user_card = os.path.join(profiles_dir, "user_profile.md")
-    if not os.path.exists(user_card):
-        with open(user_card, "w", encoding="utf-8") as f:
-            f.write(
-                f"# Universal User Profile\n\n- **Primary User**: {os.getenv('USER', 'User')}\n- **Environment**: {sys.platform}\n"
-            )
-
-    shared_mem = os.path.join(profiles_dir, "_shared_memory.md")
-    if not os.path.exists(shared_mem):
-        with open(shared_mem, "w", encoding="utf-8") as f:
-            f.write(
-                "# Shared Team Working Memory\n\n- **Active Workspace**: Initialized\n"
-            )
-
-    # 4. Workspace Rules prompt
-    rules_file = os.path.join(prompts_dir, "workspace_rules.md")
-    if not os.path.exists(rules_file) or os.path.getsize(rules_file) < 300:
-        with open(rules_file, "w", encoding="utf-8") as f:
-            f.write(DEFAULT_RULES_MD)
-
-    # 5. Seed built-in skills into workspace skills directory
-    try:
-        import shutil
-
-        builtin_skills_dir = os.path.join(os.path.dirname(__file__), "builtin_skills")
-        if os.path.exists(builtin_skills_dir):
-            for item in os.listdir(builtin_skills_dir):
-                s_src = os.path.join(builtin_skills_dir, item)
-                s_dst = os.path.join(skills_dir, item)
-                if not os.path.exists(s_dst):
-                    if os.path.isdir(s_src):
-                        shutil.copytree(s_src, s_dst)
-                    elif os.path.isfile(s_src) and s_src.endswith(".md"):
-                        shutil.copy2(s_src, s_dst)
-    except Exception as e:
-        log.warning("Failed to seed builtin skills into %s: %s", skills_dir, e)
+    is_fresh = _seed_config(workspace_dir)
+    is_fresh = _seed_samantha_profile(profiles_dir) or is_fresh
+    _seed_user_and_shared_memory(profiles_dir)
+    _seed_workspace_rules(prompts_dir)
+    _seed_builtin_skills(skills_dir)
 
     return is_fresh
 

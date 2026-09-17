@@ -106,6 +106,82 @@ def load(workspace_dir: str, mv: str) -> dict | None:
     return _mem_cache.get(path) or _load_file(path)
 
 
+def _ignore_changed(m: dict, ignore_key: list[str]) -> bool:
+    # A changed ignore list doesn't reliably move any directory's own
+    # mtime (a newly-unignored folder can easily be *older* than whatever
+    # else last touched the vault) - the watermark alone can silently miss
+    # this, so the resolved ignore set is compared directly against what
+    # the cached manifest was built with. Live bug: removing "Movies" from
+    # vault.ignore_folders never surfaced it in folder discovery, because
+    # nothing else in the vault had changed since the stale manifest was
+    # built.
+    return m.get("meta", {}).get("ignore_folders") != ignore_key
+
+
+def _schema_stale(m: dict) -> bool:
+    # D2: same rationale as _ignore_changed - a pre-existing manifest
+    # written under an older schema (bare-stem node ids, no target_stem)
+    # can have a watermark that still matches if nothing on disk has
+    # changed since, so the watermark check alone would serve it forever
+    # without ever migrating to the current scheme.
+    return m.get("meta", {}).get("schema_version") != SCHEMA_VERSION
+
+
+def _is_manifest_current(m: dict | None, wm: float, ignore_key: list[str]) -> bool:
+    """True when a cached/loaded manifest still matches the vault's current
+    watermark, ignore-folder set, and schema — the three independent
+    reasons a manifest can go stale (see `_ignore_changed`/`_schema_stale`
+    for why the watermark alone can miss the latter two)."""
+    return (
+        m is not None
+        and m.get("meta", {}).get("watermark") == wm
+        and not _ignore_changed(m, ignore_key)
+        and not _schema_stale(m)
+    )
+
+
+def _try_delta_rebuild(
+    mv: str,
+    current: dict | None,
+    ignore: set,
+    ignore_key: list[str],
+    read_notes: Callable[[list[str]], list[dict[str, Any]]] | None,
+) -> dict | None:
+    """An ADR-078.4 delta rebuild when a prior manifest exists under the
+    current schema with an unchanged ignore set — None (meaning "do a full
+    rebuild instead") if that doesn't hold, or on any delta-rebuild
+    failure. A changed ignore set can add or remove whole subtrees a
+    stat-only delta never walks into, so that always forces a full rebuild
+    rather than trying to make the delta path handle it."""
+    if current is None or _ignore_changed(current, ignore_key):
+        return None
+    if (
+        read_notes is None
+        or current.get("meta", {}).get("schema_version") != SCHEMA_VERSION
+    ):
+        return None
+    try:
+        return _delta_rebuild(mv, current, ignore, read_notes)
+    except Exception:
+        log.debug(
+            "[vault_manifest] delta rebuild failed for %s; full rebuild",
+            mv,
+            exc_info=True,
+        )
+        return None
+
+
+def _finalize_manifest(
+    manifest: dict, wm: float, ignore_key: list[str], max_nodes: int
+) -> dict:
+    manifest["meta"]["watermark"] = wm
+    manifest["meta"]["ignore_folders"] = ignore_key
+    if max_nodes and len(manifest["nodes"]) > max_nodes:
+        manifest["nodes"] = manifest["nodes"][:max_nodes]
+        manifest["meta"]["truncated"] = True
+    return manifest
+
+
 def ensure_fresh(
     workspace_dir: str,
     mv: str,
@@ -125,31 +201,12 @@ def ensure_fresh(
     ignore_key = sorted(ignore)
     now = time.time()
 
-    def _ignore_changed(m: dict) -> bool:
-        # A changed ignore list doesn't reliably move any directory's own
-        # mtime (a newly-unignored folder can easily be *older* than
-        # whatever else last touched the vault) - the watermark alone can
-        # silently miss this, so the resolved ignore set is compared
-        # directly against what the cached manifest was built with. Live
-        # bug: removing "Movies" from vault.ignore_folders never surfaced
-        # it in folder discovery, because nothing else in the vault had
-        # changed since the stale manifest was built.
-        return m.get("meta", {}).get("ignore_folders") != ignore_key
-
-    def _schema_stale(m: dict) -> bool:
-        # D2: same rationale as _ignore_changed - a pre-existing manifest
-        # written under an older schema (bare-stem node ids, no
-        # target_stem) can have a watermark that still matches if nothing
-        # on disk has changed since, so the watermark check alone would
-        # serve it forever without ever migrating to the current scheme.
-        return m.get("meta", {}).get("schema_version") != SCHEMA_VERSION
-
     cached = _mem_cache.get(path)
     if (
         cached is not None
         and debounce > 0
         and (now - _last_check.get(path, 0.0)) < debounce
-        and not _ignore_changed(cached)
+        and not _ignore_changed(cached, ignore_key)
         and not _schema_stale(cached)
     ):
         return cached
@@ -157,60 +214,24 @@ def ensure_fresh(
 
     wm = _top_level_watermark(mv, ignore)
     current = cached or _load_file(path)
-    if (
-        current is not None
-        and current.get("meta", {}).get("watermark") == wm
-        and not _ignore_changed(current)
-        and not _schema_stale(current)
-    ):
+    if _is_manifest_current(current, wm, ignore_key):
         _mem_cache[path] = current
         return current
 
     with _lock_for(path):
         current = _mem_cache.get(path) or _load_file(path)
-        if (
-            current is not None
-            and current.get("meta", {}).get("watermark") == wm
-            and not _ignore_changed(current)
-            and not _schema_stale(current)
-        ):
+        if _is_manifest_current(current, wm, ignore_key):
             _mem_cache[path] = current
             return current
 
-        manifest: dict | None = None
-        if (
-            current is not None
-            and _ignore_changed(current)
-        ):
-            # A changed ignore set can add or remove whole subtrees a
-            # stat-only delta never walks into - always a full rebuild
-            # here rather than trying to make the delta path handle it.
-            manifest = None
-        elif (
-            read_notes is not None
-            and current is not None
-            and current.get("meta", {}).get("schema_version") == SCHEMA_VERSION
-        ):
-            try:
-                manifest = _delta_rebuild(mv, current, ignore, read_notes)
-            except Exception:
-                log.debug(
-                    "[vault_manifest] delta rebuild failed for %s; full rebuild",
-                    mv,
-                    exc_info=True,
-                )
-                manifest = None
+        manifest = _try_delta_rebuild(mv, current, ignore, ignore_key, read_notes)
         if manifest is None:
             try:
                 manifest = build(mv, snapshot_provider())
             except Exception:
                 log.debug("[vault_manifest] rebuild failed for %s", mv, exc_info=True)
                 return current
-        manifest["meta"]["watermark"] = wm
-        manifest["meta"]["ignore_folders"] = ignore_key
-        if max_nodes and len(manifest["nodes"]) > max_nodes:
-            manifest["nodes"] = manifest["nodes"][:max_nodes]
-            manifest["meta"]["truncated"] = True
+        manifest = _finalize_manifest(manifest, wm, ignore_key, max_nodes)
         _write_atomic(path, manifest)
         _mem_cache[path] = manifest
         return manifest

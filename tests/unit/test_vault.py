@@ -5,8 +5,7 @@ Covers: is_safe_path sandbox enforcement, read_note (via tmp files),
 """
 
 import os
-import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 from sympose.config import is_safe_path
 
@@ -954,6 +953,82 @@ class TestExtractRecallSubject:
     def test_pure_sample_phrasing_has_no_subject(self):
         assert self._subj("pull up a random daily entry")[0] == ""
         assert self._subj("surprise me with any note")[0] == ""
+
+
+class TestRealVaultReferentsAndFirstUnverifiedReferent:
+    """ADR-124's structural check, exercised through the real VaultManager
+    facade against a real temp vault - `vault_grounding`'s own pure-function
+    tests already cover the extraction/matching logic in isolation."""
+
+    def _profile(self, tmp_vault_dir, monkeypatch):
+        monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
+        return {"vault_folders": ["*"]}
+
+    def test_referents_include_folder_and_note_names(self, tmp_vault_dir, monkeypatch):
+        from sympose.vault import VaultManager
+
+        (tmp_vault_dir / "People").mkdir()
+        write_note(str(tmp_vault_dir / "People" / "Dylan.md"), "# Dylan\n")
+        profile = self._profile(tmp_vault_dir, monkeypatch)
+
+        real = VaultManager.real_vault_referents(profile)
+        assert "people" in real
+        assert "dylan" in real
+
+    def test_catches_a_real_folder_named_with_unanticipated_phrasing(
+        self, tmp_vault_dir, monkeypatch
+    ):
+        """The live gap ADR-124 closes: 'this one is from the People
+        directory' matches none of `_VAULT_CLAIM_RE`'s enumerated phrases in
+        engine.py, but names a real folder."""
+        from sympose.vault import VaultManager
+
+        (tmp_vault_dir / "People").mkdir()
+        write_note(str(tmp_vault_dir / "People" / "Dylan.md"), "# Dylan\n")
+        profile = self._profile(tmp_vault_dir, monkeypatch)
+
+        hit = VaultManager.first_unverified_referent(
+            "this one is from the People directory", profile
+        )
+        assert hit == "People"
+
+    def test_no_hit_for_an_invented_name(self, tmp_vault_dir, monkeypatch):
+        from sympose.vault import VaultManager
+
+        (tmp_vault_dir / "People").mkdir()
+        profile = self._profile(tmp_vault_dir, monkeypatch)
+
+        hit = VaultManager.first_unverified_referent(
+            "this one is from the Basement directory", profile
+        )
+        assert hit == ""
+
+    def test_extra_stop_suppresses_the_persona_or_user_name(
+        self, tmp_vault_dir, monkeypatch
+    ):
+        from sympose.vault import VaultManager
+
+        samantha = tmp_vault_dir / "Samantha"
+        samantha.mkdir()
+        write_note(str(samantha / "Bio.md"), "# Bio\n")
+        profile = self._profile(tmp_vault_dir, monkeypatch)
+
+        hit = VaultManager.first_unverified_referent(
+            "Samantha mentioned that earlier", profile, extra_stop={"samantha"}
+        )
+        assert hit == ""
+
+    def test_no_vault_configured_returns_empty_referents(self, monkeypatch):
+        from sympose.vault import VaultManager
+
+        monkeypatch.setenv("MASTER_VAULT_PATH", "")
+        assert VaultManager.real_vault_referents({"vault_folders": ["*"]}) == frozenset()
+        assert (
+            VaultManager.first_unverified_referent(
+                "the People directory", {"vault_folders": ["*"]}
+            )
+            == ""
+        )
 
 
 class TestRecallHitConfidence:

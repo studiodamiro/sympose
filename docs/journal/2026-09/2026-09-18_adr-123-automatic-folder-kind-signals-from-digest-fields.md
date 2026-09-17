@@ -22,9 +22,15 @@ tags:
   ADR-123.4 (the write-path gate) also shipped 2026-09-18 - see
   `vault_turn_context.py`'s `_resolve_folder_scope_case`, now gated on a
   real folder name alone, and verified live against the same real vault
-  with two keyword-free write-shaped messages. ADR-123.5 (the inbound
-  referent-matching generalization) remains design only, not yet built.
-  Raised by damiro in discussion after the
+  with two keyword-free write-shaped messages. ADR-123.5's *finding* half
+  (generalizing the real-name gate from folders to any real note/title)
+  also shipped 2026-09-18 - see `_resolve_real_referent_case`, verified
+  live against the same real vault and fixed once based on what that
+  surfaced (a ranked-search substitute for a confirmed-real but
+  near-empty stub note - see **Implementation notes** below). ADR-123.5's
+  *miss-surfacing* half ("no vault entry found for X" as a plain fact
+  handed to the model) remains deliberately unbuilt - see that section's
+  update below for why. Raised by damiro in discussion after the
   [2026-09-17 ritual-continuation fix](./2026-09-17_ritual-continuation-carries-no-grounding.md):
   "defining each folder in the vault will make the agents' decisions more
   reliable." Originally documented ahead of any build decision; a same-day
@@ -165,6 +171,53 @@ Proposed, not yet implemented:
   neither is asking "does this sound like a request" - both are asking
   "does this refer to something that demonstrably exists."
 
+## Implementation notes (123.5's finding half, shipped 2026-09-18)
+
+`vault_turn_context.py`'s `_resolve_real_referent_case` (case 7.5) runs
+`VaultManager.first_unverified_referent` on the inbound message once cases
+1-7 have already tried and case 7 hasn't already matched a folder name.
+On a confirmed real referent, it reads that exact note directly via
+`read_note` - the same resolution case 3 (quoted title) already trusts -
+rather than handing the confirmed name to a ranked, vault-wide search.
+
+That distinction turned out to matter immediately against the real
+vault: `Limbo/Life.md` and `Limbo/Time.md` are genuine notes (a 0-byte
+placeholder and a near-empty stub, respectively - exactly what a "Limbo"
+catch-all is for), so "life" and "time" are real referents. An ordinary,
+unrelated sentence that happens to start with either word ("Life is good
+today.", capitalized only because it opens the sentence) confirmed as
+real and then - in the first version of this fix, which called
+`_recall_hit` the same way case 7's folder search does - fell through to
+a *ranked* vault-wide text search for the bare word, which surfaced a
+wholly unrelated `Quotes/` note that merely contained "life" in its own
+filename. A confident-looking wrong substitute, not a wrong referent
+check: the referent match itself was correct, but resolving it via search
+instead of a direct read handed back the wrong note entirely. Reading the
+confirmed name directly fixed this outright: `Limbo/Life.md` (genuinely
+empty) now correctly yields nothing, and `Limbo/Time.md` (near-empty but
+real) now correctly surfaces its own actual content instead of someone
+else's. Verified with a new regression test
+(`test_real_referent_that_is_an_empty_stub_yields_no_hit`) and against
+three live model replies (local `ollama`) on "I ran into Dylan today,"
+"Time flies when you're having fun," and "Life is good today" - all
+three came back natural and un-confused, with no visible mishandling of
+the near-empty `Time` content that was now correctly in context.
+
+The miss-surfacing half of ADR-123.5 - handing the model a plain "no
+vault entry found for X" fact - was deliberately **not** built this pass.
+`_CAPITALIZED_RUN_RE` (the same candidate extractor ADR-124 already uses
+for the outbound check) matches *any* sentence-initial capitalized word,
+real referent or not; treating every non-match as a reportable "miss"
+would flag an ordinary capitalized word at the start of nearly every
+sentence, which is exactly the enumerable-noise failure mode this project
+keeps moving away from, just inverted (over-reporting misses instead of
+requiring keywords). The hit side has no such problem because a
+false-positive *candidate* costs nothing if it doesn't match anything
+real (the existing docstring on `_CAPITALIZED_RUN_RE` already banks on
+this for the outbound direction) - but a false-positive *miss report*
+costs a spurious, distracting aside on nearly every turn. Left for a
+future pass with its own scoping, not assumed away.
+
 ## Implementation notes (123.1-123.3, shipped 2026-09-18)
 
 Two things surfaced only by testing against a real ~800-note vault
@@ -230,20 +283,32 @@ code - worth recording since both were real bugs/gaps, not edge cases:
   `get_random_sample_notes` run per session versus today's narrower gate.
   Still zero-round-trip (no LLM call added), just more frequent disk-cache
   reads against an already-cheap, already-cached statistic.
-- ADR-123.5 runs the referent check on every incoming message, not just
-  ones that already look folder-scoped - a wider surface than 123.4 alone.
-  Still hot-path safe on the same terms `first_unverified_referent` already
-  established for the outbound direction: one cached frozenset build per
-  vault-freshness-window, one regex scan over the (short) incoming message
-  per turn, one set-membership test per candidate - no unbounded work, no
-  added LLM call, consistent with the sub-1s TTFT SLA.
-- ADR-123.5 deliberately leaves "was an action implied?" undecided in
-  code - a real cost is that this ADR cannot promise consistent behavior
-  here the way a hard rule could; it depends on the model's own judgment
-  per turn, same as any other conversational nuance. That's an accepted
-  tradeoff, not an oversight: a wrong hard-coded rule (offering to create
-  an entry on every passing mention, or never offering at all) would be
-  worse than variance driven by actual conversational judgment.
+- ADR-123.5's finding half runs the referent check on every incoming
+  message not already resolved by an earlier case - a wider surface than
+  123.4 alone. Still hot-path safe on the same terms
+  `first_unverified_referent` already established for the outbound
+  direction: one cached frozenset build per vault-freshness-window, one
+  regex scan over the (short) incoming message per turn, one direct
+  single-note read on a confirmed hit - no unbounded work, no added LLM
+  call, consistent with the sub-1s TTFT SLA.
+- A confirmed real referent can still be a near-empty stub note (see
+  **Implementation notes**), so a coincidental match on an ordinary
+  common word can inject thin, marginally relevant content on an
+  otherwise unrelated remark. Verified live that this degrades safely -
+  the model handles it as ordinary optional context and doesn't force it
+  into the reply - but it is a real, observed cost, not a hypothetical
+  one, and is the direct trade for not enumerating which words are
+  "common enough" to distrust.
+- ADR-123.5's miss-surfacing half deliberately leaves "was an action
+  implied?" - and, this pass, "should a miss even be reported at all?" -
+  undecided in code, because building the reporting mechanism at all
+  turned out to need its own scoping work first (see **Implementation
+  notes**). A real cost is that this ADR cannot promise consistent
+  behavior here the way a hard rule could; it depends on the model's own
+  judgment per turn, same as any other conversational nuance. That's an
+  accepted tradeoff, not an oversight: a wrong hard-coded rule (offering
+  to create an entry on every passing mention, or never offering at all)
+  would be worse than variance driven by actual conversational judgment.
 
 ## Alternatives rejected
 

@@ -265,6 +265,74 @@ class TestGroundingModeKnob:
             engine.config.set("vault.grounding_default", None)
 
 
+class TestRitualPullDue:
+    """Regression, found live: `@samantha`'s persona memory records a "let's
+    play our favorite game" random-note-pull ritual. The opening message
+    ("let's play our favorite game, let's do Movies") matches that memory
+    fact's own wording, so a real note gets fetched and the reply is
+    correctly grounded - but the follow-up "let's do another one" repeats
+    none of the fact's wording, `find_relevant_memory_fact` finds no match,
+    and with nothing carried forward the model free-associated a fake
+    literary reflection and then a fully invented title ("Echoes of
+    August") for a note it was never actually given. `_ritual_pull_due`
+    closes this by remembering the ritual is active across the session."""
+
+    def test_fresh_mem_hit_describing_ritual_is_due(self, engine):
+        assert engine._ritual_pull_due(
+            "Damiro's favorite game is pulling a random note and discussing it",
+            False,
+            "lets play our favorite game. lets do Movies. g!",
+        )
+
+    def test_fresh_mem_hit_unrelated_to_ritual_is_not_due(self, engine):
+        assert not engine._ritual_pull_due(
+            "Damiro takes his coffee black", False, "good morning"
+        )
+
+    def test_continuation_with_no_mem_hit_reuses_active_ritual(self, engine):
+        """The exact live-bug shape: no fresh keyword overlap, but the
+        ritual was already engaged last turn."""
+        assert engine._ritual_pull_due(None, True, "lets do another one")
+
+    def test_continuation_without_an_active_ritual_is_not_due(self, engine):
+        assert not engine._ritual_pull_due(None, False, "lets do another one")
+
+    def test_unrelated_coincidental_mem_hit_does_not_suppress_active_ritual(
+        self, engine
+    ):
+        """A `mem_hit` that fires on this turn but describes something else
+        entirely must not cancel an already-active ritual - the two checks
+        are independent, not either/or."""
+        assert engine._ritual_pull_due(
+            "Damiro takes his coffee black", True, "lets do another one"
+        )
+
+    def test_distinct_vault_ask_ends_an_active_ritual(self, engine):
+        """A genuinely new, explicit vault question is a topic change, not
+        another round of the same game, even mid-ritual."""
+        assert not engine._ritual_pull_due(
+            None, True, "pull up my notes on grief"
+        )
+
+
+class TestResetHistoryClearsRitualState:
+    """`active_ritual` follows the same per-handle lifecycle as
+    `active_vault_ctx` - a `/reset` must drop it too, or a ritual engaged in
+    a since-cleared conversation would keep silently pulling random notes
+    into an unrelated one."""
+
+    def test_reset_without_session_id_clears_ritual(self, engine):
+        engine.active_ritual["samantha"] = True
+        engine.reset_history("samantha")
+        assert engine.active_ritual.get("samantha") is None
+
+    def test_reset_with_session_id_clears_that_sessions_ritual(self, engine):
+        h_key = engine._get_history_key("samantha", "sess-1")
+        engine.active_ritual[h_key] = True
+        engine.reset_history("samantha", session_id="sess-1")
+        assert engine.active_ritual.get(h_key) is None
+
+
 class TestVaultClaimRegex:
     """Regression, found live: a local model given a manual /model override
     (which intentionally bypasses routing but still expects strict grounding

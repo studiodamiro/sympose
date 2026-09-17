@@ -221,6 +221,27 @@ class PersonaEngine:
         be trusted."""
         return re.sub(r"(?m)^### Ground-Truth[^\n]*\n?", "", vault_ctx).strip()
 
+    @staticmethod
+    def _ritual_pull_due(
+        mem_hit: str | None, ritual_active: bool, clean_input: str
+    ) -> bool:
+        """True when this turn should (re)fetch a real note for a "pull a
+        random note" ritual: either a fresh memory-fact match this turn
+        describes the ritual by name (`mem_hit`), or the ritual was already
+        engaged on a prior turn (`ritual_active`) and this message repeats
+        none of the fact's own wording - a continuation like "let's do
+        another one" - so `find_relevant_memory_fact`'s keyword overlap
+        won't fire again on its own. These are independent, not either/or:
+        a coincidental, unrelated `mem_hit` on a continuation turn (one
+        that doesn't itself describe the ritual) must not suppress an
+        already-active ritual - only an explicit, distinct vault ask
+        (`has_recall_intent`) ends it; that guard applies only to the
+        carry-over path, since a fresh fact match needs no such guard
+        (this check's original, unguarded behavior)."""
+        if mem_hit and VaultManager.describes_random_pull_ritual(mem_hit):
+            return True
+        return ritual_active and not VaultManager.has_recall_intent(clean_input)
+
     def _grounding_mode(self, profile: dict[str, Any], target_model: str) -> str:
         """`strict` → the runtime enforces vault retrieval itself; `trust` →
         rely on the model to emit `[SPAWN_SUB_AGENT: vault_read]`. An explicit
@@ -336,6 +357,13 @@ class PersonaEngine:
         self.active_sessions: dict[str, str] = {}
         self.model_overrides: dict[str, str] = {}
         self.active_vault_ctx: dict[str, str] = {}
+        # True once a "pull a random note" ritual (ADR: see
+        # resolve_ritual_random_pull's docstring) has actually fetched a real
+        # note this session, so a later continuation turn ("let's do another
+        # one") that repeats none of the memory fact's own wording can still
+        # keep pulling real notes instead of freewheeling once the phrase
+        # that first triggered it stops being repeated.
+        self.active_ritual: dict[str, bool] = {}
         # Guards mutation of the four dicts above. One PersonaEngine is shared
         # across every Slack daemon thread (one per concurrent in-flight
         # message), so check-then-act sequences on this state need to be atomic.
@@ -394,11 +422,13 @@ class PersonaEngine:
                 k = self._get_history_key(handle, session_id)
                 self.histories[k] = []
                 self.active_vault_ctx.pop(k, None)
+                self.active_ritual.pop(k, None)
             else:
                 h_low = handle.lower()
                 prefix = f"{h_low}::"
                 self.histories[h_low] = []
                 self.active_vault_ctx.pop(h_low, None)
+                self.active_ritual.pop(h_low, None)
                 self.active_sessions.pop(h_low, None)
                 for k in list(self.histories.keys()):
                     if k.startswith(prefix):
@@ -406,6 +436,9 @@ class PersonaEngine:
                 for k in list(self.active_vault_ctx.keys()):
                     if k.startswith(prefix):
                         self.active_vault_ctx.pop(k, None)
+                for k in list(self.active_ritual.keys()):
+                    if k.startswith(prefix):
+                        self.active_ritual.pop(k, None)
 
     def get_model_override(self, handle: str) -> str | None:
         with self._lock:
@@ -647,12 +680,22 @@ class PersonaEngine:
                 # Fresh vault question, nothing retrieved: drop any carried-over
                 # context so the model can't answer "pull up X" from a stale,
                 # unrelated note. It must take the honest path (spawn a sub-agent
-                # or say it has no record).
+                # or say it has no record). A distinct, explicit vault ask like
+                # this also ends any random-pull ritual in progress — it's a
+                # new topic, not "another one" of the same game.
                 self.active_vault_ctx[h_key] = None
-            elif self.active_vault_ctx.get(h_key):
+                self.active_ritual[h_key] = False
+            elif self.active_vault_ctx.get(h_key) and not self.active_ritual.get(
+                h_key
+            ):
                 # Reusing a prior turn's resolved context — re-read a
                 # single-note reference fresh rather than replaying a frozen
-                # copy that may no longer match the file on disk.
+                # copy that may no longer match the file on disk. Skipped
+                # while a random-pull ritual is active: re-serving the same
+                # note here would satisfy the ritual block's own full-body
+                # check below before it gets a chance to run, silently
+                # turning "let's do another one" into "here's that same one
+                # again" instead of a fresh pull.
                 vault_ctx = VaultManager.refresh_note_context(
                     profile, self.active_vault_ctx[h_key]
                 )
@@ -676,38 +719,39 @@ class PersonaEngine:
                 "The user's message closely overlaps this fact you already "
                 f"have - it is very likely what they mean:\n- {mem_hit}"
             )
-            # The matched fact itself may describe a "pull a random note"
-            # ritual by whatever name the user gave it. Nothing in
-            # resolve_turn_context's own phrase-matching fires for a
-            # message like "let's play our favorite game" - it never
-            # asked for a random note in those words - so without this, a
-            # real note is never actually fetched and the model fills the
-            # gap with a plausible-sounding invented title. Respects the
-            # same vault-skill gate resolve_turn_context itself enforces.
-            #
-            # Live bug: a *thin* vault_ctx carried over from an earlier,
-            # unrelated turn (a search-results digest, not a full note)
-            # was enough to skip this entirely - "already have something"
-            # - even though it has nothing to do with this turn's request
-            # and isn't strong enough for the citation-mismatch safety net
-            # to engage either (that only activates on a full note body),
-            # so the model's fabrication sailed through completely
-            # unchecked. Only a genuine full-body context (this turn's own
-            # structural match, or a freshly refreshed single-note carry-
-            # over) counts as "already have something" here; a thin digest
-            # gets superseded by a real pull instead.
-            if not self._is_full_body_vault_ctx(
-                vault_ctx
-            ) and VaultManager.describes_random_pull_ritual(
-                mem_hit
-            ) and VaultManager.has_vault_skill(profile):
-                vault_ctx = VaultManager.resolve_ritual_random_pull(
-                    profile, clean_input
-                )
-                if vault_ctx:
-                    with self._lock:
-                        self.active_vault_ctx[h_key] = vault_ctx
-                    system_prompt += f"\n\n{vault_ctx}"
+        # The matched fact (or an already-engaged ritual carried over from a
+        # prior turn - see _ritual_pull_due) may describe a "pull a random
+        # note" ritual by whatever name the user gave it. Nothing in
+        # resolve_turn_context's own phrase-matching fires for a message
+        # like "let's play our favorite game" or its own follow-up "let's
+        # do another one" - neither ever asks for a random note in those
+        # words - so without this, a real note is never actually fetched
+        # and the model fills the gap with a plausible-sounding invented
+        # title ("Echoes of August" in a live incident). Respects the same
+        # vault-skill gate resolve_turn_context itself enforces.
+        #
+        # Live bug: a *thin* vault_ctx carried over from an earlier,
+        # unrelated turn (a search-results digest, not a full note) was
+        # enough to skip this entirely - "already have something" - even
+        # though it has nothing to do with this turn's request and isn't
+        # strong enough for the citation-mismatch safety net to engage
+        # either (that only activates on a full note body), so the model's
+        # fabrication sailed through completely unchecked. Only a genuine
+        # full-body context (this turn's own structural match, or a
+        # freshly refreshed single-note carry-over) counts as "already have
+        # something" here; a thin digest gets superseded by a real pull.
+        if self._ritual_pull_due(
+            mem_hit, self.active_ritual.get(h_key, False), clean_input
+        ) and not self._is_full_body_vault_ctx(
+            vault_ctx
+        ) and VaultManager.has_vault_skill(profile):
+            fresh_pull = VaultManager.resolve_ritual_random_pull(profile, clean_input)
+            if fresh_pull:
+                vault_ctx = fresh_pull
+                with self._lock:
+                    self.active_vault_ctx[h_key] = vault_ctx
+                    self.active_ritual[h_key] = True
+                system_prompt += f"\n\n{vault_ctx}"
         if has_session_recall_intent(clean_input):
             system_prompt += "\n\n" + self._build_session_history_digest(
                 handle, curr_session_id

@@ -13,11 +13,15 @@ tags:
 
 - **Status:** Partially implemented. ADR-123.1-123.3 (the folder-kind
   signal itself, its cache reuse, and surfacing it on both
-  `get_folder_digest` and `get_random_sample_notes`) shipped 2026-09-18 -
-  see `sympose/vault_folders.py`'s `_folder_kind_signal` and 16 tests in
-  `tests/unit/test_vault_folders.py`. ADR-123.4 (the write-path gate) and
-  ADR-123.5 (the inbound referent-matching generalization) remain design
-  only, not yet built. Raised by damiro in discussion after the
+  `get_folder_digest` and `get_random_sample_notes`) shipped 2026-09-18,
+  then verified live against a real ~800-note vault and fixed twice more
+  based on what that surfaced (case-insensitive key matching; weighing a
+  field against its vault-wide baseline, not just local presence) - see
+  `sympose/vault_folders.py`'s `_folder_kind_signal` and 20 tests in
+  `tests/unit/test_vault_folders.py`, and **Implementation notes** below.
+  ADR-123.4 (the write-path gate) and ADR-123.5 (the inbound
+  referent-matching generalization) remain design only, not yet built.
+  Raised by damiro in discussion after the
   [2026-09-17 ritual-continuation fix](./2026-09-17_ritual-continuation-carries-no-grounding.md):
   "defining each folder in the vault will make the agents' decisions more
   reliable." Originally documented ahead of any build decision; a same-day
@@ -158,19 +162,53 @@ Proposed, not yet implemented:
   neither is asking "does this sound like a request" - both are asking
   "does this refer to something that demonstrably exists."
 
+## Implementation notes (123.1-123.3, shipped 2026-09-18)
+
+Two things surfaced only by testing against a real ~800-note vault
+(`~/Development/garden`), not the synthetic fixtures written alongside the
+code - worth recording since both were real bugs/gaps, not edge cases:
+
+- **Case-insensitive key matching.** Real notes had accumulated
+  `title`/`Title`, `created`/`Created`, `up`/`Up` as inconsistently-cased
+  YAML keys (different tools/eras of editing the same note) - the
+  presence tally originally matched keys case-sensitively, so a field on
+  ~98% of a folder's notes silently split into two ~50% halves, neither
+  clearing the threshold. Fixed by lowercasing keys before tallying, with
+  a per-note dedupe so a note carrying both casings doesn't double-count
+  its own presence.
+- **Vault-wide distinctiveness weighting (123.1 extended).** The
+  Consequences section below originally anticipated this only as a
+  possible future problem ("worth a look only if the structural signal
+  proves too coarse in practice" - see the LLM-classification entry under
+  Alternatives). Testing against the real vault confirmed it immediately:
+  `created`/`title` are common enough vault-wide that they surfaced as
+  "the signal" for `Code/`, `Limbo/`, and `Projects/` alike, distinguishing
+  none of them. Fixed by comparing a field's local presence against its
+  own vault-wide presence (`cls._get_vault_snapshot(mv, [mv])`, itself
+  cached the same way as the folder-scoped call - one extra cached read,
+  not a new disk-walk pattern) and requiring at least a 25-point margin
+  before calling it distinctive. After the fix: `created` dropped out of
+  every folder's signal, `Limbo/` moved from a misleading "created" line
+  to honest silence, and the genuinely distinctive folders (`People/`,
+  `Movies/`, `Quotes/`, `Thoughts/`, `General/`) kept accurate,
+  human-legible signals straight from real tagging habits.
+
 ## Consequences
 
-**Positive** (anticipated - not yet implemented)
+**Positive**
 
 - Zero configuration: no user ever writes a folder description, and the
   signal is correct for any vault's own naming and organizing habits, not
   just conventional folder names.
 - Zero round-trip: purely a statistic over data already read off disk for
-  the digest; no added LLM call, consistent with Sympose's round-trip-frugal
-  design (the same principle behind rejecting ADR-070.4 above it in the
-  index).
+  the digest (plus, after the fix above, one additional cached vault-wide
+  read for the distinctiveness baseline); no added LLM call, consistent
+  with Sympose's round-trip-frugal design (the same principle behind
+  rejecting ADR-070.4 above it in the index).
 - Degrades safely: a folder with no recognizable fields simply gets no
-  signal, rather than a wrong one.
+  signal, rather than a wrong one - confirmed live against a real vault
+  (`Recipes/`, `Reading/` had 0 matching notes; `Writing/` had 1 - all
+  correctly silent).
 
 **Negative / costs**
 
@@ -228,8 +266,11 @@ Proposed, not yet implemented:
 - **One-time LLM classification per folder, cached.** Not rejected
   outright, but not proposed here: it would add real round-trip cost
   (even if amortized/cached) for a benefit that ADR-123.1's zero-cost
-  structural statistic may already deliver. Worth a look only if the
-  structural signal proves too coarse in practice.
+  structural statistic may already deliver. The coarseness concern this
+  was hedging against did show up in practice (see **Implementation
+  notes**), but the fix that closed it - weighing a field against its
+  own vault-wide baseline - stayed structural and zero-round-trip, so
+  this alternative remains unneeded rather than newly justified.
 - **A hard-coded rule for when a miss should offer to create an entry**
   (e.g. "always offer" or a heuristic guessing whether the mention was a
   request). Rejected per ADR-123.5's own reasoning: judging whether an

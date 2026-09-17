@@ -25,6 +25,136 @@ from sympose.vault_folder_discovery import DiscoveryMixin
 
 log = logging.getLogger(__name__)
 
+# ADR-123.1: a folder-kind signal needs enough notes to trust a fraction -
+# a 1- or 2-note folder showing "100% birthday" is noise, not signal.
+_KIND_SIGNAL_MIN_NOTES = 3
+# A field (or a single value within a field) only counts as "defining" once
+# it covers this share of the folder's notes - "mostly", not "sometimes".
+_KIND_SIGNAL_PRESENCE_THRESHOLD = 0.6
+_KIND_SIGNAL_MAX_FIELDS = 3
+
+
+def _normalize_field_tokens(value: Any) -> list[str]:
+    """Normalizes one frontmatter field's raw value into lowercase string
+    tokens, so a YAML list (`tags: [a, b]`), a comma-separated string
+    (`tags: a, b`), and a plain scalar (`author: Damiro`) all feed the same
+    value-clustering check the same way, regardless of which convention a
+    given vault happens to use."""
+    if value is None:
+        return []
+    if isinstance(value, list):
+        return [str(v).strip().lower() for v in value if str(v).strip()]
+    if isinstance(value, str):
+        if "," in value:
+            return [t.strip().lower() for t in value.split(",") if t.strip()]
+        v = value.strip()
+        return [v.lower()] if v else []
+    v = str(value).strip()
+    return [v.lower()] if v else []
+
+
+def _folder_kind_signal(entries: list[dict[str, Any]]) -> str:
+    """ADR-123.1 — a structural, zero-configuration one-line hint about
+    what kind of folder this is, derived purely from which frontmatter
+    keys (and, where one value clearly dominates, which value) actually
+    show up across most of these notes. No fixed vocabulary: every real
+    YAML key any note in the folder actually uses is a candidate, not
+    just a hand-picked list, so this works identically on any vault's own
+    naming conventions - a vault that uses `status:` gets a signal built
+    on `status`; one with almost no frontmatter gets silence, correctly.
+
+    Silent (empty string) whenever nothing clears the bar: too few notes
+    to trust a fraction, or - the concentration-vs-catch-all case a real
+    vault can have (e.g. a `Code/` folder where most notes share one
+    dominant tag, next to a `Limbo/` catch-all where nothing repeats
+    enough to dominate) - a folder that's genuinely a mix of unrelated
+    notes gets no signal rather than a guessed one.
+
+    Known, accepted limitation (see ADR-123's Consequences): this is a
+    correlation, not semantic understanding, and a field that's present
+    on most notes but whose values never repeat enough to dominate (e.g.
+    `created` timestamps, which are expected to differ every note) still
+    surfaces as a bare field name - still informative, just coarser than
+    a value-level signal."""
+    total = len(entries)
+    if total < _KIND_SIGNAL_MIN_NOTES:
+        return ""
+
+    presence, value_counts, multi_valued = _tally_field_values(entries)
+    signals = _score_field_signals(presence, value_counts, multi_valued, total)
+    if not signals:
+        return ""
+    signals.sort(key=lambda s: -s[0])
+    top = [label for _, label in signals[:_KIND_SIGNAL_MAX_FIELDS]]
+    return f"This folder's notes mostly carry: {', '.join(top)}."
+
+
+def _tally_field_values(
+    entries: list[dict[str, Any]],
+) -> tuple[dict[str, int], dict[str, dict[str, int]], set[str]]:
+    """First pass over the folder's notes: how many notes carry each real
+    frontmatter key (`presence`), how many notes carry each distinct
+    normalized value per key (`value_counts`), and which keys were ever
+    represented as a list or comma-separated value anywhere in the folder
+    (`multi_valued`) - a YAML list is inherently how Obsidian expresses a
+    multi-label, categorical field (`tags` being the obvious case), which
+    `_score_field_signals` uses to tell "no dominant value, but presence
+    alone is still meaningful" (e.g. `created`, always a single value)
+    apart from "no dominant value means this is genuinely a mixed
+    catch-all" (list-shaped fields whose values never cluster)."""
+    presence: dict[str, int] = {}
+    value_counts: dict[str, dict[str, int]] = {}
+    multi_valued: set[str] = set()
+    for entry in entries:
+        meta = entry.get("meta")
+        if not isinstance(meta, dict):
+            continue
+        for key, raw_value in meta.items():
+            tokens = _normalize_field_tokens(raw_value)
+            if not tokens:
+                continue
+            if isinstance(raw_value, list) or (
+                isinstance(raw_value, str) and "," in raw_value
+            ):
+                multi_valued.add(key)
+            presence[key] = presence.get(key, 0) + 1
+            counts = value_counts.setdefault(key, {})
+            # dict.fromkeys, not set(), so a tie in _score_field_signals'
+            # max() deterministically favors whichever value was written
+            # first, instead of an arbitrary hash-order pick.
+            for tok in dict.fromkeys(tokens):
+                counts[tok] = counts.get(tok, 0) + 1
+    return presence, value_counts, multi_valued
+
+
+def _score_field_signals(
+    presence: dict[str, int],
+    value_counts: dict[str, dict[str, int]],
+    multi_valued: set[str],
+    total: int,
+) -> list[tuple[float, str]]:
+    """Second pass: which fields clear the presence threshold, and for
+    those, whether one value dominates strongly enough to name it directly
+    (`"tags: code"`) rather than just the bare field name (`"created"`).
+    A list-shaped field with no dominant value contributes no signal at
+    all - a scattered `tags` list is a genuine catch-all, not a defining
+    trait - while a scalar field like `created` still signals on presence
+    alone, since its values are expected to differ every note."""
+    signals: list[tuple[float, str]] = []
+    for key, count in presence.items():
+        fraction = count / total
+        if fraction < _KIND_SIGNAL_PRESENCE_THRESHOLD:
+            continue
+        dominant_value, dominant_count = max(
+            value_counts[key].items(), key=lambda kv: kv[1]
+        )
+        dominant_fraction = dominant_count / total
+        if dominant_fraction >= _KIND_SIGNAL_PRESENCE_THRESHOLD:
+            signals.append((dominant_fraction, f"{key}: {dominant_value}"))
+        elif key not in multi_valued:
+            signals.append((fraction, key))
+    return signals
+
 
 class FoldersMixin(DiscoveryMixin):
     @classmethod
@@ -39,8 +169,11 @@ class FoldersMixin(DiscoveryMixin):
         if not target_dir or not os.path.exists(target_dir):
             return f"Folder `{folder_name}` not found in allowed vault directories."
 
+        snapshot_entries = cls._get_vault_snapshot(mv, [target_dir])[:max_files]
+        kind_signal = _folder_kind_signal(snapshot_entries)
+
         entries: list[str] = []
-        for entry in cls._get_vault_snapshot(mv, [target_dir])[:max_files]:
+        for entry in snapshot_entries:
             fn, head = entry["file_name"], entry["full_content"][:1000]
             parts = []
             for k in (
@@ -84,12 +217,13 @@ class FoldersMixin(DiscoveryMixin):
             summary = " | ".join(parts) if parts else fl[:80]
             entries.append(f"- `{fn}`: {summary}" if summary else f"- `{fn}`")
 
-        return (
+        if not entries:
+            return f"No notes found in `{folder_name}/`."
+        digest = (
             f"### High-Density Folder Digest (`{folder_name}/` - {len(entries)} notes):\n"
             + "\n".join(entries)
-            if entries
-            else f"No notes found in `{folder_name}/`."
         )
+        return f"{kind_signal}\n{digest}" if kind_signal else digest
 
     @classmethod
     def get_random_sample_notes(
@@ -105,7 +239,11 @@ class FoldersMixin(DiscoveryMixin):
         valid_files = cls._collect_sample_candidate_files(target_dir)
         if not valid_files:
             return ""
-        return cls._sample_and_read_notes(mv, valid_files, count)
+        samples = cls._sample_and_read_notes(mv, valid_files, count)
+        if not samples:
+            return samples
+        kind_signal = _folder_kind_signal(cls._get_vault_snapshot(mv, [target_dir]))
+        return f"{kind_signal}\n\n{samples}" if kind_signal else samples
 
     @classmethod
     def _resolve_named_folder_dir(

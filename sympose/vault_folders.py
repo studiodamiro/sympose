@@ -109,16 +109,27 @@ def _tally_field_values(
         meta = entry.get("meta")
         if not isinstance(meta, dict):
             continue
+        # Keys are matched case-insensitively - real vaults accumulate
+        # `title`/`Title` (or `created`/`Created`) inconsistency over time
+        # (different tools, different eras of editing the same note), and
+        # without this a genuinely near-universal field silently splits
+        # into two halves that each fall under the presence threshold on
+        # their own. `seen_this_note` stops a note that has *both*
+        # casings of the same key from double-counting its own presence.
+        seen_this_note: set[str] = set()
         for key, raw_value in meta.items():
+            norm_key = str(key).lower()
             tokens = _normalize_field_tokens(raw_value)
             if not tokens:
                 continue
             if isinstance(raw_value, list) or (
                 isinstance(raw_value, str) and "," in raw_value
             ):
-                multi_valued.add(key)
-            presence[key] = presence.get(key, 0) + 1
-            counts = value_counts.setdefault(key, {})
+                multi_valued.add(norm_key)
+            if norm_key not in seen_this_note:
+                presence[norm_key] = presence.get(norm_key, 0) + 1
+                seen_this_note.add(norm_key)
+            counts = value_counts.setdefault(norm_key, {})
             # dict.fromkeys, not set(), so a tie in _score_field_signals'
             # max() deterministically favors whichever value was written
             # first, instead of an arbitrary hash-order pick.

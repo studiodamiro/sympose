@@ -108,6 +108,21 @@ class TestFolderKindSignal:
         ]
         assert _folder_kind_signal(entries) == ""
 
+    def test_inconsistent_key_casing_across_notes_still_merges(self):
+        """Real bug found testing against an actual vault: notes edited at
+        different times/by different tools had `title`/`Title` as two
+        distinct YAML keys - each covering roughly half the folder, so
+        neither cleared the presence threshold alone even though the
+        field was, in reality, on nearly every note."""
+        entries = [
+            _entry({"title": "A"}),
+            _entry({"Title": "B"}),
+            _entry({"title": "C"}),
+            _entry({"Title": "D"}),
+        ]
+        signal = _folder_kind_signal(entries)
+        assert "title" in signal.lower()
+
     def test_uses_any_real_frontmatter_key_not_a_fixed_list(self):
         """No hardcoded vocabulary - a vault-specific key like `status`
         works exactly like a well-known one."""

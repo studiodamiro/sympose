@@ -216,6 +216,7 @@ Markdown documents stored on physical disk are the **sovereign single source of 
 - **Strict Verbatim Fidelity**: When presenting or synthesizing past notes, models must quote the user's exact written words verbatim using blockquotes (`>`).
 - **Complete Prohibition of Action Roleplaying**: Models must never emit fake progress markers (`*[Begins retrieval]*`, `*Outputs text*`) or invent fictional filenames/dates (`2017-10-26`). If a note is absent, the model must immediately state its honest ignorance.
 - **Multi-Turn Persistent Context (`self.active_vault_ctx`) (ADR-025)**: Notes retrieved on Turn 1 persist across conversational follow-ups (_"just pick one"_, _"show me the text"_) to prevent prompt context wiping and hallucination fallbacks.
+- **Random-Pull Ritual Continuity (`self.active_ritual`)**: A "pull a random note and discuss it" ritual, once engaged by a persona-memory fact match (`VaultManager.describes_random_pull_ritual` / `resolve_ritual_random_pull`), stays engaged across turns even when a follow-up ("let's do another one") shares no keywords with that fact. Deliberately ordered ahead of the single-note carry-over above: while a ritual is active, each turn gets a *fresh* random pull instead of the same note re-served, so the existing citation/title-verification safety net always has real content to check the reply against.
 
 ---
 

@@ -19,8 +19,11 @@ tags:
   field against its vault-wide baseline, not just local presence) - see
   `sympose/vault_folders.py`'s `_folder_kind_signal` and 20 tests in
   `tests/unit/test_vault_folders.py`, and **Implementation notes** below.
-  ADR-123.4 (the write-path gate) and ADR-123.5 (the inbound
-  referent-matching generalization) remain design only, not yet built.
+  ADR-123.4 (the write-path gate) also shipped 2026-09-18 - see
+  `vault_turn_context.py`'s `_resolve_folder_scope_case`, now gated on a
+  real folder name alone, and verified live against the same real vault
+  with two keyword-free write-shaped messages. ADR-123.5 (the inbound
+  referent-matching generalization) remains design only, not yet built.
   Raised by damiro in discussion after the
   [2026-09-17 ritual-continuation fix](./2026-09-17_ritual-continuation-carries-no-grounding.md):
   "defining each folder in the vault will make the agents' decisions more

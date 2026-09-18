@@ -218,9 +218,17 @@ class TurnGroundingMixin:
             # named a different one instead of quoting what it actually
             # had, or never referenced the real one at all - discard the
             # invented reply and show the real note directly rather than
-            # trusting a second attempt to do better.
+            # trusting a second attempt to do better. Phrased as an honest
+            # verification gap ("couldn't fully verify"), not an assertion
+            # that the model was wrong - this still can't tell a genuine
+            # fabrication from a real answer phrased in a way this check
+            # doesn't recognize, so it shouldn't claim more certainty than
+            # it has either way (same reasoning discussed with damiro for
+            # why the digest case above is exempted outright, applied here
+            # to the wording for the cases still worth catching).
             clean_text = (
-                "That's not what I actually have — here's the real note:\n\n"
+                "I couldn't fully verify that against what's actually on "
+                "file, so here's the exact note instead:\n\n"
                 + self._strip_vault_ctx_headers(vault_ctx or "")
             )
             held = [clean_text]

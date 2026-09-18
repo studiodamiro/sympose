@@ -188,6 +188,14 @@ class GroundingHelpersMixin:
 
     _FILENAME_EXT_RE = re.compile(r"\.(?:md|markdown|txt)$", re.IGNORECASE)
 
+    # Header unique to `VaultManager.get_folder_digest` (vault_folders.py) -
+    # a multi-note, metadata-only summary meant to be generalized across,
+    # never a single note the reply is expected to quote or name. Distinct
+    # from `get_random_sample_notes`' own per-note "Exact Content" header,
+    # which still hands over one or two specific notes a reply legitimately
+    # should reference by name.
+    _FOLDER_DIGEST_MARKER = "High-Density Folder Digest"
+
     @classmethod
     def _vault_ctx_title_missing(cls, clean_text: str, vault_ctx: str | None) -> bool:
         """True when a real note was handed to the model this turn and its
@@ -206,8 +214,19 @@ class GroundingHelpersMixin:
         paraphrases around the real title without repeating it verbatim is
         a false negative here, not a false positive; and a short/generic
         stem (under 4 characters) is skipped to keep that rare miss from
-        becoming a noisy one."""
+        becoming a noisy one.
+
+        Exempts a folder-digest answer (ADR-123) outright - live bug,
+        found against a real vault: asked to characterize a whole folder
+        ("what kind of things live in Movies/"), a correct answer
+        legitimately generalizes across many notes and has no reason to
+        name any one of them, but this check couldn't tell that apart from
+        the single-note case it was built for and discarded a correct,
+        well-grounded answer as if it were the same fabrication this check
+        exists to catch."""
         if not vault_ctx:
+            return False
+        if cls._FOLDER_DIGEST_MARKER in vault_ctx:
             return False
         ctx_paths = cls._VAULT_PATH_TOKEN_RE.findall(vault_ctx)
         stems = {

@@ -225,6 +225,30 @@ class TestVaultCtxTitleMissing:
         reply = "One of the pulled notes was about *Limitless* and a smart drug."
         assert not engine._vault_ctx_title_missing(reply, vault_ctx)
 
+    def test_folder_digest_answer_is_exempt_even_with_no_titles_mentioned(
+        self, engine
+    ):
+        """Live bug: asked to characterize a whole folder ("what kind of
+        things live in Movies/"), a correct answer generalizes across many
+        notes and has no reason to name any single one of them - this
+        check couldn't tell that apart from the single-note case it was
+        built for, and discarded a correct, well-grounded answer as if it
+        were the same fabrication this check exists to catch. A
+        `get_folder_digest` answer is a different shape entirely (many
+        notes, metadata only, no one note is "the" answer) and is exempt
+        outright."""
+        vault_ctx = (
+            "This folder's notes mostly carry: title, release, rating.\n"
+            "### High-Density Folder Digest (`movies/` - 28 notes):\n"
+            "- `300.md`: Title: 300 | Release: 2006\n"
+            "- `Monster.md`: Title: Monster | Release: 2003\n"
+        )
+        reply = (
+            "Your Movies folder keeps detailed film entries with ratings, "
+            "genres, and personal reflections."
+        )
+        assert not engine._vault_ctx_title_missing(reply, vault_ctx)
+
 
 class TestGroundingModeKnob:
     """`vault_grounding: auto` derives strict/trust from the model: a local

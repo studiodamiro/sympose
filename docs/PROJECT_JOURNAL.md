@@ -162,6 +162,7 @@ one in [`docs/wiki/index.md`](./wiki/index.md) are kept in sync per the
 
 | Date | Entry |
 | ---- | ----- |
+| 2026-09-18 | [A Correct "What's In This Folder?" Answer Was Being Thrown Away](./journal/2026-09/2026-09-18_folder-digest-answers-wrongly-caught-by-title-citation-guard.md) |
 | 2026-09-18 | [Closing Every mccabe Complexity (C901) Finding in sympose/](./journal/2026-09/2026-09-18_c901-complexity-sweep-full-remediation.md) |
 | 2026-09-17 | [The Random-Pull Ritual Didn't Carry Across Turns](./journal/2026-09/2026-09-17_ritual-continuation-carries-no-grounding.md) |
 | 2026-09-17 | [Code-Audit Tier 4 — Patch the Heuristics, Then Fix the Root Cause](./journal/2026-09/2026-09-17_code-audit-tier4-grounding-heuristics-and-redesign.md) |

@@ -1261,6 +1261,81 @@ class TestResolveTurnContextConversational:
         ctx = VaultManager.resolve_turn_context(self._profile(), "Life is good today.")
         assert ctx is None
 
+    def test_lowercase_mention_of_a_real_note_still_gets_context(
+        self, tmp_vault_dir, monkeypatch
+    ):
+        """ADR-123.5: casual chat is rarely capitalized ("i ran into dylan
+        today"), so the real-referent gate can't only fire on Title Case
+        without missing most of it."""
+        from sympose.vault import VaultManager
+
+        monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
+        write_note(
+            str(tmp_vault_dir / "People" / "Dylan.md"),
+            "# Dylan\n\nson, born 2015-09-08, links to [[Tin]].\n",
+        )
+
+        ctx = VaultManager.resolve_turn_context(
+            self._profile(), "i ran into dylan today, we had lunch"
+        )
+        assert ctx is not None
+        assert "2015-09-08" in ctx
+
+    def test_possessive_mention_of_someone_not_in_the_vault_is_flagged_as_a_miss(
+        self, tmp_vault_dir, monkeypatch
+    ):
+        """ADR-123.5's miss-surfacing: "marco's birthday" names someone
+        who isn't in the vault at all - the last-resort case hands the
+        model a plain fact about that, once every real retrieval case
+        above has already come up empty."""
+        from sympose.vault import VaultManager
+
+        monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
+        write_note(
+            str(tmp_vault_dir / "People" / "Dylan.md"),
+            "# Dylan\n\nson, born 2015-09-08.\n",
+        )
+
+        ctx = VaultManager.resolve_turn_context(
+            self._profile(), "add marco's birthday to my contacts"
+        )
+        assert ctx == "### Vault Check: no real vault entry found for 'marco'."
+
+    def test_possessive_mention_of_someone_real_is_not_flagged_as_a_miss(
+        self, tmp_vault_dir, monkeypatch
+    ):
+        from sympose.vault import VaultManager
+
+        monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
+        write_note(
+            str(tmp_vault_dir / "People" / "Dylan.md"),
+            "# Dylan\n\nson, born 2015-09-08.\n",
+        )
+
+        ctx = VaultManager.resolve_turn_context(
+            self._profile(), "add dylan's new school to his entry"
+        )
+        assert ctx is not None
+        assert "2015-09-08" in ctx
+
+    def test_ordinary_contraction_is_never_flagged_as_a_miss(
+        self, tmp_vault_dir, monkeypatch
+    ):
+        """Regression: "let's" is grammatically identical to a genuine
+        possessive ("marco's"), but it's a contraction of "let us," not a
+        name - it must not be reported as a missing vault entry."""
+        from sympose.vault import VaultManager
+
+        monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
+        write_note(str(tmp_vault_dir / "People" / "Dylan.md"), "# Dylan\n")
+
+        assert (
+            VaultManager.resolve_turn_context(
+                self._profile(), "I'm bored, let's play a game."
+            )
+            is None
+        )
+
     def test_game_reference_decomposed_to_a_common_word_is_not_trusted_as_a_digest(
         self, tmp_vault_dir, monkeypatch
     ):

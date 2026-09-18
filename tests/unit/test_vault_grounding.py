@@ -128,3 +128,113 @@ def test_capitalized_run_regex_is_reused_consistently():
     # Sanity check that the module's own extraction regex is a plain
     # re.Pattern usable the same way VAULT_PATH_TOKEN_RE is.
     assert isinstance(vault_grounding._CAPITALIZED_RUN_RE, re.Pattern)
+
+
+class TestRealReferentMentioned:
+    """ADR-123.5: the case-insensitive counterpart to
+    first_unverified_referent, for inbound chat that can't be assumed to
+    follow Title-Case conventions the way a model's own reply usually
+    does."""
+
+    def _real(self):
+        return vault_grounding.real_vault_referents_from_snapshot(
+            {"people": "/vault/People"},
+            [{"file_name": "Dylan.md", "meta": {}}],
+        )
+
+    def test_catches_an_all_lowercase_mention(self):
+        hit = vault_grounding.real_referent_mentioned(
+            "i ran into dylan today, we had lunch", self._real()
+        )
+        assert hit == "dylan"
+
+    def test_possessive_form_still_resolves_to_the_bare_name(self):
+        """"dylan's" tokenizes on the apostrophe into "dylan" + "s", so a
+        possessive mention needs no separate stripping step to match."""
+        hit = vault_grounding.real_referent_mentioned(
+            "can you update dylan's school info", self._real()
+        )
+        assert hit == "dylan"
+
+    def test_name_embedded_in_a_longer_phrase_is_not_swallowed(self):
+        """Regression: a naive greedy 3-word window ("ran into dylan")
+        would consume "dylan" into a candidate that matches nothing and
+        never try it alone. Every window size is tried at every position."""
+        hit = vault_grounding.real_referent_mentioned(
+            "i ran into dylan today", self._real()
+        )
+        assert hit == "dylan"
+
+    def test_no_hit_on_ordinary_conversational_text(self):
+        assert (
+            vault_grounding.real_referent_mentioned(
+                "the weather today is really nice, dont you think", self._real()
+            )
+            == ""
+        )
+
+    def test_multi_word_referent_matches_as_one_window(self):
+        real = vault_grounding.real_vault_referents_from_snapshot(
+            {}, [{"file_name": "note1.md", "meta": {"title": "If I Stay"}}]
+        )
+        hit = vault_grounding.real_referent_mentioned("have you read if i stay", real)
+        assert hit == "if i stay"
+
+    def test_extra_stop_suppresses_a_match(self):
+        assert (
+            vault_grounding.real_referent_mentioned(
+                "dylan is around", self._real(), extra_stop={"dylan"}
+            )
+            == ""
+        )
+
+    def test_empty_real_referents_never_matches(self):
+        assert (
+            vault_grounding.real_referent_mentioned("dylan is around", frozenset())
+            == ""
+        )
+
+
+class TestPossessiveMentions:
+    """ADR-123.5's miss-surfacing side: a possessive is a
+    capitalization-independent signal of naming a specific thing, but
+    English contracts plenty of pronouns/adverbs with "'s" too - those
+    must not be mistaken for a possessive."""
+
+    def test_finds_a_genuine_possessive(self):
+        assert vault_grounding.possessive_mentions(
+            "add marco's birthday to my contacts"
+        ) == ["marco"]
+
+    def test_finds_multiple_in_appearance_order(self):
+        assert vault_grounding.possessive_mentions(
+            "marco's birthday and kevin's new place"
+        ) == ["marco", "kevin"]
+
+    def test_excludes_common_contractions(self):
+        for msg in (
+            "that's a great idea",
+            "here's what I was thinking",
+            "there's nothing to worry about",
+            "who's coming to the party",
+            "what's the plan for today",
+            "let's play a game",
+            "one's own thoughts can be tricky",
+        ):
+            assert vault_grounding.possessive_mentions(msg) == []
+
+    def test_excludes_personal_and_indefinite_pronouns(self):
+        for msg in (
+            "she's doing great",
+            "he's been busy lately",
+            "everyone's excited about the trip",
+            "nobody's perfect, right?",
+        ):
+            assert vault_grounding.possessive_mentions(msg) == []
+
+    def test_excludes_temporal_deictic_nouns(self):
+        for msg in ("today's a good day", "tomorrow's forecast looks clear"):
+            assert vault_grounding.possessive_mentions(msg) == []
+
+    def test_no_possessive_yields_empty_list(self):
+        assert vault_grounding.possessive_mentions("just chatting, nothing else") == []

@@ -138,6 +138,20 @@ class VaultManager(
             text, VAULT_PATH_TOKEN_RE, cls.real_vault_referents(profile), extra_stop
         )
 
+    @classmethod
+    def real_referent_mentioned(
+        cls,
+        text: str,
+        profile: dict[str, Any],
+        extra_stop: frozenset[str] | set[str] = frozenset(),
+    ) -> str:
+        """Case-insensitive counterpart to `first_unverified_referent`, for
+        inbound chat that can't be assumed to follow Title-Case
+        conventions. See ADR-123.5."""
+        return vault_grounding.real_referent_mentioned(
+            text, cls.real_vault_referents(profile), extra_stop
+        )
+
     # Sandbox path resolution itself now lives in vault_paths.py (pure,
     # self-contained, no other vault module depends on it) — these stay as
     # thin re-exports so every existing `VaultManager.get_allowed_dirs(...)`

@@ -22,7 +22,7 @@ import os
 import re
 from typing import Any
 
-from sympose import vault_recall
+from sympose import vault_grounding, vault_recall
 
 log = logging.getLogger(__name__)
 
@@ -175,9 +175,13 @@ class TurnContextMixin:
         if hit:
             return hit
 
-        return cls._resolve_conversational_fallback_case(
+        hit = cls._resolve_conversational_fallback_case(
             profile, subject, had_leadin, has_intent, folder_scope_matched
         )
+        if hit:
+            return hit
+
+        return cls._resolve_possessive_miss_case(profile, msg)
 
     @classmethod
     def _resolve_manifest_digest_case(cls, msg: str) -> str | None:
@@ -482,15 +486,45 @@ class TurnContextMixin:
         merely mentioned the word, not the confirmed one. A direct read
         has no such ranking step: it either returns that exact note's own
         content, or nothing (an empty stub correctly yields nothing to
-        show, rather than a wrong substitute)."""
+        show, rather than a wrong substitute).
+
+        Matches case-insensitively (`real_referent_mentioned`, not
+        `first_unverified_referent`) - damiro doesn't capitalize proper
+        nouns in casual chat, so a check that only fired on Title Case
+        would miss most of his own messages naming something real."""
         if folder_scope_matched:
             return None
-        candidate = cls.first_unverified_referent(msg, profile)
+        candidate = cls.real_referent_mentioned(msg, profile)
         if not candidate:
             return None
         content = cls.read_note(profile, candidate)
         if content and not content.startswith(("⚠️", "Error reading", "Note `")):
             return f"### Ground-Truth Sandboxed Vault Note (`{candidate}` - Exact Content):\n{content}"
+        return None
+
+    @classmethod
+    def _resolve_possessive_miss_case(
+        cls, profile: dict[str, Any], msg: str
+    ) -> str | None:
+        """Case 9 (ADR-123.5, miss-surfacing) - the last resort, run only
+        once every retrieval case above has already failed to find real
+        content. A possessive mention ("Marco's birthday", "dylan's
+        school") is a capitalization-independent signal that the speaker
+        is naming a specific thing, not just using an ordinary word -
+        deliberately narrower than flagging every unmatched word or
+        capitalized run, which would report a "miss" on nearly every
+        sentence (see ADR-123.5's Implementation notes for why that was
+        rejected). When no possessive mention in the message resolves to
+        anything real, hands the model a plain fact - not a decision -
+        about the first one: what to do with a confirmed miss (nothing,
+        ask the user, offer to note it down) is left entirely to the
+        model's own judgment of the conversation."""
+        real_referents = cls.real_vault_referents(profile)
+        if not real_referents:
+            return None
+        for name in vault_grounding.possessive_mentions(msg):
+            if name.lower() not in real_referents:
+                return f"### Vault Check: no real vault entry found for '{name}'."
         return None
 
     @classmethod

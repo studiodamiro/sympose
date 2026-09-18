@@ -10,62 +10,87 @@ tags:
   - model-routing
 ---
 
-# Sympose Engineering Log: A Live "Vault Roulette" Lapse That Didn't Reproduce, and a Dormant Feature It Surfaced Along the Way
+# Sympose Engineering Log: The "Vault Roulette" Lapse Was a Real, Deterministic Matcher Bug — Not Model Non-Determinism
 
 > **Date:** Saturday, September 19, 2026
 > **Topic:** damiro shared a live transcript where Samantha, manually
 > overridden to `ollama/gemma4:e4b` and freshly `/reset`, had no idea what
 > "our favorite game" (Vault Roulette, a random-note-pull ritual - see the
 > [2026-09-17 fix](./2026-09-17_ritual-continuation-carries-no-grounding.md))
-> was, twice in a row, even after being directly reminded. Investigating
-> it did not find a code bug - but it surfaced a real, separate gap: a
-> built local/cloud model-routing feature ([ADR-122](./2026-09-14_adr-122-local-cloud-model-complexity-routing.md))
+> was, twice in a row, even after being directly reminded. The first pass
+> at this investigation (below, in the original §1, now corrected) tested
+> against the wrong workspace and concluded "no bug, likely model
+> non-determinism." That conclusion was wrong. Re-testing against the
+> actual live workspace found a real, deterministic, 100%-reproducible
+> matcher bug and fixed it. Investigating it also surfaced a real,
+> separate gap: a built local/cloud model-routing feature
+> ([ADR-122](./2026-09-14_adr-122-local-cloud-model-complexity-routing.md))
 > that no persona has ever actually used, and that a new user has no way
 > to discover.
-> **Status:** No bug found in the ritual mechanism (see §1). A real
-> discoverability gap found and documented (see §2) - not yet fixed.
+> **Status:** §1's matcher bug found and fixed, verified live. §2's
+> discoverability gap found and documented - closed separately via
+> README/`/help`/`/setup` changes the same day.
 
-## 1. The live lapse: investigated, not reproduced
+## 1. Corrected: the real root cause was testing against the wrong workspace
 
-Traced the full mechanism by hand first, against damiro's real profile
-files (`~/.sympose/profiles/samantha_memory.md`, real `~/.sympose/config.yaml`):
+The original pass here traced the mechanism against
+`~/.sympose/profiles/samantha_memory.md` and concluded everything checked
+out, chalking the live failure up to local-model sampling non-determinism.
+That workspace choice was never actually verified against which
+installation produced damiro's live transcript - it was assumed.
 
-- `ProfileManager.find_relevant_memory_fact` correctly matched both of
-  damiro's messages ("lets play our favorite game" and "dont you remember
-  our favorite game?") to the real memory bullet ("Damiro's favorite game
-  is 'Vault Roulette'...") - confirmed programmatically, not assumed.
-- `VaultManager.describes_random_pull_ritual` correctly recognized that
-  bullet as describing the random-pull ritual.
-- `_ritual_pull_due` correctly returned `True` for both turns.
-- `/reset`'s own `reset_history` correctly clears `active_vault_ctx` and
-  `active_ritual` (checked directly in `engine.py`) - no stale carry-over
-  state from before the reset was possible.
+`sympose/workspace.py::resolve_workspace_dir()` uses "Local Project Mode"
+- the current working directory itself, not `~/.sympose` - whenever that
+directory already has its own `profiles/`/`config.yaml`. This repo
+checkout does. Three independent, concrete signals confirmed damiro's
+real `sympose` sessions actually run from here, not `~/.sympose`:
 
-Every structural/mechanical piece checked out correct. Reproduced the
-exact scenario end-to-end against the real local model, real vault, real
-memory file, 3 full times (6 real `ollama/gemma4:e4b` calls) - the memory
-fact and a real pulled note (`Movies/Her.md`) were injected every single
-time, and the model correctly referenced "Vault Roulette" and the real
-note in all 6 replies. No failure reproduced.
+- This repo's own `.env` has `MASTER_VAULT_PATH` pointing at damiro's real
+  Obsidian vault - the same path used everywhere else in this
+  conversation.
+- A live edit damiro described making directly in "sam's yaml"
+  (uncommenting `local_model: 'ollama/gemma4:e4b'`) landed as an
+  uncommitted change to *this repo's* tracked `profiles/samantha.yaml`,
+  not `~/.sympose/profiles/samantha.yaml`.
+- This repo's git-ignored `sessions/` directory holds weeks of real,
+  dated session transcripts, including Slack-channel-tagged files
+  (`D0BTCPLJNL8:...samantha.jsonl`) - not a stale template.
 
-Also ruled out, directly:
+Re-tested against this repo's *actual* `profiles/samantha_memory.md`,
+whose only relevant bullet reads "Enjoys playing a movie game called
+'Vault Roulette.'" - markedly thinner than `~/.sympose`'s version, and
+critically: it never says "favorite," and uses "movie"/"playing" where
+damiro's real messages said "Movies"/"play". Running
+`ProfileManager.find_relevant_memory_fact` against this real content with
+damiro's exact real messages returned `None` for both - deterministically,
+every time, no model involved yet. `find_relevant_memory_fact` only ever
+compared exact word forms; it never had a chance to fire, so the model
+was never shown the fact at all. This fully explains the live failure and
+required no theory about model sampling.
 
-- **Stale install.** Diffed `engine_turn_setup.py`, `engine_grounding.py`,
-  and `profiles.py` between the dev checkout and the actual pipx-installed
-  package (`~/Library/Application Support/pipx/venvs/sympose`) -
-  byte-identical.
-- **Different Ollama.** Confirmed a single `ollama serve` process on the
-  machine, no `OLLAMA_HOST`/`api_base` override anywhere - both the live
-  session and this investigation hit the same server and the same
-  downloaded `gemma4:e4b` model file.
+**Fix:** `ProfileManager._memory_match_tokens` (`profiles.py`) now widens
+each token with a crude stem - trailing `'ing'` or `'s'` stripped - mirroring
+the de-pluralisation already used in `vault_recall.recall_candidates`.
+Generic across any fact/phrasing, not a phrase list tied to this one
+ritual. Verified live against the real local model
+(`ollama/gemma4:e4b`) and this repo's actual memory file, in a sandboxed
+vault (never the real one, to avoid repeating an earlier accidental
+live-write-during-testing incident): asked twice in one session
+("hey sam lets play our favorite game g!" then "dont you remember our
+favorite game?"), Samantha now names "Vault Roulette" unprompted on the
+first reply and again on the second, entirely without a code path that
+relies on the model's own memory.
 
-**Conclusion:** most likely a genuine local-model sampling lapse rather
-than a reproducible defect - damiro's live transcript also showed markedly
-slower response times (38.72s/31.12s TTFT) than any of the 6 clean
-reproductions here, consistent with the local model being under load at
-that moment. Recorded as a known, accepted risk of manually overriding to
-a small local model - not something this investigation found a fix for,
-because nothing broken was found to fix.
+**Known, deliberately unfixed limitation:** this repo's memory bullet
+still doesn't trigger `VaultManager.describes_random_pull_ritual`'s
+"actually fetch a real random note" path, because that function requires
+the fact to say "random" plus a pull-ish verb ("pull", "picked", …) and
+this bullet says neither - it only names the game, not what it does.
+That's a content gap in the memory bullet's own wording, not a matcher
+bug, and loosening `describes_random_pull_ritual` to guess ritual intent
+from a bare game name would be exactly the kind of per-user phrase-list
+special-casing this codebase avoids. Left alone; the recognition failure
+that was actually reported is fixed and verified.
 
 ## 2. What the investigation surfaced instead: ADR-122 is real, but dormant and invisible
 

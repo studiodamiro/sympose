@@ -294,8 +294,18 @@ class ProfileManager:
 
     @classmethod
     def _memory_match_tokens(cls, text: str) -> set[str]:
+        """Live bug: a memory bullet and the message restating it rarely share
+        the exact same word form ("movie" vs. "movies", "playing" vs. "play")
+        even when they're plainly the same fact - so exact-token overlap
+        alone under-matches. Widened with each word's crude stem (trailing
+        's' or 'ing' stripped, same de-pluralisation idea already used in
+        vault_recall.recall_candidates) so either word form matches the
+        other, generic across any fact/phrasing rather than one ritual."""
         words = re.findall(r"[a-z']+", text.lower())
-        return {w for w in words if len(w) > 2 and w not in cls._MEMORY_MATCH_STOPWORDS}
+        base = {w for w in words if len(w) > 2 and w not in cls._MEMORY_MATCH_STOPWORDS}
+        stems = {w[:-3] for w in base if len(w) >= 6 and w.endswith("ing")}
+        stems |= {w[:-1] for w in base if len(w) >= 5 and w.endswith("s")}
+        return base | stems
 
     @classmethod
     def find_relevant_memory_fact(cls, memory_text: str, message: str) -> str | None:

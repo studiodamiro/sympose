@@ -162,6 +162,19 @@ class TestFindRelevantMemoryFact:
         assert hit is not None
         assert "Vault Roulette" in hit
 
+    def test_matches_across_word_form_mismatch(self):
+        """Live bug: a fact worded "Enjoys playing a movie game..." (no
+        "favorite" anywhere, singular "movie", verb "playing") still has to
+        match "lets play our favorite game. lets do Movies." - "play" vs.
+        "playing" and "Movies" vs. "movie" are the same words, not different
+        ones, so exact-token overlap alone missed this every time."""
+        mem = "- Enjoys playing a movie game called \"Vault Roulette.\"\n"
+        hit = ProfileManager.find_relevant_memory_fact(
+            mem, "hey sam lets play our favorite game. lets do Movies. g!"
+        )
+        assert hit is not None
+        assert "Vault Roulette" in hit
+
 
 class TestGetPrimaryUserName:
     """Extracted out of build_system_prompt so other call sites (engine.py's

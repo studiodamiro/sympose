@@ -57,6 +57,7 @@ graph TD
 * **[MCP & Sub-Agents](./architecture/mcp-and-sub-agents.md):** Isolated, ephemeral sub-agent sandboxes connecting to Model Context Protocol tool servers.
 * **[Sandboxed Obsidian Vault](./architecture/sandboxed-vault.md):** Defensive path validation, isolated domain folders, and note search tiers.
 * **[Web Dashboard & Standalone Vault Explorer](./architecture/dashboard-and-vault-explorer.md):** UI specification, interactive knowledge graph, multi-persona chat stream, and standalone vault explorer.
+* **[LLM Wiki Layer](./architecture/llm-wiki-layer.md):** the opt-in Tier-3 raw-sources/wiki/schema convention and its ingest/query/lint operations.
 
 ### 🧠 [Autonomous Memory System](./memory/shadow-extractor.md)
 * **[Memory Architecture Standard](./memory/architecture-standard.md):** The definitive triad memory standard — grounding pillars, shadow extraction, and Obsidian integration.
@@ -101,6 +102,15 @@ list and is kept in sync per the
 
 | ADR | Title | Status | Date |
 | --- | ----- | ------ | ---- |
+| [ADR-135](../journal/2026-09/2026-09-19_adr-135-capability-tier-routing-for-the-main-turn.md) | Opt-In Capability-Tier Routing for the Main Persona Turn | Implemented | 2026-09-19 |
+| [ADR-134](../journal/2026-09/2026-09-19_adr-134-wiki-lint-skill-user-controlled-auto-fix.md) | wiki_lint Skill, With User-Controlled Auto-Fix | Implemented | 2026-09-19 |
+| [ADR-133](../journal/2026-09/2026-09-19_adr-133-wiki-ingest-skill.md) | wiki_ingest Skill | Implemented, verified against a real model | 2026-09-19 |
+| [ADR-132](../journal/2026-09/2026-09-19_adr-132-llm-wiki-layer-scaffolding.md) | LLM Wiki Layer: Raw/Wiki/Schema Convention & Config Knobs | Implemented | 2026-09-19 |
+| [ADR-130](../journal/2026-09/2026-09-19_adr-130-streaming-chat-endpoint-structured-actions.md) | Streaming Persona Chat Endpoint (SSE) & Structured Action Events | Implemented (backend; frontend is ADR-131) | 2026-09-19 |
+| [ADR-129](../journal/2026-09/2026-09-19_adr-129-vault-write-optimistic-concurrency-guard.md) | Vault-Write Optimistic-Concurrency Guard | Implemented | 2026-09-19 |
+| [ADR-128](../journal/2026-09/2026-09-19_adr-128-wiring-capability-tiers-into-skill-model-selection.md) | Wiring Capability Tiers Into Skill-Driven Model Selection | Implemented (scoped down, see doc) | 2026-09-19 |
+| [ADR-127](../journal/2026-09/2026-09-19_adr-127-capability-tier-model-routing-axis.md) | Capability-Tier Model Routing Axis | Implemented (dormant primitive) | 2026-09-19 |
+| [ADR-126](../journal/2026-09/2026-09-19_adr-126-splitting-config-schema-into-section-modules.md) | Splitting config_schema.py's SETTINGS Into Section Modules | Implemented | 2026-09-19 |
 | [ADR-125](../journal/2026-09/2026-09-18_adr-125-splitting-vault-and-engine-under-200-loc.md) | Splitting vault.py and engine.py Into Focused, Under-200-LOC Modules | Implemented | 2026-09-18 |
 | [ADR-124](../journal/2026-09/2026-09-18_adr-124-index-backed-grounding-checks-over-catch-phrases.md) | Index-Backed Grounding Checks, With Catch-Phrase Lists Reduced to a Coarse Gate | Accepted | 2026-09-18 |
 | [ADR-123](../journal/2026-09/2026-09-18_adr-123-automatic-folder-kind-signals-from-digest-fields.md) | Automatic Folder-Kind Signals, Derived From Existing Digest Fields | Fully implemented (123.1-123.5 shipped) | 2026-09-18 |

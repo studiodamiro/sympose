@@ -187,6 +187,7 @@ class TurnGroundingMixin:
         held: list[str],
         history: list[dict[str, str]],
         on_sub_agent_progress: Callable[[str], None] | None,
+        on_action: Callable[[dict[str, str]], None] | None = None,
     ):
         """Parses action tags out of the raw model output, then runs
         whichever grounding-enforcement check applies — `verify_ctx` and
@@ -196,13 +197,17 @@ class TurnGroundingMixin:
         answer given with no retrieval at all, using both the phrase-based
         `_VAULT_CLAIM_RE` and the structural, index-backed check from
         ADR-124. Returns (clean_text, badges, has_sub_agent, has_retrieval,
-        was_forced) as this generator's return value."""
+        was_forced) as this generator's return value. `on_action` (ADR-130)
+        is passed straight through to `execute_actions` for a caller that
+        wants a distinct event per completed action, e.g. the dashboard's
+        streaming chat endpoint."""
         clean_text, badges = ActionProcessor.execute_actions(
             self.pm,
             handle,
             complete_text,
             user_prompt=clean_input,
             on_progress=on_sub_agent_progress,
+            on_action=on_action,
         )
         has_sub_agent = any(
             "Sub-Agent" in b or "Live Web Search Report" in b for b in badges
@@ -246,6 +251,7 @@ class TurnGroundingMixin:
                     f"[SPAWN_SUB_AGENT: vault_read | {subj}]",
                     user_prompt=clean_input,
                     on_progress=on_sub_agent_progress,
+                    on_action=on_action,
                 )
                 if any("Sub-Agent" in b for b in fb):
                     badges = fb + badges

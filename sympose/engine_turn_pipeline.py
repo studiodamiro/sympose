@@ -42,6 +42,7 @@ class TurnPipelineMixin(TurnSetupMixin, TurnGroundingMixin, TurnFinalizeMixin):
         user_message: str,
         session_id: str | None = None,
         on_sub_agent_progress: Callable[[str], None] | None = None,
+        on_action: Callable[[dict[str, str]], None] | None = None,
     ):
         profile = self.pm.get_profile(handle)
         if not profile:
@@ -124,6 +125,7 @@ class TurnPipelineMixin(TurnSetupMixin, TurnGroundingMixin, TurnFinalizeMixin):
                     held,
                     history,
                     on_sub_agent_progress,
+                    on_action,
                 )
             )
 

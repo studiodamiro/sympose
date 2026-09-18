@@ -15,7 +15,7 @@ from sympose.config import DEFAULT_CHAT_MODEL, config_manager, is_local_backend
 from sympose.engine_grounding import GroundingHelpersMixin
 from sympose.engine_turn_pipeline import TurnPipelineMixin
 from sympose.memory import SessionArchivist
-from sympose.model_router import resolve_turn_model
+from sympose.model_router import resolve_turn_model, resolve_turn_model_by_capability
 from sympose.models import resolve_api_key
 from sympose.profiles import ProfileManager
 from sympose.sessions import SessionManager
@@ -225,7 +225,14 @@ class PersonaEngine(GroundingHelpersMixin, TurnPipelineMixin):
         active — that's an explicit choice this shouldn't second-guess; or
         this turn already resolved (or clearly wants) vault content — a
         small local model summarizing retrieved notes is exactly the case
-        strict grounding exists to guard against."""
+        strict grounding exists to guard against.
+
+        A persona with `capability_min_tier` set (ADR-135) replaces the
+        SIMPLE-message gate below with capability-tier resolution instead —
+        every message reaching this point (the exclusions above still
+        apply) routes to local_model whenever its declared tier clears that
+        floor, regardless of message length/complexity. Empty (default):
+        today's SIMPLE-message-only behavior, byte-for-byte unchanged."""
         local_model = str(profile.get("local_model") or "").strip()
         if (
             not local_model
@@ -235,6 +242,16 @@ class PersonaEngine(GroundingHelpersMixin, TurnPipelineMixin):
         ):
             return target_model, False
         keep_alive = self._resolve_keep_alive(profile, local_model)
+        min_tier = str(profile.get("capability_min_tier") or "").strip()
+        if min_tier:
+            return resolve_turn_model_by_capability(
+                target_model,
+                local_model,
+                self.config.get("models.capability_tier_order"),
+                self.config.get("models.capability_tiers"),
+                min_tier,
+                keep_alive=keep_alive,
+            )
         return resolve_turn_model(
             target_model, local_model, clean_input, keep_alive=keep_alive
         )

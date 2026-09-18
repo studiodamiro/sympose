@@ -21,6 +21,7 @@ from typing import Any, Callable
 
 from sympose import vault_index, vault_manifest, vault_paths, vault_trash
 from sympose.config import config_manager, is_safe_path
+from sympose.vault_write_concurrency import NOTE_CONFLICT, mtime_matches
 
 log = logging.getLogger(__name__)
 
@@ -124,6 +125,7 @@ def write_note(
     *,
     reindex_hook: Callable[[str, str], None] = _NOOP_HOOK,
     manifest_hook: Callable[[str, str], None] = _NOOP_HOOK,
+    expected_mtime: float | None = None,
 ) -> str:
     mv, allowed_dirs, primary_dir = (
         vault_paths.get_master_vault(),
@@ -146,6 +148,8 @@ def write_note(
             f"Warning: `{_daily_notes_root()}/` is reserved for daily entries — "
             "use [DAILY_NOTE] instead of writing directly into that folder."
         )
+    if not mtime_matches(target_file, expected_mtime):
+        return NOTE_CONFLICT
 
     now = datetime.datetime.now().astimezone()
     date_str, time_str, rel_display = (
@@ -198,6 +202,7 @@ def append_note(
     *,
     reindex_hook: Callable[[str, str], None] = _NOOP_HOOK,
     manifest_hook: Callable[[str, str], None] = _NOOP_HOOK,
+    expected_mtime: float | None = None,
 ) -> str:
     mv, allowed_dirs, primary_dir = (
         vault_paths.get_master_vault(),
@@ -215,6 +220,8 @@ def append_note(
     )
     if not any(is_safe_path(target_file, allowed) for allowed in allowed_dirs):
         return f"Security Error: Target path `{note_name}` is outside assigned sandbox."
+    if not mtime_matches(target_file, expected_mtime):
+        return NOTE_CONFLICT
 
     rel_display = os.path.relpath(target_file, mv)
     try:
@@ -228,8 +235,11 @@ def append_note(
                 manifest_hook=manifest_hook,
             )
 
-        with open(target_file, "a", encoding="utf-8") as f:
-            f.write(f"\n{content.strip()}\n")
+        with open(target_file, "r", encoding="utf-8") as f:
+            existing = f.read()
+        vault_manifest.write_atomic_text(
+            target_file, f"{existing}\n{content.strip()}\n"
+        )
         reindex_hook(mv, target_file)
         manifest_hook(mv, target_file)
         return f"Appended to note: `{rel_display}`"
@@ -305,6 +315,7 @@ def overwrite_note(
     *,
     reindex_hook: Callable[[str, str], None] = _NOOP_HOOK,
     manifest_hook: Callable[[str, str], None] = _NOOP_HOOK,
+    expected_mtime: float | None = None,
 ) -> str:
     """Replace an *existing* vault note's file with `content`, verbatim (the
     editor already owns the whole document, frontmatter included). Resolves
@@ -326,6 +337,8 @@ def overwrite_note(
         return NOTE_NOT_FOUND
     if not any(is_safe_path(target_file, allowed) for allowed in allowed_dirs):
         return NOTE_DENIED
+    if not mtime_matches(target_file, expected_mtime):
+        return NOTE_CONFLICT
 
     rel_display = os.path.relpath(target_file, mv)
     try:

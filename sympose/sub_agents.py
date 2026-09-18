@@ -12,6 +12,7 @@ from typing import Any
 
 import litellm
 
+from sympose import model_capability
 from sympose.config import DEFAULT_SUB_AGENT_MODEL, config_manager
 from sympose.mcp import MCPClient, mcp_registry
 from sympose.models import resolve_api_key
@@ -231,14 +232,30 @@ def _append_parent_memory(
 
 
 def _resolve_target_model(task: SubAgentTask) -> str:
-    """Task override → skill recommendation → env default."""
+    """Task override → skill recommendation (capability-tier-filtered if any
+    skill declares a floor, ADR-127/128) → env default."""
     if task.model:
         return task.model
+    candidates: list[str] = []
+    minimum: str | None = None
     for s_name in task.skills:
         s_obj = skill_manager.get_skill(s_name)
-        if s_obj and s_obj.recommended_models:
-            return s_obj.recommended_models[0]
-    return DEFAULT_SUB_AGENT_MODEL
+        if not s_obj:
+            continue
+        candidates.extend(s_obj.recommended_models)
+        if s_obj.minimum_capability_tier:
+            minimum = s_obj.minimum_capability_tier
+    if not candidates:
+        return DEFAULT_SUB_AGENT_MODEL
+    if not minimum:
+        return candidates[0]
+    candidates.append(DEFAULT_SUB_AGENT_MODEL)
+    return model_capability.resolve_capable(
+        config_manager.get("models.capability_tier_order"),
+        config_manager.get("models.capability_tiers"),
+        candidates,
+        minimum,
+    )
 
 
 class SubAgentEngine:

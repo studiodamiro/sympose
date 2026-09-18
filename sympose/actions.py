@@ -55,6 +55,12 @@ class _ActionContext:
     user_prompt: str
     depth: int
     on_progress: Callable[[str], None] | None
+    # ADR-130: fired once per completed action alongside its badge, with a
+    # structured {"action": <TAG_NAME>, "detail": <str>} the dashboard's
+    # streaming chat endpoint forwards as a distinct SSE event (the badge
+    # string itself stays terminal/Slack's own rendering, unchanged).
+    # None (every caller before ADR-130) means zero behavior change.
+    on_action: Callable[[dict[str, str]], None] | None = None
     badges: list[str] = field(default_factory=list)
 
 
@@ -259,6 +265,8 @@ class ActionProcessor:
                 if not rel_path.endswith(".md"):
                     rel_path += ".md"
                 ctx.badges.append(f"> 📝 **{ctx.name} saved note to Vault:** `{rel_path}`")
+                if ctx.on_action:
+                    ctx.on_action({"action": "WRITE_NOTE", "detail": rel_path})
         return ""
 
     @staticmethod
@@ -280,6 +288,8 @@ class ActionProcessor:
                 ctx.badges.append(
                     f"> 📝 **{ctx.name} appended to Vault note:** `{rel_path}`"
                 )
+                if ctx.on_action:
+                    ctx.on_action({"action": "APPEND_NOTE", "detail": rel_path})
         return ""
 
     # --- 3. DAILY_NOTE -------------------------------------------------------
@@ -290,6 +300,8 @@ class ActionProcessor:
             ctx.badges.append(f"> ⚠️ **{ctx.name} could not log daily entry:** {result}")
         else:
             ctx.badges.append(f"> 📅 **{ctx.name} logged entry to Daily Notes**")
+            if ctx.on_action:
+                ctx.on_action({"action": "DAILY_NOTE", "detail": ""})
         return ""
 
     # --- 4. REMEMBER -----------------------------------------------------------
@@ -432,6 +444,7 @@ class ActionProcessor:
                 user_prompt=task_prompt,
                 depth=ctx.depth + 1,
                 on_progress=ctx.on_progress,
+                on_action=ctx.on_action,
             )
         else:
             clean_sub_agent_res, sub_agent_sub_badges = (
@@ -454,6 +467,8 @@ class ActionProcessor:
                 badge_spec, task_prompt, tool_calls_executed, clean_sub_agent_res
             )
         )
+        if ctx.on_action:
+            ctx.on_action({"action": "SPAWN_SUB_AGENT", "detail": badge_spec})
         return ""
 
     # --- 5b. SEARCH / WEB_SEARCH (Direct in-turn live search) -------------------
@@ -472,6 +487,8 @@ class ActionProcessor:
                 f"> \n"
                 f"{indented_search}"
             )
+            if ctx.on_action:
+                ctx.on_action({"action": "SEARCH", "detail": query})
         else:
             ctx.badges.append(f"> 🌐 **Web Search (`{query}`):** *{search_out}*")
         return ""
@@ -530,6 +547,8 @@ class ActionProcessor:
         ctx.badges.append(
             f"> ⚙️ **{ctx.name} updated runtime configuration:** `{key}` = `{val}`"
         )
+        if ctx.on_action:
+            ctx.on_action({"action": "CONFIG_SET", "detail": key})
         return ""
 
     # --- 7. CREATE_PERSONA -------------------------------------------------------
@@ -613,6 +632,8 @@ class ActionProcessor:
             ctx.badges.append(
                 f"> 🧬 **{ctx.name} created new persona:** `@{h_name}` ({p_disp}){soul_note}"
             )
+            if ctx.on_action:
+                ctx.on_action({"action": "CREATE_PERSONA", "detail": f"@{h_name}"})
         except Exception as e:
             ctx.badges.append(f"> ⚠️ **Error creating persona `@{h_name}`:** {e}")
         return ""
@@ -654,6 +675,8 @@ class ActionProcessor:
         ctx.badges.append(
             f"> 🗑️ **{ctx.name} deleted persona:** `@{h_name}` (archived, not permanently erased)"
         )
+        if ctx.on_action:
+            ctx.on_action({"action": "DELETE_PERSONA", "detail": f"@{h_name}"})
         return ""
 
     # --- WRITE_CANVAS -----------------------------------------------------------
@@ -700,12 +723,17 @@ class ActionProcessor:
         user_prompt: str = "",
         depth: int = 0,
         on_progress: Callable[[str], None] | None = None,
+        on_action: Callable[[dict[str, str]], None] | None = None,
     ) -> tuple[str, list[str]]:
         """Executes all detected action tags in model output and returns
         (clean_text, confirmation_badges). `on_progress`, if given, is passed
         straight through to a spawned sub-agent's tool-call loop so a caller
         can show live progress during what would otherwise be a silent,
-        multi-turn synchronous wait — see SubAgentEngine.execute_sub_agent_task."""
+        multi-turn synchronous wait — see SubAgentEngine.execute_sub_agent_task.
+        `on_action`, if given (ADR-130), fires once per completed action tag
+        with a structured `{"action": <TAG_NAME>, "detail": <str>}` — the
+        dashboard's streaming chat endpoint uses this to emit a distinct SSE
+        event per action; `None` (every caller before ADR-130) is a no-op."""
         is_sub_agent = handle.lower() == "sub_agent"
         profile = profile_manager.get_profile(handle) if not is_sub_agent else {}
         if not profile and not is_sub_agent:
@@ -723,6 +751,7 @@ class ActionProcessor:
             user_prompt=user_prompt,
             depth=depth,
             on_progress=on_progress,
+            on_action=on_action,
         )
         badges = ctx.badges
 

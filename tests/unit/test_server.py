@@ -115,7 +115,9 @@ class TestVaultNoteWrite:
         monkeypatch.setenv("DASHBOARD_PASSWORD", "pw")
         monkeypatch.setattr(
             server.VaultManager, "overwrite_note",
-            classmethod(lambda cls, profile, path, content: overwrite_result),
+            classmethod(
+                lambda cls, profile, path, content, expected_mtime=None: overwrite_result
+            ),
         )
         engine = MagicMock()
         engine.pm.get_profile.return_value = {"vault_folders": ["*"]}
@@ -148,12 +150,56 @@ class TestVaultNoteWrite:
         )
         assert resp.status_code == 403
 
+    def test_conflict_note_returns_409(self, monkeypatch):
+        """ADR-129: a stale expected_mtime maps NOTE_CONFLICT to 409, not
+        the generic 500 the unmapped-sentinel fallback would otherwise give."""
+        from sympose.vault import VaultManager
+        client, user = self._client(monkeypatch, VaultManager.NOTE_CONFLICT)
+        resp = client.put(
+            "/api/vault/note",
+            json={"path": "x", "content": "body", "expected_mtime": 123.0},
+            auth=(user, "pw"),
+        )
+        assert resp.status_code == 409
+
     def test_blank_path_rejected(self, monkeypatch):
         client, user = self._client(monkeypatch, "Saved note: `x.md`")
         resp = client.put(
             "/api/vault/note", json={"path": "", "content": "body"}, auth=(user, "pw")
         )
         assert resp.status_code == 422
+
+
+class TestVaultNoteReadMtime:
+    """GET /api/vault/note includes the note's mtime (ADR-129) so a client
+    can round-trip it back as expected_mtime on a later save."""
+
+    def test_read_note_includes_mtime(self, monkeypatch):
+        from fastapi.testclient import TestClient
+        from sympose.auth import DASHBOARD_USER
+        import sympose.server as server
+
+        monkeypatch.setenv("DASHBOARD_PASSWORD", "pw")
+        monkeypatch.setattr(
+            server.VaultManager, "read_note",
+            classmethod(lambda cls, profile, path: "note body"),
+        )
+        monkeypatch.setattr(
+            server.VaultManager, "get_note_mtime",
+            classmethod(lambda cls, profile, path: 1234.5),
+        )
+        engine = MagicMock()
+        engine.pm.get_profile.return_value = {"vault_folders": ["*"]}
+        engine.pm.profiles = {}
+        client = TestClient(server.create_app(engine))
+
+        resp = client.get(
+            "/api/vault/note", params={"path": "x.md"}, auth=(DASHBOARD_USER, "pw")
+        )
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["content"] == "note body"
+        assert body["mtime"] == 1234.5
 
 
 class TestVaultNoteCreate:
@@ -457,3 +503,56 @@ def test_personas_endpoint_is_a_trimmed_projection():
         "is_default": True,
     }
     assert "soul_file" not in persona and "thinking_phrases" not in persona
+
+
+class TestChatStreamRoute:
+    """`POST /api/chat/stream` (ADR-130) — SSE end-to-end through the real
+    ASGI app, including the existing DashboardAuthMiddleware (an SSE route
+    is normal HTTP scope, so the existing password guard applies unchanged,
+    no WebSocket-style auth gap)."""
+
+    def _client(self, monkeypatch, chunks):
+        from fastapi.testclient import TestClient
+        from sympose.auth import DASHBOARD_USER
+        import sympose.server as server
+
+        monkeypatch.setenv("DASHBOARD_PASSWORD", "pw")
+        engine = MagicMock()
+        engine.pm.profiles = {}
+
+        def fake_chat_stream(handle, text, session_id=None, on_action=None):
+            for c in chunks:
+                yield c
+            if on_action:
+                on_action({"action": "WRITE_NOTE", "detail": "x.md"})
+
+        engine.chat_stream = fake_chat_stream
+        return TestClient(server.create_app(engine)), DASHBOARD_USER
+
+    def test_unauthenticated_request_is_rejected(self, monkeypatch):
+        client, _user = self._client(monkeypatch, ["hi"])
+        resp = client.post("/api/chat/stream", json={"persona": "samantha", "text": "hi"})
+        assert resp.status_code == 401
+
+    def test_authenticated_request_streams_sse_frames(self, monkeypatch):
+        client, user = self._client(monkeypatch, ["Hello"])
+        resp = client.post(
+            "/api/chat/stream",
+            json={"persona": "samantha", "text": "hi"},
+            auth=(user, "pw"),
+        )
+        assert resp.status_code == 200
+        assert resp.headers["content-type"].startswith("text/event-stream")
+        body = resp.text
+        assert 'event: text\ndata: "Hello"' in body
+        assert 'event: action\ndata: {"action": "WRITE_NOTE"' in body
+        assert body.strip().endswith("event: done\ndata: {}")
+
+    def test_blank_text_rejected(self, monkeypatch):
+        client, user = self._client(monkeypatch, ["hi"])
+        resp = client.post(
+            "/api/chat/stream",
+            json={"persona": "samantha", "text": ""},
+            auth=(user, "pw"),
+        )
+        assert resp.status_code == 422

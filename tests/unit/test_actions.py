@@ -618,3 +618,176 @@ class TestExecuteActionsHonestFailureBadges:
             pm, "test", "[REMEMBER: favorite color is chartreuse]"
         )
         assert any("updated" in b and "memory" in b for b in badges)
+
+
+# ---------------------------------------------------------------------------
+# execute_actions — on_action callback (ADR-130)
+#
+# Fires once per successfully-completed action tag with a structured
+# {"action": <TAG_NAME>, "detail": <str>}, alongside (not instead of) the
+# existing badge string — the dashboard's streaming chat endpoint uses this
+# to emit a distinct SSE event per action. None (every caller before
+# ADR-130) must be a no-op, mirroring on_progress's existing contract.
+# ---------------------------------------------------------------------------
+
+class TestExecuteActionsThreadsOnActionEvents:
+    def test_on_action_defaults_to_none_and_does_not_raise(self, monkeypatch):
+        pm = _FakeProfileManager()
+        monkeypatch.setattr(
+            "sympose.actions.VaultManager.write_note",
+            lambda profile, filename, content: "Saved to note: `x.md`",
+        )
+        # Must not raise even with no on_action passed at all.
+        ActionProcessor.execute_actions(pm, "test", "[WRITE_NOTE: todo.md | Buy milk]")
+
+    def test_write_note_fires_on_action(self, monkeypatch):
+        pm = _FakeProfileManager()
+        monkeypatch.setattr(
+            "sympose.actions.VaultManager.write_note",
+            lambda profile, filename, content: "Saved to note: `x.md`",
+        )
+        events = []
+        ActionProcessor.execute_actions(
+            pm, "test", "[WRITE_NOTE: todo.md | Buy milk]", on_action=events.append
+        )
+        assert events == [{"action": "WRITE_NOTE", "detail": "Test/todo.md"}]
+
+    def test_write_note_failure_does_not_fire_on_action(self, monkeypatch):
+        pm = _FakeProfileManager()
+        monkeypatch.setattr(
+            "sympose.actions.VaultManager.write_note",
+            lambda profile, filename, content: "Error: disk full",
+        )
+        events = []
+        ActionProcessor.execute_actions(
+            pm, "test", "[WRITE_NOTE: todo.md | Buy milk]", on_action=events.append
+        )
+        assert events == []
+
+    def test_append_note_fires_on_action(self, monkeypatch):
+        pm = _FakeProfileManager()
+        monkeypatch.setattr(
+            "sympose.actions.VaultManager.append_note",
+            lambda profile, filename, content: "Appended to note: `x.md`",
+        )
+        events = []
+        ActionProcessor.execute_actions(
+            pm, "test", "[APPEND_NOTE: todo.md | one more thing]", on_action=events.append
+        )
+        assert events == [{"action": "APPEND_NOTE", "detail": "Test/todo.md"}]
+
+    def test_daily_note_fires_on_action(self, monkeypatch):
+        pm = _FakeProfileManager()
+        monkeypatch.setattr(
+            "sympose.actions.VaultManager.write_daily_note",
+            lambda profile, content: "Saved.",
+        )
+        events = []
+        ActionProcessor.execute_actions(
+            pm, "test", "[DAILY_NOTE: good day]", on_action=events.append
+        )
+        assert events == [{"action": "DAILY_NOTE", "detail": ""}]
+
+    def test_config_set_fires_on_action(self, monkeypatch):
+        pm = _FakeProfileManager()
+        monkeypatch.setattr("sympose.actions.config_manager.set", lambda k, v: None)
+        monkeypatch.setattr("sympose.actions.config_manager.save", lambda: None)
+        events = []
+        ActionProcessor.execute_actions(
+            pm, "test", "[CONFIG_SET: performance.stream | false]", on_action=events.append
+        )
+        assert events == [{"action": "CONFIG_SET", "detail": "performance.stream"}]
+
+    def test_search_fires_on_action(self, monkeypatch):
+        pm = _FakeProfileManager()
+        monkeypatch.setattr(
+            "sympose.actions.NativeTools.execute",
+            lambda tool, args: (True, "some results"),
+        )
+        events = []
+        ActionProcessor.execute_actions(
+            pm, "test", "[SEARCH: latest ollama release]", on_action=events.append
+        )
+        assert events == [{"action": "SEARCH", "detail": "latest ollama release"}]
+
+    def test_search_failure_does_not_fire_on_action(self, monkeypatch):
+        pm = _FakeProfileManager()
+        monkeypatch.setattr(
+            "sympose.actions.NativeTools.execute",
+            lambda tool, args: (False, "no results"),
+        )
+        events = []
+        ActionProcessor.execute_actions(
+            pm, "test", "[SEARCH: latest ollama release]", on_action=events.append
+        )
+        assert events == []
+
+    def test_spawn_sub_agent_fires_on_action(self, monkeypatch):
+        pm = _FakeProfileManager()
+        monkeypatch.setattr(
+            "sympose.actions.SubAgentEngine.execute_sub_agent_task",
+            lambda task, on_progress=None: ("the answer", []),
+        )
+        events = []
+        ActionProcessor.execute_actions(
+            pm,
+            "test",
+            "[SPAWN_SUB_AGENT: vault_read | find my notes]",
+            on_action=events.append,
+        )
+        assert len(events) == 1
+        assert events[0]["action"] == "SPAWN_SUB_AGENT"
+        assert "vault_read" in events[0]["detail"]
+
+    def test_create_persona_fires_on_action(self, tmp_path):
+        pm = _FakeProfileManagerWithDisk(tmp_path)
+        text = "[CREATE_PERSONA: nova | name: \"Nova\"\nhandle: \"nova\"]"
+        events = []
+        ActionProcessor.execute_actions(pm, "test", text, on_action=events.append)
+        assert events == [{"action": "CREATE_PERSONA", "detail": "@nova"}]
+
+    def test_delete_persona_fires_on_action(self, tmp_path):
+        pm = _FakeProfileManagerWithDisk(tmp_path)
+        (tmp_path / "nova.yaml").write_text("handle: nova\n")
+        events = []
+        ActionProcessor.execute_actions(
+            pm, "test", "[DELETE_PERSONA: nova]", on_action=events.append
+        )
+        assert events == [{"action": "DELETE_PERSONA", "detail": "@nova"}]
+
+    def test_delete_persona_not_found_does_not_fire_on_action(self, tmp_path):
+        pm = _FakeProfileManagerWithDisk(tmp_path)
+        events = []
+        ActionProcessor.execute_actions(
+            pm, "test", "[DELETE_PERSONA: ghost]", on_action=events.append
+        )
+        assert events == []
+
+    def test_on_action_is_threaded_into_the_recursive_sub_agent_reprocessing_call(
+        self, monkeypatch
+    ):
+        """SPAWN_SUB_AGENT re-invokes execute_actions on the sub-agent's own
+        synthesis text (one level deep, MAX_ACTION_DEPTH) — on_action must
+        reach that recursive call too, not just the top-level one."""
+        pm = _FakeProfileManager()
+        monkeypatch.setattr(
+            "sympose.actions.VaultManager.write_note",
+            lambda profile, filename, content: "Saved to note: `x.md`",
+        )
+        monkeypatch.setattr(
+            "sympose.actions.SubAgentEngine.execute_sub_agent_task",
+            lambda task, on_progress=None: (
+                "[WRITE_NOTE: nested.md | from the sub-agent]",
+                [],
+            ),
+        )
+        events = []
+        ActionProcessor.execute_actions(
+            pm,
+            "test",
+            "[SPAWN_SUB_AGENT: vault_read | find my notes]",
+            on_action=events.append,
+        )
+        actions_fired = [e["action"] for e in events]
+        assert "WRITE_NOTE" in actions_fired
+        assert "SPAWN_SUB_AGENT" in actions_fired

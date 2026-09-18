@@ -138,6 +138,112 @@ class TestAtomicWrite:
         assert leftovers == []
 
 
+class TestOptimisticConcurrencyGuard:
+    """ADR-129: write_note/append_note/overwrite_note accept an optional
+    expected_mtime and return NOTE_CONFLICT instead of clobbering a file
+    that changed since the caller last read it. Default (no expected_mtime)
+    behaves exactly as before every one of these tests confirms."""
+
+    def test_overwrite_with_no_expected_mtime_behaves_as_before(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_path))
+        note_path = tmp_path / "Note.md"
+        _write(str(note_path), "original")
+        result = vault_write.overwrite_note({"vault_folders": ["*"]}, "Note.md", "updated")
+        assert result.startswith("Saved note:")
+        assert note_path.read_text() == "updated\n"
+
+    def test_overwrite_with_matching_expected_mtime_succeeds(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_path))
+        note_path = tmp_path / "Note.md"
+        _write(str(note_path), "original")
+        mtime = os.stat(note_path).st_mtime
+        result = vault_write.overwrite_note(
+            {"vault_folders": ["*"]}, "Note.md", "updated", expected_mtime=mtime
+        )
+        assert result.startswith("Saved note:")
+        assert note_path.read_text() == "updated\n"
+
+    def test_overwrite_with_stale_expected_mtime_returns_conflict_and_does_not_write(
+        self, tmp_path, monkeypatch
+    ):
+        monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_path))
+        note_path = tmp_path / "Note.md"
+        _write(str(note_path), "original")
+        stale_mtime = os.stat(note_path).st_mtime - 999  # definitely not current
+        result = vault_write.overwrite_note(
+            {"vault_folders": ["*"]}, "Note.md", "updated", expected_mtime=stale_mtime
+        )
+        assert result == vault_write.NOTE_CONFLICT
+        assert note_path.read_text() == "original"
+
+    def test_write_note_with_stale_expected_mtime_returns_conflict(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_path))
+        note_path = tmp_path / "Note.md"
+        _write(str(note_path), "original")
+        result = vault_write.write_note(
+            {"vault_folders": ["*"]}, "Note.md", "updated", expected_mtime=12345.0
+        )
+        assert result == vault_write.NOTE_CONFLICT
+        assert note_path.read_text() == "original"
+
+    def test_write_note_expecting_an_existing_file_that_is_gone_returns_conflict(
+        self, tmp_path, monkeypatch
+    ):
+        monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_path))
+        note_path = tmp_path / "Note.md"
+        _write(str(note_path), "original")
+        mtime = os.stat(note_path).st_mtime
+        os.remove(note_path)
+        result = vault_write.write_note(
+            {"vault_folders": ["*"]}, "Note.md", "new", expected_mtime=mtime
+        )
+        assert result == vault_write.NOTE_CONFLICT
+        assert not note_path.exists()
+
+    def test_append_note_with_stale_expected_mtime_returns_conflict_and_does_not_append(
+        self, tmp_path, monkeypatch
+    ):
+        monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_path))
+        note_path = tmp_path / "Note.md"
+        _write(str(note_path), "original")
+        result = vault_write.append_note(
+            {"vault_folders": ["*"]}, "Note.md", "extra", expected_mtime=12345.0
+        )
+        assert result == vault_write.NOTE_CONFLICT
+        assert note_path.read_text() == "original"
+
+    def test_append_note_with_matching_expected_mtime_succeeds(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_path))
+        note_path = tmp_path / "Note.md"
+        _write(str(note_path), "original")
+        mtime = os.stat(note_path).st_mtime
+        result = vault_write.append_note(
+            {"vault_folders": ["*"]}, "Note.md", "extra", expected_mtime=mtime
+        )
+        assert result.startswith("Appended to note:")
+        assert note_path.read_text() == "original\nextra\n"
+
+    def test_append_note_still_uses_atomic_replace_not_raw_append_mode(
+        self, tmp_path, monkeypatch
+    ):
+        """D1-style regression for append_note specifically: it used to open
+        the target with a raw `open(..., "a")`, bypassing the tmp-file +
+        os.replace atomicity every other writer here already gets. A crash
+        mid-append must not leave the file half-written."""
+        monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_path))
+        note_path = tmp_path / "Note.md"
+        _write(str(note_path), "original")
+
+        def _boom(*a, **k):
+            raise OSError("disk full")
+
+        monkeypatch.setattr(os, "replace", _boom)
+        result = vault_write.append_note({"vault_folders": ["*"]}, "Note.md", "extra")
+
+        assert "Error" in result
+        assert note_path.read_text() == "original"
+
+
 class TestDailyRootBoundaryGuard:
     """Regression: workspace_rules.md says Daily/ is "strictly outside
     persona access boundaries (uses [DAILY_NOTE] system instead)" - that was

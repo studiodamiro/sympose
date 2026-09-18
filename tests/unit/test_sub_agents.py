@@ -13,7 +13,8 @@ import types
 
 import pytest
 
-from sympose.sub_agents import SubAgentEngine, SubAgentTask
+from sympose import sub_agents
+from sympose.sub_agents import SubAgentEngine, SubAgentTask, _resolve_target_model
 
 
 class _FakeChoice:
@@ -1522,3 +1523,55 @@ class TestDispatchToolCallRoutesVaultTools:
         assert t_name == "vault_search"
         assert ok is True
         assert "ran vault_search" in res
+
+
+class _FakeSkill:
+    def __init__(self, recommended_models=None, minimum_capability_tier=None):
+        self.recommended_models = recommended_models or []
+        self.minimum_capability_tier = minimum_capability_tier
+
+
+class TestResolveTargetModelCapabilityTier:
+    """ADR-127/128: a skill declaring minimum_capability_tier filters the
+    recommended-model pool through model_capability.resolve_capable instead
+    of always taking the first recommendation."""
+
+    def test_task_override_always_wins(self, monkeypatch):
+        monkeypatch.setattr(
+            sub_agents.skill_manager,
+            "get_skill",
+            lambda name: _FakeSkill(["ignored/model"], "high"),
+        )
+        task = SubAgentTask(task_prompt="x", skills=["some_skill"], model="explicit/model")
+        assert _resolve_target_model(task) == "explicit/model"
+
+    def test_no_skills_recommend_anything_falls_back_to_default(self, monkeypatch):
+        monkeypatch.setattr(sub_agents.skill_manager, "get_skill", lambda name: None)
+        task = SubAgentTask(task_prompt="x", skills=["unknown_skill"])
+        assert _resolve_target_model(task) == sub_agents.DEFAULT_SUB_AGENT_MODEL
+
+    def test_no_capability_tier_declared_takes_first_recommendation_as_before(self, monkeypatch):
+        monkeypatch.setattr(
+            sub_agents.skill_manager,
+            "get_skill",
+            lambda name: _FakeSkill(["first/model", "second/model"], None),
+        )
+        task = SubAgentTask(task_prompt="x", skills=["plain_skill"])
+        assert _resolve_target_model(task) == "first/model"
+
+    def test_capability_tier_filters_to_a_model_that_clears_it(self, monkeypatch):
+        monkeypatch.setattr(
+            sub_agents.skill_manager,
+            "get_skill",
+            lambda name: _FakeSkill(["weak/model", "capable/model"], "high"),
+        )
+        monkeypatch.setattr(
+            sub_agents.config_manager,
+            "get",
+            lambda key, default=None: {
+                "models.capability_tier_order": ["basic", "standard", "high"],
+                "models.capability_tiers": {"capable/model": "high"},
+            }.get(key, default),
+        )
+        task = SubAgentTask(task_prompt="x", skills=["wiki_ingest"])
+        assert _resolve_target_model(task) == "capable/model"

@@ -15,6 +15,8 @@ import re
 import urllib.request
 from typing import Any
 
+from sympose import model_capability
+
 log = logging.getLogger(__name__)
 
 _OLLAMA_BASE = "http://localhost:11434"
@@ -66,6 +68,23 @@ def is_simple_message(text: str) -> bool:
     return True
 
 
+def _resolve_if_warm(
+    base_model: str, local_model: str, keep_alive: str | None
+) -> tuple[str, bool]:
+    """Shared tail once a caller has already decided `local_model` is the
+    candidate to try: never blocks on a cold model — checks Ollama's own
+    warm state and fires a background warm-up if it's not, so a *later*
+    turn can route local once it's ready, rather than waiting now."""
+    bare_name = _bare_ollama_name(local_model)
+    if not is_ollama_model_warm(bare_name):
+        from sympose.compactor import run_hygiene_task
+
+        run_hygiene_task(warm_ollama_model, bare_name, keep_alive=keep_alive)
+        return base_model, False
+
+    return local_model, True
+
+
 def resolve_turn_model(
     base_model: str,
     local_model: str,
@@ -83,15 +102,39 @@ def resolve_turn_model(
     the model, it doesn't call one."""
     if not local_model or not is_simple_message(message):
         return base_model, False
+    return _resolve_if_warm(base_model, local_model, keep_alive)
 
-    bare_name = _bare_ollama_name(local_model)
-    if not is_ollama_model_warm(bare_name):
-        from sympose.compactor import run_hygiene_task
 
-        run_hygiene_task(warm_ollama_model, bare_name, keep_alive=keep_alive)
+def resolve_turn_model_by_capability(
+    base_model: str,
+    local_model: str,
+    tier_order: list[str],
+    tiers: dict[str, str],
+    minimum: str,
+    keep_alive: str | None = None,
+) -> tuple[str, bool]:
+    """Capability-tier alternative to resolve_turn_model's SIMPLE-message
+    gate (ADR-135, opt-in via a persona's capability_min_tier): routes
+    *every* message — not just short/trivial ones — to local_model whenever
+    its declared tier (models.capability_tiers) clears `minimum`.
+    Deliberately independent of message content; a persona only reaches
+    this function at all once its own exclusions (a /model override, vault
+    content already in play) have already ruled routing out for other
+    reasons. Same never-block-on-cold tail as resolve_turn_model — this
+    only replaces the *gate*, not the warm-check safety net.
+
+    Checks `model_capability.clears` directly rather than
+    `resolve_capable` — that function's generic fail-open-to-the-
+    highest-tier-candidate behavior (right for a sub-agent task, which
+    always needs *some* model to run) would tie-break an unassigned
+    base_model and an unassigned local_model to whichever is listed
+    first, i.e. local_model — exactly backwards from ADR-122's "any doubt
+    routes to cloud" philosophy this function is extending, not
+    replacing. There's always a safe, unambiguous fallback here
+    (base_model), so there's nothing to fail open *to*."""
+    if not local_model or not model_capability.clears(tier_order, tiers, local_model, minimum):
         return base_model, False
-
-    return local_model, True
+    return _resolve_if_warm(base_model, local_model, keep_alive)
 
 
 def is_ollama_model_warm(model_name: str) -> bool:

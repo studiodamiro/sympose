@@ -26,6 +26,7 @@ class Skill:
         tags: list[str] | None = None,
         mcp_servers: list[str] | None = None,
         recommended_models: list[str] | None = None,
+        minimum_capability_tier: str | None = None,
         filepath: str = "",
     ):
         self.name = name.lower()
@@ -35,6 +36,11 @@ class Skill:
         self.tags = tags or []
         self.mcp_servers = mcp_servers or []
         self.recommended_models = recommended_models or []
+        # ADR-127/128: an optional capability floor (e.g. "standard") a
+        # candidate model must clear for this skill's work. None (every
+        # skill until a SKILL.md opts in) preserves today's plain
+        # first-recommended-model behavior at every consumer.
+        self.minimum_capability_tier = minimum_capability_tier
         self.filepath = filepath
 
     def to_dict(self) -> dict[str, Any]:
@@ -45,6 +51,7 @@ class Skill:
             "tags": self.tags,
             "mcp_servers": self.mcp_servers,
             "recommended_models": self.recommended_models,
+            "minimum_capability_tier": self.minimum_capability_tier,
             "filepath": self.filepath,
         }
 
@@ -136,6 +143,8 @@ class SkillManager:
             if isinstance(metadata.get("recommended_models"), list)
             else []
         )
+        raw_tier = metadata.get("minimum_capability_tier")
+        minimum_capability_tier = str(raw_tier).strip() if raw_tier else None
 
         return Skill(
             name=name,
@@ -145,6 +154,7 @@ class SkillManager:
             tags=tags,
             mcp_servers=mcp_servers,
             recommended_models=recommended_models,
+            minimum_capability_tier=minimum_capability_tier,
             filepath=filepath,
         )
 

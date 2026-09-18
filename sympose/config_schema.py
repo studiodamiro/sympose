@@ -5,441 +5,61 @@ falls back to these defaults, `/config` renders itself from this list, and
 `/config set` / `[CONFIG_SET]` / `/persona set` validate against it. Adding a knob
 = adding a `Setting` here (plus reading it where it matters).
 
-Standalone: imports nothing from `sympose`, so `config.py` can import it at module
-load without a cycle.
+The `Setting` entries themselves live in per-section modules (config_setting.py
+for the dataclass, config_settings_{performance,runtime,vault,persona}.py for
+the declarations, ADR-126) to keep every file under the project's 200-LOC
+ceiling; this file owns the lookup/validation logic and concatenates their
+tuples into `SETTINGS`. `Setting`/`SETTINGS`/`SECTIONS` are re-exported here
+unchanged, so every existing caller (`config.py`, `profiles.py`, `commands.py`,
+`config_reference.py`, etc.) is unaffected.
+
+Standalone: imports nothing from `sympose` except the section modules above
+(themselves standalone), so `config.py` can import it at module load without
+a cycle.
 """
 
 import copy
-from collections.abc import Sequence
-from dataclasses import dataclass
 from typing import Any
 
+from sympose.config_setting import Setting
+from sympose.config_settings_models import MODEL_SETTINGS, MODELS
+from sympose.config_settings_performance import PERF, PERFORMANCE_SETTINGS
+from sympose.config_settings_persona import PERSONA, PERSONA_SETTINGS
+from sympose.config_settings_runtime import RUN, SESS, SESSION_RUNTIME_SETTINGS
+from sympose.config_settings_vault import SUB_AGENT, SUB_AGENT_SETTINGS, VAULT, VAULT_SETTINGS
+from sympose.config_settings_wiki import WIKI, WIKI_SETTINGS
 
-@dataclass(frozen=True)
-class Setting:
-    key: str  # dotted path, e.g. "performance.stream"
-    type: str  # int | float | bool | str | list
-    default: Any
-    description: str
-    section: str  # display grouping for /config
-    choices: Sequence[Any] | None = None  # closed set of allowed values
-    minimum: float | None = None
-    maximum: float | None = None
-    scope: str = "global"  # global | persona
-    live: bool = True  # takes effect without a restart
-
-
-_PERF, _SESS, _RUN, _VAULT, _SUB_AGENT, _PERSONA = (
-    "Performance & Streaming",
-    "Session & Memory",
-    "Runtime",
-    "Vault",
-    "Sub-Agent Sandbox",
-    "Persona (set in profiles/<handle>.yaml)",
+_PERF, _SESS, _RUN, _VAULT, _SUB_AGENT, _MODELS, _WIKI, _PERSONA = (
+    PERF,
+    SESS,
+    RUN,
+    VAULT,
+    SUB_AGENT,
+    MODELS,
+    WIKI,
+    PERSONA,
 )
 
 # Ordered for /config display.
-SECTIONS: tuple[str, ...] = (_PERF, _SESS, _RUN, _VAULT, _SUB_AGENT, _PERSONA)
+SECTIONS: tuple[str, ...] = (
+    _PERF,
+    _SESS,
+    _RUN,
+    _VAULT,
+    _SUB_AGENT,
+    _MODELS,
+    _WIKI,
+    _PERSONA,
+)
 
 SETTINGS: tuple[Setting, ...] = (
-    Setting(
-        "performance.request_timeout",
-        "float",
-        30.0,
-        "Cloud-model HTTP timeout, seconds.",
-        _PERF,
-        minimum=1,
-    ),
-    Setting(
-        "performance.local_request_timeout",
-        "float",
-        120.0,
-        "Local (ollama/…) model timeout, seconds.",
-        _PERF,
-        minimum=1,
-    ),
-    Setting(
-        "performance.local_keep_alive",
-        "str",
-        None,
-        "Ollama residency hint: -1 forever, 0 unload, '30m'. Unset = defer to OLLAMA_KEEP_ALIVE.",
-        _PERF,
-    ),
-    Setting(
-        "performance.local_model_keep_alive",
-        "dict",
-        {},
-        "Per-model Ollama residency override, keyed by exact model id (e.g. "
-        "\"ollama/llama3.1:8b\": \"30m\"). Wins over a persona's own "
-        "keep_alive and local_keep_alive above — the right place to set "
-        "this once two or more personas share the same local model, since "
-        "keep_alive is a property of the loaded model, not the persona "
-        "calling it. Edit config.yaml directly; not settable via `/config set`.",
-        _PERF,
-    ),
-    Setting(
-        "performance.max_context_turns",
-        "int",
-        15,
-        "Conversation turns kept in the model context window.",
-        _PERF,
-        minimum=1,
-    ),
-    Setting(
-        "performance.resume_context_turns",
-        "int",
-        6,
-        "Turns rehydrated when resuming a saved session.",
-        _PERF,
-        minimum=0,
-    ),
-    Setting(
-        "performance.max_sub_agent_tool_turns",
-        "int",
-        8,
-        "Tool-call budget for a sub-agent before a forced synthesis.",
-        _PERF,
-        minimum=1,
-    ),
-    Setting(
-        "performance.max_consecutive_bot_turns",
-        "int",
-        3,
-        "Bot-to-bot reply streak cap in a Slack thread.",
-        _PERF,
-        minimum=1,
-    ),
-    Setting(
-        "performance.slack_thread_context_limit",
-        "int",
-        12,
-        "Preceding Slack thread messages pulled into a turn's context.",
-        _PERF,
-        minimum=0,
-    ),
-    Setting(
-        "performance.slack_max_concurrent",
-        "int",
-        3,
-        "Max concurrently-handled Slack messages.",
-        _PERF,
-        minimum=1,
-    ),
-    Setting(
-        "performance.hygiene_workers",
-        "int",
-        2,
-        "Background hygiene thread-pool size (extraction, titling, compaction).",
-        _PERF,
-        minimum=1,
-        live=False,
-    ),
-    Setting(
-        "performance.drop_unsupported_params",
-        "bool",
-        True,
-        "Silently drop model params a backend rejects (litellm.drop_params).",
-        _PERF,
-    ),
-    Setting(
-        "performance.stream", "bool", True, "Stream model output token-by-token.", _PERF
-    ),
-    Setting(
-        "performance.render_mode",
-        "str",
-        "hybrid",
-        "Terminal render mode.",
-        _PERF,
-        choices=("raw", "hybrid", "buffered"),
-    ),
-    Setting(
-        "performance.local_simple_max_tokens",
-        "int",
-        200,
-        "Response length cap for a SIMPLE-tier reply routed to a persona's "
-        "local_model (ADR-122). Bounds worst-case wait independent of "
-        "hardware/warm state — the local model's tokens/sec doesn't change, "
-        "so a short cap is what actually keeps a trivial reply fast.",
-        _PERF,
-        minimum=1,
-    ),
-    Setting(
-        "session.exit_behavior.auto_save",
-        "bool",
-        False,
-        "Auto-save the session on exit.",
-        _SESS,
-    ),
-    Setting(
-        "session.exit_behavior.default_target",
-        "str",
-        "memory",
-        "Where an auto-saved session goes.",
-        _SESS,
-        choices=("memory", "vault", "both"),
-    ),
-    Setting(
-        "session.exit_behavior.clear_terminal",
-        "bool",
-        True,
-        "Clear the terminal on exit.",
-        _SESS,
-    ),
-    Setting(
-        "session.exit_behavior.obsidian_subfolder",
-        "str",
-        "Sessions",
-        "Vault subfolder for archived sessions.",
-        _SESS,
-    ),
-    Setting(
-        "session.exit_behavior.summarization_model",
-        "str",
-        "",
-        "Model for session summaries; empty = the active chat model.",
-        _SESS,
-    ),
-    Setting(
-        "session.exit_behavior.title_timeout",
-        "float",
-        4.0,
-        "Timeout for the background session-auto-title generator, seconds.",
-        _SESS,
-        minimum=0,
-    ),
-    Setting(
-        "memory.auto_compact",
-        "bool",
-        True,
-        "Auto-compact working memory past the threshold.",
-        _SESS,
-    ),
-    Setting(
-        "memory.compaction_threshold",
-        "int",
-        25,
-        "Working-memory line count that triggers compaction.",
-        _SESS,
-        minimum=1,
-    ),
-    Setting(
-        "memory.extraction_timeout",
-        "float",
-        8.0,
-        "Timeout for the background memory extractor, seconds.",
-        _SESS,
-        minimum=0,
-    ),
-    Setting(
-        "memory.user_profile_file",
-        "str",
-        "profiles/user_profile.md",
-        "Path to the core user profile.",
-        _SESS,
-        live=False,
-    ),
-    Setting(
-        "memory.shared_memory_file",
-        "str",
-        "profiles/_shared_memory.md",
-        "Path to the shared team memory pool.",
-        _SESS,
-        live=False,
-    ),
-    Setting(
-        "runtime.default_persona", "str", "samantha", "Persona loaded at startup.", _RUN
-    ),
-    Setting(
-        "runtime.profiles_dir",
-        "str",
-        "profiles",
-        "Directory holding persona YAMLs.",
-        _RUN,
-        live=False,
-    ),
-    Setting(
-        "vault.search_mode",
-        "str",
-        "direct",
-        "Vault search backend.",
-        _VAULT,
-        choices=("direct", "sqlite_fts", "semantic"),
-    ),
-    Setting(
-        "vault.grounding_default",
-        "str",
-        "auto",
-        "Vault-grounding enforcement when a persona sets no vault_grounding. "
-        "auto = strict for local models, trust for cloud.",
-        _VAULT,
-        choices=("auto", "strict", "trust"),
-    ),
-    Setting(
-        "vault.daily_notes_folder",
-        "str",
-        "Daily",
-        "Vault folder for daily notes.",
-        _VAULT,
-    ),
-    Setting(
-        "vault.daily_notes_format",
-        "str",
-        "Daily/%Y/%m-%B/%Y-%m-%d.md",
-        "strftime path for a daily note.",
-        _VAULT,
-    ),
-    Setting(
-        "vault.ignore_folders",
-        "list",
-        [
-            ".obsidian",
-            ".git",
-            "Attachments",
-            "Drawings",
-            ".trash",
-        ],
-        "Folders excluded from vault search and indexing.",
-        _VAULT,
-    ),
-    Setting(
-        "vault.search_triggers",
-        "list",
-        [],
-        "Extra keywords that flag a message as a vault query (added to the built-ins).",
-        _VAULT,
-    ),
-    Setting(
-        "vault.manifest.enabled",
-        "bool",
-        True,
-        "Maintain a materialized structural map of the vault (nodes, links, folders) "
-        "under the workspace for the persona and the dashboard graph (ADR-078). Built "
-        "lazily on first use; set false to disable entirely.",
-        _VAULT,
-    ),
-    Setting(
-        "vault.manifest.check_debounce_seconds",
-        "float",
-        2.0,
-        "Minimum seconds between vault-manifest freshness scans; 0 disables the debounce.",
-        _VAULT,
-        minimum=0,
-    ),
-    Setting(
-        "vault.manifest.max_nodes",
-        "int",
-        0,
-        "Cap on vault-manifest nodes (0 = unlimited); guards pathological vaults.",
-        _VAULT,
-        minimum=0,
-    ),
-    Setting(
-        "sub_agent.shell_allowlist",
-        "list",
-        [],
-        "argv[0] allowlist for the sub-agent `run_command` tool (read-only commands only).",
-        _SUB_AGENT,
-        live=False,
-    ),
-    Setting(
-        "sub_agent.shell_command_timeout",
-        "float",
-        20.0,
-        "Hard wall-clock cap on a single `run_command` execution, seconds.",
-        _SUB_AGENT,
-        minimum=1,
-    ),
-    Setting(
-        "sub_agent.request_timeout",
-        "float",
-        120.0,
-        "A sub-agent's own LLM call timeout, seconds - one call per tool-use "
-        "turn, up to max_sub_agent_tool_turns of them. Deliberately separate "
-        "from performance.request_timeout: that one bounds a live, streamed "
-        "chat reply's TTFT, but a sub-agent's report is delivered as a "
-        "single block once the whole tool-calling loop finishes, so there's "
-        "no TTFT reason to use the short cloud timeout even when its model "
-        "is a cloud one.",
-        _SUB_AGENT,
-        minimum=1,
-    ),
-    Setting(
-        "sub_agent.unsupported_synthesis_min_words",
-        "int",
-        15,
-        "Minimum word count before a sub-agent's synthesis is checked for "
-        "verbatim overlap with what it actually retrieved (_content_unsupported) "
-        "- below this, a reply is too short to reliably judge. Live-tuned once "
-        "already (25 -> 15) after a real fabrication slipped under the original "
-        "bar; expect to retune this in either direction as more live failures "
-        "surface.",
-        _SUB_AGENT,
-        minimum=1,
-    ),
-    # Persona-scoped — set with `/persona set @<handle> <key> <value>`, not /config.
-    Setting(
-        "vault_grounding",
-        "str",
-        "auto",
-        "Per-persona grounding: auto|strict|trust.",
-        _PERSONA,
-        choices=("auto", "strict", "trust"),
-        scope="persona",
-    ),
-    Setting(
-        "keep_alive",
-        "str",
-        "",
-        "Per-persona Ollama keep_alive override.",
-        _PERSONA,
-        scope="persona",
-    ),
-    Setting(
-        "share_memory",
-        "bool",
-        False,
-        "Write to the shared team memory pool instead of private memory.",
-        _PERSONA,
-        scope="persona",
-    ),
-    Setting(
-        "temperature",
-        "float",
-        None,
-        "Sampling temperature.",
-        _PERSONA,
-        minimum=0,
-        maximum=2,
-        scope="persona",
-    ),
-    Setting(
-        "model",
-        "str",
-        "",
-        "litellm model id (e.g. gemini/gemini-3.6-flash, ollama/llama3.1:8b).",
-        _PERSONA,
-        scope="persona",
-    ),
-    Setting(
-        "local_model",
-        "str",
-        "",
-        "Ollama model id for SIMPLE-tier messages (ADR-122) — definitions, "
-        "quick math, a plain greeting. Empty = routing disabled, every "
-        "message goes to `model` as today. Meaningless (leave unset) for a "
-        "persona whose `model` is already local — there's no cheaper tier "
-        "to route to, and no cloud fallback should ever fire for them.",
-        _PERSONA,
-        scope="persona",
-    ),
-    Setting(
-        "api_base",
-        "str",
-        "",
-        "Custom API base URL for the persona's model.",
-        _PERSONA,
-        scope="persona",
-    ),
+    PERFORMANCE_SETTINGS
+    + SESSION_RUNTIME_SETTINGS
+    + VAULT_SETTINGS
+    + SUB_AGENT_SETTINGS
+    + MODEL_SETTINGS
+    + WIKI_SETTINGS
+    + PERSONA_SETTINGS
 )
 
 _BY_KEY = {s.key: s for s in SETTINGS}

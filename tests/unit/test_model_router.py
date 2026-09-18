@@ -200,3 +200,69 @@ class TestResolveTurnModel:
         )
         assert seen_warm_check == ["gemma2:9b"]
         assert (model, routed) == ("ollama/gemma2:9b", True)
+
+
+ORDER = ["basic", "standard", "high"]
+
+
+class TestResolveTurnModelByCapability:
+    """ADR-135: the capability-tier alternative to resolve_turn_model's
+    SIMPLE-message gate — ignores message content entirely, routes purely
+    on declared tiers, still never blocks on a cold local model."""
+
+    def test_no_local_model_stays_on_base(self):
+        model, routed = model_router.resolve_turn_model_by_capability(
+            "gpt-4o", "", ORDER, {}, "standard"
+        )
+        assert (model, routed) == ("gpt-4o", False)
+
+    def test_local_model_that_clears_the_bar_and_is_warm_routes_local(self, monkeypatch):
+        monkeypatch.setattr(model_router, "is_ollama_model_warm", lambda name: True)
+        tiers = {"ollama/gemma2:9b": "high"}
+        model, routed = model_router.resolve_turn_model_by_capability(
+            "gpt-4o", "ollama/gemma2:9b", ORDER, tiers, "standard"
+        )
+        assert (model, routed) == ("ollama/gemma2:9b", True)
+
+    def test_local_model_below_the_bar_stays_on_base_even_for_a_complex_message(
+        self, monkeypatch
+    ):
+        """The whole point of this knob: an unassigned (lowest-tier) local
+        model must NOT be picked for a demanding message just because a
+        content heuristic might have called it SIMPLE — there is no content
+        heuristic here at all, only the declared tier."""
+        monkeypatch.setattr(
+            model_router,
+            "is_ollama_model_warm",
+            lambda name: (_ for _ in ()).throw(
+                AssertionError("should not even check warm state")
+            ),
+        )
+        model, routed = model_router.resolve_turn_model_by_capability(
+            "gpt-4o", "ollama/gemma2:9b", ORDER, {}, "standard"
+        )
+        assert (model, routed) == ("gpt-4o", False)
+
+    def test_local_model_clears_the_bar_but_is_cold_falls_back_and_warms_it(
+        self, monkeypatch
+    ):
+        warmed = []
+        monkeypatch.setattr(model_router, "is_ollama_model_warm", lambda name: False)
+        monkeypatch.setattr(
+            "sympose.compactor.run_hygiene_task",
+            lambda fn, *a, **k: warmed.append((fn, a, k)),
+        )
+        tiers = {"ollama/gemma2:9b": "high"}
+        model, routed = model_router.resolve_turn_model_by_capability(
+            "gpt-4o", "ollama/gemma2:9b", ORDER, tiers, "standard"
+        )
+        assert (model, routed) == ("gpt-4o", False)
+        assert len(warmed) == 1
+
+    def test_message_content_is_irrelevant_to_the_decision(self, monkeypatch):
+        """No `message` parameter exists at all on this function — confirms
+        the gate really is content-independent, not just untested for it."""
+        import inspect
+
+        sig = inspect.signature(model_router.resolve_turn_model_by_capability)
+        assert "message" not in sig.parameters

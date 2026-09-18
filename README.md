@@ -104,13 +104,17 @@ Full breakdown: **[Architecture Overview](docs/wiki/architecture/overview.md)**.
 ## 🌟 Core Pillars
 
 - **Agnostic Flat-File Engine** (`profiles/`) — personas, memories, and settings are plain Markdown/YAML; no Python changes to add or retire a persona.
-- **Modular Skills Engine** (`skills/`) — reusable procedural playbooks with mandatory deliverable schemas.
+- **Modular Skills Engine** (`sympose/builtin_skills/`) — reusable procedural playbooks with mandatory deliverable schemas.
 - **Native Obsidian `Templates/` Engine** — variable interpolation and dynamic frontmatter tag syncing on daily notes.
 - **Autonomous Live Web Search** — real-time search and market data, $0 API key, powered by `ddgs`.
 - **Dedicated MCP Server Hub** (`mcp/`) — heavy tools (GitHub, Fetch, Filesystem, SQL) run isolated in child-process workers so the primary persona stays fast and token-light.
 - **Slack Socket Mode** — zero open ports, thread-bound memory isolation, `/clear`, expressive emoji reactions.
 - **Autonomic Natural-Language Lifecycle** — tune config, spawn, and retire personas purely through conversation.
 - **Cost-Aware Local/Cloud Routing** *(opt-in per persona)* — a persona with both a `model` and a `local_model` set routes genuinely trivial messages (a greeting, quick math, a plain definition) to the free local one automatically and instantly; anything with real weight stays on the main model. No round-trip wasted either way — the decision is a deterministic check, never a model judging its own reliability. See `/persona show`.
+- **Capability-Tier Routing** *(opt-in, orthogonal to the above)* — routes on whether a candidate model actually clears a declared capability floor for the work at hand, not on where it runs: a capable local model can satisfy a reliability requirement just as well as a cloud one. Off by default; every existing install keeps today's frugal-only behavior until a persona or skill opts in.
+- **Optimistic Vault-Write Concurrency** — a write can be conditioned on the note's last-known modification time, returning a conflict instead of silently clobbering a concurrent edit from another persona or sync client — agnostic to whatever keeps your vault in sync (Obsidian Sync, Syncthing, iCloud, or nothing at all).
+- **Live Streaming Dashboard Chat** — the web dashboard's chat panel streams persona replies over SSE with real-time action badges (note written, sub-agent spawned, config changed, …) as they happen, mirroring how the terminal already shows its work — still just a skin over the same core engine every terminal and Slack turn already uses.
+- **LLM Wiki Layer** *(opt-in Tier-3 feature)* — a Karpathy-style raw-sources/wiki/schema convention with `wiki_ingest`/`wiki_lint` skills, sandboxed to whatever vault folder you scope a dedicated persona to; lint's auto-fix is a per-persona, user-trusted knob, off by default.
 
 ---
 
@@ -140,7 +144,7 @@ Full standard: **[Memory Architecture](docs/wiki/memory/architecture-standard.md
 
 Personas act on the world by emitting declarative tags in their response stream — `[WRITE_NOTE: path | content]`, `[REMEMBER: fact]`, `[SPAWN_SUBAGENT: spec | task]`, `[CONFIG_SET: key | value]`, and more — parsed and executed after the model finishes streaming, at zero added round-trips.
 
-Ten built-in skill playbooks ship inside the package at `sympose/builtin_skills/`: `vault_write`, `vault_recall`, `web_search`, `slack_interaction`, `sympose_mastery`, `code_review`, `git_workflow`, `strategic_analysis`, `system_architecture`, `discussion_moderation`.
+Thirteen built-in skill playbooks ship inside the package at `sympose/builtin_skills/`: `vault_write`, `vault_read`, `web_search`, `slack_interaction`, `subagent_spawn`, `sympose_mastery`, `code_review`, `git_workflow`, `strategic_analysis`, `system_architecture`, `discussion_moderation`, and the opt-in `wiki_ingest`/`wiki_lint` pair for the LLM Wiki layer. Shipping in `builtin_skills/` makes a skill discoverable, not active — a persona only gets one by listing it in its manifest's `skills:` array.
 
 Full tag reference and skill specs: **[Action Tags Reference](docs/wiki/reference/action-tags.md)** · **[Modular Skills System](docs/wiki/personas/skills-system.md)**.
 

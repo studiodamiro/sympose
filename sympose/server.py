@@ -40,6 +40,7 @@ from pydantic import BaseModel, Field
 
 from sympose import slack_heartbeat
 from sympose.auth import DashboardAuthMiddleware
+from sympose.server_chat import register_chat_routes
 from sympose.config import get_version
 from sympose.vault import VaultManager
 from sympose.workspace import resolve_workspace_dir
@@ -54,6 +55,12 @@ class NoteWrite(BaseModel):
     path: str = Field(..., min_length=1)
     content: str
     persona: str = "samantha"
+    expected_mtime: float | None = Field(
+        None,
+        description="mtime this save was opened from (from GET /api/vault/note). "
+        "When given, a save is rejected with 409 if the file changed on disk "
+        "since then (ADR-129) instead of silently overwriting it.",
+    )
 
 
 class NoteCreate(BaseModel):
@@ -110,6 +117,7 @@ def _translate_vault_result(
     not_found: str | None = None,
     exists: str | None = None,
     denied: str | None = None,
+    conflict: str | None = None,
 ) -> None:
     """Raises the matching HTTPException for one of VaultManager's shared
     sentinel outcomes, or returns None when `result` is a genuine success
@@ -121,6 +129,8 @@ def _translate_vault_result(
         raise HTTPException(status_code=409, detail=exists)
     if denied is not None and result == VaultManager.NOTE_DENIED:
         raise HTTPException(status_code=403, detail=denied)
+    if conflict is not None and result == VaultManager.NOTE_CONFLICT:
+        raise HTTPException(status_code=409, detail=conflict)
     if result.startswith("Error:"):
         raise HTTPException(status_code=500, detail=result)
 
@@ -232,7 +242,13 @@ def _read_note(engine: Any, path: str, persona: str | None) -> dict[str, Any]:
     content = VaultManager.read_note(profile, path)
     if content.startswith("Note `") and "not found" in content:
         raise HTTPException(status_code=404, detail=content)
-    return {"path": path, "content": content}
+    return {
+        "path": path,
+        "content": content,
+        # ADR-129: round-trip this back as expected_mtime on a later save to
+        # detect a concurrent write instead of silently clobbering it.
+        "mtime": VaultManager.get_note_mtime(profile, path),
+    }
 
 
 def _list_trash(engine: Any, persona: str | None) -> dict[str, Any]:
@@ -303,13 +319,17 @@ def _register_vault_read_routes(app: FastAPI, engine: Any) -> None:
 def _write_note(engine: Any, body: NoteWrite) -> dict[str, Any]:
     """Save the dashboard editor's contents back to an existing vault note.
     404 when the note doesn't exist (no create), 403 when the path resolves
-    outside the persona's sandbox."""
+    outside the persona's sandbox, 409 when `expected_mtime` was given and
+    the file changed on disk since the editor opened it (ADR-129)."""
     profile = _resolve_profile(engine, body.persona)
-    result = VaultManager.overwrite_note(profile, body.path, body.content)
+    result = VaultManager.overwrite_note(
+        profile, body.path, body.content, expected_mtime=body.expected_mtime
+    )
     _translate_vault_result(
         result,
         not_found=f"Note `{body.path}` not found in allowed vault folders.",
         denied=f"Path `{body.path}` is outside the assigned sandbox.",
+        conflict=f"Note `{body.path}` changed on disk since it was opened — reload before saving.",
     )
     return {"path": body.path, "detail": result}
 
@@ -618,6 +638,7 @@ def create_app(engine: Any, workspace_dir: str | None = None) -> FastAPI:
     _register_vault_read_routes(app, engine)
     _register_vault_write_routes(app, engine)
     _register_vault_trash_routes(app, engine)
+    register_chat_routes(app, engine)
 
     ui_root = _resolve_ui_root()
     if ui_root:

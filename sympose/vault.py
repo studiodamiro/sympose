@@ -17,6 +17,7 @@ from sympose import (
     vault_search,
     vault_trash,
     vault_write,
+    vault_write_concurrency,
 )
 from sympose.config import config_manager
 from sympose.vault_folders import FoldersMixin
@@ -323,42 +324,76 @@ class VaultManager(
     NOTE_NOT_FOUND = vault_write.NOTE_NOT_FOUND
     NOTE_DENIED = vault_write.NOTE_DENIED
     NOTE_EXISTS = vault_write.NOTE_EXISTS
+    NOTE_CONFLICT = vault_write_concurrency.NOTE_CONFLICT
 
     @classmethod
     def get_template_for_path(cls, mv: str, note_name: str) -> str | None:
         return vault_write.get_template_for_path(mv, note_name)
 
     @classmethod
-    def write_note(cls, profile: dict[str, Any], note_name: str, content: str) -> str:
+    def get_note_mtime(cls, profile: dict[str, Any], note_name: str) -> float | None:
+        """Current on-disk mtime of the file `read_note` would open for
+        `note_name`, or None if it doesn't exist yet. The precondition a
+        caller round-trips back as `expected_mtime` on a later write, for
+        the optimistic-concurrency guard (ADR-129)."""
+        target = cls._resolve_existing_note(profile, note_name)
+        return vault_write_concurrency.current_mtime(target) if target else None
+
+    @classmethod
+    def write_note(
+        cls,
+        profile: dict[str, Any],
+        note_name: str,
+        content: str,
+        *,
+        expected_mtime: float | None = None,
+    ) -> str:
         return vault_write.write_note(
             profile,
             note_name,
             content,
             reindex_hook=cls._reindex_note_if_enabled,
             manifest_hook=cls._update_manifest_if_enabled,
+            expected_mtime=expected_mtime,
         )
 
     @classmethod
-    def append_note(cls, profile: dict[str, Any], note_name: str, content: str) -> str:
+    def append_note(
+        cls,
+        profile: dict[str, Any],
+        note_name: str,
+        content: str,
+        *,
+        expected_mtime: float | None = None,
+    ) -> str:
         return vault_write.append_note(
             profile,
             note_name,
             content,
             reindex_hook=cls._reindex_note_if_enabled,
             manifest_hook=cls._update_manifest_if_enabled,
+            expected_mtime=expected_mtime,
         )
 
     @classmethod
     def overwrite_note(
-        cls, profile: dict[str, Any], note_name: str, content: str
+        cls,
+        profile: dict[str, Any],
+        note_name: str,
+        content: str,
+        *,
+        expected_mtime: float | None = None,
     ) -> str:
         """Replace an *existing* vault note's file with `content`, verbatim (the
         editor already owns the whole document, frontmatter included). Resolves
         the same file `read_note` would return, so a dashboard save lands back on
         the note it was opened from. Overwrite only — a path with no existing
         file returns `NOTE_NOT_FOUND` rather than creating one (ADR-081); a path
-        outside the persona's sandbox returns `NOTE_DENIED`. On success the note
-        is re-indexed and the manifest refreshed, exactly as `write_note` does.
+        outside the persona's sandbox returns `NOTE_DENIED`; a caller-supplied
+        `expected_mtime` that no longer matches the file on disk returns
+        `NOTE_CONFLICT` instead of clobbering a concurrent write (ADR-129). On
+        success the note is re-indexed and the manifest refreshed, exactly as
+        `write_note` does.
         """
         return vault_write.overwrite_note(
             profile,
@@ -366,6 +401,7 @@ class VaultManager(
             content,
             reindex_hook=cls._reindex_note_if_enabled,
             manifest_hook=cls._update_manifest_if_enabled,
+            expected_mtime=expected_mtime,
         )
 
     @classmethod

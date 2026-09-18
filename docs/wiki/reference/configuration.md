@@ -71,6 +71,7 @@ Every runtime knob Sympose reads. Global keys live in `config.yaml`, settable at
 | `vault.manifest.enabled` | bool | `True` | — | yes | Maintain a materialized structural map of the vault (nodes, links, folders) under the workspace for the persona and the dashboard graph (ADR-078). Built lazily on first use; set false to disable entirely. |
 | `vault.manifest.check_debounce_seconds` | float | `2.0` | ≥ 0 | yes | Minimum seconds between vault-manifest freshness scans; 0 disables the debounce. |
 | `vault.manifest.max_nodes` | int | `0` | ≥ 0 | yes | Cap on vault-manifest nodes (0 = unlimited); guards pathological vaults. |
+| `vault.multi_writer_safety` | bool | `False` | — | yes | Enable the optimistic-concurrency guard (ADR-129): callers that pass expected_mtime to write_note/append_note/overwrite_note get a NOTE_CONFLICT instead of silently clobbering a file that changed since they last read it. Off by default so a single writer pays zero cost. Sync-mechanism-agnostic — no assumption about Obsidian Sync specifically; this guards against ANY two concurrent writers, on one machine or many. |
 
 ## Sub-Agent Sandbox
 
@@ -80,6 +81,22 @@ Every runtime knob Sympose reads. Global keys live in `config.yaml`, settable at
 | `sub_agent.shell_command_timeout` | float | `20.0` | ≥ 1 | yes | Hard wall-clock cap on a single `run_command` execution, seconds. |
 | `sub_agent.request_timeout` | float | `120.0` | ≥ 1 | yes | A sub-agent's own LLM call timeout, seconds - one call per tool-use turn, up to max_sub_agent_tool_turns of them. Deliberately separate from performance.request_timeout: that one bounds a live, streamed chat reply's TTFT, but a sub-agent's report is delivered as a single block once the whole tool-calling loop finishes, so there's no TTFT reason to use the short cloud timeout even when its model is a cloud one. |
 | `sub_agent.unsupported_synthesis_min_words` | int | `15` | ≥ 1 | yes | Minimum word count before a sub-agent's synthesis is checked for verbatim overlap with what it actually retrieved (_content_unsupported) - below this, a reply is too short to reliably judge. Live-tuned once already (25 -> 15) after a real fabrication slipped under the original bar; expect to retune this in either direction as more live failures surface. |
+
+## Model Capability Tiers
+
+| Key | Type | Default | Allowed | Live | Description |
+| --- | --- | --- | --- | --- | --- |
+| `models.capability_tier_order` | list | `['basic', 'standard', 'high']` | — | yes | Ordered least-to-most-capable tier names for capability-based routing (ADR-127) — position in this list is what's compared, not the label text. A separate axis from local-vs-cloud (ADR-122): a sufficiently capable local model can clear a 'high' requirement, and a cloud model can be assigned 'basic'. |
+| `models.capability_tiers` | dict | `{}` | — | yes | Explicit model-id -> tier-name assignment (value must be one of models.capability_tier_order). A model with no entry here defaults to the lowest declared tier — conservative by default, same bias as ADR-122's is_simple_message. Edit config.yaml directly (dict, not settable via `/config set`), e.g.: {"ollama/qwen2.5-32b-instruct": "high", "gemini/gemini-3.6-flash": "standard"}. |
+
+## LLM Wiki (Tier 3, opt-in)
+
+| Key | Type | Default | Allowed | Live | Description |
+| --- | --- | --- | --- | --- | --- |
+| `wiki.root` | str | *(unset)* | — | yes | Vault-relative root folder for the AI-owned LLM-wiki subtree (ADR-132). Empty (default) disables the wiki layer entirely — no wiki_ingest/wiki_lint skill has anywhere to act until this is set. |
+| `wiki.raw_sources_subdir` | str | `Sources` | — | yes | Subfolder under wiki.root holding immutable original sources — read by wiki skills, never edited. |
+| `wiki.schema_file` | str | `WIKI.md` | — | yes | Filename at wiki.root: the navigation schema explaining how the wiki is structured, seeded once and safe to hand-edit afterward. |
+| `wiki.log_file` | str | `log.md` | — | yes | Filename at wiki.root: chronological, append-only ingest/lint audit trail. |
 
 ## Persona (set in profiles/<handle>.yaml)
 
@@ -91,5 +108,7 @@ Every runtime knob Sympose reads. Global keys live in `config.yaml`, settable at
 | `temperature` | float | *(unset)* | 0–2 | yes | Sampling temperature. |
 | `model` | str | *(unset)* | — | yes | litellm model id (e.g. gemini/gemini-3.6-flash, ollama/llama3.1:8b). |
 | `local_model` | str | *(unset)* | — | yes | Ollama model id for SIMPLE-tier messages (ADR-122) — definitions, quick math, a plain greeting. Empty = routing disabled, every message goes to `model` as today. Meaningless (leave unset) for a persona whose `model` is already local — there's no cheaper tier to route to, and no cloud fallback should ever fire for them. |
+| `capability_min_tier` | str | *(unset)* | — | yes | Opt-in (ADR-135): route by declared capability tier (models.capability_tier_order/capability_tiers, ADR-127) instead of ADR-122's SIMPLE-message heuristic — every message this persona sends (not just short/trivial ones) routes to local_model whenever its declared tier clears this floor, falling back to `model` otherwise. Empty (default) = today's SIMPLE-message-only behavior, unchanged. Meaningless without local_model also set. |
 | `api_base` | str | *(unset)* | — | yes | Custom API base URL for the persona's model. |
+| `lint_auto_fix` | bool | `False` | — | yes | ADR-134: when this persona runs the wiki_lint skill, allow it to edit flagged pages directly under wiki.root instead of only logging findings to log.md. Off by default — user-trusted opt-in, your call whether to trust this persona to self-correct its own wiki pages. Has no effect on a persona without the wiki_lint skill, or when wiki.root is unset. |
 

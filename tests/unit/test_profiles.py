@@ -366,3 +366,47 @@ class TestBuildSystemPromptOrdering:
 
         assert "### Stay Grace" in prompt
         assert "You are Grace speaking directly, not an author describing Grace" in prompt
+
+
+class TestWikiLintModePromptInjection:
+    """ADR-134: lint_auto_fix has no other way to reach the model — skills
+    are static text, not templated per-persona — so build_system_prompt
+    surfaces it directly, scoped to personas that actually have the
+    wiki_lint skill active."""
+
+    def test_absent_for_a_persona_without_the_wiki_lint_skill(self, tmp_path):
+        (tmp_path / "sam.yaml").write_text(
+            "name: Sam\nhandle: sam\nsoul_file: sam_soul.md\nskills: [vault_write]\n"
+        )
+        (tmp_path / "sam_soul.md").write_text("# Sam\nYou are Sam.\n")
+
+        pm = ProfileManager(profiles_dir=str(tmp_path))
+        prompt = pm.build_system_prompt(pm.get_profile("sam"))
+
+        assert "Wiki Lint Mode" not in prompt
+
+    def test_report_only_by_default_when_lint_auto_fix_is_unset(self, tmp_path):
+        (tmp_path / "sam.yaml").write_text(
+            "name: Sam\nhandle: sam\nsoul_file: sam_soul.md\nskills: [wiki_lint]\n"
+        )
+        (tmp_path / "sam_soul.md").write_text("# Sam\nYou are Sam.\n")
+
+        pm = ProfileManager(profiles_dir=str(tmp_path))
+        prompt = pm.build_system_prompt(pm.get_profile("sam"))
+
+        assert "Wiki Lint Mode" in prompt
+        assert "must stay report-only" in prompt
+        assert "may also directly edit" not in prompt
+
+    def test_auto_fix_mode_when_lint_auto_fix_is_true(self, tmp_path):
+        (tmp_path / "sam.yaml").write_text(
+            "name: Sam\nhandle: sam\nsoul_file: sam_soul.md\n"
+            "skills: [wiki_lint]\nlint_auto_fix: true\n"
+        )
+        (tmp_path / "sam_soul.md").write_text("# Sam\nYou are Sam.\n")
+
+        pm = ProfileManager(profiles_dir=str(tmp_path))
+        prompt = pm.build_system_prompt(pm.get_profile("sam"))
+
+        assert "may also directly edit flagged pages" in prompt
+        assert "must stay report-only" not in prompt

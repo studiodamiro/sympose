@@ -691,6 +691,83 @@ class TestSelectTurnModel:
         assert (model, routed) == ("gemini/gemini-3.6-flash", False)
 
 
+class TestSelectTurnModelCapabilityTierKnob:
+    """ADR-135: a persona-scoped `capability_min_tier` swaps the
+    SIMPLE-message gate for capability-tier resolution. Empty (default)
+    must be byte-for-byte the ADR-122 path already covered above."""
+
+    def test_empty_capability_min_tier_calls_the_simple_message_path(
+        self, engine, monkeypatch
+    ):
+        received = {}
+        monkeypatch.setattr(
+            "sympose.engine.resolve_turn_model",
+            lambda *a, **k: received.setdefault("called", ("simple", a, k)),
+        )
+        monkeypatch.setattr(
+            "sympose.engine.resolve_turn_model_by_capability",
+            lambda *a, **k: (_ for _ in ()).throw(
+                AssertionError("should not be called")
+            ),
+        )
+        engine._select_turn_model(
+            "sam",
+            {"local_model": "ollama/gemma2:9b"},
+            "hi",
+            None,
+            "gemini/gemini-3.6-flash",
+        )
+        assert received["called"][0] == "simple"
+
+    def test_set_capability_min_tier_calls_the_capability_path_with_config_tiers(
+        self, engine, monkeypatch
+    ):
+        received = {}
+        monkeypatch.setattr(
+            "sympose.engine.resolve_turn_model",
+            lambda *a, **k: (_ for _ in ()).throw(
+                AssertionError("should not be called")
+            ),
+        )
+        monkeypatch.setattr(
+            "sympose.engine.resolve_turn_model_by_capability",
+            lambda base, local, tier_order, tiers, minimum, keep_alive=None: received.update(
+                base=base, local=local, tier_order=tier_order, tiers=tiers, minimum=minimum
+            )
+            or (local, True),
+        )
+        model, routed = engine._select_turn_model(
+            "sam",
+            {"local_model": "ollama/gemma2:9b", "capability_min_tier": "standard"},
+            "explain the entire history of Rome",
+            None,
+            "gemini/gemini-3.6-flash",
+        )
+        assert model == "ollama/gemma2:9b"
+        assert routed is True
+        assert received["minimum"] == "standard"
+        assert received["base"] == "gemini/gemini-3.6-flash"
+        assert received["local"] == "ollama/gemma2:9b"
+
+    def test_capability_min_tier_still_respects_the_override_and_vault_ctx_exclusions(
+        self, engine, monkeypatch
+    ):
+        monkeypatch.setattr(
+            "sympose.engine.resolve_turn_model_by_capability",
+            lambda *a, **k: (_ for _ in ()).throw(
+                AssertionError("should not be called")
+            ),
+        )
+        model, routed = engine._select_turn_model(
+            "sam",
+            {"local_model": "ollama/gemma2:9b", "capability_min_tier": "standard"},
+            "hi",
+            "some vault context",
+            "gemini/gemini-3.6-flash",
+        )
+        assert (model, routed) == ("gemini/gemini-3.6-flash", False)
+
+
 class TestBuildSessionHistoryDigest:
     """The zero-round-trip 'what did we do last session?' answer: local JSONL
     session history (SessionManager, ADR-054) injected as ground-truth

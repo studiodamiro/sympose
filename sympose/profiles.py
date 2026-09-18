@@ -16,6 +16,7 @@ log = logging.getLogger(__name__)
 from sympose.config import DEFAULT_CHAT_MODEL
 from sympose.prompt_assets import load_prompt
 from sympose.skills import skill_manager
+from sympose.wiki_bootstrap import bootstrap_wiki_layer
 
 
 class ProfileManager:
@@ -198,6 +199,7 @@ class ProfileManager:
                 "Distilling insights...",
                 "Formulating plan...",
             ]
+        bootstrap_wiki_layer(profile)
 
     DEFAULT_STARTER_PROFILES: ClassVar[dict[str, dict[str, Any]]] = {
         "samantha": {
@@ -471,6 +473,25 @@ class ProfileManager:
                 skills_txt := skill_manager.format_skills_for_prompt(active_skills)
             ):
                 prompt_parts.append(skills_txt)
+            # ADR-134: lint_auto_fix has no other way to reach the model —
+            # skills are static text, not templated per-persona, so a
+            # setting the skill's own playbook needs to branch on has to be
+            # surfaced here instead, the same way `is_shared`/`sharing_desc`
+            # above already are. Scoped to personas that actually have the
+            # skill active, so this line is silently absent for everyone
+            # else.
+            if isinstance(active_skills, list) and "wiki_lint" in active_skills:
+                fix_mode = (
+                    "may also directly edit flagged pages under your wiki "
+                    "root (`lint_auto_fix` is enabled for you)"
+                    if profile.get("lint_auto_fix", False)
+                    else "must stay report-only — log findings to `log.md`, "
+                    "never edit a flagged page directly (`lint_auto_fix` is "
+                    "off for you)"
+                )
+                prompt_parts.append(
+                    f"### Wiki Lint Mode:\nWhen running a wiki_lint pass, you {fix_mode}."
+                )
 
         peers = [
             f"- @{p['handle']}: {p.get('name', p['handle'])} ({p.get('title', 'Specialist')})"

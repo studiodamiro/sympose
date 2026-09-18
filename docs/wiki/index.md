@@ -103,7 +103,7 @@ list and is kept in sync per the
 | --- | ----- | ------ | ---- |
 | [ADR-125](../journal/2026-09/2026-09-18_adr-125-splitting-vault-and-engine-under-200-loc.md) | Splitting vault.py and engine.py Into Focused, Under-200-LOC Modules | Implemented | 2026-09-18 |
 | [ADR-124](../journal/2026-09/2026-09-18_adr-124-index-backed-grounding-checks-over-catch-phrases.md) | Index-Backed Grounding Checks, With Catch-Phrase Lists Reduced to a Coarse Gate | Accepted | 2026-09-18 |
-| [ADR-123](../journal/2026-09/2026-09-18_adr-123-automatic-folder-kind-signals-from-digest-fields.md) | Automatic Folder-Kind Signals, Derived From Existing Digest Fields | Partially implemented (123.1-123.4 shipped; 123.5 finding-half shipped, miss-surfacing deferred) | 2026-09-18 |
+| [ADR-123](../journal/2026-09/2026-09-18_adr-123-automatic-folder-kind-signals-from-digest-fields.md) | Automatic Folder-Kind Signals, Derived From Existing Digest Fields | Fully implemented (123.1-123.5 shipped) | 2026-09-18 |
 | [ADR-122](../journal/2026-09/2026-09-14_adr-122-local-cloud-model-complexity-routing.md) | Local/Cloud Model Routing by Message Complexity | Accepted (design; implementation pending) | 2026-09-14 |
 | [ADR-121](../journal/2026-09/2026-09-14_adr-121-ruff-as-standing-dev-dependency.md) | ruff as a Standing Dev Dependency, With a Narrow, Audited Rule Set | Accepted | 2026-09-14 |
 | [ADR-120](../journal/2026-09/2026-09-14_adr-120-click-drag-cumulative-displacement.md) | Click-vs-Drag Detection: Cumulative Displacement Instead of Per-Event Delta (amends ADR-096, ADR-114) | Accepted | 2026-09-14 |

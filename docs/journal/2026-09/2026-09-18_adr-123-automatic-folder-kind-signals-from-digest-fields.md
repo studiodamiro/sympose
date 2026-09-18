@@ -11,7 +11,7 @@ tags:
 
 # ADR-123 — Automatic Folder-Kind Signals, Derived From Existing Digest Fields
 
-- **Status:** Partially implemented. ADR-123.1-123.3 (the folder-kind
+- **Status:** Fully implemented (123.1-123.5). ADR-123.1-123.3 (the folder-kind
   signal itself, its cache reuse, and surfacing it on both
   `get_folder_digest` and `get_random_sample_notes`) shipped 2026-09-18,
   then verified live against a real ~800-note vault and fixed twice more
@@ -28,9 +28,13 @@ tags:
   live against the same real vault and fixed once based on what that
   surfaced (a ranked-search substitute for a confirmed-real but
   near-empty stub note - see **Implementation notes** below). ADR-123.5's
-  *miss-surfacing* half ("no vault entry found for X" as a plain fact
-  handed to the model) remains deliberately unbuilt - see that section's
-  update below for why. Raised by damiro in discussion after the
+  *miss-surfacing* half also shipped 2026-09-18, scoped to possessive
+  mentions only (`_resolve_possessive_miss_case`) after damiro pointed
+  out that capitalization can't be assumed at all for his own casual,
+  mostly-lowercase chat - both that scoping decision and the false
+  positives it surfaced (English contractions are syntactically
+  identical to a genuine possessive) are covered in **Implementation
+  notes** below. Raised by damiro in discussion after the
   [2026-09-17 ritual-continuation fix](./2026-09-17_ritual-continuation-carries-no-grounding.md):
   "defining each folder in the vault will make the agents' decisions more
   reliable." Originally documented ahead of any build decision; a same-day
@@ -171,7 +175,7 @@ Proposed, not yet implemented:
   neither is asking "does this sound like a request" - both are asking
   "does this refer to something that demonstrably exists."
 
-## Implementation notes (123.5's finding half, shipped 2026-09-18)
+## Implementation notes (123.5, shipped 2026-09-18)
 
 `vault_turn_context.py`'s `_resolve_real_referent_case` (case 7.5) runs
 `VaultManager.first_unverified_referent` on the inbound message once cases
@@ -203,20 +207,57 @@ three live model replies (local `ollama`) on "I ran into Dylan today,"
 three came back natural and un-confused, with no visible mishandling of
 the near-empty `Time` content that was now correctly in context.
 
-The miss-surfacing half of ADR-123.5 - handing the model a plain "no
-vault entry found for X" fact - was deliberately **not** built this pass.
-`_CAPITALIZED_RUN_RE` (the same candidate extractor ADR-124 already uses
-for the outbound check) matches *any* sentence-initial capitalized word,
-real referent or not; treating every non-match as a reportable "miss"
-would flag an ordinary capitalized word at the start of nearly every
-sentence, which is exactly the enumerable-noise failure mode this project
-keeps moving away from, just inverted (over-reporting misses instead of
-requiring keywords). The hit side has no such problem because a
-false-positive *candidate* costs nothing if it doesn't match anything
-real (the existing docstring on `_CAPITALIZED_RUN_RE` already banks on
-this for the outbound direction) - but a false-positive *miss report*
-costs a spurious, distracting aside on nearly every turn. Left for a
-future pass with its own scoping, not assumed away.
+**Capitalization can't be assumed on the way in.** damiro pointed out
+directly that he doesn't capitalize proper nouns in his own casual chat
+("i ran into dylan today"), which the finding-side fix above didn't yet
+account for - `first_unverified_referent`'s candidate extraction only
+ever matches Title-Case runs, so it silently missed most of damiro's own
+messages naming something real. Rather than making that shared function
+capitalization-agnostic (and risking the outbound fabrication check's
+already-verified behavior along with it), a separate function -
+`real_referent_mentioned` - does the same real-referents lookup with a
+case-insensitive scan instead. It also fixes a subtler problem a naive
+case-insensitive regex would have reintroduced: a single greedy 1-3-word
+window, tried once per position, can *swallow* a real name into a larger
+window that matches nothing ("ran into dylan" as one 3-word candidate
+never tries "dylan" alone) - the fix tries every window size at every
+position, longest first, so an embedded name is never skipped over.
+
+**The miss-surfacing half, scoped to possessive mentions.** Once
+capitalization is off the table as a filter, the earlier plan to
+distinguish "sentence-initial capital" from "an intentional name" no
+longer applies either. The one signal that survives without
+capitalization: a possessive ("marco's birthday," "dylan's school") is a
+strong, wording-independent indicator that the speaker is treating a word
+as a specific named thing. `_resolve_possessive_miss_case` (case 9, the
+final fallback) extracts every possessive-shaped mention and, if none of
+them resolve to a real vault referent, hands the model one plain fact -
+`"### Vault Check: no real vault entry found for 'X'."` - and decides
+nothing further.
+
+That scoping needed one more fix once tested against real sentences:
+English contracts plenty of pronouns and adverbs with `'s` too - "let's"
+("let us"), "it's"/"that's"/"who's"/"here's" ("it is," etc.) - which are
+syntactically identical to a genuine possessive and were all initially
+flagged as misses ("I'm bored, let's play a game" reported "no entry
+found for 'let'"). Fixed with `_CONTRACTION_ONLY_WORDS`, a closed set of
+English function words (demonstratives, wh-words, personal and
+indefinite pronouns, temporal deictic nouns like "today's") that
+contract but never possess a specific real thing. This is a bounded
+grammatical category, not an enumerable list of phrasings someone might
+use - nobody will ever name a vault entry "It," "Let," or "Today" for
+this to wrongly suppress, which is the same reasoning that already
+justifies stopword-style filtering elsewhere in this project without
+reopening the enumerable-phrase problem it otherwise avoids.
+
+Verified with 29 new pure-function tests in `test_vault_grounding.py`
+(case-insensitive matching, window-swallowing, contraction/pronoun/
+temporal exclusions) and new `resolve_turn_context` integration tests in
+`test_vault.py` against a sandboxed `tmp_vault_dir`, plus targeted,
+read-only checks (`VaultManager.resolve_turn_context` directly, no
+write-capable persona involved) against the real vault for lowercase
+mentions, possessive misses, and ordinary contractions - all behaved as
+designed.
 
 ## Implementation notes (123.1-123.3, shipped 2026-09-18)
 
@@ -299,11 +340,28 @@ code - worth recording since both were real bugs/gaps, not edge cases:
   into the reply - but it is a real, observed cost, not a hypothetical
   one, and is the direct trade for not enumerating which words are
   "common enough" to distrust.
+- ADR-123.5's miss-surfacing half only fires on a possessive-shaped
+  mention, by design - it will not report a miss for every other way of
+  naming something new ("my friend Marco just moved" has no possessive,
+  so it stays silent even though "Marco" isn't in the vault either). That
+  narrowness is deliberate (see **Implementation notes** for why an
+  unscoped version reopens the same noise problem the capitalization-only
+  version had), but it does mean this half of ADR-123.5 catches a real
+  subset of mentions, not every one.
 - ADR-123.5's miss-surfacing half deliberately leaves "was an action
-  implied?" - and, this pass, "should a miss even be reported at all?" -
-  undecided in code, because building the reporting mechanism at all
-  turned out to need its own scoping work first (see **Implementation
-  notes**). A real cost is that this ADR cannot promise consistent
+  implied?" undecided in code - once a miss is confirmed, the plain fact
+  is handed to the model and nothing more is decided. Verified live on
+  both a local and a cloud model with names confirmed absent from the
+  vault beforehand: the local model (`ollama/gemma4:e4b`) answered
+  plainly - "I don't have any information on Zephyr's birthday... there
+  isn't an entry for them in the vault" - while the cloud model
+  (`gemini/gemini-3.6-flash`) stated the same absence and then also
+  offered to log a note ("If you'd like me to log details... just let me
+  know!"). Both are correct: no fabrication either way, and the
+  plain-statement-vs-proactive-offer difference is exactly the kind of
+  per-model, per-turn judgment call this ADR deliberately leaves
+  undecided rather than forcing one way or the other. A real cost is that
+  this ADR cannot promise consistent
   behavior here the way a hard rule could; it depends on the model's own
   judgment per turn, same as any other conversational nuance. That's an
   accepted tradeoff, not an oversight: a wrong hard-coded rule (offering

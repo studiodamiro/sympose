@@ -235,6 +235,16 @@ defaults at call sites, no second copies.
 - Pick the actual per-persona SIMPLE-tier local model(s) and the specific
   keep-alive/token-cap values when implementation starts — this ADR
   decides the mechanism, not the exact numbers.
+- **Confirmed still open, 2026-09-19:** none of damiro's three real
+  personas have `local_model` set — the mechanism has been live since
+  2026-09-14 and has never actually routed a single message. Separately,
+  found that even once a value *is* picked, nothing in the product would
+  ever prompt a user toward it: `bootstrap.py`'s persona-creation flow
+  never mentions `local_model`, and no wiki page documents
+  `/persona show`/`/persona set` (the already-working command pair that
+  lists and sets it — confirmed live, see
+  [2026-09-19_vault-roulette-live-lapse-and-adr-122-discoverability-gap.md](./2026-09-19_vault-roulette-live-lapse-and-adr-122-discoverability-gap.md)).
+  A user would only ever find this knob by reading the Python source.
 
 ## B.4 index updates
 

@@ -28,7 +28,7 @@ one in [`docs/wiki/index.md`](./wiki/index.md) are kept in sync per the
 | ADR-125 | Splitting vault.py and engine.py Into Focused, Under-200-LOC Modules | Implemented | 2026-09-18 | [2026-09-18_adr-125-splitting-vault-and-engine-under-200-loc.md](./journal/2026-09/2026-09-18_adr-125-splitting-vault-and-engine-under-200-loc.md) |
 | ADR-124 | Index-Backed Grounding Checks, With Catch-Phrase Lists Reduced to a Coarse Gate | Accepted | 2026-09-18 | [2026-09-18_adr-124-index-backed-grounding-checks-over-catch-phrases.md](./journal/2026-09/2026-09-18_adr-124-index-backed-grounding-checks-over-catch-phrases.md) |
 | ADR-123 | Automatic Folder-Kind Signals, Derived From Existing Digest Fields | Fully implemented (123.1-123.5 shipped) | 2026-09-18 | [2026-09-18_adr-123-automatic-folder-kind-signals-from-digest-fields.md](./journal/2026-09/2026-09-18_adr-123-automatic-folder-kind-signals-from-digest-fields.md) |
-| ADR-122 | Local/Cloud Model Routing by Message Complexity | Accepted (design; implementation pending) | 2026-09-14 | [2026-09-14_adr-122-local-cloud-model-complexity-routing.md](./journal/2026-09/2026-09-14_adr-122-local-cloud-model-complexity-routing.md) |
+| ADR-122 | Local/Cloud Model Routing by Message Complexity | Mechanism shipped, dormant (no persona configured; no onboarding path) | 2026-09-14 | [2026-09-14_adr-122-local-cloud-model-complexity-routing.md](./journal/2026-09/2026-09-14_adr-122-local-cloud-model-complexity-routing.md) |
 | ADR-121 | ruff as a Standing Dev Dependency, With a Narrow, Audited Rule Set | Accepted | 2026-09-14 | [2026-09-14_adr-121-ruff-as-standing-dev-dependency.md](./journal/2026-09/2026-09-14_adr-121-ruff-as-standing-dev-dependency.md) |
 | ADR-120 | Click-vs-Drag Detection: Cumulative Displacement Instead of Per-Event Delta (amends ADR-096, ADR-114) | Accepted | 2026-09-14 | [2026-09-14_adr-120-click-drag-cumulative-displacement.md](./journal/2026-09/2026-09-14_adr-120-click-drag-cumulative-displacement.md) |
 | ADR-119 | 3D Nebula Camera Spin: One-Way Twist on a Random Axis (amends ADR-118) | Accepted | 2026-09-14 | [2026-09-14_adr-119-3d-nebula-one-way-random-axis-spin.md](./journal/2026-09/2026-09-14_adr-119-3d-nebula-one-way-random-axis-spin.md) |
@@ -162,6 +162,7 @@ one in [`docs/wiki/index.md`](./wiki/index.md) are kept in sync per the
 
 | Date | Entry |
 | ---- | ----- |
+| 2026-09-19 | [A Live "Vault Roulette" Lapse That Didn't Reproduce, and a Dormant Feature It Surfaced Along the Way](./journal/2026-09/2026-09-19_vault-roulette-live-lapse-and-adr-122-discoverability-gap.md) |
 | 2026-09-18 | [A Correct "What's In This Folder?" Answer Was Being Thrown Away](./journal/2026-09/2026-09-18_folder-digest-answers-wrongly-caught-by-title-citation-guard.md) |
 | 2026-09-18 | [Closing Every mccabe Complexity (C901) Finding in sympose/](./journal/2026-09/2026-09-18_c901-complexity-sweep-full-remediation.md) |
 | 2026-09-17 | [The Random-Pull Ritual Didn't Carry Across Turns](./journal/2026-09/2026-09-17_ritual-continuation-carries-no-grounding.md) |

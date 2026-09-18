@@ -1033,7 +1033,7 @@ def _cmd_help(engine: Any, handle: str, clean_input: str, profile: dict):
         "- `/render [hybrid|buffered|raw]` — Switch terminal render mode (interactive menu or direct)\n"
         "- `/config` — View active runtime settings & performance knobs\n"
         "- `/config set <key> <val>` — Live-tune knobs (e.g. `/config set performance.max_context_turns 20`)\n"
-        "- `/persona [show|set] @<handle> <key> <val>` — View or set a persona's own knobs (e.g. `temperature`)\n"
+        "- `/persona [show|set] @<handle> <key> <val>` — View or set a persona's own knobs (e.g. `temperature`, `local_model`)\n"
         "- `/delete @<handle>` — Safely archive & retire a persona\n"
         "- `/help` or `/commands` — Show this command reference"
     )

@@ -110,6 +110,7 @@ Full breakdown: **[Architecture Overview](docs/wiki/architecture/overview.md)**.
 - **Dedicated MCP Server Hub** (`mcp/`) — heavy tools (GitHub, Fetch, Filesystem, SQL) run isolated in child-process workers so the primary persona stays fast and token-light.
 - **Slack Socket Mode** — zero open ports, thread-bound memory isolation, `/clear`, expressive emoji reactions.
 - **Autonomic Natural-Language Lifecycle** — tune config, spawn, and retire personas purely through conversation.
+- **Cost-Aware Local/Cloud Routing** *(opt-in per persona)* — a persona with both a `model` and a `local_model` set routes genuinely trivial messages (a greeting, quick math, a plain definition) to the free local one automatically and instantly; anything with real weight stays on the main model. No round-trip wasted either way — the decision is a deterministic check, never a model judging its own reliability. See `/persona show`.
 
 ---
 
@@ -169,6 +170,7 @@ Per-file responsibility breakdown: **[Package Layering & Modular Design](docs/wi
 | :--- | :--- |
 | `/switch @handle` | Switch active persona |
 | `/config [get\|set] <key> <val>` | Inspect or live-tune a validated runtime knob |
+| `/persona show [@handle]` | List a persona's knobs (`model`, `local_model`, `temperature`, …) and current values |
 | `/persona set @handle <key> <val>` | Set a per-persona knob (`temperature`, `model`, …) |
 | `/model find <query>` | Search and switch live models |
 | `/subagent <skill\|mcp> <task>` | Dispatch an isolated sub-agent |

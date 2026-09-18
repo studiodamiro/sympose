@@ -98,6 +98,84 @@ def test_resolve_workspace_dir_single_impl():
     assert b.resolve_workspace_dir is w.resolve_workspace_dir
 
 
+class TestOfferLocalModelFollowup:
+    """`_offer_local_model_followup` (onboarding Step 1's follow-up,
+    agreed with damiro): only reached once a cloud provider is configured
+    - a persona whose main model is already local has nothing cheaper to
+    fall back to, so there's nothing to offer if the user skipped cloud
+    setup. Uses whatever's actually pulled in Ollama (never a blind-typed
+    model tag) and writes through the same `set_persona_field` path
+    `/persona set` already uses."""
+
+    class _FakeConsole:
+        def __init__(self):
+            self.lines: list[str] = []
+
+        def print(self, *args, **kwargs):
+            self.lines.append(" ".join(str(a) for a in args))
+
+    def _seeded_workspace(self, tmp_path):
+        from sympose.bootstrap import ensure_workspace
+
+        ws = str(tmp_path / "ws")
+        ensure_workspace(ws)
+        return ws
+
+    def _samantha_yaml(self, ws):
+        with open(os.path.join(ws, "profiles", "samantha.yaml"), encoding="utf-8") as f:
+            return yaml.safe_load(f.read())
+
+    def test_does_nothing_when_no_local_models_are_pulled(self, tmp_path, monkeypatch):
+        from sympose import bootstrap
+
+        monkeypatch.setattr("sympose.models.get_local_ollama_models", lambda: [])
+        ws = self._seeded_workspace(tmp_path)
+
+        bootstrap._offer_local_model_followup(self._FakeConsole(), ws)
+
+        assert "local_model" not in self._samantha_yaml(ws)
+
+    def test_sets_local_model_when_user_picks_one(self, tmp_path, monkeypatch):
+        from sympose import bootstrap
+
+        monkeypatch.setattr(
+            "sympose.models.get_local_ollama_models",
+            lambda: ["gemma4:e4b", "llama3.1:8b"],
+        )
+        monkeypatch.setattr(bootstrap.Prompt, "ask", staticmethod(lambda *a, **k: "1"))
+        ws = self._seeded_workspace(tmp_path)
+
+        bootstrap._offer_local_model_followup(self._FakeConsole(), ws)
+
+        assert self._samantha_yaml(ws)["local_model"] == "ollama/gemma4:e4b"
+
+    def test_skips_when_user_declines(self, tmp_path, monkeypatch):
+        from sympose import bootstrap
+
+        monkeypatch.setattr(
+            "sympose.models.get_local_ollama_models", lambda: ["gemma4:e4b"]
+        )
+        monkeypatch.setattr(bootstrap.Prompt, "ask", staticmethod(lambda *a, **k: ""))
+        ws = self._seeded_workspace(tmp_path)
+
+        bootstrap._offer_local_model_followup(self._FakeConsole(), ws)
+
+        assert "local_model" not in self._samantha_yaml(ws)
+
+    def test_out_of_range_choice_is_ignored_not_crashed(self, tmp_path, monkeypatch):
+        from sympose import bootstrap
+
+        monkeypatch.setattr(
+            "sympose.models.get_local_ollama_models", lambda: ["gemma4:e4b"]
+        )
+        monkeypatch.setattr(bootstrap.Prompt, "ask", staticmethod(lambda *a, **k: "99"))
+        ws = self._seeded_workspace(tmp_path)
+
+        bootstrap._offer_local_model_followup(self._FakeConsole(), ws)
+
+        assert "local_model" not in self._samantha_yaml(ws)
+
+
 def test_config_loads_workspace_env_not_parent_walked(tmp_path):
     """sympose.config must load the *workspace* .env at import — not a bare
     load_dotenv() that walks up and finds a repo/parent .env first (which then

@@ -282,6 +282,51 @@ def sync_builtin_content(workspace_dir: str, auto_yes: bool = False) -> list[str
     return report
 
 
+def _offer_local_model_followup(console: "Console", workspace_dir: str) -> None:
+    """Step 1 follow-up, only reached once a cloud provider was actually
+    configured this run - ADR-122's own `local_model` setting is
+    "meaningless" for a persona whose main model is already local (the
+    out-of-box default), so there's nothing to offer if the user just
+    skipped cloud setup entirely.
+
+    Offers Samantha's free, near-instant local fallback for genuinely
+    trivial messages (ADR-122) using whatever's actually pulled in Ollama
+    already - `get_local_ollama_models()` queries the real local install,
+    so this never asks the user to blind-type a model tag, and silently
+    does nothing if Ollama isn't running or nothing's pulled yet."""
+    from sympose.models import get_local_ollama_models
+
+    local_models = get_local_ollama_models()
+    if not local_models:
+        return
+    console.print(
+        "\n[dim]A local Ollama model can also handle trivial messages "
+        "(greetings, quick math) for free, instantly - anything with real "
+        "weight still goes to the model above.[/dim]"
+    )
+    options = "\n".join(f"  {i + 1}. {m}" for i, m in enumerate(local_models))
+    raw = Prompt.ask(
+        f"Use one as Samantha's local fallback?\n{options}\n"
+        f"[dim][1-{len(local_models)}, Enter to skip][/dim]",
+        default="",
+        show_default=False,
+    ).strip()
+    if not raw:
+        return
+    try:
+        picked = local_models[int(raw) - 1]
+    except (ValueError, IndexError):
+        console.print(f"[yellow]⚠️ `{raw}` isn't one of the listed options - skipped.[/yellow]")
+        return
+
+    from sympose.profiles import ProfileManager
+
+    pm = ProfileManager(os.path.join(workspace_dir, "profiles"))
+    ok, msg = pm.set_persona_field("samantha", "local_model", f"ollama/{picked}")
+    style = "green" if ok else "yellow"
+    console.print(f"[{style}]{'✓' if ok else '⚠️'} {msg}[/{style}]")
+
+
 def run_first_run_onboarding(workspace_dir: str, force: bool = False) -> None:
     """Interactive setup & onboarding wizard (runs on first launch or via sympose --setup)."""
     env_file = os.path.join(workspace_dir, ".env")
@@ -333,7 +378,7 @@ def run_first_run_onboarding(workspace_dir: str, force: bool = False) -> None:
         ]
         TerminalUI.render_option_panel(
             console,
-            title="🔑  STEP 1/3: CONNECT YOUR AI PROVIDER",
+            title="🔑  STEP 1/2: CONNECT YOUR AI PROVIDER",
             options=provider_options,
         )
 
@@ -362,6 +407,7 @@ def run_first_run_onboarding(workspace_dir: str, force: bool = False) -> None:
                 console.print(
                     f"\n[bold green]✓ Saved {key_var} and default model `{default_m}` to {env_file}[/bold green]"
                 )
+                _offer_local_model_followup(console, workspace_dir)
 
         # Step 2: Obsidian Vault Selection Panel
         vault_panel_text = (
@@ -373,7 +419,7 @@ def run_first_run_onboarding(workspace_dir: str, force: bool = False) -> None:
             Panel(
                 vault_panel_text,
                 box=ROUNDED,
-                title="📁  STEP 2/3: OBSIDIAN VAULT CONNECTION (OPTIONAL)",
+                title="📁  STEP 2/2: OBSIDIAN VAULT CONNECTION (OPTIONAL)",
                 title_align="left",
                 border_style="cyan",
                 padding=(0, 2),
@@ -389,24 +435,21 @@ def run_first_run_onboarding(workspace_dir: str, force: bool = False) -> None:
                 f.write(f'\nMASTER_VAULT_PATH="{vault_path}"\n')
             console.print(f"\n[bold green]✓ Linked vault: {vault_path}[/bold green]")
 
-        # Step 3: Persona Genesis nudge — Samantha is the only persona that
-        # ships. Without this, a first-run user has no in-app signal that
-        # spawning their own companion is a thing, let alone how.
-        console.print()
+        # Persona Genesis nudge — Samantha is the only persona that ships.
+        # Without this, a first-run user has no in-app signal that spawning
+        # their own companion is a thing, let alone how. Deliberately NOT a
+        # numbered "STEP" box like the two above: those both prompt for
+        # real input, so the same boxed treatment here read as if a third
+        # answer was expected — this is pure FYI, folded into the closing
+        # message instead so the boxed/numbered format stays reserved for
+        # things that actually ask you something.
         console.print(
-            Panel(
-                "[bold]@samantha[/bold] is your only persona out of the box. Want a companion "
-                "for something specific — engineering, journaling, a domain specialist?\n\n"
-                "[dim]Just ask her, in plain language, once you're chatting:[/dim]\n"
-                '  [cyan]"Create a persona modeled after Grace Hopper for surgical code reviews."[/cyan]\n\n'
-                "[dim]She writes the new persona to disk and switches you to it immediately — "
-                "no YAML required. `/switch @samantha` to come back anytime.[/dim]",
-                box=ROUNDED,
-                title="🧬  STEP 3/3: MEET YOUR ORCHESTRATOR",
-                title_align="left",
-                border_style="cyan",
-                padding=(0, 2),
-            )
+            "\n[bold]🧬 @samantha[/bold] is your only persona out of the box. Want a "
+            "companion for something specific — engineering, journaling, a domain "
+            "specialist? Just ask her, in plain language, once you're chatting:\n"
+            '  [cyan]"Create a persona modeled after Grace Hopper for surgical code reviews."[/cyan]\n'
+            "She writes the new persona to disk and switches you to it immediately — "
+            "no YAML required. `/switch @samantha` to come back anytime.\n"
         )
 
         console.print(

@@ -104,7 +104,7 @@ Full breakdown: **[Architecture Overview](docs/wiki/architecture/overview.md)**.
 ## 🌟 Core Pillars
 
 - **Agnostic Flat-File Engine** (`profiles/`) — personas, memories, and settings are plain Markdown/YAML; no Python changes to add or retire a persona.
-- **Modular Skills Engine** (`sympose/builtin_skills/`) — reusable procedural playbooks with mandatory deliverable schemas.
+- **Modular Skills Engine** (`sympose/default_skills/`) — reusable procedural playbooks with mandatory deliverable schemas.
 - **Native Obsidian `Templates/` Engine** — variable interpolation and dynamic frontmatter tag syncing on daily notes.
 - **Autonomous Live Web Search** — real-time search and market data, $0 API key, powered by `ddgs`.
 - **Dedicated MCP Server Hub** (`mcp/`) — heavy tools (GitHub, Fetch, Filesystem, SQL) run isolated in child-process workers so the primary persona stays fast and token-light.
@@ -144,7 +144,7 @@ Full standard: **[Memory Architecture](docs/wiki/memory/architecture-standard.md
 
 Personas act on the world by emitting declarative tags in their response stream — `[WRITE_NOTE: path | content]`, `[REMEMBER: fact]`, `[SPAWN_SUBAGENT: spec | task]`, `[CONFIG_SET: key | value]`, and more — parsed and executed after the model finishes streaming, at zero added round-trips.
 
-Thirteen built-in skill playbooks ship inside the package at `sympose/builtin_skills/`: `vault_write`, `vault_read`, `web_search`, `slack_interaction`, `subagent_spawn`, `sympose_mastery`, `code_review`, `git_workflow`, `strategic_analysis`, `system_architecture`, `discussion_moderation`, and the opt-in `wiki_ingest`/`wiki_lint` pair for the LLM Wiki layer. Shipping in `builtin_skills/` makes a skill discoverable, not active — a persona only gets one by listing it in its manifest's `skills:` array.
+Thirteen default skill playbooks ship inside the package at `sympose/default_skills/`: `vault_write`, `vault_read`, `web_search`, `slack_interaction`, `subagent_spawn`, `sympose_mastery`, `code_review`, `git_workflow`, `strategic_analysis`, `system_architecture`, `discussion_moderation`, and the opt-in `wiki_ingest`/`wiki_lint` pair for the LLM Wiki layer. Shipping in `default_skills/` makes a skill discoverable, not active — a persona only gets one by listing it in its manifest's `skills:` array.
 
 Full tag reference and skill specs: **[Action Tags Reference](docs/wiki/reference/action-tags.md)** · **[Modular Skills System](docs/wiki/personas/skills-system.md)**.
 
@@ -158,7 +158,7 @@ sympose/
 ├── mcp/          # MCP server hub & configs
 ├── sympose/      # Python package, <200 LOC per file
 │   ├── prompts/         # Declarative system prompt templates (shipped in the wheel)
-│   └── builtin_skills/  # Modular procedural skill playbooks (shipped in the wheel)
+│   └── default_skills/  # Modular procedural skill playbooks (shipped in the wheel)
 ├── docs/         # ADRs, wiki, and engineering journal
 ├── config.yaml   # Central runtime, performance & memory config
 └── app.py        # Entry point

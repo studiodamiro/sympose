@@ -169,15 +169,15 @@ def _seed_workspace_rules(prompts_dir: str) -> None:
             f.write(DEFAULT_RULES_MD)
 
 
-def _seed_builtin_skills(skills_dir: str) -> None:
+def _seed_default_skills(skills_dir: str) -> None:
     try:
         import shutil
 
-        builtin_skills_dir = os.path.join(os.path.dirname(__file__), "builtin_skills")
-        if not os.path.exists(builtin_skills_dir):
+        default_skills_dir = os.path.join(os.path.dirname(__file__), "default_skills")
+        if not os.path.exists(default_skills_dir):
             return
-        for item in os.listdir(builtin_skills_dir):
-            s_src = os.path.join(builtin_skills_dir, item)
+        for item in os.listdir(default_skills_dir):
+            s_src = os.path.join(default_skills_dir, item)
             s_dst = os.path.join(skills_dir, item)
             if os.path.exists(s_dst):
                 continue
@@ -186,7 +186,7 @@ def _seed_builtin_skills(skills_dir: str) -> None:
             elif os.path.isfile(s_src) and s_src.endswith(".md"):
                 shutil.copy2(s_src, s_dst)
     except Exception as e:
-        log.warning("Failed to seed builtin skills into %s: %s", skills_dir, e)
+        log.warning("Failed to seed default skills into %s: %s", skills_dir, e)
 
 
 def ensure_workspace(workspace_dir: str) -> bool:
@@ -209,12 +209,12 @@ def ensure_workspace(workspace_dir: str) -> bool:
     is_fresh = _seed_samantha_profile(profiles_dir) or is_fresh
     _seed_user_and_shared_memory(profiles_dir)
     _seed_workspace_rules(prompts_dir)
-    _seed_builtin_skills(skills_dir)
+    _seed_default_skills(skills_dir)
 
     return is_fresh
 
 
-def sync_builtin_content(workspace_dir: str, auto_yes: bool = False) -> list[str]:
+def sync_default_content(workspace_dir: str, auto_yes: bool = False) -> list[str]:
     """Brings an existing workspace's copies of the packaged prompt/skill
     files up to date with what's currently installed. `ensure_workspace`
     above only ever seeds these once and never overwrites an existing file —
@@ -233,10 +233,10 @@ def sync_builtin_content(workspace_dir: str, auto_yes: bool = False) -> list[str
     candidates: list[tuple[str, str]] = [
         (os.path.join(prompts_dir, "workspace_rules.md"), DEFAULT_RULES_MD)
     ]
-    builtin_skills_dir = os.path.join(os.path.dirname(__file__), "builtin_skills")
-    if os.path.exists(builtin_skills_dir):
-        for item in sorted(os.listdir(builtin_skills_dir)):
-            src = os.path.join(builtin_skills_dir, item, "SKILL.md")
+    default_skills_dir = os.path.join(os.path.dirname(__file__), "default_skills")
+    if os.path.exists(default_skills_dir):
+        for item in sorted(os.listdir(default_skills_dir)):
+            src = os.path.join(default_skills_dir, item, "SKILL.md")
             if os.path.isfile(src):
                 with open(src, "r", encoding="utf-8") as f:
                     candidates.append(

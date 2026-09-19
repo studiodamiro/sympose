@@ -24,13 +24,13 @@ Sympose supports standardized, procedural **Skill Playbooks**. Skills allow pers
 
 ## 2. Directory Structure
 
-The shipped skill playbooks live in `sympose/builtin_skills/`. At runtime the
+The shipped skill playbooks live in `sympose/default_skills/`. At runtime the
 `SkillManager` also scans `<workspace>/skills/` (e.g. `~/.sympose/skills/`),
 which is seeded from the built-ins on first boot and is where user-authored or
 overriding skills go. A skill can be defined in two formats:
 
 ```text
-sympose/builtin_skills/
+sympose/default_skills/
 ├── git_workflow/
 │   └── SKILL.md            <-- Folder-based skill (Recommended)
 ├── code_review/
@@ -121,10 +121,10 @@ When a sub-agent executes this skill, the runtime forces the model to fill each 
 
 | Skill Name | Path | Domain | Description |
 | :--- | :--- | :--- | :--- |
-| **`git_workflow`** | [`sympose/builtin_skills/git_workflow/SKILL.md`](../../../sympose/builtin_skills/git_workflow/SKILL.md) | Dev / Git | Conventional commits, atomic branch safety, and PR synthesis. |
-| **`code_review`** | [`sympose/builtin_skills/code_review/SKILL.md`](../../../sympose/builtin_skills/code_review/SKILL.md) | Engineering | Zero-bloat static analysis across Blockers, Warnings, and Suggestions. |
-| **`system_architecture`** | [`sympose/builtin_skills/system_architecture/SKILL.md`](../../../sympose/builtin_skills/system_architecture/SKILL.md) | Systems | Decoupled architecture, sub-second TTFT, and fault isolation. |
-| **`strategic_analysis`** | [`sympose/builtin_skills/strategic_analysis/SKILL.md`](../../../sympose/builtin_skills/strategic_analysis/SKILL.md) | Strategy | Tradeoff matrices, one-way/two-way door tests, and kill criteria. |
+| **`git_workflow`** | [`sympose/default_skills/git_workflow/SKILL.md`](../../../sympose/default_skills/git_workflow/SKILL.md) | Dev / Git | Conventional commits, atomic branch safety, and PR synthesis. |
+| **`code_review`** | [`sympose/default_skills/code_review/SKILL.md`](../../../sympose/default_skills/code_review/SKILL.md) | Engineering | Zero-bloat static analysis across Blockers, Warnings, and Suggestions. |
+| **`system_architecture`** | [`sympose/default_skills/system_architecture/SKILL.md`](../../../sympose/default_skills/system_architecture/SKILL.md) | Systems | Decoupled architecture, sub-second TTFT, and fault isolation. |
+| **`strategic_analysis`** | [`sympose/default_skills/strategic_analysis/SKILL.md`](../../../sympose/default_skills/strategic_analysis/SKILL.md) | Strategy | Tradeoff matrices, one-way/two-way door tests, and kill criteria. |
 
 ---
 

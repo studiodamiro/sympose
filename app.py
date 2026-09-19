@@ -68,7 +68,7 @@ def main():
         ensure_workspace,
         resolve_workspace_dir,
         run_first_run_onboarding,
-        sync_builtin_content,
+        sync_default_content,
     )
 
     workspace_dir = resolve_workspace_dir()
@@ -78,7 +78,7 @@ def main():
     load_dotenv(os.path.join(workspace_dir, ".env"))
 
     if args.sync_skills:
-        report = sync_builtin_content(workspace_dir, auto_yes=args.yes)
+        report = sync_default_content(workspace_dir, auto_yes=args.yes)
         print("\n".join(report) if report else "Already up to date.")
         return
 

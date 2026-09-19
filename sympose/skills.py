@@ -74,9 +74,9 @@ class SkillManager:
         self.skills.clear()
 
         search_dirs = [self.skills_dir]
-        builtin_dir = os.path.join(os.path.dirname(__file__), "builtin_skills")
-        if os.path.exists(builtin_dir) and builtin_dir not in search_dirs:
-            search_dirs.append(builtin_dir)
+        default_dir = os.path.join(os.path.dirname(__file__), "default_skills")
+        if os.path.exists(default_dir) and default_dir not in search_dirs:
+            search_dirs.append(default_dir)
 
         found_files = set()
         for s_dir in search_dirs:

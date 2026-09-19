@@ -14,7 +14,12 @@ import types
 import pytest
 
 from sympose import sub_agents
-from sympose.sub_agents import SubAgentEngine, SubAgentTask, _resolve_target_model
+from sympose.sub_agents import (
+    USER_CONSTRAINT_MARKER,
+    SubAgentEngine,
+    SubAgentTask,
+    _resolve_target_model,
+)
 
 
 class _FakeChoice:
@@ -624,6 +629,83 @@ class TestContentUnread:
         )
 
 
+class TestTaskNamedNoteUnread:
+    """`_task_named_note_unread` is the task-alignment counterpart to
+    `_content_unread` above: a sub-agent can produce a reply that's fully
+    grounded in something real - passing every content check - while
+    never opening the one file its own task actually named, e.g. asked to
+    summarize `Thoughts/Ideaverse.md`, it samples and confidently answers
+    about a different note in the same folder instead. Reuses the same
+    path-extraction and read-path matching `_content_unread` already
+    covers thoroughly, so these cases stay focused on what's specific to
+    checking the task prompt instead of the synthesis."""
+
+    def test_no_path_named_in_task_is_silent(self):
+        assert (
+            SubAgentEngine._task_named_note_unread("summarize the Thoughts folder", set())
+            is None
+        )
+
+    def test_task_names_a_path_never_read_is_flagged(self):
+        offending = SubAgentEngine._task_named_note_unread(
+            "read Thoughts/Ideaverse.md in full and summarize it", set()
+        )
+        assert offending == "ideaverse.md"
+
+    def test_task_names_a_path_that_was_read_is_not_flagged(self):
+        assert (
+            SubAgentEngine._task_named_note_unread(
+                "read Thoughts/Ideaverse.md in full and summarize it",
+                {"Thoughts/Ideaverse.md"},
+            )
+            is None
+        )
+
+    def test_bare_filename_actually_read_via_run_command_is_not_flagged(self):
+        assert (
+            SubAgentEngine._task_named_note_unread(
+                "summarize `Ideaverse.md`", {"Ideaverse.md"}
+            )
+            is None
+        )
+
+    def test_incidental_note_in_appended_user_words_is_ignored(self):
+        """Found by /code-review: `_append_user_constraint` can tack on a
+        user message that itself names an unrelated real note in passing
+        ("like you did with Journal/2024-01-01.md before"). Without
+        scoping to the pre-marker instruction, a sub-agent that reads only
+        that incidental note - and ignores the one it was actually asked
+        about - would pass this check silently."""
+        task_prompt = (
+            "summarize Thoughts/AppIdeas.md"
+            f"{USER_CONSTRAINT_MARKER}"
+            ' in case the task above dropped a constraint: '
+            '"like you did with Journal/2024-01-01.md before")'
+        )
+        # Read only the incidental note named in the appended user words -
+        # the actual subject (AppIdeas.md) was never touched.
+        offending = SubAgentEngine._task_named_note_unread(
+            task_prompt, {"Journal/2024-01-01.md"}
+        )
+        assert offending == "appideas.md"
+
+    def test_actual_subject_read_is_not_flagged_despite_incidental_note_in_appendix(
+        self,
+    ):
+        task_prompt = (
+            "summarize Thoughts/AppIdeas.md"
+            f"{USER_CONSTRAINT_MARKER}"
+            ' in case the task above dropped a constraint: '
+            '"like you did with Journal/2024-01-01.md before")'
+        )
+        assert (
+            SubAgentEngine._task_named_note_unread(
+                task_prompt, {"Thoughts/AppIdeas.md"}
+            )
+            is None
+        )
+
+
 class TestSwapInUnreadNote:
     def test_swaps_in_the_real_note_when_it_resolves(self, monkeypatch):
         monkeypatch.setattr(
@@ -663,6 +745,22 @@ class TestSwapInUnreadNote:
         task = SubAgentTask(task_prompt="x", parent_agent="nobody")
         out = SubAgentEngine._swap_in_unread_note("2024-01-01.md", task)
         assert "never actually opened it" in out
+
+
+class TestSwapInTaskMismatch:
+    def test_swaps_in_the_real_note_the_task_actually_asked_about(self, monkeypatch):
+        monkeypatch.setattr(
+            "sympose.sub_agents.ProfileManager",
+            lambda: types.SimpleNamespace(get_profile=lambda h: {"handle": h}),
+        )
+        monkeypatch.setattr(
+            "sympose.sub_agents.VaultManager.read_note",
+            staticmethod(lambda profile, name: "The real Ideaverse.md content."),
+        )
+        task = SubAgentTask(task_prompt="read Ideaverse.md", parent_agent="samantha")
+        out = SubAgentEngine._swap_in_task_mismatch("Ideaverse.md", task)
+        assert "The task asked about" in out
+        assert "The real Ideaverse.md content." in out
 
 
 # --------------------------------------------------------------------------- #
@@ -879,6 +977,63 @@ class TestFinalizeSynthesis:
             "Sure, let's do another round.", set(), [], False, task
         )
         assert out == "Sure, let's do another round."
+
+    def test_task_alignment_miss_wins_even_over_a_well_supported_reply(
+        self, monkeypatch
+    ):
+        """The core case this guard exists for: the sub-agent's reply is
+        fully grounded in something real (passes `_content_unread` and
+        `_content_unsupported` both) but never touches the one note its
+        own task named - answering a different, real note instead of the
+        one actually asked about."""
+        monkeypatch.setattr(
+            "sympose.sub_agents.ProfileManager",
+            lambda: types.SimpleNamespace(get_profile=lambda h: {"handle": h}),
+        )
+        monkeypatch.setattr(
+            "sympose.sub_agents.VaultManager.read_note",
+            staticmethod(lambda profile, name: "The real Ideaverse.md content."),
+        )
+        task = SubAgentTask(
+            task_prompt="read Thoughts/Ideaverse.md and summarize it",
+            parent_agent="samantha",
+        )
+        text = "Per Quotes/OtherNote.md, the note says something relevant here today."
+        out = SubAgentEngine._finalize_synthesis(
+            text, {"Quotes/OtherNote.md"}, ["real snippet from Quotes/OtherNote.md"], True, task
+        )
+        assert "The task asked about" in out
+        assert "The real Ideaverse.md content." in out
+
+    def test_task_names_an_unresolvable_note_falls_through_to_existing_checks(
+        self, monkeypatch
+    ):
+        monkeypatch.setattr(
+            "sympose.sub_agents.ProfileManager",
+            lambda: types.SimpleNamespace(get_profile=lambda h: {"handle": h}),
+        )
+        monkeypatch.setattr(
+            "sympose.sub_agents.VaultManager.read_note",
+            staticmethod(
+                lambda profile, name: f"Note `{name}` not found in allowed vault folders."
+            ),
+        )
+        task = SubAgentTask(task_prompt="read Ghost/Missing.md", parent_agent="samantha")
+        out = SubAgentEngine._finalize_synthesis(
+            "Sure, here's a plain conversational reply.", set(), [], False, task
+        )
+        assert out == "Sure, here's a plain conversational reply."
+
+    def test_task_naming_the_note_that_was_actually_read_is_not_flagged(self):
+        task = SubAgentTask(
+            task_prompt="read Thoughts/Ideaverse.md and summarize it",
+            parent_agent="samantha",
+        )
+        text = "Thoughts/Ideaverse.md is about building an LLM to chat with your vault."
+        out = SubAgentEngine._finalize_synthesis(
+            text, {"Thoughts/Ideaverse.md"}, ["Thoughts/Ideaverse.md real content"], True, task
+        )
+        assert out == text
 
 
 class TestExecuteSubAgentTaskCatchesUnsupportedSynthesis:

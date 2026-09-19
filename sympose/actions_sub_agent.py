@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 
 from sympose.mcp import mcp_registry
 from sympose.skills import skill_manager
-from sympose.sub_agents import SubAgentEngine, SubAgentTask
+from sympose.sub_agents import USER_CONSTRAINT_MARKER, SubAgentEngine, SubAgentTask
 
 if TYPE_CHECKING:
     from sympose.actions_context import _ActionContext
@@ -42,9 +42,8 @@ class SubAgentActionMixin:
         original_ask = user_prompt.strip()
         if original_ask and original_ask.lower() not in task_prompt.lower():
             return (
-                f"{task_prompt}\n\n"
-                f'(The user\'s own words this turn, in case the task above '
-                f'dropped a constraint: "{original_ask}")'
+                f"{task_prompt}{USER_CONSTRAINT_MARKER}"
+                f' in case the task above dropped a constraint: "{original_ask}")'
             )
         return task_prompt
 

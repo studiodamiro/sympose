@@ -26,6 +26,23 @@ from sympose.vault import VaultManager
 
 
 class TurnSetupMixin:
+    @staticmethod
+    def _is_incidental_recall_keyword_hit(clean_input: str) -> bool:
+        """True when `VaultManager.has_recall_intent` fires only because a
+        bare `vault.search_triggers` word (e.g. "note", "vault", "folder")
+        appears somewhere in the message — no recall lead-in phrase
+        consumed, no subject extracted either. `extract_recall_subject`
+        already requires a lead-in and a subject to agree before returning
+        `had_leadin=True`, so this is the residual case: a trigger word
+        coincidentally present in an otherwise ordinary sentence, not a
+        genuine, subject-bearing vault ask."""
+        subject, had_leadin = VaultManager._extract_recall_subject(clean_input)
+        return (
+            VaultManager.has_recall_intent(clean_input)
+            and not had_leadin
+            and not subject
+        )
+
     def _maybe_persist_remembered_fact(
         self, handle: str, profile: dict[str, Any], clean_input: str
     ) -> str:
@@ -62,6 +79,28 @@ class TurnSetupMixin:
         vault_ctx = VaultManager.resolve_turn_context(profile, clean_input)
         with self._lock:
             if vault_ctx:
+                self.active_vault_ctx[h_key] = vault_ctx
+            elif (
+                self._is_incidental_recall_keyword_hit(clean_input)
+                and self.active_vault_ctx.get(h_key)
+                and not self.active_ritual.get(h_key)
+            ):
+                # Live bug (2026-09-19): "so, what can you say about that
+                # note?" matched has_recall_intent purely because "note" is
+                # a configured vault.search_triggers word — no recall
+                # lead-in, no extractable subject, just a trigger word that
+                # happens to appear in an ordinary follow-up about the note
+                # already carried from the prior turn. Confirmed live: this
+                # wiped a real, already-fetched Ideaverse.md digest, leaving
+                # the model nothing to work with and forcing a blind
+                # sub-agent guess that landed on an unrelated note. Treat an
+                # incidental keyword hit (no lead-in, no subject) the same
+                # as the carry-over refresh below instead of the wipe case
+                # right after it — a genuine subject-bearing ask (a real
+                # lead-in, or any extracted subject) still wipes as before.
+                vault_ctx = VaultManager.refresh_note_context(
+                    profile, self.active_vault_ctx[h_key]
+                )
                 self.active_vault_ctx[h_key] = vault_ctx
             elif VaultManager.has_recall_intent(clean_input):
                 # Fresh vault question, nothing retrieved: drop any carried-over

@@ -21,6 +21,11 @@ import sympose.commands as commands
 from sympose.commands import CommandInterceptor
 
 
+class _FakeSkill:
+    def __init__(self, minimum_capability_tier=None):
+        self.minimum_capability_tier = minimum_capability_tier
+
+
 def _engine():
     engine = MagicMock()
     engine.pm.get_profile.return_value = {
@@ -321,6 +326,68 @@ class TestModelCommand:
         }
         out = _run(engine, "/model ollama/gemma2:9b")
         assert "aren't second-guessed" in out
+
+    def test_override_below_a_loaded_skills_capability_floor_warns(self, engine, monkeypatch):
+        """ADR-139: a manual override was previously excluded from every
+        capability-tier gate (ADR-128's sub-agent wiring, ADR-135's
+        main-turn opt-in) — this is the one place that checks it."""
+        engine.pm.get_profile.return_value = {
+            "handle": "samantha",
+            "name": "Samantha",
+            "skills": ["vault_read"],
+        }
+        monkeypatch.setattr(
+            commands.skill_manager,
+            "get_skill",
+            lambda name: _FakeSkill(minimum_capability_tier="standard"),
+        )
+        monkeypatch.setattr(
+            commands.config_manager,
+            "get",
+            lambda key, default=None: {
+                "models.capability_tier_order": ["basic", "standard", "high"],
+                "models.capability_tiers": {},
+            }.get(key, default),
+        )
+        out = _run(engine, "/model ollama/gemma4:e4b")
+        assert "is tier `basic`" in out
+        assert "needs at least `standard`" in out
+
+    def test_override_that_clears_the_floor_does_not_warn(self, engine, monkeypatch):
+        engine.pm.get_profile.return_value = {
+            "handle": "samantha",
+            "name": "Samantha",
+            "skills": ["vault_read"],
+        }
+        monkeypatch.setattr(
+            commands.skill_manager,
+            "get_skill",
+            lambda name: _FakeSkill(minimum_capability_tier="standard"),
+        )
+        monkeypatch.setattr(
+            commands.config_manager,
+            "get",
+            lambda key, default=None: {
+                "models.capability_tier_order": ["basic", "standard", "high"],
+                "models.capability_tiers": {"gemini/gemini-3.6-flash": "high"},
+            }.get(key, default),
+        )
+        out = _run(engine, "/model gemini/gemini-3.6-flash")
+        assert "needs at least" not in out
+
+    def test_no_loaded_skill_declares_a_floor_does_not_warn(self, engine, monkeypatch):
+        engine.pm.get_profile.return_value = {
+            "handle": "samantha",
+            "name": "Samantha",
+            "skills": ["web_search"],
+        }
+        monkeypatch.setattr(
+            commands.skill_manager,
+            "get_skill",
+            lambda name: _FakeSkill(minimum_capability_tier=None),
+        )
+        out = _run(engine, "/model ollama/gemma4:e4b")
+        assert "needs at least" not in out
 
 
 class TestVaultOpsCommand:

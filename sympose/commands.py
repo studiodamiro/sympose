@@ -24,8 +24,9 @@ import shutil
 from collections.abc import Callable, Generator
 from typing import Any
 
-from sympose.config import DEFAULT_CHAT_MODEL
+from sympose.config import DEFAULT_CHAT_MODEL, config_manager
 from sympose.mcp import mcp_registry
+from sympose.model_capability import clears, strictest_tier, tier_of
 from sympose.models import ModelCatalog, get_local_ollama_models
 from sympose.sessions import SessionManager
 from sympose.skills import skill_manager
@@ -575,6 +576,39 @@ def _model_reset(engine: Any, handle: str, profile: dict):
     yield f"Reset model for {profile.get('name', handle)} back to profile default: `{default_model}`."
 
 
+def _capability_gap_warning(profile: dict, new_model: str) -> str | None:
+    """ADR-139: manual `/model` overrides are excluded from every existing
+    capability-tier gate (ADR-128's sub-agent wiring, ADR-135's main-turn
+    opt-in) — this is the one place that checks an override against the
+    same tier ladder those already use, instead of leaving it unchecked.
+    Combines every loaded skill's declared `minimum_capability_tier` via
+    `strictest_tier` (the same combining rule ADR-139's own Tier-1
+    sibling fix uses in `_resolve_target_model`) and reports a concrete
+    gap if `new_model`'s own declared tier doesn't clear it. `strict=False`
+    always — matches the existing safeguard that no chat-turn-adjacent
+    path may raise on a misconfigured tier name."""
+    floor = None
+    for name in profile.get("skills") or []:
+        skill = skill_manager.get_skill(name)
+        if skill and skill.minimum_capability_tier:
+            floor = strictest_tier(
+                config_manager.get("models.capability_tier_order"),
+                floor,
+                skill.minimum_capability_tier,
+            )
+    if not floor:
+        return None
+    tier_order = config_manager.get("models.capability_tier_order")
+    tiers = config_manager.get("models.capability_tiers")
+    if clears(tier_order, tiers, new_model, floor):
+        return None
+    return (
+        f"\n\n⚠️ *Model `{new_model}` is tier `{tier_of(tier_order, tiers, new_model)}`; "
+        f"a loaded skill needs at least `{floor}` — its judgment calls "
+        "(e.g. when to fetch from the vault) may be unreliable this session.*"
+    )
+
+
 def _model_set(engine: Any, handle: str, profile: dict, new_model: str):
     engine.set_model_override(handle, new_model)
     msg = (
@@ -592,6 +626,9 @@ def _model_set(engine: Any, handle: str, profile: dict, new_model: str):
             "guard normally avoids routing that work to a "
             "local model, but this override skips it.*"
         )
+    capability_gap = _capability_gap_warning(profile, new_model)
+    if capability_gap:
+        msg += capability_gap
     yield msg
 
 

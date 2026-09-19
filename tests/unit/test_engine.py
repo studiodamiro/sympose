@@ -5,11 +5,13 @@ gate that stops user-visible output at the first autonomic retrieval tag.
 """
 
 import types
+from typing import ClassVar
 
 import pytest
 
 from sympose.engine import PersonaEngine
 from sympose.profiles import ProfileManager
+from sympose.vault import VaultManager
 
 
 @pytest.fixture
@@ -355,6 +357,104 @@ class TestResetHistoryClearsRitualState:
         engine.active_ritual[h_key] = True
         engine.reset_history("samantha", session_id="sess-1")
         assert engine.active_ritual.get(h_key) is None
+
+
+class TestIncidentalRecallKeywordDoesNotWipeContext:
+    """Live bug, 2026-09-19: "so, what can you say about that note?" was
+    treated as a brand-new vault question purely because "note" is a
+    configured `vault.search_triggers` word, wiping the real Ideaverse.md
+    digest already carried from the prior turn and leaving the model
+    nothing to work with. `has_recall_intent` firing via a bare trigger
+    word (no lead-in, no extracted subject) must not be treated the same
+    as a genuine, subject-bearing vault ask."""
+
+    PROFILE: ClassVar[dict] = {
+        "handle": "samantha",
+        "vault_folders": ["Thoughts"],
+        "skills": ["vault_read"],
+    }
+
+    def test_bare_keyword_hit_preserves_existing_context(self, engine, monkeypatch):
+        h_key = engine._get_history_key("samantha", None)
+        engine.active_vault_ctx[h_key] = "### stale digest naming Thoughts/Ideaverse.md"
+        monkeypatch.setattr(VaultManager, "resolve_turn_context", lambda p, m: None)
+        monkeypatch.setattr(VaultManager, "has_recall_intent", lambda m: True)
+        monkeypatch.setattr(VaultManager, "_extract_recall_subject", lambda m: ("", False))
+        monkeypatch.setattr(
+            VaultManager, "refresh_note_context", lambda p, ctx: ctx + " (refreshed)"
+        )
+        vault_ctx, _ = engine._resolve_turn_vault_context(
+            "samantha", None, self.PROFILE, "so, what can you say about that note?"
+        )
+        assert "Ideaverse" in vault_ctx
+        assert engine.active_vault_ctx[h_key] is not None
+
+    def test_genuine_subject_bearing_ask_still_wipes(self, engine, monkeypatch):
+        h_key = engine._get_history_key("samantha", None)
+        engine.active_vault_ctx[h_key] = "### stale digest naming Thoughts/Ideaverse.md"
+        engine.active_ritual[h_key] = True
+        monkeypatch.setattr(VaultManager, "resolve_turn_context", lambda p, m: None)
+        monkeypatch.setattr(VaultManager, "has_recall_intent", lambda m: True)
+        monkeypatch.setattr(
+            VaultManager, "_extract_recall_subject", lambda m: ("grief", True)
+        )
+        vault_ctx, _ = engine._resolve_turn_vault_context(
+            "samantha", None, self.PROFILE, "pull up my notes on grief"
+        )
+        assert vault_ctx is None
+        assert engine.active_vault_ctx[h_key] is None
+        assert engine.active_ritual[h_key] is False
+
+    def test_incidental_hit_during_active_ritual_still_wipes(self, engine, monkeypatch):
+        """Matches the pre-existing carry-over branch's own ritual
+        exclusion: re-serving the same note mid-ritual would silently turn
+        "another one" into "the same one again," so an active ritual keeps
+        priority over the new incidental-keyword preservation too."""
+        h_key = engine._get_history_key("samantha", None)
+        engine.active_vault_ctx[h_key] = "### stale digest"
+        engine.active_ritual[h_key] = True
+        monkeypatch.setattr(VaultManager, "resolve_turn_context", lambda p, m: None)
+        monkeypatch.setattr(VaultManager, "has_recall_intent", lambda m: True)
+        monkeypatch.setattr(VaultManager, "_extract_recall_subject", lambda m: ("", False))
+        vault_ctx, _ = engine._resolve_turn_vault_context(
+            "samantha", None, self.PROFILE, "what does that note say"
+        )
+        assert vault_ctx is None
+        assert engine.active_vault_ctx[h_key] is None
+
+    def test_bare_keyword_hit_with_no_active_context_is_a_harmless_noop(
+        self, engine, monkeypatch
+    ):
+        h_key = engine._get_history_key("samantha", None)
+        monkeypatch.setattr(VaultManager, "resolve_turn_context", lambda p, m: None)
+        monkeypatch.setattr(VaultManager, "has_recall_intent", lambda m: True)
+        monkeypatch.setattr(VaultManager, "_extract_recall_subject", lambda m: ("", False))
+        vault_ctx, _ = engine._resolve_turn_vault_context(
+            "samantha", None, self.PROFILE, "any old note-ish message"
+        )
+        assert vault_ctx is None
+        assert engine.active_vault_ctx.get(h_key) is None
+
+
+class TestIsIncidentalRecallKeywordHit:
+    def test_bare_trigger_word_with_no_subject_is_incidental(self, monkeypatch):
+        monkeypatch.setattr(VaultManager, "has_recall_intent", lambda m: True)
+        monkeypatch.setattr(VaultManager, "_extract_recall_subject", lambda m: ("", False))
+        assert PersonaEngine._is_incidental_recall_keyword_hit("that note again")
+
+    def test_real_leadin_and_subject_is_not_incidental(self, monkeypatch):
+        monkeypatch.setattr(VaultManager, "has_recall_intent", lambda m: True)
+        monkeypatch.setattr(
+            VaultManager, "_extract_recall_subject", lambda m: ("grief", True)
+        )
+        assert not PersonaEngine._is_incidental_recall_keyword_hit(
+            "pull up my notes on grief"
+        )
+
+    def test_no_recall_intent_at_all_is_not_incidental(self, monkeypatch):
+        monkeypatch.setattr(VaultManager, "has_recall_intent", lambda m: False)
+        monkeypatch.setattr(VaultManager, "_extract_recall_subject", lambda m: ("", False))
+        assert not PersonaEngine._is_incidental_recall_keyword_hit("hows the weather")
 
 
 class TestVaultClaimRegex:

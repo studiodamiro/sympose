@@ -102,6 +102,7 @@ list and is kept in sync per the
 
 | ADR | Title | Status | Date |
 | --- | ----- | ------ | ---- |
+| [ADR-139](../journal/2026-09/2026-09-19_adr-139-bounding-stateless-subagent-dispatch.md) | Bounding Stateless Sub-Agent Dispatch Under a Manually-Overridden Local Driver | Partially implemented (item 1 of 3) | 2026-09-19 |
 | [ADR-138](../journal/2026-09/2026-09-19_adr-138-structural-wiki-lint-write-gate.md) | A Structural Write Gate for Lint-Only wiki_lint Personas | Implemented | 2026-09-19 |
 | [ADR-137](../journal/2026-09/2026-09-19_adr-137-splitting-actions-into-focused-modules.md) | Splitting actions.py Into Focused, Under-200-LOC Modules | Implemented | 2026-09-19 |
 | [ADR-136](../journal/2026-09/2026-09-19_adr-136-splitting-vault-write-into-focused-modules.md) | Splitting vault_write.py Into Focused, Under-200-LOC Modules | Implemented | 2026-09-19 |

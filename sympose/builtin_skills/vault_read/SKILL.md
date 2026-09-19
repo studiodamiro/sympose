@@ -6,6 +6,7 @@ recommended_models:
   - "gemini/gemini-3.6-flash"
   - "ollama/qwen2.5:14b"
   - "ollama/gemma2:9b"
+minimum_capability_tier: "standard"
 tags:
   - memory
   - retrieval
@@ -21,8 +22,20 @@ retrieval payload you were handed *this turn*. Never reconstruct a note from the
 topic, the conversation, or what sounds plausible; never invent a date, quote, or
 reflection.
 
+- Before spawning anything, check what's already in front of you: a note
+  already shown to you this session, a Vault Structure Map, the last few
+  turns of conversation. A vague or pronoun reference ("that note", "it",
+  "this one") almost always points at something already discussed —
+  resolve it from what you already have first. Only spawn when the answer
+  genuinely isn't anywhere in your current context.
 - Answer not already in your pre-turn context → emit
-  `[SPAWN_SUB_AGENT: vault_read | <what to find>]` and stop; wait for the report.
+  `[SPAWN_SUB_AGENT: vault_read | <what to find>]` and stop; wait for the
+  report. The task string must be a real, self-contained instruction, not
+  a one- or two-word fragment: name the specific file or subject if you
+  already know it, and state what's actually being asked — e.g.
+  `[SPAWN_SUB_AGENT: vault_read | read Thoughts/Ideaverse.md in full and
+  summarize the App Ideas section]`, never a bare `[SPAWN_SUB_AGENT:
+  vault_read | that]`.
 - Never fall back to web `[SEARCH]` for the user's own notes, journal, or history.
 - Retrieval comes back empty → "I have no record of that in your vault." Nothing more.
 

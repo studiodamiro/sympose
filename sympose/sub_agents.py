@@ -26,6 +26,20 @@ log = logging.getLogger(__name__)
 
 MAX_TOOL_OUTPUT_CHARS = 20000
 
+# Shared with actions_sub_agent.py's _append_user_constraint, which appends
+# the user's own verbatim message to a task_prompt whose model-authored
+# paraphrase seems to have dropped it - defined here (not there) since
+# sub_agents.py is the lower-level module actions_sub_agent.py already
+# imports from. `_task_named_note_unread` needs the exact same boundary:
+# a task-alignment check must only judge the actual directed instruction,
+# not an incidental note reference sitting in the user's own raw message
+# that got tacked on purely as a fallback annotation (found by /code-review:
+# "like you did with Journal/2024-01-01.md before" in the user's own words
+# would otherwise count as a second "named" subject, letting a sub-agent
+# that reads only that incidental note - and ignores the one actually
+# asked about - pass this check silently).
+USER_CONSTRAINT_MARKER = "\n\n(The user's own words this turn,"
+
 # Live bug: a vault_read sub-agent had no tool that actually does what its
 # own skill was for - only generic run_command/read_file - so every search
 # or "pick a random note" request got reconstructed by hand from grep/find/
@@ -676,22 +690,50 @@ class SubAgentEngine:
         return "/".join(read_path.rsplit("/", 2)[-2:]) in cited
 
     @classmethod
-    def _content_unread(cls, text: str, read_paths: set[str]) -> str | None:
-        """Returns the offending note name when `text` names a specific
-        vault note whose content was never actually retrieved via a
-        successful `read_file` call this run - the same "named it, never
-        actually read it" fabrication shape `PersonaEngine._vault_ctx_title_
-        missing` already catches on the primary persona path (that check
-        compares a reply against the vault_ctx it was deterministically
-        handed; this one compares a sub-agent's synthesis against its own
-        tool-call history, since a sub-agent has no pre-fetched vault_ctx to
-        check against). Only fires when NONE of the paths named in `text`
-        were actually read (a synthesis correctly quoting one real note
-        while merely mentioning another in passing isn't this case) and
-        stays silent when `text` names no path at all - the same prose-only
-        residual gap the primary check leaves open, for the same
-        round-trip-frugal reason (no second model call to compare
-        meaning).
+    def _task_named_note_unread(
+        cls, task_prompt: str, read_paths: set[str]
+    ) -> str | None:
+        """Returns the specific note name when the sub-agent's own
+        `task_prompt` names a vault note (folder-qualified or a bare
+        filename) that was never actually read this turn - the
+        task-alignment counterpart to `_content_unread` just below, which
+        only checks the *synthesis's own claims* against what was read.
+        Neither `_content_unread` nor `_content_unsupported` catches this:
+        a sub-agent can produce a reply that's fully grounded in something
+        real - quoting a genuinely retrieved note verbatim, passing both
+        existing checks - while never opening the one file its task
+        actually named, e.g. asked to summarize `Thoughts/Ideaverse.md`,
+        it samples and confidently answers about a different note in the
+        same folder instead. Reuses `_content_unread`'s own path-extraction
+        regexes and read-path matching, applied to the task instruction
+        instead of the model's output, so this is one more structural
+        check rather than a second phrase-matching scheme. Delegates the
+        actual extraction/matching to `_first_named_note_unread`, the
+        implementation `_content_unread` just below also shares - the two
+        differ only in which text gets scanned (a task instruction here,
+        a synthesis there), not in how a citation is judged unread.
+
+        Scans only the portion before `USER_CONSTRAINT_MARKER`, if present
+        - `_append_user_constraint` (actions_sub_agent.py) tacks the user's
+        raw message on after that marker purely as a fallback annotation,
+        not as a second directed instruction. Found by /code-review: the
+        user's own words can themselves name an unrelated real note in
+        passing ("like you did with Journal/2024-01-01.md before"), which
+        would otherwise count as a second "named" subject a sub-agent
+        could satisfy by reading only *that* one while ignoring what it
+        was actually asked to do."""
+        primary_instruction = task_prompt.split(USER_CONSTRAINT_MARKER, 1)[0]
+        return cls._first_named_note_unread(primary_instruction, read_paths)
+
+    @classmethod
+    def _first_named_note_unread(cls, text: str, read_paths: set[str]) -> str | None:
+        """Shared extraction/matching behind both `_task_named_note_unread`
+        and `_content_unread`: the offending note name when `text` names a
+        specific vault note whose content was never actually retrieved via
+        a successful `read_file` call this run. Only fires when NONE of the
+        paths named in `text` were actually read (correctly quoting one
+        real note while merely mentioning another in passing isn't this
+        case) and stays silent when `text` names no path at all.
 
         A folder-qualified citation (`VAULT_PATH_TOKEN_RE` requires a `/`)
         is matched against `read_paths` by `_path_tail_match`, not by bare
@@ -714,6 +756,22 @@ class SubAgentEngine:
         named_basenames = {p.rsplit("/", 1)[-1] for p in qualified} | bare
         return sorted(named_basenames)[0]
 
+    @classmethod
+    def _content_unread(cls, text: str, read_paths: set[str]) -> str | None:
+        """Returns the offending note name when `text` (a sub-agent's own
+        synthesis) names a specific vault note whose content was never
+        actually retrieved via a successful `read_file` call this run -
+        the same "named it, never actually read it" fabrication shape
+        `PersonaEngine._vault_ctx_title_missing` already catches on the
+        primary persona path (that check compares a reply against the
+        vault_ctx it was deterministically handed; this one compares a
+        sub-agent's synthesis against its own tool-call history, since a
+        sub-agent has no pre-fetched vault_ctx to check against).
+        Delegates to `_first_named_note_unread`, shared with
+        `_task_named_note_unread` above - the two differ only in which
+        text gets scanned, not in how a citation is judged unread."""
+        return cls._first_named_note_unread(text, read_paths)
+
     @staticmethod
     def _resolve_real_note(offending: str, task: "SubAgentTask") -> str:
         """Looks up `offending` in the parent persona's vault for real (plain
@@ -733,6 +791,21 @@ class SubAgentEngine:
         ):
             return real
         return ""
+
+    @classmethod
+    def _swap_in_task_mismatch(cls, offending: str, task: "SubAgentTask") -> str:
+        """Deterministic, zero-round-trip recovery for
+        `_task_named_note_unread`: the task itself named a note that was
+        never opened this run. Mirrors `_swap_in_unread_note`'s shape but
+        names the actual gap - a task-alignment miss, not a
+        self-contradicted claim. The sub-agent's own synthesis may be
+        perfectly well-grounded and truthful about *something*; it just
+        isn't an answer to what it was actually asked."""
+        real = cls._resolve_real_note(offending, task)
+        return (
+            f"The task asked about `{offending}`, but I never actually opened "
+            f"it this turn — here's its real content instead:\n\n{real}"
+        )
 
     @classmethod
     def _swap_in_unread_note(cls, offending: str, task: "SubAgentTask") -> str:
@@ -894,7 +967,20 @@ class SubAgentEngine:
         `_content_unread` fires but the named note doesn't resolve, real
         `tool_outputs` material from this turn is a strictly better answer
         than a content-free "I never opened it" admission, so it's preferred
-        when available."""
+        when available.
+
+        Checked first, ahead of both: `_task_named_note_unread` - a
+        task-alignment miss (the task itself named a note, and it was
+        never opened) is a stronger, more specific signal than either
+        content check below, and neither of those checks would ever catch
+        it on their own if the synthesis is fully grounded in *something*
+        real, just not the thing actually asked for. Only fires when the
+        named note resolves to a real, readable one - an unresolvable name
+        falls through to the existing checks rather than blocking on a
+        possibly-meaningless extraction."""
+        task_offending = cls._task_named_note_unread(task.task_prompt, read_paths)
+        if task_offending and cls._resolve_real_note(task_offending, task):
+            return cls._swap_in_task_mismatch(task_offending, task)
         offending = cls._content_unread(final_synthesis, read_paths)
         if offending:
             if not cls._resolve_real_note(offending, task) and tool_outputs:

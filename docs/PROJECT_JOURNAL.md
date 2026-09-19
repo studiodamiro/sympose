@@ -25,6 +25,7 @@ one in [`docs/wiki/index.md`](./wiki/index.md) are kept in sync per the
 
 | ADR | Title | Status | Date | Source |
 | --- | ----- | ------ | ---- | ------ |
+| ADR-139 | Bounding Stateless Sub-Agent Dispatch Under a Manually-Overridden Local Driver | Partially implemented (item 1 of 3) | 2026-09-19 | [2026-09-19_adr-139-bounding-stateless-subagent-dispatch.md](./journal/2026-09/2026-09-19_adr-139-bounding-stateless-subagent-dispatch.md) |
 | ADR-138 | A Structural Write Gate for Lint-Only wiki_lint Personas | Implemented | 2026-09-19 | [2026-09-19_adr-138-structural-wiki-lint-write-gate.md](./journal/2026-09/2026-09-19_adr-138-structural-wiki-lint-write-gate.md) |
 | ADR-137 | Splitting actions.py Into Focused, Under-200-LOC Modules | Implemented | 2026-09-19 | [2026-09-19_adr-137-splitting-actions-into-focused-modules.md](./journal/2026-09/2026-09-19_adr-137-splitting-actions-into-focused-modules.md) |
 | ADR-136 | Splitting vault_write.py Into Focused, Under-200-LOC Modules | Implemented | 2026-09-19 | [2026-09-19_adr-136-splitting-vault-write-into-focused-modules.md](./journal/2026-09/2026-09-19_adr-136-splitting-vault-write-into-focused-modules.md) |
@@ -174,6 +175,7 @@ one in [`docs/wiki/index.md`](./wiki/index.md) are kept in sync per the
 
 | Date | Entry |
 | ---- | ----- |
+| 2026-09-19 | [Reviewing a Live "Vault Roulette" Transcript — One Fabrication That Didn't Reproduce, One Cosmetic Report Bug, and a Real Stateless Sub-Agent Loop](./journal/2026-09/2026-09-19_samantha-roulette-transcript-review.md) |
 | 2026-09-19 | [The "Vault Roulette" Lapse Was a Real, Deterministic Matcher Bug — Not Model Non-Determinism](./journal/2026-09/2026-09-19_vault-roulette-live-lapse-and-adr-122-discoverability-gap.md) |
 | 2026-09-18 | [A Correct "What's In This Folder?" Answer Was Being Thrown Away](./journal/2026-09/2026-09-18_folder-digest-answers-wrongly-caught-by-title-citation-guard.md) |
 | 2026-09-18 | [Closing Every mccabe Complexity (C901) Finding in sympose/](./journal/2026-09/2026-09-18_c901-complexity-sweep-full-remediation.md) |

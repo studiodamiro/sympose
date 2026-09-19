@@ -109,3 +109,15 @@ vault:
   - do we have
   - did i write
   - did i journal
+models:
+  # ADR-127/139: real per-model assessments, not guesses from the model-id
+  # string. Unassigned models default to the lowest tier (`basic`) —
+  # conservative by default, so an override to an unlisted model correctly
+  # reads as unproven rather than silently trusted. These four are the
+  # models actually in play across Samantha's setup and vault_read's own
+  # `recommended_models` list.
+  capability_tiers:
+    "gemini/gemini-3.6-flash": high
+    "ollama/richardyoung/qwen2.5-14b-instruct-abliterated:latest": standard
+    "ollama/qwen2.5:14b": standard
+    "ollama/gemma2:9b": standard

@@ -439,6 +439,16 @@ class TestSubAgentTaskCarriesTheUsersOwnWords:
         )
         assert received["task_prompt"] == "Roulette"
 
+    def test_appended_text_uses_the_shared_marker_constant(self, monkeypatch):
+        """`sub_agents.py`'s `_task_named_note_unread` (ADR-139 basic #4)
+        splits on `USER_CONSTRAINT_MARKER` to scan only the directed
+        instruction, not the appended raw message - this pins the append
+        format to that same shared constant so the two can't drift apart."""
+        from sympose.sub_agents import USER_CONSTRAINT_MARKER
+
+        out = ActionProcessor._append_user_constraint("Roulette", "pull from Daily")
+        assert out.startswith(f"Roulette{USER_CONSTRAINT_MARKER}")
+
 
 # ---------------------------------------------------------------------------
 # execute_actions — CREATE_PERSONA soul_content extraction (ADR-075)

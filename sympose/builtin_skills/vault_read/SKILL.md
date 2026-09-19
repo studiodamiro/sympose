@@ -4,7 +4,6 @@ title: "Obsidian Vault Historical Synthesis & Recall"
 description: "Tiered retrieval to locate, inspect, and synthesise historical notes and daily reflections from the vault."
 recommended_models:
   - "gemini/gemini-3.6-flash"
-  - "ollama/qwen2.5:14b"
   - "ollama/gemma2:9b"
 minimum_capability_tier: "standard"
 tags:

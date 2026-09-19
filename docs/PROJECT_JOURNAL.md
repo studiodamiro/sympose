@@ -175,6 +175,7 @@ one in [`docs/wiki/index.md`](./wiki/index.md) are kept in sync per the
 
 | Date | Entry |
 | ---- | ----- |
+| 2026-09-20 | [Building a Real Model-Qualification Battery, and a Model That Was Never Actually Installed](./journal/2026-09/2026-09-20_model-qualification-battery-and-qwen-phantom-reference.md) |
 | 2026-09-20 | [The Continuation-Turn Title Check Was Discarding Good Answers, Plus a Full Code-Review Sweep](./journal/2026-09/2026-09-20_continuation-turn-grounding-fix-and-review-followups.md) |
 | 2026-09-19 | [Reviewing a Live "Vault Roulette" Transcript — One Fabrication That Didn't Reproduce, One Cosmetic Report Bug, and a Real Stateless Sub-Agent Loop](./journal/2026-09/2026-09-19_samantha-roulette-transcript-review.md) |
 | 2026-09-19 | [The "Vault Roulette" Lapse Was a Real, Deterministic Matcher Bug — Not Model Non-Determinism](./journal/2026-09/2026-09-19_vault-roulette-live-lapse-and-adr-122-discoverability-gap.md) |

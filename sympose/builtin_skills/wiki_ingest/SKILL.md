@@ -4,7 +4,7 @@ title: "LLM Wiki Ingest"
 description: "Files a raw source into wiki pages under your assigned Wiki folder (ADR-132/133) and logs the event."
 recommended_models:
   - "gemini/gemini-3.6-flash"
-  - "ollama/qwen2.5:14b"
+  - "ollama/gemma2:9b"
 minimum_capability_tier: "standard"
 tags:
   - wiki

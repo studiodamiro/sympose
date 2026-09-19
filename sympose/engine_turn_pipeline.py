@@ -7,11 +7,14 @@ engine.py under this project's own size guidance.
 
 `chat_stream` itself is the only method still defined here: the rest of
 this original cluster is now spread across `engine_turn_setup.py`
-(pre-model turn prep), `engine_turn_grounding.py` (calling the model and
+(persisting a "remember that X" ask, system-prompt assembly),
+`engine_turn_vault_context.py` (resolving this turn's vault_ctx — split
+out of `engine_turn_setup.py` again once that file crossed the <200 LOC
+ceiling on its own), `engine_turn_grounding.py` (calling the model and
 enforcing ADR-124 grounding), and `engine_turn_finalize.py` (trimming the
 reply, sub-agent synthesis, persistence) — a second-pass split per
 ADR-125's own note that this cluster would need one once it was out of
-engine.py and easier to judge. `TurnPipelineMixin` composes all three, so
+engine.py and easier to judge. `TurnPipelineMixin` composes all four, so
 `engine.py`'s own `class PersonaEngine(..., TurnPipelineMixin)` doesn't
 need to change; every method is unchanged from its prior home.
 
@@ -33,9 +36,12 @@ from sympose.config import DEFAULT_CHAT_MODEL
 from sympose.engine_turn_finalize import TurnFinalizeMixin
 from sympose.engine_turn_grounding import TurnGroundingMixin
 from sympose.engine_turn_setup import TurnSetupMixin
+from sympose.engine_turn_vault_context import TurnVaultContextMixin
 
 
-class TurnPipelineMixin(TurnSetupMixin, TurnGroundingMixin, TurnFinalizeMixin):
+class TurnPipelineMixin(
+    TurnSetupMixin, TurnVaultContextMixin, TurnGroundingMixin, TurnFinalizeMixin
+):
     def chat_stream(
         self,
         handle: str,
@@ -63,11 +69,11 @@ class TurnPipelineMixin(TurnSetupMixin, TurnGroundingMixin, TurnFinalizeMixin):
 
         # Build dynamic composite prompt & inject active turn vault context via VaultManager
         curr_session_id = session_id or self.get_active_session_id(handle)
-        vault_ctx, h_key = self._resolve_turn_vault_context(
+        vault_ctx, h_key, is_fresh = self._resolve_turn_vault_context(
             handle, session_id, profile, clean_input
         )
-        system_prompt, vault_ctx = self._build_turn_system_prompt(
-            handle, profile, vault_ctx, h_key, clean_input, curr_session_id
+        system_prompt, vault_ctx, is_fresh = self._build_turn_system_prompt(
+            handle, profile, vault_ctx, h_key, clean_input, curr_session_id, is_fresh
         )
 
         history = self.get_history(handle, session_id=session_id)
@@ -119,13 +125,14 @@ class TurnPipelineMixin(TurnSetupMixin, TurnGroundingMixin, TurnFinalizeMixin):
                     clean_input,
                     complete_text,
                     vault_ctx,
-                    strict,
-                    verify_ctx,
-                    hold_stream,
-                    held,
-                    history,
-                    on_sub_agent_progress,
-                    on_action,
+                    strict=strict,
+                    verify_ctx=verify_ctx,
+                    is_fresh=is_fresh,
+                    hold_stream=hold_stream,
+                    held=held,
+                    history=history,
+                    on_sub_agent_progress=on_sub_agent_progress,
+                    on_action=on_action,
                 )
             )
 

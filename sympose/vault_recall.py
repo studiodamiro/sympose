@@ -329,6 +329,19 @@ def search_triggers() -> list[str]:
     return [*_BUILTIN_SEARCH_TRIGGERS, *extra]
 
 
+def recall_signal(message: str) -> tuple[bool, str, bool]:
+    """Single-pass combination of `has_recall_intent` and
+    `extract_recall_subject`: both derive from the same lead-in/subject
+    extraction, so a caller needing either - or, like
+    `engine_turn_vault_context.py`'s incidental-keyword carve-out, both at
+    once - gets them from one extraction pass instead of two (or three)
+    separate calls each re-running it. Returns (has_intent, subject,
+    had_leadin)."""
+    subject, had_leadin = extract_recall_subject(message)
+    has_intent = had_leadin or any(k in message.lower() for k in search_triggers())
+    return has_intent, subject, had_leadin
+
+
 def has_recall_intent(message: str) -> bool:
     """True when the message is itself a fresh vault-recall request (a recall
     lead-in was consumed, or a configured search trigger appears). The engine
@@ -336,10 +349,8 @@ def has_recall_intent(message: str) -> bool:
     context when the current turn asked its own vault question and retrieval
     came back empty — answering a fresh 'pull up X' from a stale unrelated
     note is exactly the fabrication this guards against."""
-    _, had_leadin = extract_recall_subject(message)
-    if had_leadin:
-        return True
-    return any(k in message.lower() for k in search_triggers())
+    has_intent, _, _ = recall_signal(message)
+    return has_intent
 
 
 def describes_random_pull_ritual(fact: str) -> bool:

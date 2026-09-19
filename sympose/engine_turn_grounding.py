@@ -181,26 +181,34 @@ class TurnGroundingMixin:
         clean_input: str,
         complete_text: str,
         vault_ctx: str | None,
+        *,
         strict: bool,
         verify_ctx: bool,
+        is_fresh: bool,
         hold_stream: bool,
         held: list[str],
         history: list[dict[str, str]],
         on_sub_agent_progress: Callable[[str], None] | None,
         on_action: Callable[[dict[str, str]], None] | None = None,
     ):
-        """Parses action tags out of the raw model output, then runs
+        """Everything from `strict` on is keyword-only - five same-typed
+        booleans/collections in a row is too fragile to trust to argument
+        order at the one call site, especially as more get added over
+        time. Parses action tags out of the raw model output, then runs
         whichever grounding-enforcement check applies — `verify_ctx` and
         `strict` are mutually exclusive by construction (see `chat_stream`)
         — and yields whatever survives to show the user. `verify_ctx`
         catches a real note being misquoted or ignored; `strict` catches an
         answer given with no retrieval at all, using both the phrase-based
         `_VAULT_CLAIM_RE` and the structural, index-backed check from
-        ADR-124. Returns (clean_text, badges, has_sub_agent, has_retrieval,
-        was_forced) as this generator's return value. `on_action` (ADR-130)
-        is passed straight through to `execute_actions` for a caller that
-        wants a distinct event per completed action, e.g. the dashboard's
-        streaming chat endpoint."""
+        ADR-124. `is_fresh` scopes `_vault_ctx_title_missing` to only the
+        turn that actually introduces `vault_ctx` — see that method's own
+        docstring for the live over-firing bug on carried-over continuation
+        turns this avoids. Returns (clean_text, badges, has_sub_agent,
+        has_retrieval, was_forced) as this generator's return value.
+        `on_action` (ADR-130) is passed straight through to
+        `execute_actions` for a caller that wants a distinct event per
+        completed action, e.g. the dashboard's streaming chat endpoint."""
         clean_text, badges = ActionProcessor.execute_actions(
             self.pm,
             handle,
@@ -217,7 +225,7 @@ class TurnGroundingMixin:
         forced_answer = None
         if verify_ctx and not has_sub_agent and (
             self._vault_ctx_citation_mismatch(clean_text, vault_ctx)
-            or self._vault_ctx_title_missing(clean_text, vault_ctx)
+            or self._vault_ctx_title_missing(clean_text, vault_ctx, is_fresh)
         ):
             # A real note was handed to the model this turn and it either
             # named a different one instead of quoting what it actually

@@ -86,6 +86,15 @@ class VaultManager(
         note is exactly the fabrication this guards against."""
         return vault_recall.has_recall_intent(message)
 
+    @classmethod
+    def recall_signal(cls, message: str) -> tuple[bool, str, bool]:
+        """Single-pass combination of `has_recall_intent` and
+        `_extract_recall_subject` for a caller that needs both - see
+        `vault_recall.recall_signal`'s own docstring for why this exists
+        as one call instead of two. Returns (has_intent, subject,
+        had_leadin)."""
+        return vault_recall.recall_signal(message)
+
     # ------------------------------------------------------------------
     # Structural claim/intent checking (ADR-124) — thin wrappers over
     # `vault_grounding`, which owns the pure logic, the same split as the

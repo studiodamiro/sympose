@@ -4,7 +4,7 @@ title: "LLM Wiki Lint"
 description: "Health-checks your assigned Wiki folder for contradictions, stale claims, and orphan pages (ADR-134)."
 recommended_models:
   - "gemini/gemini-3.6-flash"
-  - "ollama/richardyoung/qwen2.5-14b-instruct-abliterated"
+  - "ollama/qwen2.5:14b"
 minimum_capability_tier: "standard"
 tags:
   - wiki

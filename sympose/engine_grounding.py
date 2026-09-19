@@ -197,7 +197,9 @@ class GroundingHelpersMixin:
     _FOLDER_DIGEST_MARKER = "High-Density Folder Digest"
 
     @classmethod
-    def _vault_ctx_title_missing(cls, clean_text: str, vault_ctx: str | None) -> bool:
+    def _vault_ctx_title_missing(
+        cls, clean_text: str, vault_ctx: str | None, is_fresh: bool
+    ) -> bool:
         """True when a real note was handed to the model this turn and its
         reply never mentions that note's own title at all - the residual gap
         `_vault_ctx_citation_mismatch` (above) leaves open by design: a
@@ -223,8 +225,23 @@ class GroundingHelpersMixin:
         name any one of them, but this check couldn't tell that apart from
         the single-note case it was built for and discarded a correct,
         well-grounded answer as if it were the same fabrication this check
-        exists to catch."""
-        if not vault_ctx:
+        exists to catch.
+
+        `is_fresh` (see `_resolve_turn_vault_context` in
+        engine_turn_vault_context.py, and `_build_turn_system_prompt` in
+        engine_turn_setup.py) gates this to only the turn that actually
+        introduces `vault_ctx` - live bug, confirmed by a 6-trial
+        reliability comparison: on a carried-over continuation turn ("so,
+        what can you say about that note?"), a model naturally paraphrases
+        an already-introduced note in its own words rather than repeating
+        its filename again, which this check has no way to distinguish
+        from the fabrication it was built for. Ungated, it discarded 5 of
+        6 accurate, on-topic replies on that turn; skipping it entirely on
+        continuations produced 6 of 6 legitimate answers and zero
+        fabrications. Taken as a real parameter rather than a caller-side
+        convention, so a future call site can't silently omit the gate and
+        reintroduce that regression."""
+        if not is_fresh or not vault_ctx:
             return False
         if cls._FOLDER_DIGEST_MARKER in vault_ctx:
             return False

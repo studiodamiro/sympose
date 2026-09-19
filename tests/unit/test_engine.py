@@ -188,7 +188,19 @@ class TestVaultCtxTitleMissing:
             "- Exact Content):\n# Monster\n\nA true-crime character study.\n"
         )
         reply = "The random note pulled is about *Arrival*. The film explores..."
-        assert engine._vault_ctx_title_missing(reply, vault_ctx)
+        assert engine._vault_ctx_title_missing(reply, vault_ctx, True)
+
+    def test_not_fresh_is_never_flagged_even_with_a_missing_title(self, engine):
+        """`is_fresh` is a real parameter, not a caller-side convention -
+        even the exact fabrication shape this check exists to catch stays
+        unflagged on a continuation turn, per the 6-trial reliability
+        finding this gate exists for."""
+        vault_ctx = (
+            "### Ground-Truth Sandboxed Vault Note (`Movies/Monster.md` "
+            "- Exact Content):\n# Monster\n\nA true-crime character study.\n"
+        )
+        reply = "The random note pulled is about *Arrival*. The film explores..."
+        assert not engine._vault_ctx_title_missing(reply, vault_ctx, False)
 
     def test_real_note_title_mentioned_is_not_flagged(self, engine):
         vault_ctx = (
@@ -196,7 +208,7 @@ class TestVaultCtxTitleMissing:
             "- Exact Content):\n# Monster\n\nA true-crime character study.\n"
         )
         reply = "The note pulled is about *Monster* - a true-crime character study."
-        assert not engine._vault_ctx_title_missing(reply, vault_ctx)
+        assert not engine._vault_ctx_title_missing(reply, vault_ctx, True)
 
     def test_short_generic_stem_is_not_flagged(self, engine):
         """A stem under 4 characters (e.g. a single-letter or terse note
@@ -210,10 +222,10 @@ class TestVaultCtxTitleMissing:
             "- Exact Content):\n# Thoughts\n\nOn entropy.\n"
         )
         reply = "You wrote a nice reflection on entropy and joy."
-        assert not engine._vault_ctx_title_missing(reply, vault_ctx)
+        assert not engine._vault_ctx_title_missing(reply, vault_ctx, True)
 
     def test_no_vault_ctx_is_never_flagged(self, engine):
-        assert not engine._vault_ctx_title_missing("Anything at all.", None)
+        assert not engine._vault_ctx_title_missing("Anything at all.", None, True)
 
     def test_at_least_one_of_several_sampled_notes_mentioned_is_enough(
         self, engine
@@ -225,7 +237,7 @@ class TestVaultCtxTitleMissing:
             "- Exact Content):\nAbout Limitless.\n"
         )
         reply = "One of the pulled notes was about *Limitless* and a smart drug."
-        assert not engine._vault_ctx_title_missing(reply, vault_ctx)
+        assert not engine._vault_ctx_title_missing(reply, vault_ctx, True)
 
     def test_folder_digest_answer_is_exempt_even_with_no_titles_mentioned(
         self, engine
@@ -249,7 +261,107 @@ class TestVaultCtxTitleMissing:
             "Your Movies folder keeps detailed film entries with ratings, "
             "genres, and personal reflections."
         )
-        assert not engine._vault_ctx_title_missing(reply, vault_ctx)
+        assert not engine._vault_ctx_title_missing(reply, vault_ctx, True)
+
+
+class TestApplyGroundingIsFreshGateOnTitleMissing:
+    """Regression coverage for the `is_fresh` gate on
+    `_apply_grounding_and_stream_result`: `_vault_ctx_title_missing` may
+    only fire on the turn that actually introduces `vault_ctx`, never on a
+    carried-over continuation - a 6-trial reliability comparison found it
+    discarding 5 of 6 accurate, on-topic paraphrases on a continuation turn
+    when left ungated."""
+
+    VAULT_CTX = (
+        "### Ground-Truth Note: Thoughts/Ideaverse.md\n\n"
+        "#### Exact Content\n\n"
+        "## APP IDEAS\n\nAn LLM that reads through your Obsidian vault."
+    )
+    # A natural, accurate paraphrase that never repeats the filename stem
+    # "ideaverse" - exactly the shape of reply the reliability test found
+    # being wrongly discarded on continuation turns.
+    PARAPHRASE_REPLY = (
+        "That note lays out the idea of an AI that reads through your "
+        "whole vault so you can chat about your own writing."
+    )
+
+    def _run(self, engine, is_fresh):
+        gen = engine._apply_grounding_and_stream_result(
+            "samantha",
+            {},
+            "so, what can you say about that note?",
+            self.PARAPHRASE_REPLY,
+            self.VAULT_CTX,
+            strict=False,
+            verify_ctx=True,
+            is_fresh=is_fresh,
+            hold_stream=True,
+            held=[],
+            history=[],
+            on_sub_agent_progress=None,
+        )
+        out = []
+        try:
+            while True:
+                out.append(next(gen))
+        except StopIteration as e:
+            return e.value[0]  # clean_text
+
+    def test_fresh_turn_still_swaps_in_the_real_note(self, engine):
+        clean_text = self._run(engine, is_fresh=True)
+        assert clean_text.startswith("I couldn't fully verify")
+
+    def test_continuation_turn_trusts_the_paraphrase(self, engine):
+        clean_text = self._run(engine, is_fresh=False)
+        assert clean_text == self.PARAPHRASE_REPLY
+
+
+class TestBuildTurnSystemPromptRitualPullSetsIsFresh:
+    """The ritual-pull branch (a fresh "roll the dice" note fetch) must flip
+    `is_fresh` to True even on a turn that otherwise started out as a
+    continuation - it is itself a new-this-turn note introduction, the
+    same thing `_resolve_turn_vault_context`'s own structural-match case
+    represents. Without this, `_vault_ctx_title_missing` would silently
+    stop being checked on the exact "fresh Vault Roulette announcement"
+    scenario it was originally built for."""
+
+    PROFILE: ClassVar[dict] = {
+        "name": "Samantha",
+        "handle": "samantha",
+        "skills": ["vault_read"],
+    }
+
+    def test_ritual_pull_flips_is_fresh_true(self, engine, monkeypatch):
+        monkeypatch.setattr(engine, "_ritual_pull_due", lambda *a, **k: True)
+        monkeypatch.setattr(
+            ProfileManager, "find_relevant_memory_fact", lambda *a, **k: None
+        )
+        monkeypatch.setattr(
+            VaultManager,
+            "resolve_ritual_random_pull",
+            lambda p, m: "### Ground-Truth Note: Thoughts/Ideaverse.md\n\nSome content.",
+        )
+        _, vault_ctx, is_fresh = engine._build_turn_system_prompt(
+            "samantha",
+            self.PROFILE,
+            None,
+            "h_key",
+            "let's do another one",
+            "sess-1",
+            False,
+        )
+        assert is_fresh is True
+        assert vault_ctx is not None
+
+    def test_no_ritual_pull_keeps_incoming_is_fresh_unchanged(self, engine, monkeypatch):
+        monkeypatch.setattr(engine, "_ritual_pull_due", lambda *a, **k: False)
+        monkeypatch.setattr(
+            ProfileManager, "find_relevant_memory_fact", lambda *a, **k: None
+        )
+        _, vault_ctx, is_fresh = engine._build_turn_system_prompt(
+            "samantha", self.PROFILE, None, "h_key", "hello", "sess-1", False
+        )
+        assert is_fresh is False
 
 
 class TestGroundingModeKnob:
@@ -383,11 +495,12 @@ class TestIncidentalRecallKeywordDoesNotWipeContext:
         monkeypatch.setattr(
             VaultManager, "refresh_note_context", lambda p, ctx: ctx + " (refreshed)"
         )
-        vault_ctx, _ = engine._resolve_turn_vault_context(
+        vault_ctx, _, is_fresh = engine._resolve_turn_vault_context(
             "samantha", None, self.PROFILE, "so, what can you say about that note?"
         )
         assert "Ideaverse" in vault_ctx
         assert engine.active_vault_ctx[h_key] is not None
+        assert is_fresh is False
 
     def test_genuine_subject_bearing_ask_still_wipes(self, engine, monkeypatch):
         h_key = engine._get_history_key("samantha", None)
@@ -398,7 +511,7 @@ class TestIncidentalRecallKeywordDoesNotWipeContext:
         monkeypatch.setattr(
             VaultManager, "_extract_recall_subject", lambda m: ("grief", True)
         )
-        vault_ctx, _ = engine._resolve_turn_vault_context(
+        vault_ctx, _, _ = engine._resolve_turn_vault_context(
             "samantha", None, self.PROFILE, "pull up my notes on grief"
         )
         assert vault_ctx is None
@@ -416,7 +529,7 @@ class TestIncidentalRecallKeywordDoesNotWipeContext:
         monkeypatch.setattr(VaultManager, "resolve_turn_context", lambda p, m: None)
         monkeypatch.setattr(VaultManager, "has_recall_intent", lambda m: True)
         monkeypatch.setattr(VaultManager, "_extract_recall_subject", lambda m: ("", False))
-        vault_ctx, _ = engine._resolve_turn_vault_context(
+        vault_ctx, _, _ = engine._resolve_turn_vault_context(
             "samantha", None, self.PROFILE, "what does that note say"
         )
         assert vault_ctx is None
@@ -429,7 +542,7 @@ class TestIncidentalRecallKeywordDoesNotWipeContext:
         monkeypatch.setattr(VaultManager, "resolve_turn_context", lambda p, m: None)
         monkeypatch.setattr(VaultManager, "has_recall_intent", lambda m: True)
         monkeypatch.setattr(VaultManager, "_extract_recall_subject", lambda m: ("", False))
-        vault_ctx, _ = engine._resolve_turn_vault_context(
+        vault_ctx, _, _ = engine._resolve_turn_vault_context(
             "samantha", None, self.PROFILE, "any old note-ish message"
         )
         assert vault_ctx is None
@@ -437,24 +550,20 @@ class TestIncidentalRecallKeywordDoesNotWipeContext:
 
 
 class TestIsIncidentalRecallKeywordHit:
-    def test_bare_trigger_word_with_no_subject_is_incidental(self, monkeypatch):
-        monkeypatch.setattr(VaultManager, "has_recall_intent", lambda m: True)
-        monkeypatch.setattr(VaultManager, "_extract_recall_subject", lambda m: ("", False))
-        assert PersonaEngine._is_incidental_recall_keyword_hit("that note again")
+    """Takes `VaultManager.recall_signal`'s already-derived values directly
+    - see that function's own docstring for why the extraction happens
+    once, upstream, rather than being re-run here."""
 
-    def test_real_leadin_and_subject_is_not_incidental(self, monkeypatch):
-        monkeypatch.setattr(VaultManager, "has_recall_intent", lambda m: True)
-        monkeypatch.setattr(
-            VaultManager, "_extract_recall_subject", lambda m: ("grief", True)
-        )
+    def test_bare_trigger_word_with_no_subject_is_incidental(self):
+        assert PersonaEngine._is_incidental_recall_keyword_hit(True, "", False)
+
+    def test_real_leadin_and_subject_is_not_incidental(self):
         assert not PersonaEngine._is_incidental_recall_keyword_hit(
-            "pull up my notes on grief"
+            True, "grief", True
         )
 
-    def test_no_recall_intent_at_all_is_not_incidental(self, monkeypatch):
-        monkeypatch.setattr(VaultManager, "has_recall_intent", lambda m: False)
-        monkeypatch.setattr(VaultManager, "_extract_recall_subject", lambda m: ("", False))
-        assert not PersonaEngine._is_incidental_recall_keyword_hit("hows the weather")
+    def test_no_recall_intent_at_all_is_not_incidental(self):
+        assert not PersonaEngine._is_incidental_recall_keyword_hit(False, "", False)
 
 
 class TestVaultClaimRegex:

@@ -1,20 +1,21 @@
 """
 Resolving a chat turn's inputs before the model is ever called: persisting
-a natural-language "remember that X" ask, resolving this turn's vault_ctx,
-and assembling the system prompt (persona base + vault context + a
-matched working-memory nudge + a due ritual pull + a session-recall
-digest).
+a natural-language "remember that X" ask, and assembling the system prompt
+(persona base + vault context + a matched working-memory nudge + a due
+ritual pull + a session-recall digest).
 
 Split out of engine_turn_pipeline.py per ADR-125's own note that that
 cluster would need a second pass once it was out of engine.py and easier
-to judge; every method here is unchanged from its prior home.
+to judge; every method here is unchanged from its prior home. Resolving
+this turn's vault_ctx (the module's original third concern) split out
+again into `engine_turn_vault_context.py` once this file crossed the
+project's own <200 LOC ceiling on its own.
 `TurnPipelineMixin(TurnSetupMixin, ...)` in engine_turn_pipeline.py
 composes this in, so engine.py's own class declaration doesn't need to
-change. Depends on `self.pm`, `self._lock`, `self.active_vault_ctx`,
-`self.active_ritual`, plus sibling methods from `GroundingHelpersMixin`
-(`_ritual_pull_due`, `_is_full_body_vault_ctx`, `_build_session_history_digest`)
-and `PersonaEngine` itself (`_get_history_key`), all resolved normally
-through the MRO.
+change. Depends on `self.pm`, `self._lock`, `self.active_ritual`, plus
+sibling methods from `GroundingHelpersMixin` (`_ritual_pull_due`,
+`_is_full_body_vault_ctx`, `_build_session_history_digest`), all resolved
+normally through the MRO.
 """
 
 import re
@@ -26,23 +27,6 @@ from sympose.vault import VaultManager
 
 
 class TurnSetupMixin:
-    @staticmethod
-    def _is_incidental_recall_keyword_hit(clean_input: str) -> bool:
-        """True when `VaultManager.has_recall_intent` fires only because a
-        bare `vault.search_triggers` word (e.g. "note", "vault", "folder")
-        appears somewhere in the message — no recall lead-in phrase
-        consumed, no subject extracted either. `extract_recall_subject`
-        already requires a lead-in and a subject to agree before returning
-        `had_leadin=True`, so this is the residual case: a trigger word
-        coincidentally present in an otherwise ordinary sentence, not a
-        genuine, subject-bearing vault ask."""
-        subject, had_leadin = VaultManager._extract_recall_subject(clean_input)
-        return (
-            VaultManager.has_recall_intent(clean_input)
-            and not had_leadin
-            and not subject
-        )
-
     def _maybe_persist_remembered_fact(
         self, handle: str, profile: dict[str, Any], clean_input: str
     ) -> str:
@@ -61,73 +45,6 @@ class TurnSetupMixin:
                 return f"> 🧠 **Persisted to {profile.get('name', handle)}'s memory:** *{extracted_fact}*\n\n"
         return ""
 
-    def _resolve_turn_vault_context(
-        self,
-        handle: str,
-        session_id: str | None,
-        profile: dict[str, Any],
-        clean_input: str,
-    ) -> tuple[str | None, str]:
-        """Resolves this turn's vault_ctx: a fresh structural match, a
-        dropped stale context when the message is itself a new vault ask,
-        or a refreshed re-read of a carried-over single-note reference.
-        Returns (vault_ctx, h_key)."""
-        h_key = self._get_history_key(handle, session_id)
-        # Retrieval itself stays outside the lock — it's the hot-path I/O this
-        # session's caching work was aimed at, and must not serialize concurrent
-        # chats across personas/threads behind one engine-wide lock.
-        vault_ctx = VaultManager.resolve_turn_context(profile, clean_input)
-        with self._lock:
-            if vault_ctx:
-                self.active_vault_ctx[h_key] = vault_ctx
-            elif (
-                self._is_incidental_recall_keyword_hit(clean_input)
-                and self.active_vault_ctx.get(h_key)
-                and not self.active_ritual.get(h_key)
-            ):
-                # Live bug (2026-09-19): "so, what can you say about that
-                # note?" matched has_recall_intent purely because "note" is
-                # a configured vault.search_triggers word — no recall
-                # lead-in, no extractable subject, just a trigger word that
-                # happens to appear in an ordinary follow-up about the note
-                # already carried from the prior turn. Confirmed live: this
-                # wiped a real, already-fetched Ideaverse.md digest, leaving
-                # the model nothing to work with and forcing a blind
-                # sub-agent guess that landed on an unrelated note. Treat an
-                # incidental keyword hit (no lead-in, no subject) the same
-                # as the carry-over refresh below instead of the wipe case
-                # right after it — a genuine subject-bearing ask (a real
-                # lead-in, or any extracted subject) still wipes as before.
-                vault_ctx = VaultManager.refresh_note_context(
-                    profile, self.active_vault_ctx[h_key]
-                )
-                self.active_vault_ctx[h_key] = vault_ctx
-            elif VaultManager.has_recall_intent(clean_input):
-                # Fresh vault question, nothing retrieved: drop any carried-over
-                # context so the model can't answer "pull up X" from a stale,
-                # unrelated note. It must take the honest path (spawn a sub-agent
-                # or say it has no record). A distinct, explicit vault ask like
-                # this also ends any random-pull ritual in progress — it's a
-                # new topic, not "another one" of the same game.
-                self.active_vault_ctx[h_key] = None
-                self.active_ritual[h_key] = False
-            elif self.active_vault_ctx.get(h_key) and not self.active_ritual.get(
-                h_key
-            ):
-                # Reusing a prior turn's resolved context — re-read a
-                # single-note reference fresh rather than replaying a frozen
-                # copy that may no longer match the file on disk. Skipped
-                # while a random-pull ritual is active: re-serving the same
-                # note here would satisfy the ritual block's own full-body
-                # check below before it gets a chance to run, silently
-                # turning "let's do another one" into "here's that same one
-                # again" instead of a fresh pull.
-                vault_ctx = VaultManager.refresh_note_context(
-                    profile, self.active_vault_ctx[h_key]
-                )
-                self.active_vault_ctx[h_key] = vault_ctx
-        return vault_ctx, h_key
-
     def _build_turn_system_prompt(
         self,
         handle: str,
@@ -136,13 +53,17 @@ class TurnSetupMixin:
         h_key: str,
         clean_input: str,
         curr_session_id: str,
-    ) -> tuple[str, str | None]:
+        is_fresh: bool,
+    ) -> tuple[str, str | None, bool]:
         """Assembles this turn's system prompt: the persona's base prompt
         plus this turn's vault_ctx, a matched working-memory nudge, a fresh
         random-pull when an active ritual is due, and a session-recall
         digest when asked for one. May return an updated vault_ctx — a
-        ritual pull fetches new content this turn. Returns (system_prompt,
-        vault_ctx)."""
+        ritual pull fetches new content this turn, which also flips
+        `is_fresh` to True: a ritual pull is itself a new-this-turn note
+        introduction, same as `_resolve_turn_vault_context`'s
+        (engine_turn_vault_context.py) own structural-match case. Returns
+        (system_prompt, vault_ctx, is_fresh)."""
         system_prompt = self.pm.build_system_prompt(profile)
         if vault_ctx:
             system_prompt += f"\n\n{vault_ctx}"
@@ -190,6 +111,7 @@ class TurnSetupMixin:
             fresh_pull = VaultManager.resolve_ritual_random_pull(profile, clean_input)
             if fresh_pull:
                 vault_ctx = fresh_pull
+                is_fresh = True
                 with self._lock:
                     self.active_vault_ctx[h_key] = vault_ctx
                     self.active_ritual[h_key] = True
@@ -198,4 +120,4 @@ class TurnSetupMixin:
             system_prompt += "\n\n" + self._build_session_history_digest(
                 handle, curr_session_id
             )
-        return system_prompt, vault_ctx
+        return system_prompt, vault_ctx, is_fresh

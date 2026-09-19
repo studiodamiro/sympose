@@ -13,6 +13,9 @@
 # Slack daemon liveness heartbeat, written per-workspace (ADR-082)
 .slack_heartbeat.json
 
+# OpenRouter model catalog cache, written per-workspace (ModelCatalog)
+.models_cache.json
+
 # Python
 __pycache__/
 *.py[cod]

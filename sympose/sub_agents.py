@@ -691,11 +691,11 @@ class SubAgentEngine:
 
     @classmethod
     def _task_named_note_unread(
-        cls, task_prompt: str, read_paths: set[str]
+        cls, task_prompt: str, read_paths: set[str], tool_outputs: list[str]
     ) -> str | None:
         """Returns the specific note name when the sub-agent's own
         `task_prompt` names a vault note (folder-qualified or a bare
-        filename) that was never actually read this turn - the
+        filename) that was never actually surfaced this turn - the
         task-alignment counterpart to `_content_unread` just below, which
         only checks the *synthesis's own claims* against what was read.
         Neither `_content_unread` nor `_content_unsupported` catches this:
@@ -713,6 +713,18 @@ class SubAgentEngine:
         differ only in which text gets scanned (a task instruction here,
         a synthesis there), not in how a citation is judged unread.
 
+        Checked against `read_paths` *plus* every real vault path named
+        inside `tool_outputs` - live bug, reproduced directly: a sub-agent
+        that answers the named note correctly using only `vault_search`
+        (whose own real, externally-sourced result digest names the note's
+        path in its listing, per `format_search_digest`) was having that
+        correct answer discarded, because `vault_search` deliberately never
+        populates `read_paths` itself (a ranked snippet isn't a full body -
+        see `_process_retrieval_tool_call`'s own reasoning). The note's
+        content was still genuinely surfaced this turn, just not via a full
+        read, so it must count here even though `_content_unread`'s own,
+        narrower `read_paths`-only check is right to stay stricter.
+
         Scans only the portion before `USER_CONSTRAINT_MARKER`, if present
         - `_append_user_constraint` (actions_sub_agent.py) tacks the user's
         raw message on after that marker purely as a fallback annotation,
@@ -723,7 +735,10 @@ class SubAgentEngine:
         could satisfy by reading only *that* one while ignoring what it
         was actually asked to do."""
         primary_instruction = task_prompt.split(USER_CONSTRAINT_MARKER, 1)[0]
-        return cls._first_named_note_unread(primary_instruction, read_paths)
+        surfaced = set(read_paths)
+        for out in tool_outputs:
+            surfaced.update(VAULT_PATH_TOKEN_RE.findall(out))
+        return cls._first_named_note_unread(primary_instruction, surfaced)
 
     @classmethod
     def _first_named_note_unread(cls, text: str, read_paths: set[str]) -> str | None:
@@ -792,16 +807,19 @@ class SubAgentEngine:
             return real
         return ""
 
-    @classmethod
-    def _swap_in_task_mismatch(cls, offending: str, task: "SubAgentTask") -> str:
+    @staticmethod
+    def _swap_in_task_mismatch(offending: str, real: str) -> str:
         """Deterministic, zero-round-trip recovery for
         `_task_named_note_unread`: the task itself named a note that was
         never opened this run. Mirrors `_swap_in_unread_note`'s shape but
         names the actual gap - a task-alignment miss, not a
         self-contradicted claim. The sub-agent's own synthesis may be
         perfectly well-grounded and truthful about *something*; it just
-        isn't an answer to what it was actually asked."""
-        real = cls._resolve_real_note(offending, task)
+        isn't an answer to what it was actually asked. Takes the already-
+        resolved `real` content from the caller rather than re-resolving
+        `offending` itself - the caller already had to resolve it once to
+        decide whether to call this at all, and re-resolving here had no
+        fallback if a second call ever disagreed with the first."""
         return (
             f"The task asked about `{offending}`, but I never actually opened "
             f"it this turn — here's its real content instead:\n\n{real}"
@@ -978,9 +996,13 @@ class SubAgentEngine:
         named note resolves to a real, readable one - an unresolvable name
         falls through to the existing checks rather than blocking on a
         possibly-meaningless extraction."""
-        task_offending = cls._task_named_note_unread(task.task_prompt, read_paths)
-        if task_offending and cls._resolve_real_note(task_offending, task):
-            return cls._swap_in_task_mismatch(task_offending, task)
+        task_offending = cls._task_named_note_unread(
+            task.task_prompt, read_paths, tool_outputs
+        )
+        if task_offending:
+            real = cls._resolve_real_note(task_offending, task)
+            if real:
+                return cls._swap_in_task_mismatch(task_offending, real)
         offending = cls._content_unread(final_synthesis, read_paths)
         if offending:
             if not cls._resolve_real_note(offending, task) and tool_outputs:

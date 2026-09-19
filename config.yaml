@@ -118,6 +118,5 @@ models:
   # `recommended_models` list.
   capability_tiers:
     "gemini/gemini-3.6-flash": high
-    "ollama/richardyoung/qwen2.5-14b-instruct-abliterated:latest": standard
     "ollama/qwen2.5:14b": standard
     "ollama/gemma2:9b": standard

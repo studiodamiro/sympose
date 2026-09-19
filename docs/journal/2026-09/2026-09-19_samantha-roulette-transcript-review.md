@@ -19,7 +19,7 @@ tags:
 > made in that first-pass review; this entry corrects one against live
 > reproduction, confirms one against the real session log, and confirms
 > the third — the most serious one — against the *actual* session file
-> (`sessions/samantha_20260919_075559_58e20a.jsonl`), which turned out to
+> (the session's own JSONL transcript log), which turned out to
 > run five turns past what was originally pasted and showed the failure
 > repeating, not a one-off.
 > **Status:** All three investigated. §1 downgraded from "confirmed bug"
@@ -28,11 +28,11 @@ tags:
 > works). §3 confirmed as real, reproducible in category, and worse than
 > first reported — proposed as ADR-139 (Proposed, not yet accepted).
 
-## 1. The "I tipped the scales toward *Her*" line — investigated, not confirmed as a real bug
+## 1. The "I tipped the scales toward it" line — investigated, not confirmed as a real bug
 
 The transcript has Samantha, challenged with "is that really random?",
 answering: "It wasn't strictly random... the system pulled one of your
-five-star favorites... tipping the scales toward *Her* felt a little too
+five-star favorites... tipping the scales toward it felt a little too
 fitting to pass up." Read at face value, this says Vault Roulette is
 secretly weighted toward highly-rated notes and narrates blind chance
 when it isn't.
@@ -53,13 +53,13 @@ dir with five Movies notes of mixed ratings), driven end-to-end through
 API — no mocking:
 
 - Turn 1 ("lets do movies") pulled a real note honestly: "I pulled
-  *Whiplash* (2014)... You gave it 5 stars."  No "wheel spun" framing this
+  *Film A* (2014)... You gave it 5 stars."  No "wheel spun" framing this
   run.
 - Turn 2 ("is that really random?") did **not** produce a "tipped the
   scales" confession. Instead the model spawned a `vault_read` sub-agent,
-  called `vault_sample` again live, got a different note (*Amelie*, 4
+  called `vault_sample` again live, got a different note (*Film B*, 4
   stars this time), and said "To show it's completely random, here is the
-  note pulled directly from `Movies/Amelie.md`."
+  note pulled directly from `Movies/FilmB.md`."
 
 **Conclusion:** the sampler is genuinely uniform-random, and the specific
 "I tipped the scales" line did not reproduce under a live retry of the
@@ -108,8 +108,7 @@ of the two. Isolated to `actions_sub_agent.py`, no other module touched.
 ## 3. The real, worse issue: a repeating, stateless sub-agent loop once the ritual is in play
 
 The pasted transcript stopped around "whats that again?" recovering
-correctly. The actual session file
-(`sessions/samantha_20260919_075559_58e20a.jsonl`) has five more turns
+correctly. The actual session's transcript log has five more turns
 after that recovery, and they show the same failure mode repeating rather
 than a single lapse:
 
@@ -191,8 +190,7 @@ fix, so it gets a decision record rather than a checklist item. See
 - §2: read of `actions_sub_agent.py` confirming the fallback's actual
   behavior against the real log's turns 10 and 11. Fix not yet applied
   (findings-first, per damiro's direction this session).
-- §3: read of the real session file
-  `sessions/samantha_20260919_075559_58e20a.jsonl` in full (16 turns), plus
+- §3: read of the real session's transcript log in full (16 turns), plus
   a direct raw `litellm.completion` probe against `ollama/gemma4:e4b`
   confirming it's a "thinking"-capable model (`ollama show` capabilities:
   `completion, tools, thinking`), which independently explains the 66–98s
@@ -228,7 +226,7 @@ messages through `PersonaEngine._resolve_turn_vault_context` directly
 (sandboxed vault + profile, real functions, no mocking):
 `has_recall_intent("so, what can you say about that note?")` returns
 `True`; before that call `active_vault_ctx` held a real digest naming
-`Thoughts/Ideaverse.md`; after it, `active_vault_ctx` was empty. Confirmed
+`Thoughts/SomeNote.md`; after it, `active_vault_ctx` was empty. Confirmed
 the exact mechanism, not just its plausibility.
 
 **Fix:** a new `_is_incidental_recall_keyword_hit` check

@@ -586,19 +586,17 @@ def _capability_gap_warning(profile: dict, new_model: str) -> str | None:
     sibling fix uses in `_resolve_target_model`) and reports a concrete
     gap if `new_model`'s own declared tier doesn't clear it. `strict=False`
     always — matches the existing safeguard that no chat-turn-adjacent
-    path may raise on a misconfigured tier name."""
+    path may raise on a misconfigured tier name. Reads `tier_order` once,
+    same as its sibling `_resolve_target_model`, rather than re-fetching
+    it from config on every loaded skill."""
+    tier_order = config_manager.get("models.capability_tier_order")
     floor = None
     for name in profile.get("skills") or []:
         skill = skill_manager.get_skill(name)
         if skill and skill.minimum_capability_tier:
-            floor = strictest_tier(
-                config_manager.get("models.capability_tier_order"),
-                floor,
-                skill.minimum_capability_tier,
-            )
+            floor = strictest_tier(tier_order, floor, skill.minimum_capability_tier)
     if not floor:
         return None
-    tier_order = config_manager.get("models.capability_tier_order")
     tiers = config_manager.get("models.capability_tiers")
     if clears(tier_order, tiers, new_model, floor):
         return None

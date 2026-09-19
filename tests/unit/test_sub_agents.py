@@ -642,13 +642,15 @@ class TestTaskNamedNoteUnread:
 
     def test_no_path_named_in_task_is_silent(self):
         assert (
-            SubAgentEngine._task_named_note_unread("summarize the Thoughts folder", set())
+            SubAgentEngine._task_named_note_unread(
+                "summarize the Thoughts folder", set(), []
+            )
             is None
         )
 
     def test_task_names_a_path_never_read_is_flagged(self):
         offending = SubAgentEngine._task_named_note_unread(
-            "read Thoughts/Ideaverse.md in full and summarize it", set()
+            "read Thoughts/Ideaverse.md in full and summarize it", set(), []
         )
         assert offending == "ideaverse.md"
 
@@ -657,6 +659,7 @@ class TestTaskNamedNoteUnread:
             SubAgentEngine._task_named_note_unread(
                 "read Thoughts/Ideaverse.md in full and summarize it",
                 {"Thoughts/Ideaverse.md"},
+                [],
             )
             is None
         )
@@ -664,7 +667,7 @@ class TestTaskNamedNoteUnread:
     def test_bare_filename_actually_read_via_run_command_is_not_flagged(self):
         assert (
             SubAgentEngine._task_named_note_unread(
-                "summarize `Ideaverse.md`", {"Ideaverse.md"}
+                "summarize `Ideaverse.md`", {"Ideaverse.md"}, []
             )
             is None
         )
@@ -685,7 +688,7 @@ class TestTaskNamedNoteUnread:
         # Read only the incidental note named in the appended user words -
         # the actual subject (AppIdeas.md) was never touched.
         offending = SubAgentEngine._task_named_note_unread(
-            task_prompt, {"Journal/2024-01-01.md"}
+            task_prompt, {"Journal/2024-01-01.md"}, []
         )
         assert offending == "appideas.md"
 
@@ -700,7 +703,30 @@ class TestTaskNamedNoteUnread:
         )
         assert (
             SubAgentEngine._task_named_note_unread(
-                task_prompt, {"Thoughts/AppIdeas.md"}
+                task_prompt, {"Thoughts/AppIdeas.md"}, []
+            )
+            is None
+        )
+
+    def test_note_surfaced_via_vault_search_tool_output_is_not_flagged(self):
+        """Live bug, found by /code-review: a sub-agent that answers the
+        named note correctly using only `vault_search` (never `read_file`)
+        was having that correct answer discarded, because `vault_search`
+        deliberately never populates `read_paths` - a ranked snippet isn't
+        a full body. But `vault_search`'s own real, externally-sourced
+        result digest names the note's path in its listing
+        (`format_search_digest`), so the note's content genuinely was
+        surfaced this turn; `tool_outputs` must count as evidence here."""
+        search_digest = (
+            '### 🔍 Vault Search: "app ideas" (1 note found):\n\n'
+            "**[1] `Thoughts/Ideaverse.md`** *(Line 3)*\n"
+            "  > An LLM that reads through all my Obsidian notes."
+        )
+        assert (
+            SubAgentEngine._task_named_note_unread(
+                "read Thoughts/Ideaverse.md in full and summarize it",
+                set(),
+                [search_digest],
             )
             is None
         )
@@ -748,17 +774,10 @@ class TestSwapInUnreadNote:
 
 
 class TestSwapInTaskMismatch:
-    def test_swaps_in_the_real_note_the_task_actually_asked_about(self, monkeypatch):
-        monkeypatch.setattr(
-            "sympose.sub_agents.ProfileManager",
-            lambda: types.SimpleNamespace(get_profile=lambda h: {"handle": h}),
+    def test_swaps_in_the_real_note_the_task_actually_asked_about(self):
+        out = SubAgentEngine._swap_in_task_mismatch(
+            "Ideaverse.md", "The real Ideaverse.md content."
         )
-        monkeypatch.setattr(
-            "sympose.sub_agents.VaultManager.read_note",
-            staticmethod(lambda profile, name: "The real Ideaverse.md content."),
-        )
-        task = SubAgentTask(task_prompt="read Ideaverse.md", parent_agent="samantha")
-        out = SubAgentEngine._swap_in_task_mismatch("Ideaverse.md", task)
         assert "The task asked about" in out
         assert "The real Ideaverse.md content." in out
 

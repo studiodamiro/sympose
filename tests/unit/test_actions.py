@@ -182,6 +182,25 @@ class _FakeProfileManager:
         return {"name": "Test Persona", "vault_folder": "Test", "share_memory": False}
 
 
+class _FakeWikiLintProfileManager:
+    """A lint-only persona (wiki_lint, no wiki_ingest) whose sandbox is the
+    wiki root itself, matching how wiki_lint/wiki_ingest personas are
+    actually configured."""
+
+    def __init__(self, lint_auto_fix: bool = False, skills=("wiki_lint",)):
+        self._lint_auto_fix = lint_auto_fix
+        self._skills = list(skills)
+
+    def get_profile(self, handle):
+        return {
+            "name": "Lint Bot",
+            "vault_folder": "Wiki",
+            "share_memory": False,
+            "skills": self._skills,
+            "lint_auto_fix": self._lint_auto_fix,
+        }
+
+
 class TestExecuteActionsMalformedTags:
     def test_write_note_missing_pipe_produces_warning_badge(self):
         pm = _FakeProfileManager()
@@ -618,6 +637,103 @@ class TestExecuteActionsHonestFailureBadges:
             pm, "test", "[REMEMBER: favorite color is chartreuse]"
         )
         assert any("updated" in b and "memory" in b for b in badges)
+
+
+class TestWikiLintWriteGateIntegration:
+    """ADR-134's structural gap, closed: WRITE_NOTE/APPEND_NOTE now consult
+    `wiki_lint_write_gate` before ever reaching VaultManager, so a lint-only
+    persona's report-only mode holds even if the model itself ignores its
+    own `Wiki Lint Mode` prompt block."""
+
+    def _configure_wiki_root(self, monkeypatch):
+        import sympose.actions_notes as actions_notes_mod
+
+        monkeypatch.setattr(
+            actions_notes_mod.config_manager,
+            "get",
+            lambda k, default=None: {"wiki.root": "Wiki", "wiki.log_file": "log.md"}.get(
+                k, default
+            ),
+        )
+
+    def test_write_note_to_a_wiki_page_is_blocked_with_auto_fix_off(self, monkeypatch):
+        self._configure_wiki_root(monkeypatch)
+        pm = _FakeWikiLintProfileManager(lint_auto_fix=False)
+        _, badges = ActionProcessor.execute_actions(
+            pm, "test", "[WRITE_NOTE: Alpha.md | a rewritten claim]"
+        )
+        assert any("could not save note" in b for b in badges)
+        assert not any("saved note to Vault" in b for b in badges)
+
+    def test_append_note_to_a_wiki_page_is_blocked_with_auto_fix_off(self, monkeypatch):
+        self._configure_wiki_root(monkeypatch)
+        pm = _FakeWikiLintProfileManager(lint_auto_fix=False)
+        _, badges = ActionProcessor.execute_actions(
+            pm, "test", "[APPEND_NOTE: Alpha.md | one more line]"
+        )
+        assert any("could not append to note" in b for b in badges)
+        assert not any("appended to Vault note" in b for b in badges)
+
+    def test_appending_to_the_log_file_is_never_blocked(self, monkeypatch):
+        self._configure_wiki_root(monkeypatch)
+        import sympose.actions_notes as actions_notes_mod
+
+        monkeypatch.setattr(
+            actions_notes_mod.VaultManager,
+            "append_note",
+            lambda profile, filename, content: "Appended to note: `log.md`",
+        )
+        pm = _FakeWikiLintProfileManager(lint_auto_fix=False)
+        _, badges = ActionProcessor.execute_actions(
+            pm, "test", "[APPEND_NOTE: log.md | 2026-09-19 — lint: found a stale claim]"
+        )
+        assert any("appended to Vault note" in b for b in badges)
+
+    def test_write_note_allowed_once_lint_auto_fix_is_on(self, monkeypatch):
+        self._configure_wiki_root(monkeypatch)
+        import sympose.actions_notes as actions_notes_mod
+
+        monkeypatch.setattr(
+            actions_notes_mod.VaultManager,
+            "write_note",
+            lambda profile, filename, content: "Saved note: `Wiki/Alpha.md`",
+        )
+        pm = _FakeWikiLintProfileManager(lint_auto_fix=True)
+        _, badges = ActionProcessor.execute_actions(
+            pm, "test", "[WRITE_NOTE: Alpha.md | a corrected claim]"
+        )
+        assert any("saved note to Vault" in b for b in badges)
+
+    def test_write_note_allowed_for_a_persona_that_also_carries_wiki_ingest(
+        self, monkeypatch
+    ):
+        self._configure_wiki_root(monkeypatch)
+        import sympose.actions_notes as actions_notes_mod
+
+        monkeypatch.setattr(
+            actions_notes_mod.VaultManager,
+            "write_note",
+            lambda profile, filename, content: "Saved note: `Wiki/Alpha.md`",
+        )
+        pm = _FakeWikiLintProfileManager(
+            lint_auto_fix=False, skills=["wiki_lint", "wiki_ingest"]
+        )
+        _, badges = ActionProcessor.execute_actions(
+            pm, "test", "[WRITE_NOTE: Alpha.md | freshly ingested content]"
+        )
+        assert any("saved note to Vault" in b for b in badges)
+
+    def test_write_note_outside_the_wiki_root_is_unaffected(self, monkeypatch):
+        self._configure_wiki_root(monkeypatch)
+        pm = _FakeProfileManager()
+        monkeypatch.setattr(
+            "sympose.actions.VaultManager.write_note",
+            lambda profile, filename, content: "Saved note: `Test/todo.md`",
+        )
+        _, badges = ActionProcessor.execute_actions(
+            pm, "test", "[WRITE_NOTE: todo.md | Buy milk]"
+        )
+        assert any("saved note to Vault" in b for b in badges)
 
 
 # ---------------------------------------------------------------------------

@@ -29,7 +29,8 @@ from sympose.config_settings_runtime import RUN, SESS, SESSION_RUNTIME_SETTINGS
 from sympose.config_settings_vault import SUB_AGENT, SUB_AGENT_SETTINGS, VAULT, VAULT_SETTINGS
 from sympose.config_settings_wiki import WIKI, WIKI_SETTINGS
 
-_PERF, _SESS, _RUN, _VAULT, _SUB_AGENT, _MODELS, _WIKI, _PERSONA = (
+# Ordered for /config display.
+SECTIONS: tuple[str, ...] = (
     PERF,
     SESS,
     RUN,
@@ -38,18 +39,6 @@ _PERF, _SESS, _RUN, _VAULT, _SUB_AGENT, _MODELS, _WIKI, _PERSONA = (
     MODELS,
     WIKI,
     PERSONA,
-)
-
-# Ordered for /config display.
-SECTIONS: tuple[str, ...] = (
-    _PERF,
-    _SESS,
-    _RUN,
-    _VAULT,
-    _SUB_AGENT,
-    _MODELS,
-    _WIKI,
-    _PERSONA,
 )
 
 SETTINGS: tuple[Setting, ...] = (

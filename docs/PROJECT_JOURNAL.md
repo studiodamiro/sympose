@@ -25,6 +25,9 @@ one in [`docs/wiki/index.md`](./wiki/index.md) are kept in sync per the
 
 | ADR | Title | Status | Date | Source |
 | --- | ----- | ------ | ---- | ------ |
+| ADR-138 | A Structural Write Gate for Lint-Only wiki_lint Personas | Implemented | 2026-09-19 | [2026-09-19_adr-138-structural-wiki-lint-write-gate.md](./journal/2026-09/2026-09-19_adr-138-structural-wiki-lint-write-gate.md) |
+| ADR-137 | Splitting actions.py Into Focused, Under-200-LOC Modules | Implemented | 2026-09-19 | [2026-09-19_adr-137-splitting-actions-into-focused-modules.md](./journal/2026-09/2026-09-19_adr-137-splitting-actions-into-focused-modules.md) |
+| ADR-136 | Splitting vault_write.py Into Focused, Under-200-LOC Modules | Implemented | 2026-09-19 | [2026-09-19_adr-136-splitting-vault-write-into-focused-modules.md](./journal/2026-09/2026-09-19_adr-136-splitting-vault-write-into-focused-modules.md) |
 | ADR-135 | Opt-In Capability-Tier Routing for the Main Persona Turn | Implemented | 2026-09-19 | [2026-09-19_adr-135-capability-tier-routing-for-the-main-turn.md](./journal/2026-09/2026-09-19_adr-135-capability-tier-routing-for-the-main-turn.md) |
 | ADR-134 | wiki_lint Skill, With User-Controlled Auto-Fix | Implemented | 2026-09-19 | [2026-09-19_adr-134-wiki-lint-skill-user-controlled-auto-fix.md](./journal/2026-09/2026-09-19_adr-134-wiki-lint-skill-user-controlled-auto-fix.md) |
 | ADR-133 | wiki_ingest Skill | Implemented, verified against a real model | 2026-09-19 | [2026-09-19_adr-133-wiki-ingest-skill.md](./journal/2026-09/2026-09-19_adr-133-wiki-ingest-skill.md) |

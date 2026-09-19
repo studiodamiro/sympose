@@ -10,18 +10,19 @@ feature pays zero cost.
 Hooked into `ProfileManager.bootstrap_missing_artifacts`, the same "seed
 missing artifacts on every reload" pass already used for soul/memory
 files — but unlike that pass, this one writes into the *vault*, not the
-workspace `profiles/` directory, via the existing `vault_write.create_note`/
-`create_folder` (refuses rather than overwrites), so a user's own edits to
-these files are never clobbered on a later reload, and a persona whose
-`vault_folders` doesn't reach `wiki.root` harmlessly no-ops (NOTE_DENIED)
-rather than erroring.
+workspace `profiles/` directory, via `VaultManager.create_note`/
+`create_folder` (refuses rather than overwrites, and threads the same
+reindex/manifest hooks every other vault writer gets), so a user's own
+edits to these files are never clobbered on a later reload, and a persona
+whose `vault_folders` doesn't reach `wiki.root` harmlessly no-ops
+(NOTE_DENIED) rather than erroring.
 """
 
 import logging
 from typing import Any
 
-from sympose import vault_write
 from sympose.config import config_manager
+from sympose.vault import VaultManager
 
 log = logging.getLogger(__name__)
 
@@ -71,10 +72,10 @@ def bootstrap_wiki_layer(profile: dict[str, Any]) -> None:
     schema_file = str(config_manager.get("wiki.schema_file") or "WIKI.md").strip()
     log_file = str(config_manager.get("wiki.log_file") or "log.md").strip()
 
-    vault_write.create_note(
+    VaultManager.create_note(
         profile,
         f"{root}/{schema_file}",
         _SCHEMA_TEMPLATE.format(root=root, sources=sources, log=log_file),
     )
-    vault_write.create_note(profile, f"{root}/{log_file}", _LOG_HEADER)
-    vault_write.create_folder(profile, f"{root}/{sources}")
+    VaultManager.create_note(profile, f"{root}/{log_file}", _LOG_HEADER)
+    VaultManager.create_folder(profile, f"{root}/{sources}")

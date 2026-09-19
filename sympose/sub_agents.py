@@ -236,6 +236,8 @@ def _resolve_target_model(task: SubAgentTask) -> str:
     skill declares a floor, ADR-127/128) → env default."""
     if task.model:
         return task.model
+    tier_order = config_manager.get("models.capability_tier_order")
+    strict = bool(config_manager.get("models.strict_capability_tiers"))
     candidates: list[str] = []
     minimum: str | None = None
     for s_name in task.skills:
@@ -243,18 +245,20 @@ def _resolve_target_model(task: SubAgentTask) -> str:
         if not s_obj:
             continue
         candidates.extend(s_obj.recommended_models)
-        if s_obj.minimum_capability_tier:
-            minimum = s_obj.minimum_capability_tier
+        minimum = model_capability.strictest_tier(
+            tier_order, minimum, s_obj.minimum_capability_tier, strict=strict
+        )
     if not candidates:
         return DEFAULT_SUB_AGENT_MODEL
     if not minimum:
         return candidates[0]
     candidates.append(DEFAULT_SUB_AGENT_MODEL)
     return model_capability.resolve_capable(
-        config_manager.get("models.capability_tier_order"),
+        tier_order,
         config_manager.get("models.capability_tiers"),
         candidates,
         minimum,
+        strict=strict,
     )
 
 

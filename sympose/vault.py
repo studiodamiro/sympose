@@ -331,13 +331,28 @@ class VaultManager(
         return vault_write.get_template_for_path(mv, note_name)
 
     @classmethod
-    def get_note_mtime(cls, profile: dict[str, Any], note_name: str) -> float | None:
-        """Current on-disk mtime of the file `read_note` would open for
-        `note_name`, or None if it doesn't exist yet. The precondition a
-        caller round-trips back as `expected_mtime` on a later write, for
-        the optimistic-concurrency guard (ADR-129)."""
+    def read_note_with_mtime(
+        cls, profile: dict[str, Any], note_name: str
+    ) -> tuple[str, float | None]:
+        """Content and mtime from the *same* resolved file in one pass —
+        unlike calling `read_note` then stat-ing it separately (each
+        re-running the 3-tier resolution from scratch), which leaves a
+        window for a concurrent writer to land in between, so the mtime
+        handed back doesn't actually describe the content handed back.
+        That's exactly the guarantee a caller round-tripping `mtime` as a
+        later `expected_mtime` (ADR-129) depends on. Falls back to
+        `read_note`'s own not-found message when nothing resolves; reads
+        straight from disk rather than `read_note`'s tier-3 cached
+        snapshot, so this is at least as fresh, never staler."""
         target = cls._resolve_existing_note(profile, note_name)
-        return vault_write_concurrency.current_mtime(target) if target else None
+        if not target:
+            return cls.read_note(profile, note_name), None
+        try:
+            with open(target, "r", encoding="utf-8", errors="replace") as f:
+                content = f.read().strip()
+        except Exception as e:
+            return f"Error reading note `{note_name}`: {e}", None
+        return content, vault_write_concurrency.current_mtime(target)
 
     @classmethod
     def write_note(

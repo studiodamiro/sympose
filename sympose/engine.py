@@ -244,6 +244,12 @@ class PersonaEngine(GroundingHelpersMixin, TurnPipelineMixin):
         keep_alive = self._resolve_keep_alive(profile, local_model)
         min_tier = str(profile.get("capability_min_tier") or "").strip()
         if min_tier:
+            # strict=True is never passed here, by design: this path's
+            # contract (see docstring above) is that a live turn is never
+            # blocked. models.strict_capability_tiers only ever applies to
+            # ephemeral sub-agent tasks (sub_agents.py), where a raised
+            # ValueError is a contained, expected failure mode rather than
+            # a broken conversation.
             return resolve_turn_model_by_capability(
                 target_model,
                 local_model,

@@ -239,16 +239,15 @@ def _get_vault_asset(engine: Any, path: str, persona: str | None) -> FileRespons
 
 def _read_note(engine: Any, path: str, persona: str | None) -> dict[str, Any]:
     profile = _resolve_profile(engine, persona)
-    content = VaultManager.read_note(profile, path)
+    # ADR-129: content and mtime come from the same resolved file in one
+    # pass (read_note_with_mtime), not two independent lookups — otherwise
+    # a concurrent write landing between them could hand back a mtime that
+    # doesn't actually describe the content in this response, undermining
+    # the round-trip a later save's expected_mtime depends on.
+    content, mtime = VaultManager.read_note_with_mtime(profile, path)
     if content.startswith("Note `") and "not found" in content:
         raise HTTPException(status_code=404, detail=content)
-    return {
-        "path": path,
-        "content": content,
-        # ADR-129: round-trip this back as expected_mtime on a later save to
-        # detect a concurrent write instead of silently clobbering it.
-        "mtime": VaultManager.get_note_mtime(profile, path),
-    }
+    return {"path": path, "content": content, "mtime": mtime}
 
 
 def _list_trash(engine: Any, persona: str | None) -> dict[str, Any]:

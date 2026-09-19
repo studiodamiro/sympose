@@ -480,7 +480,9 @@ class ProfileManager:
             # above already are. Scoped to personas that actually have the
             # skill active, so this line is silently absent for everyone
             # else.
-            if isinstance(active_skills, list) and "wiki_lint" in active_skills:
+            if isinstance(active_skills, list) and "wiki_lint" in (
+                s.lower().strip() for s in active_skills if isinstance(s, str)
+            ):
                 fix_mode = (
                     "may also directly edit flagged pages under your wiki "
                     "root (`lint_auto_fix` is enabled for you)"

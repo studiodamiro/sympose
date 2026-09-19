@@ -774,3 +774,65 @@ class TestVaultManagerAccessor:
         VaultManager.write_note({"vault_folders": ["Notes"], "handle": "t"}, "fresh", "body [[seed]]")
         m2 = VaultManager.get_manifest()
         assert "Notes/fresh.md" in {n["id"] for n in m2["nodes"] if n["exists"]}
+
+
+class TestMtimeOfDelegatesToVaultWriteConcurrency:
+    """_mtime_of now delegates to vault_write_concurrency.current_mtime
+    (dedup of two near-identical "safe mtime" helpers) — this locks in its
+    fallback contract survived the change."""
+
+    def test_existing_file_returns_its_real_mtime(self, tmp_path):
+        from sympose.vault_manifest_build import _mtime_of
+
+        f = tmp_path / "note.md"
+        f.write_text("hi")
+        assert _mtime_of(str(f)) == os.path.getmtime(str(f))
+
+    def test_missing_file_returns_the_fallback(self, tmp_path):
+        from sympose.vault_manifest_build import _mtime_of
+
+        assert _mtime_of(str(tmp_path / "gone.md"), fallback=42.0) == 42.0
+        assert _mtime_of(str(tmp_path / "gone.md")) == 0.0
+
+
+class TestWriteAtomicTextThreadSafety:
+    """Regression for the empirically-reproduced bug: write_atomic_text's
+    temp filename used to be PID-only (f"{path}.{os.getpid()}.tmp"), so two
+    threads in the same process writing the same path shared one temp
+    file — one thread's write could clobber or delete the other's temp
+    file before its own os.replace ran, raising a spurious OSError instead
+    of simply losing a last-write-wins race. Thread-uniqueness in the temp
+    name doesn't arbitrate *which* writer wins (an external lock does
+    that — see test_vault_write.py's concurrent-append test) — it only
+    guarantees every writer keeps its own private temp file, so the
+    outcome is always a clean win for one full payload, never a raised
+    OSError or interleaved/corrupted content."""
+
+    def test_concurrent_writers_to_the_same_path_never_collide_on_the_temp_file(
+        self, tmp_path
+    ):
+        import threading
+
+        target = str(tmp_path / "shared.json")
+        errors = []
+        barrier = threading.Barrier(2)
+        payload_a, payload_b = "A" * 5000, "B" * 5000
+
+        def _write(payload):
+            barrier.wait()  # maximize the chance both threads race in together
+            try:
+                vm.write_atomic_text(target, payload)
+            except OSError as e:
+                errors.append(e)
+
+        t1 = threading.Thread(target=_write, args=(payload_a,))
+        t2 = threading.Thread(target=_write, args=(payload_b,))
+        t1.start()
+        t2.start()
+        t1.join()
+        t2.join()
+
+        assert errors == []
+        with open(target, encoding="utf-8") as f:
+            final = f.read()
+        assert final in (payload_a, payload_b)

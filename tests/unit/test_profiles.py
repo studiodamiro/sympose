@@ -410,3 +410,20 @@ class TestWikiLintModePromptInjection:
 
         assert "may also directly edit flagged pages" in prompt
         assert "must stay report-only" not in prompt
+
+    def test_present_when_skill_name_casing_differs(self, tmp_path):
+        """Regression: skill_manager.get_skill() matches case-insensitively
+        (it lowercases before lookup), so the skill itself loads and runs
+        for a YAML like `skills: [Wiki_Lint]`. The Wiki Lint Mode block
+        used to check raw string membership and silently disappear in
+        exactly this case, inconsistent with the skill actually being
+        active."""
+        (tmp_path / "sam.yaml").write_text(
+            "name: Sam\nhandle: sam\nsoul_file: sam_soul.md\nskills: [Wiki_Lint]\n"
+        )
+        (tmp_path / "sam_soul.md").write_text("# Sam\nYou are Sam.\n")
+
+        pm = ProfileManager(profiles_dir=str(tmp_path))
+        prompt = pm.build_system_prompt(pm.get_profile("sam"))
+
+        assert "Wiki Lint Mode" in prompt

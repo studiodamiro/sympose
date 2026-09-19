@@ -181,12 +181,8 @@ class TestVaultNoteReadMtime:
 
         monkeypatch.setenv("DASHBOARD_PASSWORD", "pw")
         monkeypatch.setattr(
-            server.VaultManager, "read_note",
-            classmethod(lambda cls, profile, path: "note body"),
-        )
-        monkeypatch.setattr(
-            server.VaultManager, "get_note_mtime",
-            classmethod(lambda cls, profile, path: 1234.5),
+            server.VaultManager, "read_note_with_mtime",
+            classmethod(lambda cls, profile, path: ("note body", 1234.5)),
         )
         engine = MagicMock()
         engine.pm.get_profile.return_value = {"vault_folders": ["*"]}

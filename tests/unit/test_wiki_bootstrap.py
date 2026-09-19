@@ -2,6 +2,7 @@
 Unit tests for sympose.wiki_bootstrap.bootstrap_wiki_layer (ADR-132).
 """
 
+from sympose.vault import VaultManager
 from sympose.wiki_bootstrap import bootstrap_wiki_layer
 
 
@@ -97,3 +98,37 @@ class TestBootstrapWikiLayer:
         )
         bootstrap_wiki_layer({"vault_folders": ["*"]})
         assert (tmp_path / "Wiki" / "WIKI.md").exists()
+
+    def test_seeded_notes_are_reindexed_and_added_to_manifest(
+        self, tmp_path, monkeypatch
+    ):
+        """Regression: bootstrap used to call vault_write directly, bypassing
+        the reindex/manifest hooks every other writer threads through
+        VaultManager — a freshly-bootstrapped wiki looked empty to search
+        and to wiki_lint's orphan-page check until an unrelated full
+        reindex ran."""
+        monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_path))
+        monkeypatch.setattr(
+            "sympose.wiki_bootstrap.config_manager.get", _wiki_config(root="Wiki")
+        )
+        reindexed: list[str] = []
+        manifested: list[str] = []
+        monkeypatch.setattr(
+            VaultManager,
+            "_reindex_note_if_enabled",
+            classmethod(lambda cls, mv, target_file: reindexed.append(target_file)),
+        )
+        monkeypatch.setattr(
+            VaultManager,
+            "_update_manifest_if_enabled",
+            classmethod(lambda cls, mv, target_file: manifested.append(target_file)),
+        )
+
+        bootstrap_wiki_layer({"vault_folders": ["*"]})
+
+        schema = str(tmp_path / "Wiki" / "WIKI.md")
+        log = str(tmp_path / "Wiki" / "log.md")
+        assert schema in reindexed
+        assert log in reindexed
+        assert schema in manifested
+        assert log in manifested

@@ -36,6 +36,28 @@ class TestTierOf:
         tiers = {"some/model": "legendary"}
         assert model_capability.tier_of(ORDER, tiers, "some/model") == "basic"
 
+    def test_empty_tier_order_returns_empty_string_not_a_guessed_name(self):
+        """An empty tier_order has no lowest tier to name — this must not
+        hardcode a schema-default literal, since tier_index already treats
+        any unrecognized name (including "") as tier 0 regardless."""
+        assert model_capability.tier_of([], {}, "some/model") == ""
+
+
+class TestStrictestTier:
+    def test_none_and_none_is_none(self):
+        assert model_capability.strictest_tier(ORDER, None, None) is None
+
+    def test_one_none_returns_the_other(self):
+        assert model_capability.strictest_tier(ORDER, "high", None) == "high"
+        assert model_capability.strictest_tier(ORDER, None, "basic") == "basic"
+
+    def test_returns_the_higher_of_two_declared_tiers_either_order(self):
+        assert model_capability.strictest_tier(ORDER, "basic", "high") == "high"
+        assert model_capability.strictest_tier(ORDER, "high", "basic") == "high"
+
+    def test_equal_tiers_returns_that_tier(self):
+        assert model_capability.strictest_tier(ORDER, "standard", "standard") == "standard"
+
 
 class TestClears:
     def test_no_minimum_always_clears(self):
@@ -54,6 +76,19 @@ class TestClears:
         tiers = {"some/model": "standard"}
         assert model_capability.clears(ORDER, tiers, "some/model", "standard") is True
 
+    def test_unrecognized_minimum_fails_safe_to_the_strictest_tier(self):
+        """Regression: a typo'd/renamed-away `minimum` used to be treated
+        as tier 0 (no requirement at all), so even the weakest model
+        cleared it. It must instead behave as the strictest declared tier
+        — nothing but the top tier clears a misconfigured requirement."""
+        tiers = {"cheap/model": "basic", "capable/model": "high"}
+        assert model_capability.clears(ORDER, tiers, "cheap/model", "hgih") is False
+        assert model_capability.clears(ORDER, tiers, "capable/model", "hgih") is True
+
+    def test_unrecognized_minimum_raises_when_strict(self):
+        with pytest.raises(ValueError):
+            model_capability.clears(ORDER, {}, "any/model", "hgih", strict=True)
+
 
 class TestResolveCapable:
     def test_no_minimum_returns_first_candidate(self):
@@ -63,6 +98,13 @@ class TestResolveCapable:
         tiers = {"cheap/model": "basic", "capable/model": "high"}
         result = model_capability.resolve_capable(
             ORDER, tiers, ["cheap/model", "capable/model"], "high"
+        )
+        assert result == "capable/model"
+
+    def test_unrecognized_minimum_still_picks_a_top_tier_candidate(self):
+        tiers = {"cheap/model": "basic", "capable/model": "high"}
+        result = model_capability.resolve_capable(
+            ORDER, tiers, ["cheap/model", "capable/model"], "hgih"
         )
         assert result == "capable/model"
 

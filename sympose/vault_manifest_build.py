@@ -14,6 +14,8 @@ import time
 from collections.abc import Callable
 from typing import Any
 
+from sympose.vault_write_concurrency import current_mtime
+
 log = logging.getLogger(__name__)
 
 # D2: bumped from 1 - node identity moved from bare filename stem to full
@@ -44,10 +46,8 @@ def _targets_in(text: str) -> list[str]:
 
 
 def _mtime_of(path: str, fallback: float = 0.0) -> float:
-    try:
-        return os.path.getmtime(path)
-    except OSError:
-        return fallback
+    mtime = current_mtime(path)
+    return fallback if mtime is None else mtime
 
 
 def _node(rel_path: str, meta: dict[str, Any], content: str, mtime: float) -> dict:

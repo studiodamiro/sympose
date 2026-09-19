@@ -38,6 +38,7 @@ belongs where the text is easy to inspect line-by-line: the frontend.
 
 import json
 import logging
+from collections import deque
 from collections.abc import Generator
 from typing import Any
 
@@ -83,7 +84,7 @@ def stream_chat_events(
     concurrency, so the ordering is deterministic), the existing
     `"CLEARED_SESSION"` sentinel as its own `event: cleared` instead of
     literal text, and a final `event: done`."""
-    queued_actions: list[dict[str, str]] = []
+    queued_actions: deque[dict[str, str]] = deque()
 
     def _capture_action(event: dict[str, str]) -> None:
         queued_actions.append(event)
@@ -93,13 +94,13 @@ def stream_chat_events(
     )
     for chunk in stream:
         while queued_actions:
-            yield _sse_frame("action", queued_actions.pop(0))
+            yield _sse_frame("action", queued_actions.popleft())
         if chunk == "CLEARED_SESSION":
             yield _sse_frame("cleared", {})
             continue
         yield _sse_frame("text", chunk)
     while queued_actions:
-        yield _sse_frame("action", queued_actions.pop(0))
+        yield _sse_frame("action", queued_actions.popleft())
     yield _sse_frame("done", {})
 
 

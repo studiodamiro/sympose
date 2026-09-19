@@ -112,6 +112,8 @@ def resolve_turn_model_by_capability(
     tiers: dict[str, str],
     minimum: str,
     keep_alive: str | None = None,
+    *,
+    strict: bool = False,
 ) -> tuple[str, bool]:
     """Capability-tier alternative to resolve_turn_model's SIMPLE-message
     gate (ADR-135, opt-in via a persona's capability_min_tier): routes
@@ -131,8 +133,15 @@ def resolve_turn_model_by_capability(
     first, i.e. local_model — exactly backwards from ADR-122's "any doubt
     routes to cloud" philosophy this function is extending, not
     replacing. There's always a safe, unambiguous fallback here
-    (base_model), so there's nothing to fail open *to*."""
-    if not local_model or not model_capability.clears(tier_order, tiers, local_model, minimum):
+    (base_model), so there's nothing to fail open *to*.
+
+    `strict` defaults to False and should stay that way for every caller
+    on a live turn path: `strict=True` makes `model_capability.clears`
+    raise on an unrecognized `minimum`, which would break this function's
+    own never-block guarantee. `engine.py` never passes it."""
+    if not local_model or not model_capability.clears(
+        tier_order, tiers, local_model, minimum, strict=strict
+    ):
         return base_model, False
     return _resolve_if_warm(base_model, local_model, keep_alive)
 

@@ -77,8 +77,19 @@ def write_atomic_text(path: str, content: str) -> None:
     place directly. Raises on failure — a note write reports the error back
     to the caller rather than silently pretending it succeeded (see
     `_write_atomic` below for the best-effort wrapper manifest writes use
-    instead, which tolerate a lost update)."""
-    tmp = f"{path}.{os.getpid()}.tmp"
+    instead, which tolerate a lost update).
+
+    The temp filename includes both the process id and the thread id:
+    every current caller already serializes concurrent writers to the same
+    `path` with its own per-path lock (`vault_write.py`'s
+    `compactor.get_file_lock`, this module's own `_lock_for`), but this
+    function's own docstring promises atomicity — a future caller trusting
+    that promise without adding its own lock shouldn't be able to
+    resurrect the exact bug those locks were added to close: two
+    same-process threads racing on an identical temp filename, so one
+    thread's write silently clobbers or deletes the other's temp file
+    before its own `os.replace` runs."""
+    tmp = f"{path}.{os.getpid()}.{threading.get_ident()}.tmp"
     try:
         with open(tmp, "w", encoding="utf-8") as f:
             f.write(content)

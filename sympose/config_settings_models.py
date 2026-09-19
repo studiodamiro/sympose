@@ -37,4 +37,20 @@ MODEL_SETTINGS: tuple[Setting, ...] = (
         '"gemini/gemini-3.6-flash": "standard"}.',
         MODELS,
     ),
+    Setting(
+        "models.strict_capability_tiers",
+        "bool",
+        False,
+        "How a misspelled/renamed-away capability tier requirement (e.g. a "
+        "skill's minimum_capability_tier) is handled for sub-agent tasks. "
+        "False (default): fail safe — an unrecognized requirement is "
+        "treated as the strictest tier available, so a typo never silently "
+        "downgrades to 'no requirement at all'. True: fail loud — raises "
+        "immediately instead, for catching a typo/renamed tier during "
+        "development. Scoped to sub-agent tasks only — the main chat "
+        "turn's capability_min_tier routing never raises regardless of "
+        "this setting, since a live conversation must never be blocked by "
+        "a config typo.",
+        MODELS,
+    ),
 )

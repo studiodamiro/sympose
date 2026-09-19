@@ -212,6 +212,21 @@ class TestOptimisticConcurrencyGuard:
         assert result == vault_write.NOTE_CONFLICT
         assert note_path.read_text() == "original"
 
+    def test_append_note_to_a_missing_file_does_not_deadlock_on_its_own_lock(
+        self, tmp_path, monkeypatch
+    ):
+        """get_file_lock returns a plain (non-reentrant) threading.Lock.
+        append_note's fallback to _write_note_locked for a not-yet-existing
+        file must reuse the lock append_note already holds rather than
+        acquiring it a second time on the same thread, or this would hang
+        forever instead of failing fast."""
+        monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_path))
+        result = vault_write.append_note(
+            {"vault_folders": ["*"]}, "brand_new.md", "first entry"
+        )
+        assert result.startswith("Saved to note:") or result.startswith("Appended")
+        assert (tmp_path / "brand_new.md").exists()
+
     def test_append_note_with_matching_expected_mtime_succeeds(self, tmp_path, monkeypatch):
         monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_path))
         note_path = tmp_path / "Note.md"
@@ -222,6 +237,76 @@ class TestOptimisticConcurrencyGuard:
         )
         assert result.startswith("Appended to note:")
         assert note_path.read_text() == "original\nextra\n"
+
+    def test_concurrent_appends_to_the_same_note_do_not_lose_an_update(
+        self, tmp_path, monkeypatch
+    ):
+        """Regression for the empirically-reproduced race: append_note used
+        to have no lock around its check-read-write span, so two threads
+        appending to the same note around the same time could each snapshot
+        `existing` before the other's write landed, silently discarding one
+        entry. get_file_lock now serializes the whole span per target path,
+        so both appends must survive regardless of thread interleaving."""
+        import threading
+
+        monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_path))
+        note_path = tmp_path / "Note.md"
+        _write(str(note_path), "original")
+
+        results = []
+        barrier = threading.Barrier(2)
+
+        def _append(tag):
+            barrier.wait()  # maximize the chance both threads race in together
+            results.append(
+                vault_write.append_note({"vault_folders": ["*"]}, "Note.md", f"entry-{tag}")
+            )
+
+        t1 = threading.Thread(target=_append, args=("A",))
+        t2 = threading.Thread(target=_append, args=("B",))
+        t1.start()
+        t2.start()
+        t1.join()
+        t2.join()
+
+        final = note_path.read_text()
+        assert all(r.startswith("Appended to note:") for r in results), results
+        assert "entry-A" in final
+        assert "entry-B" in final
+
+    def test_append_note_survives_a_non_utf8_byte_in_existing_content(
+        self, tmp_path, monkeypatch
+    ):
+        """Regression: append_note's read-then-rewrite reads the *entire*
+        pre-existing file in text mode, so a stray non-UTF-8 byte in
+        content a pure append never used to touch would raise
+        UnicodeDecodeError, caught by the broad except and reported as a
+        generic failure instead of succeeding."""
+        monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_path))
+        note_path = tmp_path / "Note.md"
+        os.makedirs(tmp_path, exist_ok=True)
+        with open(note_path, "wb") as f:
+            f.write(b"existing line with a stray byte: \xff\n")
+
+        result = vault_write.append_note({"vault_folders": ["*"]}, "Note.md", "new entry")
+
+        assert result.startswith("Appended to note:")
+        assert "new entry" in note_path.read_text(encoding="utf-8", errors="replace")
+
+    def test_append_note_preserves_existing_crlf_line_endings(self, tmp_path, monkeypatch):
+        """Regression: reading existing content with universal-newline
+        translation (the default) silently normalized any pre-existing
+        CRLF line endings to LF on every append, rewriting untouched prior
+        lines that a pure append never used to touch."""
+        monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_path))
+        note_path = tmp_path / "Note.md"
+        with open(note_path, "wb") as f:
+            f.write(b"line one\r\nline two\r\n")
+
+        vault_write.append_note({"vault_folders": ["*"]}, "Note.md", "new entry")
+
+        raw = note_path.read_bytes()
+        assert b"line one\r\nline two\r\n" in raw
 
     def test_append_note_still_uses_atomic_replace_not_raw_append_mode(
         self, tmp_path, monkeypatch

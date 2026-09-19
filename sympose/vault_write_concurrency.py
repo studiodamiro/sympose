@@ -13,9 +13,11 @@ between machines is responsible for reconciling that before Sympose ever
 sees it).
 
 Opt-in per call via `expected_mtime=None` (the default, meaning "no
-precondition — behave exactly as before"). Gated project-wide by
-`vault.multi_writer_safety` (default `False`) so a single-writer user
-pays zero cost.
+precondition — behave exactly as before"). This module never reads
+`vault.multi_writer_safety` itself (see `config_settings_vault.py`'s
+Setting description) — it's a signal for a *caller* (the dashboard) to
+decide whether it bothers reading and passing `expected_mtime` at all, so
+a single-writer user who never opts in pays zero cost.
 """
 
 import os

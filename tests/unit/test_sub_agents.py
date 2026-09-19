@@ -1559,6 +1559,31 @@ class TestResolveTargetModelCapabilityTier:
         task = SubAgentTask(task_prompt="x", skills=["plain_skill"])
         assert _resolve_target_model(task) == "first/model"
 
+    def test_multiple_skills_combine_to_the_strictest_declared_floor(self, monkeypatch):
+        """Regression: the merge loop used to overwrite `minimum` on every
+        skill that declared one, so the *last*-iterated skill silently won
+        instead of the strictest floor across all of them."""
+        skills_by_name = {
+            "high_skill": _FakeSkill(["weak/model"], "high"),
+            "low_skill": _FakeSkill(["capable/model"], "basic"),
+        }
+        monkeypatch.setattr(
+            sub_agents.skill_manager, "get_skill", lambda name: skills_by_name[name]
+        )
+        monkeypatch.setattr(
+            sub_agents.config_manager,
+            "get",
+            lambda key, default=None: {
+                "models.capability_tier_order": ["basic", "standard", "high"],
+                "models.capability_tiers": {"capable/model": "high"},
+            }.get(key, default),
+        )
+        # "high_skill" (needs "high") iterates before "low_skill" (needs
+        # "basic") — last-write-wins would drop to "basic" and pick
+        # "weak/model", the first candidate that clears it.
+        task = SubAgentTask(task_prompt="x", skills=["high_skill", "low_skill"])
+        assert _resolve_target_model(task) == "capable/model"
+
     def test_capability_tier_filters_to_a_model_that_clears_it(self, monkeypatch):
         monkeypatch.setattr(
             sub_agents.skill_manager,

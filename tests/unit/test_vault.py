@@ -164,6 +164,68 @@ class TestReadNote:
 
 
 # ---------------------------------------------------------------------------
+# VaultManager.read_note_with_mtime
+# ---------------------------------------------------------------------------
+
+
+class TestReadNoteWithMtime:
+    """ADR-129: content and mtime must come from the same resolved file in
+    one pass, not two independent read_note()/get_note_mtime() calls that
+    could resolve to (or race against a write to) different states of the
+    file."""
+
+    def test_content_and_mtime_match_the_same_file(self, tmp_vault_dir, monkeypatch):
+        from sympose.vault import VaultManager
+
+        note_path = tmp_vault_dir / "hello.md"
+        write_note(str(note_path), "# Hello\nBody.")
+        monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
+        profile = {"vault_folders": ["*"]}
+
+        content, mtime = VaultManager.read_note_with_mtime(profile, "hello")
+
+        assert "Hello" in content
+        assert mtime == os.path.getmtime(str(note_path))
+
+    def test_missing_note_returns_read_notes_own_error_and_none_mtime(
+        self, tmp_vault_dir, monkeypatch
+    ):
+        from sympose.vault import VaultManager
+
+        monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
+        profile = {"vault_folders": ["*"]}
+
+        content, mtime = VaultManager.read_note_with_mtime(profile, "nonexistent_xyz")
+
+        assert content == VaultManager.read_note(profile, "nonexistent_xyz")
+        assert mtime is None
+
+    def test_reflects_a_content_change_made_after_the_vault_snapshot_cached_it(
+        self, tmp_vault_dir, monkeypatch
+    ):
+        """Reads straight from the resolved path rather than read_note's
+        tier-3 cached snapshot, so it can only be at least as fresh."""
+        import time
+
+        from sympose.vault import VaultManager
+
+        note_path = tmp_vault_dir / "cached.md"
+        write_note(str(note_path), "original")
+        monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_vault_dir))
+        profile = {"vault_folders": ["*"]}
+
+        VaultManager.read_note(profile, "cached")  # warms the snapshot cache
+
+        write_note(str(note_path), "changed")
+        future = time.time() + 100
+        os.utime(note_path, (future, future))
+
+        content, mtime = VaultManager.read_note_with_mtime(profile, "cached")
+        assert "changed" in content
+        assert mtime == os.path.getmtime(str(note_path))
+
+
+# ---------------------------------------------------------------------------
 # VaultManager.resolve_asset_path
 # ---------------------------------------------------------------------------
 

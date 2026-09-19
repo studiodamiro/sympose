@@ -731,7 +731,7 @@ class TestSelectTurnModelCapabilityTierKnob:
         )
         monkeypatch.setattr(
             "sympose.engine.resolve_turn_model_by_capability",
-            lambda base, local, tier_order, tiers, minimum, keep_alive=None: received.update(
+            lambda base, local, tier_order, tiers, minimum, keep_alive=None, **k: received.update(
                 base=base, local=local, tier_order=tier_order, tiers=tiers, minimum=minimum
             )
             or (local, True),
@@ -748,6 +748,32 @@ class TestSelectTurnModelCapabilityTierKnob:
         assert received["minimum"] == "standard"
         assert received["base"] == "gemini/gemini-3.6-flash"
         assert received["local"] == "ollama/gemma2:9b"
+
+    def test_unrecognized_min_tier_never_raises_even_with_strict_mode_on(
+        self, engine, monkeypatch
+    ):
+        """Safeguard: models.strict_capability_tiers is scoped to sub-agent
+        tasks only (see sub_agents.py). The main chat turn's own contract
+        is "never block the turn" — this must fail safe unconditionally,
+        never raise, even when the global strict-mode knob is on and the
+        persona's capability_min_tier is a typo."""
+        monkeypatch.setattr(
+            engine.config,
+            "get",
+            lambda key, default=None: {
+                "models.capability_tier_order": ["basic", "standard", "high"],
+                "models.capability_tiers": {},
+                "models.strict_capability_tiers": True,
+            }.get(key, default),
+        )
+        model, routed = engine._select_turn_model(
+            "sam",
+            {"local_model": "ollama/gemma2:9b", "capability_min_tier": "hgih"},
+            "hi",
+            None,
+            "gemini/gemini-3.6-flash",
+        )
+        assert (model, routed) == ("gemini/gemini-3.6-flash", False)
 
     def test_capability_min_tier_still_respects_the_override_and_vault_ctx_exclusions(
         self, engine, monkeypatch

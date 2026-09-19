@@ -102,6 +102,9 @@ list and is kept in sync per the
 
 | ADR | Title | Status | Date |
 | --- | ----- | ------ | ---- |
+| [ADR-138](../journal/2026-09/2026-09-19_adr-138-structural-wiki-lint-write-gate.md) | A Structural Write Gate for Lint-Only wiki_lint Personas | Implemented | 2026-09-19 |
+| [ADR-137](../journal/2026-09/2026-09-19_adr-137-splitting-actions-into-focused-modules.md) | Splitting actions.py Into Focused, Under-200-LOC Modules | Implemented | 2026-09-19 |
+| [ADR-136](../journal/2026-09/2026-09-19_adr-136-splitting-vault-write-into-focused-modules.md) | Splitting vault_write.py Into Focused, Under-200-LOC Modules | Implemented | 2026-09-19 |
 | [ADR-135](../journal/2026-09/2026-09-19_adr-135-capability-tier-routing-for-the-main-turn.md) | Opt-In Capability-Tier Routing for the Main Persona Turn | Implemented | 2026-09-19 |
 | [ADR-134](../journal/2026-09/2026-09-19_adr-134-wiki-lint-skill-user-controlled-auto-fix.md) | wiki_lint Skill, With User-Controlled Auto-Fix | Implemented | 2026-09-19 |
 | [ADR-133](../journal/2026-09/2026-09-19_adr-133-wiki-ingest-skill.md) | wiki_ingest Skill | Implemented, verified against a real model | 2026-09-19 |

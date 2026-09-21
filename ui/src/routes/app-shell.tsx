@@ -462,14 +462,16 @@ export function AppShell() {
     },
     [recordVisit, setSelectedNote]
   )
-  // Nebula node ids are the bare filename stem (`vault_manifest_build._stem`
-  // on the backend), not the full vault-relative path — so whichever note
-  // becomes active in the content panel can drive the ambient nebula's
-  // focus/highlight (see `AmbientNebula`'s `activeNoteId`).
+  // Nebula node ids are the note's full vault-relative path, matching
+  // `selectedNote` exactly — `vault_manifest_build._node()` deliberately
+  // uses the full path rather than the bare filename stem, "so two notes
+  // named the same thing in different folders don't collide on one node"
+  // (its own comment). `_stem()` still exists in that module, but only for
+  // resolving bare `[[wikilink]]` targets, not for node identity — so
+  // whichever note becomes active in the content panel can drive the
+  // ambient nebula's focus/highlight (see `AmbientNebula`'s
+  // `activeNoteId`) with no transformation needed at all.
   const activeNoteId = selectedNote
-    ?.split("/")
-    .pop()
-    ?.replace(/\.[^./]+$/, "")
   // Bumped after a note is created to re-pull the tree so the new
   // file shows up without a persona switch.
   const [vaultRefreshKey, setVaultRefreshKey] = React.useState(0)

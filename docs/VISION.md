@@ -220,6 +220,46 @@ pieces, cleanly separated, and both are worth keeping:
 See the sub-agent non-goal below for the one piece of legacy's action
 system deliberately not carried forward.
 
+### Folder definitions
+
+One of legacy's real failure modes: the agent was often unclear which
+folder to pull a note from, or where a new one belonged, because nothing
+in the system had any concept of what a folder was actually *for*. A
+folder like "People" or "Movies" is self-explanatory; "Limbo," "Code," or
+"Thoughts" are not, and folder names alone were the only signal anything
+ever had.
+
+The fix: a definition note per top-level folder — named after the folder
+itself (`People/People.md`, matching Obsidian's own folder-note
+convention, not a generic `README.md`; this also means our own search's
+title-priority surfaces it first for a query matching the folder name).
+It states the folder's purpose and, where useful, a frontmatter template
+for new notes created there — solving folder-purpose (for grounding) and
+note-shape consistency (for both Sam and the dashboard's own manual
+"new note" flow, later) with one artifact instead of two. Mechanically
+this is just the `WRITE_NOTE` action pointed at a specific job — no new
+primitive needed.
+
+Top-level folders only, matching the exact granularity the dashboard's
+menu already uses (a nested `Notes/Journal` sandbox still shows as one
+"Notes" entry, never deeper) — defining every nested subfolder
+individually would be noise nobody asked for, extensible later if a
+specific nested folder genuinely needs its own.
+
+Standing behavior, not an onboarding-only pass — the same treatment
+applies to a folder created long after initial setup, not just the ones
+that existed on day one. Timing is passive, not eager: writing a stub
+the instant an empty folder is created would mean guessing blind or
+nagging about a folder that might just be an empty placeholder. Instead,
+the trigger is a folder with no definition yet that has accumulated some
+real notes — a simple mechanical check the manifest/snapshot pipeline
+can already answer. Once triggered, Sam drafts the definition silently
+from what's actually there; she only asks the user when the content
+itself is genuinely ambiguous, not merely because the folder is new.
+This "ask" fallback needs Sam to be able to reach the user at all, so
+this whole feature is naturally downstream of the chat engine and at
+least one channel existing — not buildable standalone before that.
+
 ### Persona shape
 
 Every persona is: **soul** (voice/temperament) + **memory** (personal,

@@ -1,0 +1,63 @@
+"""Request body models for the dashboard API — split out of
+`server_handlers.py` (project's 200-LOC-per-file guideline)."""
+
+from pydantic import BaseModel, Field
+
+
+class NoteWrite(BaseModel):
+    """Body of `PUT /api/vault/note` — the dashboard editor saving an
+    *existing* note back to the vault verbatim, frontmatter included."""
+
+    path: str = Field(..., min_length=1)
+    content: str
+    persona: str = "samantha"
+    expected_mtime: float | None = Field(
+        None,
+        description="mtime this save was opened from (from GET /api/vault/note). "
+        "When given, a save is rejected with 409 if the file changed on disk "
+        "since then, instead of silently overwriting it.",
+    )
+
+
+class NoteCreate(BaseModel):
+    """Body of `POST /api/vault/note` — create a *new* note at `path`
+    (relative to the vault, e.g. `Projects/Idea`). `content` is optional;
+    omitted, the backend seeds a frontmatter + title stub."""
+
+    path: str = Field(..., min_length=1)
+    content: str | None = None
+    persona: str = "samantha"
+
+
+class FolderCreate(BaseModel):
+    """Body of `POST /api/vault/folder` — create a new *empty* folder at
+    `path` (relative to the vault, e.g. `Projects/Archive`)."""
+
+    path: str = Field(..., min_length=1)
+    persona: str = "samantha"
+
+
+class NoteRename(BaseModel):
+    """Body of `PATCH /api/vault/note` — rename `path` to `new_path` and
+    rewrite every `[[wikilink]]` that referenced it. `new_path` stays in
+    the same folder unless it carries a separator."""
+
+    path: str = Field(..., min_length=1)
+    new_path: str = Field(..., min_length=1)
+    persona: str = "samantha"
+
+
+class TrashRestore(BaseModel):
+    """Body of `POST /api/vault/trash/restore` — move the trashed note at
+    `path` (a `.trash`-relative path from `GET /api/vault/trash`) back to
+    where it was deleted from."""
+
+    path: str = Field(..., min_length=1)
+    persona: str = "samantha"
+
+
+class TrashEmpty(BaseModel):
+    """Body of `POST /api/vault/trash/empty` — permanently delete every
+    in-scope trashed note."""
+
+    persona: str = "samantha"

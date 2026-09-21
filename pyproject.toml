@@ -1,0 +1,41 @@
+[project]
+name = "sympose"
+version = "0.1.0"
+description = "Sympose backend — vault browsing and note editing API"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.30.0",
+    "pyyaml>=6.0",
+    "python-dotenv>=1.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "ruff>=0.6.0",
+    "pytest>=8.0.0",
+]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["sympose*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+# Start narrow (CODE_QUALITY_STANDARDS.md §2): pyflakes + the pycodestyle
+# error subset. This ruff version's own default selection is much wider
+# (e.g. BLE001 blind-except, UP035/FURB modernization, RUF100) and flags
+# things that need individual judgment, not a day-one lint pass — pin the
+# selection explicitly rather than inherit whatever a given ruff version
+# happens to default to. Widen this once a category has actually earned
+# its place by catching something real.
+select = ["E4", "E7", "E9", "F"]

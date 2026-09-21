@@ -1,0 +1,21 @@
+"""Dev entry point: `python -m sympose.main`. Reads `MASTER_VAULT_PATH` (and
+optionally `SYMPOSE_PROFILES_DIR`) from the environment — see `.env.example`."""
+
+import os
+
+import uvicorn
+from dotenv import load_dotenv
+
+load_dotenv()
+
+from sympose.server import create_app  # noqa: E402 — after load_dotenv()
+
+app = create_app()
+
+if __name__ == "__main__":
+    uvicorn.run(
+        "sympose.main:app",
+        host="127.0.0.1",
+        port=int(os.getenv("PORT", "8000")),
+        reload=True,
+    )

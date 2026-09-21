@@ -1,0 +1,247 @@
+export interface VaultNote {
+  path: string
+  content: string
+}
+
+/** Pulls the backend's `{detail}` message out of a non-ok fetch Response, or
+ *  `undefined` if the body isn't JSON / has no `detail` field. Shared by
+ *  every vault-*-api.ts client so a caller can show a real error message
+ *  instead of just an HTTP status. */
+export async function detailOf(res: Response): Promise<string | undefined> {
+  return res
+    .json()
+    .then((b) => (b as { detail?: string }).detail)
+    .catch(() => undefined)
+}
+
+/**
+ * Client for `GET /api/vault/note` — the raw Markdown (frontmatter included)
+ * for one vault file, scoped to a persona's allowed vault folders. Returns
+ * `null` on a 404 (note missing) or when the backend is unreachable (offline
+ * dev), so the caller renders an empty/error state instead of throwing.
+ */
+export async function fetchVaultNote(
+  path: string,
+  persona: string
+): Promise<VaultNote | null> {
+  try {
+    const res = await fetch(
+      `/api/vault/note?path=${encodeURIComponent(path)}&persona=${encodeURIComponent(persona)}`
+    )
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    return (await res.json()) as VaultNote
+  } catch (err) {
+    console.info(`[vault-note] /api/vault/note unreachable (${err})`)
+    return null
+  }
+}
+
+export type SaveVaultNoteResult =
+  | { ok: true }
+  | { ok: false; error: string }
+
+/**
+ * Client for `PUT /api/vault/note` — write the editor's full Markdown (with
+ * frontmatter) back to an existing vault note. The backend never creates a new
+ * file: a 404 means the note is gone, a 403 that the path fell outside the
+ * persona's sandbox. Returns a discriminated result rather than
+ * throwing so the caller can toast the message.
+ */
+export async function saveVaultNote(
+  path: string,
+  content: string,
+  persona: string
+): Promise<SaveVaultNoteResult> {
+  try {
+    const res = await fetch("/api/vault/note", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ path, content, persona }),
+    })
+    if (res.ok) return { ok: true }
+    return { ok: false, error: (await detailOf(res)) || `Save failed (HTTP ${res.status})` }
+  } catch (err) {
+    return { ok: false, error: `Save failed — backend unreachable (${err})` }
+  }
+}
+
+export type CreateVaultNoteResult =
+  | { ok: true; path: string }
+  | { ok: false; error: string }
+
+/**
+ * Client for `POST /api/vault/note` — create a new note at `path` (relative to
+ * the vault, e.g. `Projects/Idea`). The backend seeds a frontmatter + title
+ * stub. A 409 means a note already exists there, a 403 that the path is outside
+ * the persona's sandbox.
+ */
+export async function createVaultNote(
+  path: string,
+  persona: string
+): Promise<CreateVaultNoteResult> {
+  try {
+    const res = await fetch("/api/vault/note", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ path, persona }),
+    })
+    if (res.ok) return { ok: true, path }
+    return {
+      ok: false,
+      error: (await detailOf(res)) || `Couldn't create note (HTTP ${res.status})`,
+    }
+  } catch (err) {
+    return { ok: false, error: `Couldn't create note — backend unreachable (${err})` }
+  }
+}
+
+export type CreateVaultFolderResult =
+  | { ok: true; path: string }
+  | { ok: false; error: string }
+
+/**
+ * Client for `POST /api/vault/folder` — create a new empty folder at `path`
+ * (relative to the vault, e.g. `Projects/Archive`). A 409 means a file or
+ * folder already exists there, a 403 that the path fell outside the persona's
+ * sandbox.
+ */
+export async function createVaultFolder(
+  path: string,
+  persona: string
+): Promise<CreateVaultFolderResult> {
+  try {
+    const res = await fetch("/api/vault/folder", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ path, persona }),
+    })
+    if (res.ok) return { ok: true, path }
+    return {
+      ok: false,
+      error: (await detailOf(res)) || `Couldn't create folder (HTTP ${res.status})`,
+    }
+  } catch (err) {
+    return { ok: false, error: `Couldn't create folder — backend unreachable (${err})` }
+  }
+}
+
+export type RenameVaultNoteResult =
+  | { ok: true; path: string; detail: string }
+  | { ok: false; error: string }
+
+/**
+ * Client for `PATCH /api/vault/note` — rename `path` to `newName` (a bare stem
+ * stays in the same folder) and rewrite the `[[wikilinks]]` that referenced it.
+ * 404 source gone, 409 target taken, 403 outside the sandbox.
+ * `path` in the result is the note's new vault-relative path.
+ */
+export async function renameVaultNote(
+  path: string,
+  newName: string,
+  persona: string
+): Promise<RenameVaultNoteResult> {
+  try {
+    const res = await fetch("/api/vault/note", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ path, new_path: newName, persona }),
+    })
+    if (res.ok) {
+      const body = (await res.json()) as { path: string; detail: string }
+      return { ok: true, path: body.path, detail: body.detail }
+    }
+    return {
+      ok: false,
+      error: (await detailOf(res)) || `Rename failed (HTTP ${res.status})`,
+    }
+  } catch (err) {
+    return { ok: false, error: `Rename failed — backend unreachable (${err})` }
+  }
+}
+
+/**
+ * Move a note into `destFolder` (vault-relative, `""` for the vault root) by
+ * calling `renameVaultNote` with a slash-qualified target — the same
+ * `PATCH /api/vault/note` endpoint already used for a same-folder rename
+ * also relocates across folders when `new_path` carries a `/`, so
+ * this is the drag-and-drop client, not a new backend route. A drop
+ * back onto the note's current folder is a no-op resolved without a fetch,
+ * so dragging a row over its own folder never round-trips or risks the
+ * backend's own same-path `NOTE_EXISTS` check misreporting a clash.
+ */
+export async function moveVaultNote(
+  path: string,
+  destFolder: string,
+  persona: string
+): Promise<RenameVaultNoteResult> {
+  const stem = path.split("/").pop()!.replace(/\.md$/i, "")
+  const currentFolder = path.includes("/")
+    ? path.slice(0, path.lastIndexOf("/"))
+    : ""
+  if (destFolder === currentFolder) {
+    return { ok: true, path, detail: "" }
+  }
+  return renameVaultNote(path, destFolder ? `${destFolder}/${stem}` : stem, persona)
+}
+
+export type DeleteVaultNoteResult =
+  | { ok: true; detail: string }
+  | { ok: false; error: string }
+
+/**
+ * Client for `DELETE /api/vault/note` — move the note to `<vault>/.trash/`.
+ * 404 if it's already gone, 403 outside the sandbox.
+ */
+export async function deleteVaultNote(
+  path: string,
+  persona: string
+): Promise<DeleteVaultNoteResult> {
+  try {
+    const res = await fetch(
+      `/api/vault/note?path=${encodeURIComponent(path)}&persona=${encodeURIComponent(persona)}`,
+      { method: "DELETE" }
+    )
+    if (res.ok) {
+      const body = (await res.json()) as { detail: string }
+      return { ok: true, detail: body.detail }
+    }
+    return {
+      ok: false,
+      error: (await detailOf(res)) || `Delete failed (HTTP ${res.status})`,
+    }
+  } catch (err) {
+    return { ok: false, error: `Delete failed — backend unreachable (${err})` }
+  }
+}
+
+export type DeleteVaultFolderResult =
+  | { ok: true; detail: string }
+  | { ok: false; error: string }
+
+/**
+ * Client for `DELETE /api/vault/folder` — an empty folder is removed
+ * outright, a non-empty one moves to `<vault>/.trash/` note-by-note, same as
+ * `deleteVaultNote`. 404 if it's already gone, 403 outside the
+ * sandbox.
+ */
+export async function deleteVaultFolder(
+  path: string,
+  persona: string
+): Promise<DeleteVaultFolderResult> {
+  try {
+    const res = await fetch(
+      `/api/vault/folder?path=${encodeURIComponent(path)}&persona=${encodeURIComponent(persona)}`,
+      { method: "DELETE" }
+    )
+    if (res.ok) {
+      const body = (await res.json()) as { detail: string }
+      return { ok: true, detail: body.detail }
+    }
+    return {
+      ok: false,
+      error: (await detailOf(res)) || `Delete failed (HTTP ${res.status})`,
+    }
+  } catch (err) {
+    return { ok: false, error: `Delete failed — backend unreachable (${err})` }
+  }
+}

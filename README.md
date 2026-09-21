@@ -7,15 +7,23 @@ multi-call orchestration.
 
 ## Current status
 
-No source tree exists yet. A first vault-dashboard backend and frontend
-were built, then deleted (2026-09-22): both were salvaged from
-`sympose-legacy` with far less filtering than intended — the frontend
-alone carried 60+ comments referencing legacy decision records that don't
-exist in this repo, plus dead code left over from features this backend
-never had. Starting over from an actual empty slate.
+A first vault-dashboard backend and frontend were built, then deleted
+(2026-09-22) after both turned out to be salvaged from `sympose-legacy`
+with far less filtering than intended. Both have since been rebuilt
+properly — traced file-by-file and function-by-function down to only
+what's actually reachable from the real dashboard shell. Working today:
+vault browsing, the markdown editor, note/folder create/rename/delete,
+trash recovery (list/restore/purge), and the Knowledge Nebula graph.
+Still not built: chat/persona dialogue (the actual "talk to Samantha"
+feature), Slack status, full-text search, and a multi-persona roster.
 
 ## Project layout
 
+- `sympose/` — Python backend (FastAPI): vault browsing, note editing,
+  trash recovery, the Knowledge Nebula graph API.
+- `ui/` — React/TypeScript frontend (Vite): vault tree, markdown editor,
+  the bin, Knowledge Nebula 2D/3D graph. No chat panel, no Slack status,
+  no full-text search UI yet — those still have no backend behind them.
 - `profiles/` — persona definitions. Only `samantha.yaml` (the shipped
   default) is committed; any other profile is a personal customization
   and stays local-only (see `.gitignore`).
@@ -25,12 +33,18 @@ never had. Starting over from an actual empty slate.
 
 ## Local setup
 
-Nothing to install yet. `.env.example` shows the one config variable
-(`MASTER_VAULT_PATH`) the last implementation relied on, kept as a
-reference for whatever rebuilds next.
+1. Copy `.env.example` to `.env` and set `MASTER_VAULT_PATH` to an
+   Obsidian vault on disk.
+2. Backend: `pip install -e ".[dev]"` from the repo root.
+3. Frontend: `npm install` from `ui/`.
 
-See `CLAUDE.md`'s Primary Commands section — fill it in once real code
-lands.
+## Running it
+
+- Backend: `python -m sympose.main` (repo root) — serves on
+  `127.0.0.1:8000`, local dev only, no auth yet.
+- Frontend: `npm run dev` (from `ui/`) — serves on `localhost:5173`.
+
+See `CLAUDE.md`'s Primary Commands section for the full command list.
 
 ## Standards and decisions
 

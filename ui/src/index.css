@@ -1,0 +1,1061 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+@import "@fontsource-variable/inter";
+@import "@fontsource-variable/merriweather";
+
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.141 0.005 285.823);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.141 0.005 285.823);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.141 0.005 285.823);
+  --primary: oklch(0.21 0.006 285.885);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.967 0.001 286.375);
+  --secondary-foreground: oklch(0.21 0.006 285.885);
+  --muted: oklch(0.967 0.001 286.375);
+  /* Darkened from shadcn's stock 0.552 — against `--panel` (0.967, the
+       editor and every raised surface's background) that read as 4.39:1,
+       just under WCAG AA's 4.5:1 for normal text. 0.53 clears it with margin
+       (4.81:1) app-wide, not just in the editor, since every other
+       muted-foreground spot (chat body text, timestamps) sits on the same
+       kind of surface. */
+  --muted-foreground: oklch(0.53 0.016 285.938);
+  --accent: oklch(0.967 0.001 286.375);
+  --accent-foreground: oklch(0.21 0.006 285.885);
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: oklch(0.92 0.004 286.32);
+  --input: oklch(0.92 0.004 286.32);
+  --ring: oklch(0.705 0.015 286.067);
+  --chart-1: oklch(0.865 0.127 207.078);
+  --chart-2: oklch(0.715 0.143 215.221);
+  --chart-3: oklch(0.609 0.126 221.723);
+  --chart-4: oklch(0.52 0.105 223.128);
+  --chart-5: oklch(0.45 0.085 224.283);
+  --radius: 0.625rem;
+  --sidebar: oklch(0.985 0 0);
+  --sidebar-foreground: oklch(0.141 0.005 285.823);
+  --sidebar-primary: oklch(0.21 0.006 285.885);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.967 0.001 286.375);
+  --sidebar-accent-foreground: oklch(0.21 0.006 285.885);
+  --sidebar-border: oklch(0.92 0.004 286.32);
+  --sidebar-ring: oklch(0.705 0.015 286.067);
+
+  /* Sympose semantic accents — Flat Sovereign Craft §3.2 (mirrors the CLI
+       design system, ADR-047). Layered on top of the base preset; the preset's
+       own background / foreground / primary are left untouched. */
+  --brand: oklch(
+    0.55 0.13 233
+  ); /* cyan family — primary headings, active nav */
+  --brand-foreground: oklch(0.985 0 0);
+  --ok: oklch(0.6 0.13 163); /* success / active / on-device */
+  --ok-foreground: oklch(0.985 0 0);
+  --danger: var(--destructive); /* error / missing */
+  --entity: oklch(0.52 0.2 305); /* file paths, [[wikilinks]], note titles */
+  --entity-foreground: oklch(0.985 0 0);
+  --chip: oklch(
+    0.94 0.002 286.375
+  ); /* @handle pills, inline code, kbd background */
+  --chip-foreground: oklch(0.5 0.12 74); /* amber-on-grey */
+  --fg-strong: oklch(0.141 0.005 285.823); /* category subheaders */
+  --fg-muted: oklch(
+    0.552 0.016 285.938
+  ); /* timestamps, token counts, ms readouts */
+  --panel: oklch(
+    0.967 0.001 286.375
+  ); /* raised working surface — distinct from --background in both modes (--card is not, in light) */
+  --panel-foreground: oklch(0.141 0.005 285.823);
+}
+
+.dark {
+  --background: oklch(0.141 0.005 285.823);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.21 0.006 285.885);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.21 0.006 285.885);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.92 0.004 286.32);
+  --primary-foreground: oklch(0.21 0.006 285.885);
+  --secondary: oklch(0.274 0.006 286.033);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.274 0.006 286.033);
+  --muted-foreground: oklch(0.705 0.015 286.067);
+  --accent: oklch(0.274 0.006 286.033);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.552 0.016 285.938);
+  --chart-1: oklch(0.865 0.127 207.078);
+  --chart-2: oklch(0.715 0.143 215.221);
+  --chart-3: oklch(0.609 0.126 221.723);
+  --chart-4: oklch(0.52 0.105 223.128);
+  --chart-5: oklch(0.45 0.085 224.283);
+  --sidebar: oklch(0.21 0.006 285.885);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.488 0.243 264.376);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.274 0.006 286.033);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.552 0.016 285.938);
+
+  /* Sympose semantic accents — dark (Obsidian Matte-leaning) */
+  --brand: oklch(0.78 0.13 220);
+  --brand-foreground: oklch(0.21 0.006 285.885);
+  --ok: oklch(0.78 0.14 165);
+  --ok-foreground: oklch(0.21 0.006 285.885);
+  --danger: var(--destructive);
+  --entity: oklch(0.78 0.14 305);
+  --entity-foreground: oklch(0.21 0.006 285.885);
+  --chip: oklch(0.274 0.006 286.033);
+  --chip-foreground: oklch(0.84 0.13 85);
+  --fg-strong: oklch(0.985 0 0);
+  --fg-muted: oklch(0.705 0.015 286.067);
+  --panel: oklch(
+    0.21 0.006 285.885
+  ); /* raised working surface (matches the approved dark shade) */
+  --panel-foreground: oklch(0.985 0 0);
+}
+
+@theme inline {
+  --font-sans: "Inter Variable", sans-serif;
+  --font-heading: "Merriweather Variable", serif;
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --color-foreground: var(--foreground);
+  --color-background: var(--background);
+  --color-brand: var(--brand);
+  --color-brand-foreground: var(--brand-foreground);
+  --color-ok: var(--ok);
+  --color-ok-foreground: var(--ok-foreground);
+  --color-danger: var(--danger);
+  --color-entity: var(--entity);
+  --color-entity-foreground: var(--entity-foreground);
+  --color-chip: var(--chip);
+  --color-chip-foreground: var(--chip-foreground);
+  --color-fg-strong: var(--fg-strong);
+  --color-fg-muted: var(--fg-muted);
+  --color-panel: var(--panel);
+  --color-panel-foreground: var(--panel-foreground);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+
+  /* Motion tiers (ADR-101/102), easing half — `--ease-*` is a real
+       Tailwind v4 theme namespace, so this generates `ease-snappy` /
+       `ease-mode` directly. `--duration-*` is not a themeable namespace
+       (unlike `--color-*`/`--radius-*` above), so the duration half of each
+       tier is defined as an explicit `@utility` below instead. `thumb`
+       (ADR-102) reuses the same `ease-out` curve as `snappy` — only its
+       duration differs — so it has no separate `--ease-thumb`. */
+  --ease-snappy: cubic-bezier(0, 0, 0.2, 1); /* ease-out */
+  --ease-mode: cubic-bezier(0.4, 0, 0.2, 1); /* ease-in-out */
+}
+
+/* Motion tiers (ADR-101/102), duration half. `snappy` is small collapse/width
+   toggles (the frontmatter `⋯` row's rename field, control-section
+   accordions); `mode` is panel-/layout-level reveals (panel open-close, the
+   chat slot, phone crossfades) — already hand-synced across those call sites
+   via comments before this existed as a token. `thumb` (ADR-102) is anything
+   appearing/disappearing as a discrete item within the editor or vault —
+   pills, vault-tree rows, the note-actions/vault-row menus, the wikilink
+   hover-card — deliberately matched to `<ScrollThumb>`'s own hover-fade
+   (ADR-100) rather than getting its own independently-tuned number; Settings
+   and the Persona panel keep their own popovers/menus at the shadcn defaults.
+
+   Each also sets `--tw-duration` (ADR-103 fix), not just `transition-duration`
+   — mirroring Tailwind's own built-in numeric `duration-*` utility (verified
+   in `tailwindcss/dist/lib.js`: it emits both). tw-animate-css's `animate-in`/
+   `animate-out` keyframe utilities read `animation: … var(--tw-duration,.15s)…`,
+   not `transition-duration`, so a `duration-thumb` naming a *transition*
+   duration only was silently inert on every `animate-in`/`animate-out` call
+   site (vault-tree row entrance, the note-actions/vault-row menus, the
+   wikilink hover-card) — all of them were actually animating at
+   tw-animate-css's unrelated 150ms default (or, for the two `<DropdownMenuContent>`
+   call sites, the shared `menuPopupClass`'s own leftover `duration-100`),
+   never the claimed 300ms. Caught while building the vault-tree row's exit
+   animation and verified with a scratch Playwright check
+   (`getComputedStyle(row).animationDuration`) before and after this fix. */
+@utility duration-snappy {
+  --tw-duration: 150ms;
+  transition-duration: 150ms;
+}
+@utility duration-thumb {
+  --tw-duration: 300ms;
+  transition-duration: 300ms;
+}
+@utility duration-mode {
+  --tw-duration: 350ms;
+  transition-duration: 350ms;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  html {
+    @apply font-sans;
+  }
+}
+
+/* Bridges stylo's `--stylo-*` tokens (ADR-002) onto Sympose's own — every
+   value is a `var()` onto a token that already flips under `.dark`, so this
+   needs no separate dark block of its own. `--stylo-link` takes `--entity`,
+   the token already reserved for "[[wikilinks]], note titles". `.stylo`'s own
+   border/radius are dropped — the markdown panel's card supplies both.
+
+   `--stylo-bg` is `--panel`, not `transparent`: stylo's floating chrome (the
+   right-click menu, its URL input, the selection bar, the link-hover tooltip
+   — all `position: fixed`, all in inplace/theme.ts) reads this same token for
+   its own background, since stylo exposes no separate "floating surface"
+   token. `transparent` here made those popups read as invisible against real
+   content instead of just the base canvas. */
+[data-slot="markdown-panel"] .stylo {
+  height: 100%;
+  border: none;
+  border-radius: 0;
+
+  --stylo-bg: var(--panel);
+  /* Body prose reads as `--muted-foreground`, not full-contrast
+     `--panel-foreground` — matching how every other panel splits its type:
+     `<ChatMessage>`'s own text is `text-muted-foreground`, full-contrast is
+     reserved for headings and labels. `--stylo-text` is inherited by
+     everything in `.cm-content` including headings; the heading rule below
+     bumps `h1`–`h5` back up so they still stand out against the now-muted
+     paragraph text around them. */
+  --stylo-text: var(--muted-foreground);
+  --stylo-text-muted: var(--fg-muted);
+  --stylo-border: var(--border);
+  --stylo-accent: var(--brand);
+  --stylo-link: var(--entity);
+  /* stylo's own defaults derive these from `--stylo-border` too
+     (`color-mix(in srgb, var(--stylo-border) 30%, transparent)` for the header,
+     transparent for the stripe), so they already tracked the bridge above
+     indirectly — made explicit here so a table doesn't silently drift if a
+     future stylo version hardcodes its own default instead. `--muted` (the
+     same recessed fill Settings rows and chips use) reads as a more
+     deliberate "app surface" than a border-derived grey tint. */
+  --stylo-table-border: var(--stylo-border);
+  --stylo-table-header-bg: var(--muted);
+  --stylo-table-stripe-bg: transparent;
+  --stylo-ring: var(--ring);
+  --stylo-radius: var(--radius-md);
+  /* stylo's own default is 0.9375rem (15px); this panel's `text-sm` wrapper
+     is 14px, and every in-place heading is sized in `em` off this one value —
+     so leaving stylo's default in place doesn't just make body text a pixel
+     larger, it scales every heading up with it. Token added in stylo 0.5.0;
+     before that this needed a plain `!important` reach into `.cm-editor`. */
+  --stylo-font-size: 0.875rem;
+  /* stylo's own default is a hard-coded system stack; this bridges body prose
+     to the app's own sans face. Headings get their own override further down
+     (`--font-heading`, no per-construct token exists for that split). Token
+     added in stylo 0.6.0; before that this needed an `!important` reach into
+     `.cm-content`. */
+  --stylo-font-family: var(--font-sans);
+
+  /* Fenced-code syntax colors — stylo ships its own default palette
+     (`tokens.css`), a set of stock, fully-saturated hex hues with no relation
+     to Sympose's own restrained OKLCH accents. Rebuilt here from the same
+     small set every other colored bit of UI already draws from, instead of
+     introducing a code-only rainbow: `--brand` for structural tokens
+     (keywords, functions, markup tags), `--ok` for strings, the amber
+     `--chip-foreground` already used for inline code for literals, `--fg-muted`
+     for comments, and the base text color for anything not worth calling out
+     (types, property names) — only `invalid` keeps `--destructive`, since an
+     actual error is the one case that should still read as an alarm. */
+  --stylo-syntax-keyword: var(--brand);
+  --stylo-syntax-string: var(--ok);
+  --stylo-syntax-escape: var(--chip-foreground);
+  --stylo-syntax-comment: var(--fg-muted);
+  --stylo-syntax-number: var(--chip-foreground);
+  --stylo-syntax-constant: var(--chip-foreground);
+  --stylo-syntax-function: var(--brand);
+  --stylo-syntax-type: var(--stylo-text);
+  --stylo-syntax-property: var(--stylo-text);
+  --stylo-syntax-tag: var(--brand);
+  --stylo-syntax-invalid: var(--destructive);
+
+  /* Callout accents — same treatment as the syntax colors above: stylo's own
+     default is stock saturated hex (`#3b82f6` blue, `#22c55e` green, `#f59e0b`
+     amber, `#ef4444` red, `#a855f7` purple) with no relation to Sympose's
+     palette. Mapped onto the existing semantic accents rather than new colors,
+     so a theme preset swap (once presets exist) carries callouts along for
+     free, exactly like the syntax colors already do. `--danger` doubles as
+     `warn`'s neighbor `danger` 1:1 (the token is literally named for this);
+     `--entity`'s violet — already "file paths, [[wikilinks]], note titles" —
+     happens to match Obsidian's own purple `example` callout too. */
+  --stylo-callout-note: var(--brand);
+  --stylo-callout-tip: var(--ok);
+  --stylo-callout-warn: var(--chip-foreground);
+  --stylo-callout-danger: var(--danger);
+  --stylo-callout-example: var(--entity);
+}
+
+/* `<StyloToolbarSettings>` (Settings > Markdown editor > Toolbar buttons)
+   reads the same `--stylo-*` custom properties as `<Stylo>` above, but never
+   sits inside a `.stylo`-classed element itself — it's a standalone entry
+   point meant to be dropped anywhere a host wants a toolbar customizer, not
+   necessarily next to the editor. Left unscoped, every one of its `var(--stylo-*)`
+   reads was empty: `background`/`border-color` silently fell back to their
+   CSS-initial values (transparent, currentcolor) and `color` fell back to
+   whatever ambient text color it happened to inherit from Settings — never
+   Sympose's palette, never a considered choice. `--stylo-bg: var(--muted)` —
+   the same fill `.sy-frontmatter-panel` uses for the frontmatter card's own
+   raised block — is deliberate: there's no separate wrapping card here, so
+   this *is* the fill for the two "On the bar" / "Available" boxes stylo
+   renders on its own (`._col_18hcd_17`), and it reads as the same kind of
+   raised block against the Settings page's `--background` that the
+   frontmatter card is against the editor's `--panel` — one shared "nested
+   block" language across both contexts instead of one recessed and one
+   raised for no reason a user would notice. No panel-opacity knob here
+   unlike the editor's version: Settings has no ambient nebula behind it for
+   a fade to reveal. */
+[data-slot="toolbar-settings"] {
+  --stylo-bg: var(--muted);
+  --stylo-surface-floating: var(--popover);
+  --stylo-text: var(--foreground);
+  --stylo-text-muted: var(--fg-muted);
+  --stylo-border: var(--border);
+  --stylo-accent: var(--brand);
+  --stylo-ring: var(--ring);
+  --stylo-radius: var(--radius-md);
+}
+/* `<StyloToolbarSettings>`'s own CSS module sets font-size directly on its
+   command-label spans (0.8125rem) and "Add"/"×" text buttons (0.75rem) — no
+   `--stylo-font-*` token reads either, unlike the CodeMirror-side theme, so
+   the `--stylo-*` scope above can't reach them. Targeted structurally
+   (`li` → label `span` / action `button`), not by the CSS module's own
+   hashed class names (`_label_18hcd_121` etc.) — those are stable within
+   one stylo build but re-hash on every version bump, exactly the kind of
+   brittle coupling this file otherwise avoids. Matched to the search
+   panel's own button size (`.stylo-search-button`, 0.625rem) so both of
+   stylo's text-button surfaces in the app read at one consistent scale. */
+[data-slot="toolbar-settings"] li span,
+[data-slot="toolbar-settings"] li button {
+  font-size: 0.625rem !important;
+}
+/* The "Available" column's "Add" button is plain text with no icon slot —
+   `<StyloToolbarSettings>` doesn't expose one for it (unlike "On the bar"'s
+   "Remove", already icon-only: a bare `✕` in a 22×22px square). Collapsed
+   the text visually and painted a `+` in its place instead, sized to match
+   that same 22×22px footprint, so both columns end up with one consistent
+   icon-only action rather than a word on one side and a glyph on the
+   other. The accessible name is untouched — it already comes from the
+   button's own `aria-label="Add {label} to the bar"`, not its text content,
+   so a screen reader reads the same thing before and after. Targeted by
+   the "Available" section's position (`<StyloToolbarSettings>` always
+   renders "On the bar" first, "Available" second) since both button roles
+   share the same CSS-module shape otherwise — no hashed class name needed
+   here either. */
+[data-slot="toolbar-settings"] section:nth-of-type(2) li button {
+  width: 22px !important;
+  height: 22px !important;
+  padding: 0 !important;
+  font-size: 0 !important;
+}
+[data-slot="toolbar-settings"] section:nth-of-type(2) li button::before {
+  content: "+";
+  font-size: 0.875rem;
+  line-height: 1;
+}
+
+/* Body prose already carries `--font-sans` via `--stylo-font-family` above.
+   Headings get the app's serif display face instead, matching every other
+   heading in Sympose (`font-heading`, e.g. the vault/settings page titles in
+   `<AppShell>`) — no per-construct token exists to do this through the public
+   contract, so this stays an `!important` reach into `.cm-inplace-h*`.
+
+   `mode="preview"` renders a completely different DOM (react-markdown's own
+   literal `h1`–`h6`, not CodeMirror's `.cm-inplace-h*` decoration classes),
+   so it needs its own selector reaching the same tags scoped under
+   `[data-stylo-mode="preview"]` — without it, preview's headings silently
+   fell back to inherited body sans instead of the serif swap, reading as a
+   different font between the two modes for no reason a reader would expect. */
+[data-slot="markdown-panel"] .cm-inplace-h1,
+[data-slot="markdown-panel"] .cm-inplace-h2,
+[data-slot="markdown-panel"] .cm-inplace-h3,
+[data-slot="markdown-panel"] .cm-inplace-h4,
+[data-slot="markdown-panel"] .cm-inplace-h5,
+[data-slot="markdown-panel"] .cm-inplace-h6,
+[data-slot="markdown-panel"]
+  [data-stylo-mode="preview"]
+  :is(h1, h2, h3, h4, h5, h6) {
+  font-family: var(--font-heading) !important;
+}
+/* Full-contrast against the muted `--stylo-text` body color above, matching
+   how every page title in Sympose (`font-heading text-fg-strong`) is already
+   the strong color while its surrounding body copy is muted. Not `h6`: stylo
+   already gives it its own deliberately-muted treatment
+   (`color: var(--stylo-text-muted)` in its own theme), one step further down
+   than body text — leave that distinction alone. Same preview-DOM caveat as
+   the font-family rule above applies to the `[data-stylo-mode="preview"]`
+   selector here. */
+[data-slot="markdown-panel"] .cm-inplace-h1,
+[data-slot="markdown-panel"] .cm-inplace-h2,
+[data-slot="markdown-panel"] .cm-inplace-h3,
+[data-slot="markdown-panel"] .cm-inplace-h4,
+[data-slot="markdown-panel"] .cm-inplace-h5,
+[data-slot="markdown-panel"]
+  [data-stylo-mode="preview"]
+  :is(h1, h2, h3, h4, h5) {
+  color: var(--fg-strong) !important;
+}
+
+/* Heading size/line-height scale, owned here rather than trusted to stylo's
+   two independent internal defaults (its CodeMirror in-place theme and its
+   preview CSS module) happening to agree. They mostly did — h1–h4 were
+   identical by coincidence — except h5/h6: in-place sizes both at `0.9em`,
+   preview never sets a size for h4/h5/h6 at all and silently falls back to
+   the browser UA stylesheet (~0.83em/~0.67em), a real, visible size
+   mismatch nobody had chosen. Declaring the scale once as variables and
+   forcing both `.cm-inplace-h*` and preview's literal tags to read from it
+   means a future stylo version bump can't quietly drift the two apart again
+   the way it already had for h5/h6 — this file becomes the one place that
+   ever needs editing to change a heading size app-wide. */
+[data-slot="markdown-panel"] {
+  --sy-heading-size-1: 2.25em;
+  --sy-heading-line-1: 1.1111111;
+  --sy-heading-size-2: 1.5em;
+  --sy-heading-line-2: 1.3333333;
+  --sy-heading-size-3: 1.25em;
+  --sy-heading-line-3: 1.6;
+  --sy-heading-size-4: 1em;
+  --sy-heading-line-4: 1.5;
+  --sy-heading-size-5: 0.9em;
+  --sy-heading-size-6: 0.9em;
+}
+[data-slot="markdown-panel"] .cm-inplace-h1,
+[data-slot="markdown-panel"] [data-stylo-mode="preview"] h1 {
+  font-size: var(--sy-heading-size-1) !important;
+  line-height: var(--sy-heading-line-1) !important;
+}
+[data-slot="markdown-panel"] .cm-inplace-h2,
+[data-slot="markdown-panel"] [data-stylo-mode="preview"] h2 {
+  font-size: var(--sy-heading-size-2) !important;
+  line-height: var(--sy-heading-line-2) !important;
+}
+[data-slot="markdown-panel"] .cm-inplace-h3,
+[data-slot="markdown-panel"] [data-stylo-mode="preview"] h3 {
+  font-size: var(--sy-heading-size-3) !important;
+  line-height: var(--sy-heading-line-3) !important;
+}
+[data-slot="markdown-panel"] .cm-inplace-h4,
+[data-slot="markdown-panel"] [data-stylo-mode="preview"] h4 {
+  font-size: var(--sy-heading-size-4) !important;
+  line-height: var(--sy-heading-line-4) !important;
+}
+[data-slot="markdown-panel"] .cm-inplace-h5,
+[data-slot="markdown-panel"] [data-stylo-mode="preview"] h5 {
+  font-size: var(--sy-heading-size-5) !important;
+}
+[data-slot="markdown-panel"] .cm-inplace-h6,
+[data-slot="markdown-panel"] [data-stylo-mode="preview"] h6 {
+  font-size: var(--sy-heading-size-6) !important;
+}
+
+/* Preview renders real `<ul>`/`<ol>`/`<li>` elements — the only stylo surface
+   that does, since in-place decorates markdown source rather than building
+   an actual list DOM — so it's the only one exposed to Sympose's own global
+   list reset (`ol, ul, menu { list-style: none }`, Tailwind's preflight,
+   applied app-wide for every other real list in the UI). stylo's own preview
+   CSS module sets the list's margin/indent but never re-declares
+   `list-style`, assuming a host with no such reset — so bullets and numbers
+   were silently gone in preview, not a stylo bug so much as a collision
+   between two defaults neither side knew about the other. Restored to the
+   plain browser markers `list-style` supplies elsewhere on the page — there
+   is no in-place equivalent to stay consistent with, since in-place has no
+   real list markers to compare against. */
+[data-slot="markdown-panel"] [data-stylo-mode="preview"] ul {
+  list-style: disc !important;
+}
+[data-slot="markdown-panel"] [data-stylo-mode="preview"] ol {
+  list-style: decimal !important;
+}
+/* In-place has no per-item gap at all: each list item is just one
+   `.cm-line` among others, stacked at the shared `1.75` line-height with no
+   extra margin — markdown list items aren't separated by blank source
+   lines, so there's nothing to reproduce that gap from. Preview's real
+   `<li>` picks up stylo's own CSS-module `margin: .5em 0` (`.75em` when
+   nested), a plain prose default with no equivalent on the in-place side to
+   match — zeroed so consecutive bullets sit as tight in preview as they do
+   in edit mode instead of visibly further apart for a reader switching
+   between the two. The list's own outer gap from surrounding paragraphs
+   (`ul`/`ol`'s own `margin: 1.25em 0`) is left alone — that one plays the
+   same role as a paragraph's margin, and paragraph spacing has no
+   fixable in-place equivalent either (there it's however many blank
+   lines happen to be in the source, not a CSS constant). */
+[data-slot="markdown-panel"] [data-stylo-mode="preview"] li {
+  margin: 0 !important;
+}
+[data-slot="markdown-panel"] [data-stylo-mode="preview"] li > :is(ul, ol) {
+  margin: 0 !important;
+}
+/* `list-style: disc` above (restoring Tailwind's stripped markers) applies
+   indiscriminately to every `<li>`, task items included — remark-gfm marks
+   a task item `<li class="task-list-item">` and renders its own checkbox
+   as inline content, so a bullet next to the checkbox is a marker on top
+   of a marker, not two different pieces of information. In-place has
+   nothing to match here either (no real `<li>` at all), so this follows
+   the more common convention instead (GitHub, Obsidian, VS Code preview):
+   the checkbox replaces the bullet, it doesn't sit beside it. A direct
+   `list-style` on the `<li>` itself wins over the inherited value from its
+   `<ul>` regardless of specificity, so `!important` here is redundant but
+   kept for consistency with the rest of this block. */
+[data-slot="markdown-panel"] [data-stylo-mode="preview"] li.task-list-item {
+  list-style: none !important;
+  margin-left: -0.25em !important;
+}
+/* `list-style: none` above removes the reserved marker gutter that a
+   bullet/number draws into without consuming any of the `<li>`'s own
+   content box — so a bare checkbox, being ordinary inline content, pushes
+   the text after it rightward by the checkbox's own rendered width,
+   landing noticeably further right than bullet/ordered text starting at
+   the same `<li>` edge. Fixed size (`1em`) makes the checkbox's footprint
+   knowable instead of native/OS-dependent, and a `margin-left` equal to
+   `-(width + margin-right)` cancels exactly regardless of root font size
+   — net horizontal contribution zero, so the text lands back on the same
+   edge bullet/ordered text does, by construction rather than a tuned
+   pixel guess. */
+[data-slot="markdown-panel"]
+  [data-stylo-mode="preview"]
+  li.task-list-item
+  > input[type="checkbox"] {
+  width: 1em;
+  height: 1em;
+  margin: 0 0.2em 0 -1.2em;
+  vertical-align: middle;
+}
+
+/* stylo's own `.cm-content` gutter (`0.75rem` on every side) is narrower than
+   every other panel's established horizontal margin — widened to match so the
+   note body's left edge lines up with the frontmatter card and Links footer
+   above/below it (`px-6 sm:px-8`, or `px-4` on the phone shell — the same
+   `data-phone` markdown-panel.tsx already carries for this purpose) instead
+   of reading as its own margin. Top/bottom is set to match the *effective*
+   horizontal inset (this padding plus stylo's own `.cm-line` side padding of
+   `0.75rem`, which stacks on top of it — there's no vertical equivalent), so
+   the text box reads as evenly inset on all four sides instead of tighter on
+   top/bottom.
+
+   The actual numbers live only in these three `--sy-editor-pad-*` custom
+   property declarations — every surface that needs the note body's inset
+   (`.cm-content` for in-place/source, `[data-stylo-mode="preview"] > div`
+   for preview, the same node `getStyloScroller` in markdown-panel.tsx
+   resolves as preview's scroll container) reads the same variable below
+   instead of repeating the rem values per surface. Two surfaces drifting out
+   of sync is exactly the bug this replaced: `.cm-content` had this inset and
+   preview didn't, because the first version of this rule only ever named
+   `.cm-content` — a plain value duplicated into a second selector risks the
+   same drift the next time either number changes. */
+[data-slot="markdown-panel"] {
+  --sy-editor-pad-x: 1.5rem;
+  --sy-editor-pad-y: 2.25rem;
+}
+@media (min-width: 640px) {
+  [data-slot="markdown-panel"] {
+    --sy-editor-pad-x: 2rem;
+    --sy-editor-pad-y: 2.75rem;
+  }
+}
+[data-slot="markdown-panel"][data-phone] {
+  --sy-editor-pad-x: 1rem;
+  --sy-editor-pad-y: 1.75rem;
+}
+[data-slot="markdown-panel"] .cm-content,
+[data-slot="markdown-panel"] [data-stylo-mode="preview"] > div {
+  padding-left: var(--sy-editor-pad-x) !important;
+  padding-right: var(--sy-editor-pad-x) !important;
+  padding-top: var(--sy-editor-pad-y) !important;
+  padding-bottom: var(--sy-editor-pad-y) !important;
+}
+
+/* stylo's find/replace panel (0.10.x) is a flat, single-row flex line —
+   `nowrap` + `overflow-x: auto` — so a narrow editor column scrolls instead
+   of showing every control. The panel's DOM has no group wrappers (find,
+   replace, and the three checkboxes are flat siblings), so wrapping can
+   only happen per element here, not per logical group. Forcing a break
+   exactly at a group boundary (`flex-basis: 100%` on the Replace field or
+   the first checkbox) was tried and reverted: with no zero-width "break"
+   element to carry that forced line by itself, the boundary element claims
+   the *entire* row alone and pushes its own siblings down an extra row —
+   worse fragmentation at real narrow widths than the plain per-element wrap
+   below. A real fix needs an actual break element between groups, which
+   means restructuring stylo's DOM — out of scope here.
+
+   `--h` is bumped to 36px — the main toolbar's own total row height (28px
+   `.toolbarButton` + its 4px top/bottom padding, see stylo's
+   `stylo.module.css`) — so the panel reads as one more toolbar-height row
+   instead of a visually shorter strip glued underneath it. `height: auto`
+   (deliberately *not* `!important`) rests at that same 36px in the common
+   single-row case (28px fields/buttons below + this rule's own 4px
+   vertical padding), winning over stylo's own fixed `height: var(--h)` on
+   plain cascade specificity — but a live CSS *animation* (stylo's own
+   open/close slide, still wired to this `--h`) outranks any normal-origin
+   author rule, `!important` or not, while it's actually running. That
+   split is what lets the slide play for the common case without
+   permanently pinning a wrapped row's height: the animation drives
+   `height` for its 0.16s, then hands off to this rule's `auto` once it's
+   done, sized correctly whether that's one row or two. */
+[data-slot="markdown-panel"] .stylo-search-panel {
+  --h: 36px;
+  flex-wrap: wrap !important;
+  height: auto;
+  padding: 4px 6px !important;
+  overflow: hidden !important;
+  row-gap: 2px !important;
+}
+/* Fields and buttons capped at 28px — `.toolbarButton`'s own height and
+   border-radius formula — so the row reads as one more piece of toolbar
+   chrome. Font size and padding trimmed a step below the toolbar's own
+   buttons (which carry icons, not words): "next"/"previous"/"replace all"
+   are real text, and matching the icon buttons' own 0.75rem/8px made the
+   row visibly heavier than the toolbar above it and more prone to
+   wrapping to a second line in a narrow pane — a wrapped row still isn't
+   clipped (see `height: auto` above) but no longer sits at the single
+   toolbar-height row this is meant to match. */
+[data-slot="markdown-panel"] .stylo-search-field,
+[data-slot="markdown-panel"] .stylo-search-button {
+  height: 28px !important;
+  box-sizing: border-box !important;
+}
+[data-slot="markdown-panel"] .stylo-search-field {
+  min-width: 48px !important;
+  font-size: 0.6875rem !important;
+  /* stylo's own `--stylo-bg`/`--stylo-text` (panel + muted-foreground) are
+     tuned for floating chrome sitting on top of prose — inside this field
+     they read flat, blending into the toolbar row instead of standing out
+     as an actual text box the way the vault-search field (`--background` /
+     `--foreground`) does. Border stays on `--stylo-border` (already
+     `--border`, matching the vault field's own `border-border`). */
+  background: var(--background) !important;
+  color: var(--foreground) !important;
+}
+/* stylo squares this field's corners itself (`theme.ts`) to read as
+   attached to the Replace/Replace-all buttons via its own `border-left`
+   divider — but next to the Find field's rounded ones, in isolation it just
+   looks like an unrounded default rather than a deliberate group edge. The
+   `border-left` divider alone already carries that grouping. */
+[data-slot="markdown-panel"] .stylo-search-field.stylo-search-replace {
+  border-radius: calc(var(--stylo-radius) - 3px) !important;
+}
+[data-slot="markdown-panel"] .stylo-search-button {
+  padding: 0 6px !important;
+  font-size: 0.625rem !important;
+}
+[data-slot="markdown-panel"] .stylo-search-check {
+  font-size: 0.5625rem !important;
+  gap: 2px !important;
+}
+/* The checkboxes' group boundary gets the same visual separator stylo
+   already gives the Replace field's own boundary (a `border-left` in its
+   `theme.ts`), so a wrap that happens to land near there still reads as a
+   group edge rather than an arbitrary cut. */
+[data-slot="markdown-panel"] .stylo-search-check:first-of-type {
+  margin-left: 4px !important;
+  padding-left: 6px !important;
+  border-left: 1px solid var(--stylo-border) !important;
+}
+/* stylo pins this to the row's far right via `margin-left: auto` — which
+   collapses to 0 the moment the row is tight on space (the checkboxes
+   wrapped onto their own line, say), butting the × straight up against
+   "by word" with no visible gap at all. A fixed gap wins over "pinned to
+   the far edge" here: it never collapses, at the cost of the button no
+   longer sitting flush against the panel's right edge in the roomier
+   single-row case. */
+[data-slot="markdown-panel"] .stylo-search-close {
+  margin-left: 12px !important;
+}
+/* `@codemirror/view`'s own baseTheme (not stylo's `--stylo-*` theme) puts a
+   hardcoded light-mode `1px solid #ddd` under `.cm-panels-top` regardless
+   of stylo's dark palette — on Sympose's dark surface it reads as a stray
+   line under the canvas header (the frontmatter card, ADR-080), which
+   already carries its own visual boundary. */
+[data-slot="markdown-panel"] .cm-panels.cm-panels-top {
+  border-bottom: none !important;
+}
+
+/* stylo's in-place table (both the `"source"` and `"cells"` table-editing
+   modes decorate through this same markup) sits inside a `.cm-inplace-table-wrap`
+   widget container that stylo ships as `display: inline-block` with no
+   explicit width — meant to shrink-wrap the table so the row/column "add"
+   gizmo buttons hug its actual edges. That auto-sized wrapper is what a plain
+   `width: 100%` on the `<table>` itself resolves against, so it was a no-op:
+   100% of a shrink-to-fit box is still shrink-to-fit. Forcing the wrapper to
+   a full-width block first, then filling it, is what actually stretches the
+   table across the pane; the gizmo buttons still track the table's real edges
+   via `getBoundingClientRect()` at runtime, not CSS, so this doesn't disturb
+   them. `!important`: stylo injects both rules as a CodeMirror
+   `EditorView.theme()` stylesheet whose insertion order we can't rely on.
+
+   stylo `>=0.15.1` (`theme-table-gizmos.ts`) dropped the wrap's right-side
+   padding entirely and switched to `overflow: visible`, so the gizmo strip
+   renders past the table's real edge instead of needing in-flow space
+   reserved for it — the table itself now reaches the wrap's full width on
+   its own. A `box-sizing: border-box` override used to live here to work
+   around that reserved padding fighting `max-width: 100%` under
+   `content-box` sizing (see `stylo/docs/requests/
+   2026-09-13_inplace-table-gizmo-padding-shrinks-table.md`); no longer
+   needed now that there's no horizontal padding left to fight. */
+[data-slot="markdown-panel"] .cm-inplace-table-wrap {
+  display: block !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+}
+[data-slot="markdown-panel"] .cm-inplace-table {
+  width: 100% !important;
+}
+/* Same full-width intent, preview's DOM shape: `mode="preview"` renders a
+   plain `<table>` with no wrapper (`stylo.module.css`'s own rule is just
+   `display: block; overflow-x: auto`, no width), so it shrinks to its cells'
+   intrinsic width instead of filling the pane like in-place's forced-100%
+   table above — no wrapper-first trick needed here since there's no
+   shrink-to-fit ancestor standing in the way. */
+[data-slot="markdown-panel"] [data-stylo-mode="preview"] table {
+  width: 100% !important;
+}
+
+/* `.preview p`'s blanket `margin: 1.25em 0` (stylo.module.css) applies
+   inside a callout's `<p>` same as anywhere else. A plain blockquote has
+   no padding of its own, so that margin collapses through to the
+   blockquote's own outer margin same as it would for a bare paragraph —
+   nothing to fix there. `.stylo-callout` does have real padding
+   (`--stylo-rhythm-callout-padding-y`, top *and* bottom), and a
+   parent's own padding blocks margin collapsing between it and its first/
+   last child — so the callout's padding and its first/last paragraph's
+   margin stack instead of overlapping, reading noticeably taller and
+   more loosely spaced than in-place's line-based equivalent (which has no
+   paragraph margin concept at all). `.stylo-callout` is stylo's
+   documented, stable override class (unlike the hashed `.preview` module
+   class — see the props reference's "Embeds"/callout override points),
+   safe to target directly. Paragraph-to-paragraph spacing *inside* a
+   multi-paragraph callout is left alone — untouched by this collapsing
+   issue (adjacent sibling margins do collapse with each other), and equal
+   to normal prose rhythm elsewhere in the document is the correct call,
+   not a bug (CommonMark's "blank line = new paragraph" is what a host
+   would be fighting here). */
+[data-slot="markdown-panel"]
+  [data-stylo-mode="preview"]
+  .stylo-callout
+  > :first-child {
+  margin-top: 0 !important;
+}
+[data-slot="markdown-panel"]
+  [data-stylo-mode="preview"]
+  .stylo-callout
+  > :last-child {
+  margin-bottom: 0 !important;
+}
+
+/* ONE frosted surface for every menu in the app — the Sympose dropdowns and
+   pointer-anchored context menu (`components/ui/dropdown-menu` + `context-menu`)
+   and stylo's editor right-click menu / URL input / selection bar / link
+   tooltip. They used to paint their own backgrounds separately: the React side
+   via Tailwind's `bg-panel/88` (an oklab mix that read noticeably more
+   see-through) on a `::before` blur layer, stylo via its own `color-mix`. This
+   single rule keeps them byte-identical — a near-solid `--panel` tint over a
+   24px blur. `!important` is a no-op for the Sympose slots and is required to
+   beat stylo's injected `EditorView.theme()` stylesheet. */
+[data-slot="dropdown-menu-content"],
+[data-slot="dropdown-menu-sub-content"],
+[data-slot="context-menu-content"],
+[data-slot="markdown-panel"] .cm-inplace-menu-panel,
+[data-slot="markdown-panel"] .cm-inplace-menu-input,
+[data-slot="markdown-panel"] .cm-inplace-selbar,
+[data-slot="markdown-panel"] .cm-inplace-href-tip,
+[data-slot="markdown-panel"] .cm-tooltip.cm-tooltip-autocomplete {
+  background: color-mix(in srgb, var(--panel) 94%, transparent) !important;
+  -webkit-backdrop-filter: blur(24px) saturate(1.4);
+  backdrop-filter: blur(24px) saturate(1.4);
+}
+
+/* Give stylo's compact right-click menu the same geometry as Sympose's own
+   menus (`menuPopupClass` / `DropdownMenuItem`) — the panels' `--radius-lg`
+   corner, roomier rows, a soft drop shadow over a hairline ring instead of a
+   hard border — so every right-click menu in the app reads as one component.
+   The frosted surface itself is set by the rule above; this is shape only.
+   `!important` throughout: stylo injects these as a CodeMirror
+   `EditorView.theme()` stylesheet whose insertion order we can't rely on. */
+[data-slot="markdown-panel"] .cm-inplace-menu-panel {
+  min-width: 12rem !important;
+  padding: 0.25rem !important;
+  border: none !important;
+  border-radius: var(--radius-lg) !important;
+  box-shadow:
+    0 25px 50px -12px rgb(0 0 0 / 0.25),
+    0 0 0 1px color-mix(in srgb, var(--foreground) 8%, transparent) !important;
+}
+[data-slot="markdown-panel"] .cm-inplace-menu-item {
+  gap: 0.625rem !important;
+  padding: 0.5rem 0.75rem !important;
+  border-radius: var(--radius-md) !important;
+  font-size: 0.875rem !important;
+  /* Rows at the app's general secondary-text weight (`--muted-foreground`),
+     matching the Sympose menu items — not stylo's own `--stylo-text`, which is
+     the same token but reads as "editor body prose" here. Full contrast only
+     on hover, below. */
+  color: var(--muted-foreground) !important;
+}
+[data-slot="markdown-panel"] .cm-inplace-menu-item svg {
+  width: 1rem !important;
+  height: 1rem !important;
+  color: currentcolor !important;
+}
+[data-slot="markdown-panel"] .cm-inplace-menu-item:hover:not(:disabled) {
+  color: var(--accent-foreground) !important;
+  background: color-mix(in srgb, var(--foreground) 10%, transparent) !important;
+}
+[data-slot="markdown-panel"] .cm-inplace-menu-sep {
+  margin: 0.25rem !important;
+  background: color-mix(in srgb, var(--border) 50%, transparent) !important;
+}
+
+/* `[[wikilink` / `#tag` autocomplete popup — this is plain, unstyled
+   `@codemirror/autocomplete` (its `baseTheme`: a flat gray tooltip, `#347`
+   selected-row blue, underlined matched text, monospace list). Pushed onto
+   the same frosted footprint and geometry as the menus above — the frosted
+   background is added to the shared rule; this is shape and type only.
+   `!important` throughout for the same reason as the `cm-inplace-menu-*`
+   rules: it's beating an injected `EditorView.theme()` stylesheet. */
+[data-slot="markdown-panel"] .cm-tooltip.cm-tooltip-autocomplete {
+  border: none !important;
+  border-radius: var(--radius-lg) !important;
+  box-shadow:
+    0 25px 50px -12px rgb(0 0 0 / 0.25),
+    0 0 0 1px color-mix(in srgb, var(--foreground) 8%, transparent) !important;
+}
+[data-slot="markdown-panel"] .cm-tooltip.cm-tooltip-autocomplete > ul {
+  padding: 0.25rem !important;
+  font-family: inherit !important;
+}
+[data-slot="markdown-panel"] .cm-tooltip-autocomplete ul > li {
+  border-radius: var(--radius-md) !important;
+  padding: 0.5rem 0.75rem !important;
+  font-size: 0.875rem !important;
+  color: var(--muted-foreground) !important;
+}
+[data-slot="markdown-panel"] .cm-tooltip-autocomplete ul li[aria-selected] {
+  background: color-mix(in srgb, var(--foreground) 10%, transparent) !important;
+  color: var(--accent-foreground) !important;
+}
+[data-slot="markdown-panel"] .cm-completionMatchedText {
+  text-decoration: none !important;
+  color: var(--foreground) !important;
+  font-weight: 600 !important;
+}
+
+/* Sympose's own pointer-anchored context menu (`components/ui/context-menu`)
+   on a coarse pointer: open the rows and glyphs up for a fingertip, the same
+   way the editor's touch menu does (`@media (pointer: coarse)` in stylo's
+   theme bumps its rows to `9px 0.75em` / `1em`). Fine pointers keep the
+   compact dropdown metrics. */
+@media (pointer: coarse) {
+  [data-slot="context-menu-content"] {
+    min-width: 14rem;
+  }
+  [data-slot="context-menu-content"] [data-slot="dropdown-menu-item"] {
+    padding: 0.625rem 0.75rem;
+    font-size: 0.9375rem;
+  }
+  [data-slot="context-menu-content"]
+    [data-slot="dropdown-menu-item"]
+    svg:not([class*="size-"]) {
+    width: 1.15rem;
+    height: 1.15rem;
+  }
+}
+
+/* The focus ring CodeMirror draws around the whole editing surface —
+   `.cm-editor.cm-focused` in stylo.module.css — toggled from Settings >
+   Markdown editor > Focus outline. Scoped to the outline only, not
+   `--stylo-ring` itself, since that token doubles as the active-menu-item
+   accent color elsewhere in stylo's theme. */
+[data-focus-outline="off"] .cm-editor.cm-focused {
+  outline: none !important;
+}
+
+/* A minimal, auto-hiding scrollbar app-wide — invisible at rest, a thin
+   `--border`-colored thumb while the pointer is over the scrolling box.
+   Applied globally (not just the editor's `.cm-scroller`) so every scroll
+   container — the vault tree, chat transcript, settings, the editing
+   surface — reads as one consistent scrollbar rather than the editor's
+   custom one next to the browser's stock ones everywhere else. Native
+   `::-webkit-scrollbar-thumb`/`scrollbar-color` changes don't actually
+   animate in Chromium, so this snaps instantly; that's still fine for these
+   plain browser scrollbars. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+*:hover {
+  scrollbar-color: var(--border) transparent;
+}
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 999px;
+}
+*:hover::-webkit-scrollbar-thumb {
+  background: var(--border);
+}
+/* Two scroll surfaces get a hand-drawn thumb instead of the rule above
+   (`<ScrollThumb>` in scroll-thumb.tsx, mounted in markdown-panel.tsx and
+   content-panel.tsx) so the hover fade is a real, animatable DOM opacity
+   transition — stylo's own scroll viewport (`dist/styles.css`,
+   `._root_*_1 .cm-scroller` in source/in-place/split, always-visible and
+   unanimated regardless of the rule above; `[data-stylo-mode="preview"]`'s
+   own child in `mode="preview"`, which has no `.cm-scroller` at all —
+   `getStyloScroller` in markdown-panel.tsx resolves whichever one applies,
+   this just needs to hide the native scrollbar on both the same way) and
+   `<ContentPanel>`'s scroll surface (the vault view, Settings, the Persona
+   page). All native scrollbars here are hidden outright. */
+[data-slot="markdown-panel"] .cm-scroller,
+[data-slot="markdown-panel"] [data-stylo-mode="preview"] > div,
+[data-slot="content-panel-scroll"] {
+  scrollbar-width: none !important;
+}
+[data-slot="markdown-panel"] .cm-scroller::-webkit-scrollbar,
+[data-slot="markdown-panel"]
+  [data-stylo-mode="preview"]
+  > div::-webkit-scrollbar,
+[data-slot="content-panel-scroll"]::-webkit-scrollbar {
+  display: none !important;
+}
+/* Frosted panel surface — the vault/content panel and the editor card sitting
+   over the ambient Knowledge Nebula (ADR-088; blur dropped, ADR-089 —
+   opacity alone reads clearly without a backdrop-filter compositing cost).
+   Deliberately scoped to those two only, not the menu rail or chat, which
+   carry no background of their own at all. `.sy-frosted-panel` is a drop-in
+   swap for `bg-panel`: the fill is `--sy-panel-opacity` continuously, `0`
+   (clear) → `1` (the old solid `--panel`, byte-identical at the default) — no
+   snap, no floor. The Settings → Knowledge Nebula "Panel opacity" knob sets
+   `--sy-panel-opacity` on the shell root and flips `data-nebula-frost` to
+   `tint` (opacity < 1) or `off` (opacity 1, the default). */
+.sy-frosted-panel {
+  background-color: color-mix(
+    in srgb,
+    var(--panel) calc(var(--sy-panel-opacity, 1) * 100%),
+    transparent
+  );
+}
+/* Same knob, different base color — the frontmatter card (`frontmatter-
+   card.tsx`) sits *inside* an already-`.sy-frosted-panel` surface (the
+   editor card) at the exact same `--panel` shade the editor and stylo's
+   toolbar paint themselves, so filling from `--panel` here (tried first)
+   made the card disappear into them rather than read as its own surface —
+   the same collision `<Card>`'s own `bg-card` has in dark mode, where
+   `--card` and `--panel` are byte-identical. `--muted` is one real step
+   lighter, so this card is legible at the knob's default (1) and still
+   answers the same Settings → Knowledge Nebula "Panel opacity" dial as
+   every other frosted surface, fading with it rather than being the one
+   surface that ignores it. */
+.sy-frontmatter-panel {
+  background-color: color-mix(
+    in srgb,
+    var(--muted) calc(var(--sy-panel-opacity, 1) * 100%),
+    transparent
+  );
+}
+/* stylo's own root (`.stylo`, its `_root_*` CSS-module class paints
+   `background: var(--stylo-bg)`, which this file already pins to `--panel`)
+   is one opaque surface to drop under frost — but `.cm-editor`, the
+   formatting toolbar (`[role="toolbar"]` — stylo's own accessibility
+   contract, stabler than its hashed CSS-module class name), and the
+   find/replace panel (`.cm-panels.cm-panels-top`, styled by stylo's own
+   `theme.ts`) turned out to be three more, independent ones: each paints its
+   own background directly rather than inheriting `.stylo`'s, so none of them
+   picked up `.stylo`'s transparency on their own — the editor's actual text
+   area, its toolbar, and the search panel never showed the frosted nebula
+   through them even with `.stylo` cleared. `.cm-scroller` / `.cm-content`
+   genuinely carry no background of their own and need no override. Whenever
+   frost is engaged at all, drop all three to transparent and let
+   `.sy-frosted-panel` (their parent card) do the tinting instead. The
+   per-line code-fence tint (`.cm-inplace-mono`, a much lighter ~35% wash) is
+   deliberate — it survives frost the same way inline `code` shading does in
+   the rendered preview, so code still reads as code. stylo's floating menus
+   set their own explicit background (the shared frosted-menu rule below), so
+   they are unaffected. The frontmatter card (Sympose's own component) is
+   deliberately *not* in this list — it uses `.sy-frosted-panel` directly
+   (see `frontmatter-card.tsx`) rather than dropping to fully transparent, so
+   it keeps its own tint as an inset, rounded card instead of vanishing into
+   an outline with nothing inside it under frost. */
+[data-nebula-frost="tint"] [data-slot="markdown-panel"] .stylo,
+[data-nebula-frost="tint"] [data-slot="markdown-panel"] .cm-editor,
+[data-nebula-frost="tint"] [data-slot="markdown-panel"] [role="toolbar"],
+[data-nebula-frost="tint"]
+  [data-slot="markdown-panel"]
+  .cm-panels.cm-panels-top {
+  background: transparent !important;
+}
+/* Same `[role="toolbar"]` contract as the frost rule above. Its own
+   `border-bottom` (baked into stylo's CSS-module `.toolbar` class) sat
+   inside the fade wrapper `markdown-panel.tsx`'s `toolbar.render` puts
+   around it, so it visibly moved on every read/edit toggle. Dropped here in
+   favor of a static `border-b` on that wrapper's own (unanimated) outer
+   shell, so the line stays put through the whole toggle instead of
+   borrowing stylo's animated one. */
+[data-slot="markdown-panel"] [role="toolbar"] {
+  border-bottom: none;
+}
+
+/* The Knowledge Nebula's node-hover tooltip is `force-graph`'s bundled
+   `float-tooltip` package, not a component of ours — `createNodeTooltip()`
+   (knowledge-nebula-shared.ts) only supplies the HTML that lands *inside*
+   its wrapper. That wrapper injects its own always-dark default (a 3-5px
+   pad on `rgba(0,0,0,0.6)`, from `float-tooltip`'s own stylesheet), so our
+   inner div — theme-correct bg/fg/border, sized to its own content — sat
+   inset a few px inside that dark halo. Invisible in dark mode (the two
+   dark backgrounds read as one), but in light mode the halo showed as a
+   thick, off-palette grey/black border no `border` value on our own div
+   could reach, since it belonged to a different element. Neutralized here
+   instead of hunting a `float-tooltip` option for it — the package exposes
+   none; it always injects this one bundled rule. */
+.float-tooltip-kap {
+  padding: 0 !important;
+  background: transparent !important;
+}

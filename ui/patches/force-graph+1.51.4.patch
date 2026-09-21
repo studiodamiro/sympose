@@ -1,0 +1,42 @@
+diff --git a/node_modules/force-graph/dist/force-graph.mjs b/node_modules/force-graph/dist/force-graph.mjs
+index c6be1b1..8ea77a1 100644
+--- a/node_modules/force-graph/dist/force-graph.mjs
++++ b/node_modules/force-graph/dist/force-graph.mjs
+@@ -1534,9 +1534,19 @@ var forceGraph = Kapsule({
+         // detect pointer drag on canvas pan
+         !state.isPointerDragging && ev.type === 'pointermove' && state.onBackgroundClick // only bother detecting drags this way if background clicks are enabled (so they don't trigger accidentally on canvas panning)
+         && (ev.pressure > 0 || state.isPointerPressed) // ev.pressure always 0 on Safari, so we use the isPointerPressed tracker
+-        && (ev.pointerType === 'mouse' || ev.movementX === undefined || [ev.movementX, ev.movementY].some(function (m) {
+-          return Math.abs(m) > 1;
+-        })) // relax drag trigger sensitivity on non-mouse (touch/pen) events
++        // sympose patch (see ui/patches/force-graph+*.patch, amended ADR-120):
++        // the previous two rounds of this patch (thresholds `> 1`, then `> 4`)
++        // both gated on a single pointermove event's raw movementX/Y delta —
++        // still unreliable, because movementX reflects the device's pointer
++        // delta *before* OS-level pointer acceleration is applied, so a calm,
++        // small hand movement can report a large value on a system with a
++        // fast tracking-speed setting, and a single noisy event is a poor
++        // proxy for "did the user actually drag" either way. Compare
++        // cumulative on-screen displacement since pointerdown instead
++        // (pageX/Y, which already reflect acceleration) — the same
++        // click-vs-drag heuristic d3-zoom's own `clickDistance` option uses.
++        && state.pointerDownEvent
++        && Math.hypot(ev.pageX - state.pointerDownEvent.pageX, ev.pageY - state.pointerDownEvent.pageY) > 6
+         && (state.isPointerDragging = true);
+ 
+         // update the pointer pos
+@@ -1570,6 +1580,14 @@ var forceGraph = Kapsule({
+         state.isPointerDragging = false;
+         return; // don't trigger click events after pointer drag (pan / node drag functionality)
+       }
++      // sympose patch (see ui/patches/force-graph+*.patch): state.hoverObj — what
++      // the click below resolves against — comes from a hit-test canvas that's
++      // only repainted at most every 800ms (HOVER_CANVAS_THROTTLE_DELAY) while
++      // the graph is animating (settling, panning, zooming). A click during that
++      // window could resolve against node positions up to 800ms stale. Force a
++      // fresh paint right now so the very next animation-cycle tick (which runs
++      // before the click dispatch below) picks up current positions.
++      state.flushShadowCanvas && state.flushShadowCanvas();
+       var cbEvents = [ev, state.pointerDownEvent];
+       requestAnimationFrame(function () {
+         // trigger click events asynchronously, to allow hoverObj to be set (on frame)

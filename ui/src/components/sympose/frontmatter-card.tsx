@@ -1,0 +1,454 @@
+import * as React from "react"
+import { HugeiconsIcon } from "@hugeicons/react"
+import { Cancel01Icon, PlusSignIcon } from "@hugeicons/core-free-icons"
+
+import { cn } from "@/lib/utils"
+import {
+  parseFrontmatter,
+  serializeFrontmatter,
+  type FrontmatterData,
+  type FrontmatterScalar,
+} from "@/lib/frontmatter"
+import { parseWikilink } from "@/lib/extract-wikilinks"
+
+/** The card's "add field" control — sits in the card's top-right corner
+ *  (absolutely positioned by the caller) rather than in the row grid, so it
+ *  reads as a card-level action instead of one more field. Appends a new
+ *  scalar key; ignores a blank or already-present key rather than clobbering
+ *  a field the click-to-edit row above already handles. */
+function AddFieldButton({ existingKeys, onAdd }: { existingKeys: string[]; onAdd: (key: string) => void }) {
+  const [adding, setAdding] = React.useState(false)
+  const [draft, setDraft] = React.useState("")
+  const inputRef = React.useRef<HTMLInputElement>(null)
+
+  React.useEffect(() => {
+    if (adding) inputRef.current?.focus()
+  }, [adding])
+
+  const commit = () => {
+    const key = draft.trim()
+    if (key && !existingKeys.includes(key)) onAdd(key)
+    setDraft("")
+    setAdding(false)
+  }
+
+  if (adding) {
+    return (
+      <input
+        ref={inputRef}
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") commit()
+          if (e.key === "Escape") {
+            setDraft("")
+            setAdding(false)
+          }
+        }}
+        placeholder="key"
+        className="h-5 w-24 rounded border border-border bg-background px-1 text-xs normal-case outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+      />
+    )
+  }
+
+  return (
+    <button
+      type="button"
+      aria-label="Add field"
+      onClick={() => setAdding(true)}
+      className="grid size-5 place-items-center rounded-full border border-dashed border-border text-fg-muted transition-colors hover:border-solid hover:bg-accent hover:text-foreground"
+    >
+      <HugeiconsIcon icon={PlusSignIcon} className="size-3" />
+    </button>
+  )
+}
+
+/** One frontmatter list value as a pill — removable when `onRemove` is given,
+ *  a plain chip (read mode) when it's omitted. */
+function Pill({
+  children,
+  onRemove,
+}: {
+  children: React.ReactNode
+  onRemove?: () => void
+}) {
+  return (
+    <span className="inline-flex items-center gap-1 rounded-full border border-border bg-chip px-2 py-0.5 text-xs text-chip-foreground">
+      {children}
+      {onRemove && (
+        <button
+          type="button"
+          aria-label="Remove"
+          onClick={onRemove}
+          className="grid size-3.5 place-items-center rounded-full text-fg-muted transition-colors hover:bg-accent hover:text-foreground"
+        >
+          <HugeiconsIcon icon={Cancel01Icon} className="size-3" />
+        </button>
+      )}
+    </span>
+  )
+}
+
+/** A pill's label — a `[[wikilink]]` renders as a clickable link, brackets dropped. */
+function PillLabel({
+  value,
+  onLinkClick,
+}: {
+  value: FrontmatterScalar
+  onLinkClick?: (target: string) => void
+}) {
+  const link = typeof value === "string" ? parseWikilink(value) : null
+  if (!link) return <>{String(value)}</>
+  return (
+    <button
+      type="button"
+      onClick={() => onLinkClick?.(link.target)}
+      className="text-entity underline-offset-2 hover:underline"
+    >
+      {link.label}
+    </button>
+  )
+}
+
+/** A frontmatter array field — its items as pills, plus an "add" affordance.
+ *  `readOnly` drops both: pills lose their remove control, and the "add"
+ *  affordance disappears entirely. */
+function PillRow({
+  values,
+  onChange,
+  onLinkClick,
+  readOnly,
+}: {
+  values: FrontmatterScalar[]
+  onChange: (next: FrontmatterScalar[]) => void
+  onLinkClick?: (target: string) => void
+  readOnly?: boolean
+}) {
+  const [adding, setAdding] = React.useState(false)
+  const [draft, setDraft] = React.useState("")
+  const inputRef = React.useRef<HTMLInputElement>(null)
+
+  React.useEffect(() => {
+    if (adding) inputRef.current?.focus()
+  }, [adding])
+
+  const commitAdd = () => {
+    const trimmed = draft.trim()
+    if (trimmed) onChange([...values, trimmed])
+    setDraft("")
+    setAdding(false)
+  }
+
+  return (
+    <div className="flex flex-wrap items-center gap-1.5">
+      {values.map((v, i) => (
+        <Pill
+          key={i}
+          onRemove={readOnly ? undefined : () => onChange(values.filter((_, j) => j !== i))}
+        >
+          <PillLabel value={v} onLinkClick={onLinkClick} />
+        </Pill>
+      ))}
+      {!readOnly &&
+        (adding ? (
+          <input
+            ref={inputRef}
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onBlur={commitAdd}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") commitAdd()
+              if (e.key === "Escape") {
+                setDraft("")
+                setAdding(false)
+              }
+            }}
+            className="h-5 w-20 rounded-full border border-border bg-background px-2 text-xs outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+          />
+        ) : (
+          <button
+            type="button"
+            aria-label="Add"
+            onClick={() => setAdding(true)}
+            className="grid size-5 place-items-center rounded-full border border-dashed border-border text-fg-muted transition-colors hover:border-solid hover:bg-accent hover:text-foreground"
+          >
+            <HugeiconsIcon icon={PlusSignIcon} className="size-3" />
+          </button>
+        ))}
+    </div>
+  )
+}
+
+/** A scalar frontmatter value — plain text until clicked, then an inline
+ *  input; `readOnly` drops the click-to-edit affordance entirely, leaving a
+ *  plain (non-interactive) value. A `[[wikilink]]` value keeps navigating on
+ *  click either way — same "links still work" rule the note body follows. */
+function ScalarField({
+  value,
+  onChange,
+  onLinkClick,
+  readOnly,
+}: {
+  value: FrontmatterScalar
+  onChange: (next: string) => void
+  onLinkClick?: (target: string) => void
+  readOnly?: boolean
+}) {
+  const [editing, setEditing] = React.useState(false)
+  const [draft, setDraft] = React.useState(String(value ?? ""))
+  const inputRef = React.useRef<HTMLInputElement>(null)
+
+  // Runs once per entry into edit mode, not on every keystroke — an inline
+  // ref callback re-invokes on every render, which re-selects (then the next
+  // typed character replaces) the *whole* value after every keystroke.
+  React.useEffect(() => {
+    if (editing) inputRef.current?.select()
+  }, [editing])
+
+  const link = typeof value === "string" ? parseWikilink(value) : null
+
+  if (!editing) {
+    // A `[[wikilink]]` value navigates on click, like the note's own outbound
+    // links, rather than opening for edit — editing it as text belongs on the
+    // note body, not this card.
+    if (link) {
+      return (
+        <button
+          type="button"
+          onClick={() => onLinkClick?.(link.target)}
+          className="rounded px-1 -mx-1 text-left text-entity underline-offset-2 hover:underline"
+        >
+          {link.label}
+        </button>
+      )
+    }
+    if (readOnly) {
+      return (
+        <span className="rounded px-1 -mx-1 text-left text-muted-foreground">
+          {String(value ?? "") || <span className="text-fg-muted">—</span>}
+        </span>
+      )
+    }
+    return (
+      <button
+        type="button"
+        onClick={() => {
+          setDraft(String(value ?? ""))
+          setEditing(true)
+        }}
+        className="rounded px-1 -mx-1 text-left text-muted-foreground transition-colors hover:bg-accent"
+      >
+        {String(value ?? "") || <span className="text-fg-muted">—</span>}
+      </button>
+    )
+  }
+
+  const commit = () => {
+    onChange(draft)
+    setEditing(false)
+  }
+
+  return (
+    <input
+      ref={inputRef}
+      autoFocus
+      value={draft}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") commit()
+        if (e.key === "Escape") setEditing(false)
+      }}
+      className="-mx-1 w-full rounded bg-background px-1 text-foreground outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+    />
+  )
+}
+
+/** How long a touch has to hold before it counts as a long-press (ms) —
+ *  short enough to feel responsive, long enough not to fire on an ordinary
+ *  tap-to-scroll or tap-to-edit touch. */
+const LONG_PRESS_MS = 450
+
+/** One field row (`dt`/`dd`) — its remove control stays collapsed to zero
+ *  width and slides open (mouse hover, or a touch long-press) rather than
+ *  sitting there permanently, so a card full of fields doesn't read as a
+ *  wall of delete buttons. `revealed` is plain component state rather than
+ *  CSS `:hover` so the same code path drives both mouse and touch. */
+function FieldRow({
+  fieldKey,
+  value,
+  onValueChange,
+  onRemove,
+  onLinkClick,
+  readOnly,
+}: {
+  fieldKey: string
+  value: FrontmatterData[string]
+  onValueChange: (next: FrontmatterData[string]) => void
+  onRemove: () => void
+  onLinkClick?: (target: string) => void
+  readOnly?: boolean
+}) {
+  const [revealed, setRevealed] = React.useState(false)
+  const longPressTimer = React.useRef<number | null>(null)
+
+  const clearLongPress = () => {
+    if (longPressTimer.current !== null) {
+      window.clearTimeout(longPressTimer.current)
+      longPressTimer.current = null
+    }
+  }
+
+  return (
+    <>
+      <dt
+        className="flex items-center text-fg-muted uppercase"
+        onMouseEnter={() => setRevealed(true)}
+        onMouseLeave={() => setRevealed(false)}
+        onTouchStart={() => {
+          clearLongPress()
+          longPressTimer.current = window.setTimeout(() => setRevealed(true), LONG_PRESS_MS)
+        }}
+        onTouchEnd={clearLongPress}
+        onTouchMove={clearLongPress}
+      >
+        {!readOnly && (
+          <div
+            className={cn(
+              "grid shrink-0 place-items-center overflow-hidden transition-[width,margin,opacity] duration-150 ease-out",
+              revealed ? "mr-1 w-3.5 opacity-100" : "w-0 opacity-0"
+            )}
+          >
+            <button
+              type="button"
+              aria-label={`Remove ${fieldKey}`}
+              onClick={onRemove}
+              onFocus={() => setRevealed(true)}
+              onBlur={() => setRevealed(false)}
+              className="grid size-3.5 shrink-0 place-items-center rounded-full text-fg-muted transition-colors hover:bg-accent hover:text-foreground"
+            >
+              <HugeiconsIcon icon={Cancel01Icon} className="size-3" />
+            </button>
+          </div>
+        )}
+        {fieldKey}
+      </dt>
+      <dd>
+        {Array.isArray(value) ? (
+          <PillRow
+            values={value}
+            onChange={onValueChange}
+            onLinkClick={onLinkClick}
+            readOnly={readOnly}
+          />
+        ) : (
+          <ScalarField value={value} onChange={onValueChange} onLinkClick={onLinkClick} readOnly={readOnly} />
+        )}
+      </dd>
+    </>
+  )
+}
+
+/**
+ * Editable frontmatter card — replaces stylo's native `---` block entirely
+ * (it never sees the frontmatter text; the panel splits it out via
+ * `splitFrontmatter` and feeds only the body to `<Stylo>`). List-valued
+ * fields render as pills per damiro's reference mockup; everything else is a
+ * click-to-edit scalar. Rows can be removed and new (scalar) fields added,
+ * same as any other edit here. Parsing/serializing goes through `yaml`, not a
+ * hand-rolled parser, so an unusual note's frontmatter round-trips losslessly
+ * instead of risking silent corruption.
+ */
+function FrontmatterCard({
+  raw,
+  onChange,
+  onLinkClick,
+  readOnly,
+  className,
+}: {
+  raw: string
+  onChange: (raw: string) => void
+  /** Fires when a `[[wikilink]]`-valued field is clicked. */
+  onLinkClick?: (target: string) => void
+  /** Disables all field editing (remove/add pill controls, click-to-edit
+   *  scalars) while leaving wikilink navigation intact — the editor panel's
+   *  read/edit toggle. */
+  readOnly?: boolean
+  className?: string
+}) {
+  const data = React.useMemo(() => parseFrontmatter(raw), [raw])
+
+  if (data === null) {
+    // Not a flat mapping stylo/yaml can round-trip cleanly (a bare list, an
+    // unparseable block, deep nesting) — leave it alone rather than risk
+    // mangling it; the raw text is still there, just not in this card.
+    return null
+  }
+
+  const setField = (key: string, value: FrontmatterData[string]) => {
+    onChange(serializeFrontmatter({ ...data, [key]: value }))
+  }
+
+  const removeField = (key: string) => {
+    onChange(serializeFrontmatter(Object.fromEntries(Object.entries(data).filter(([k]) => k !== key))))
+  }
+
+  const entries = Object.entries(data)
+  if (entries.length === 0 && readOnly) return null
+
+  return (
+    <dl
+      data-slot="frontmatter-card"
+      className={cn(
+        // `mx-2` is the same thin gap the stage already uses between distinct
+        // panels (`<ContentPanel>`'s and `<MarkdownPanel>`'s own `pe-2`), so
+        // this reads as its own block inset from the panel edges rather than
+        // full-bleed. `rounded-lg` follows from that — once the sides aren't
+        // flush, square corners would look unfinished. The caller still
+        // supplies the horizontal *content* gutter (`px-6 sm:px-8`, same as
+        // the note body) inside that margin. `sy-frontmatter-panel`
+        // (index.css) fills from `--muted` — one step lighter than `--panel`
+        // (the shade stylo's own toolbar/canvas paint themselves via
+        // `--stylo-bg`, and also what `<Card>`'s own `bg-card` resolves to
+        // in dark mode — both tried first and both made the card disappear
+        // into its surroundings rather than read as its own surface) — so
+        // it stays visibly distinct at the Knowledge Nebula panel-opacity
+        // knob's default (1). Unlike a flat `bg-muted`, it still answers
+        // that same knob: `color-mix`'d against `--sy-panel-opacity`, same
+        // formula as `.sy-frosted-panel`, so dialing panel opacity down
+        // fades this card too instead of leaving it the one surface that
+        // ignores the setting. `border-b` closes it off below.
+        // `items-center`, not `items-start` — a plain text value and a row of
+        // pills (their own `py-0.5` chrome makes that row taller) don't share
+        // a height, so aligning both to the row's *top* left the label sitting
+        // above a scalar value's true center and above a pill row's actual
+        // content by different amounts each time. Centering both against
+        // whichever is taller needs no per-row-type padding to compensate.
+        // `relative` + `pr-8` hosts the corner "add field" button (below)
+        // without it overlapping a wide value in the top row.
+        "relative mx-2 shrink-0 grid grid-cols-[max-content_1fr] items-center gap-x-4 gap-y-2 rounded-lg border-b border-border sy-frontmatter-panel py-4 pr-8 font-mono text-xs",
+        className
+      )}
+    >
+      {!readOnly && (
+        <div className="absolute right-2 top-2">
+          <AddFieldButton existingKeys={entries.map(([key]) => key)} onAdd={(key) => setField(key, "")} />
+        </div>
+      )}
+      {entries.map(([key, value]) => (
+        <FieldRow
+          key={key}
+          fieldKey={key}
+          value={value}
+          onValueChange={(next) => setField(key, next)}
+          onRemove={() => removeField(key)}
+          onLinkClick={onLinkClick}
+          readOnly={readOnly}
+        />
+      ))}
+    </dl>
+  )
+}
+
+export { FrontmatterCard }

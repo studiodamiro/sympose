@@ -110,6 +110,12 @@ const AUTO_COLLAPSE_COOKIE = "sympose:pref.autoCollapseMenu"
 const SECTION_COOKIE = "sympose:shell.section"
 const RAIL_COOKIE = "sympose:shell.rail"
 const NOTE_COOKIE = "sympose:shell.note"
+/** How long the search field waits after the last keystroke before firing
+ *  `/api/vault/search`. */
+const SEARCH_DEBOUNCE_MS = 250
+/** A stable reference for "no search results yet/stale" — see its use
+ *  below for why a fresh `[]` literal per render isn't good enough. */
+const EMPTY_SEARCH_RESULTS: VaultSearchResult[] = []
 
 /**
  * One row in the search results supplement (in-folder content matches, or
@@ -147,6 +153,28 @@ function SearchResultRow({
         </span>
       )}
     </button>
+  )
+}
+
+/**
+ * `SearchResultRow`'s `detail` line for one match — a content match's line
+ * number and snippet, separated by a chevron; any other match type's
+ * snippet alone (it's already self-descriptive: `#tag` for a tag match,
+ * a title-line preview for a title match — no line number applies).
+ * Shared by both search-result sections so they can't drift apart into
+ * two slightly different renderings of the same data.
+ */
+function searchMatchDetail(r: VaultSearchResult): React.ReactNode {
+  if (!r.snippet) return undefined
+  if (r.match_type !== "content") {
+    return <span className="truncate">{r.snippet}</span>
+  }
+  return (
+    <>
+      <span className="shrink-0">line {r.line_no}</span>
+      <HugeiconsIcon icon={ArrowRight01Icon} className="size-3 shrink-0" />
+      <span className="truncate">{r.snippet}</span>
+    </>
   )
 }
 
@@ -611,72 +639,68 @@ export function AppShell() {
     [panelNodes, vaultSearchQuery]
   )
 
-  // Content matches — body text isn't in the already-fetched tree, so this
-  // can't be done client-side like the name/tag/link filter above; a
-  // debounced round trip to `/api/vault/search`, scoped to the same folder
-  // currently in view. Only `content`-type results are kept here — title/tag
-  // matches are already surfaced instantly by `searchedPanelNodes`, so this
-  // supplements it rather than duplicating it.
+  // Backend search — body text isn't in the already-fetched tree, so this
+  // can't be done client-side like the name/tag/link filter above. One
+  // debounced, whole-persona-scope round trip to `/api/vault/search` (never
+  // narrowed to a folder — see that module's own docstring for why) covers
+  // both result tiers below: a note whose path falls under the folder
+  // currently in view supplements `searchedPanelNodes` (only its `content`
+  // matches are new there — title/tag hits *inside* the folder are already
+  // surfaced instantly by that client-side filter); everything else is the
+  // beyond-folder tier, where every match type is kept, since nothing else
+  // surfaces a title or tag hit on a note living in a different folder.
   //
-  // Stored keyed to the query/folder/persona it was actually fetched for,
-  // rather than cleared via effect-driven setState, so switching folders or
-  // personas (or retyping the query) can never display a stale response
-  // under the new context's label — a fetch whose key no longer matches the
-  // current one is simply never read, in whatever order responses arrive.
-  const contentMatchKey = `${vaultSearchQuery}\u0000${resolvedActive}\u0000${activePersona}`
-  const [contentMatchState, setContentMatchState] = React.useState<{
+  // Stored keyed to the query/persona it was actually fetched for, rather
+  // than cleared via effect-driven setState, so retyping the query (or
+  // switching personas) can never display a stale response — a fetch whose
+  // key no longer matches the current one is simply never read, in
+  // whatever order responses arrive. Switching which folder is in view
+  // needs no new fetch at all — both tiers below just re-derive from
+  // whatever's already in memory.
+  const searchKey = `${vaultSearchQuery}\u0000${activePersona}`
+  const [searchState, setSearchState] = React.useState<{
     key: string
     results: VaultSearchResult[]
   }>({ key: "", results: [] })
   React.useEffect(() => {
     if (!vaultSearchQuery || isSentinel) return
-    const key = contentMatchKey
+    const key = searchKey
+    const controller = new AbortController()
     const t = setTimeout(() => {
-      searchVault(vaultSearchQuery, resolvedActive, activePersona).then(
+      searchVault(vaultSearchQuery, activePersona, controller.signal).then(
         (results) => {
-          setContentMatchState({
-            key,
-            results: results.filter((r) => r.match_type === "content"),
-          })
+          if (!controller.signal.aborted) setSearchState({ key, results })
         }
       )
-    }, 250)
-    return () => clearTimeout(t)
-  }, [vaultSearchQuery, resolvedActive, isSentinel, activePersona, contentMatchKey])
-  const contentMatches =
-    contentMatchState.key === contentMatchKey ? contentMatchState.results : []
+    }, SEARCH_DEBOUNCE_MS)
+    return () => {
+      clearTimeout(t)
+      controller.abort()
+    }
+  }, [vaultSearchQuery, isSentinel, activePersona, searchKey])
+  // A stable empty-array reference, not a fresh `[]` literal each render —
+  // otherwise the memos below would see a "changed" dependency on every
+  // render while a search is inactive/stale, defeating their memoization.
+  const searchResults =
+    searchState.key === searchKey ? searchState.results : EMPTY_SEARCH_RESULTS
 
-  // Beyond-folder matches — a second, vault-wide tier (no `folder` param),
-  // separated from the in-folder results above rather than merged into
-  // them. Keyed on query + persona only, not `resolvedActive`: the raw
-  // fetch is genuinely folder-independent, so switching which folder is in
-  // view re-derives the display list from what's already in memory instead
-  // of re-fetching. All match types are kept here (unlike the in-folder
-  // fetch, which only needed `content` because title/tag hits *inside* the
-  // folder are already covered by the instant client-side filter above) —
-  // for a note living in a different folder, nothing else surfaces a
-  // title or tag hit on it at all.
-  const beyondFolderKey = `${vaultSearchQuery}\u0000${activePersona}`
-  const [beyondFolderState, setBeyondFolderState] = React.useState<{
-    key: string
-    results: VaultSearchResult[]
-  }>({ key: "", results: [] })
-  React.useEffect(() => {
-    if (!vaultSearchQuery || isSentinel) return
-    const key = beyondFolderKey
-    const t = setTimeout(() => {
-      searchVault(vaultSearchQuery, undefined, activePersona).then((results) => {
-        setBeyondFolderState({ key, results })
-      })
-    }, 250)
-    return () => clearTimeout(t)
-  }, [vaultSearchQuery, isSentinel, activePersona, beyondFolderKey])
-  const beyondFolderMatches = React.useMemo(() => {
-    if (beyondFolderState.key !== beyondFolderKey) return []
-    return beyondFolderState.results.filter(
-      (r) => r.rel_path !== resolvedActive && !r.rel_path.startsWith(`${resolvedActive}/`)
-    )
-  }, [beyondFolderState, beyondFolderKey, resolvedActive])
+  const contentMatches = React.useMemo(
+    () =>
+      searchResults.filter(
+        (r) =>
+          r.match_type === "content" &&
+          (r.rel_path === resolvedActive || r.rel_path.startsWith(`${resolvedActive}/`))
+      ),
+    [searchResults, resolvedActive]
+  )
+  const beyondFolderMatches = React.useMemo(
+    () =>
+      searchResults.filter(
+        (r) =>
+          r.rel_path !== resolvedActive && !r.rel_path.startsWith(`${resolvedActive}/`)
+      ),
+    [searchResults, resolvedActive]
+  )
 
   // Pinned is scoped to the current *root* folder (the top-level menu entry
   // — `activeNode` itself, since the content panel never changes which
@@ -1143,18 +1167,7 @@ export function AppShell() {
                           selectNote(r.rel_path)
                           panels.open("editor")
                         }}
-                        detail={
-                          r.snippet ? (
-                            <>
-                              <span className="shrink-0">line {r.line_no}</span>
-                              <HugeiconsIcon
-                                icon={ArrowRight01Icon}
-                                className="size-3 shrink-0"
-                              />
-                              <span className="truncate">{r.snippet}</span>
-                            </>
-                          ) : undefined
-                        }
+                        detail={searchMatchDetail(r)}
                       />
                     </li>
                   ))}
@@ -1177,22 +1190,7 @@ export function AppShell() {
                           selectNote(r.rel_path)
                           panels.open("editor")
                         }}
-                        detail={
-                          r.snippet ? (
-                            r.match_type === "content" ? (
-                              <>
-                                <span className="shrink-0">line {r.line_no}</span>
-                                <HugeiconsIcon
-                                  icon={ArrowRight01Icon}
-                                  className="size-3 shrink-0"
-                                />
-                                <span className="truncate">{r.snippet}</span>
-                              </>
-                            ) : (
-                              <span className="truncate">{r.snippet}</span>
-                            )
-                          ) : undefined
-                        }
+                        detail={searchMatchDetail(r)}
                       />
                     </li>
                   ))}

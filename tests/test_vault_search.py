@@ -62,41 +62,29 @@ def test_no_match_returns_empty(vault_root):
     assert vault_search.search_structured({"vault_folders": ["*"]}, "zzz") == []
 
 
-def test_target_folder_narrows_the_search(vault_root):
+def test_search_is_scoped_to_allowed_dirs_not_the_whole_vault(vault_root):
+    # No folder-narrowing exists in this module anymore — the dashboard
+    # derives its in-folder/beyond-folder tiers by filtering one unscoped
+    # result set client-side instead. What this module still owns is the
+    # persona's own sandbox boundary.
     _write(vault_root, "Code/Snippet.md", "keyword here")
     _write(vault_root, "Journal/Entry.md", "keyword here too")
 
     results = vault_search.search_structured(
-        {"vault_folders": ["*"]}, "keyword", target_folder="Code"
+        {"vault_folders": ["Code"]}, "keyword"
     )
 
     assert [r["rel_path"] for r in results] == ["Code/Snippet.md"]
 
 
-def test_unresolvable_target_folder_is_a_scope_miss_not_a_fallback(vault_root):
-    _write(vault_root, "Note.md", "keyword here")
-
-    results = vault_search.search_structured(
-        {"vault_folders": ["*"]}, "keyword", target_folder="DoesNotExist"
-    )
-
-    assert results == []
-
-
-def test_nested_persona_scope_resolves_against_the_menus_truncated_folder_id(
-    vault_root,
-):
-    # A persona scoped to a nested folder ("Team/ProjectX") still shows as
-    # one top-level "Team" menu entry — vault_tree.build_tree folds every
-    # path segment into intermediate nodes regardless of scope, and the
-    # dashboard never navigates past that top-level id. The frontend then
-    # sends that truncated id ("Team") as `target_folder`, not the
-    # persona's own full nested path — this must still resolve, not scope-
-    # miss to an empty result.
+def test_nested_persona_scope_is_searched_in_full(vault_root):
+    # A persona scoped to a nested folder ("Team/ProjectX") is still
+    # searched by its real, full sandbox path — nothing here re-derives
+    # that from a menu id anymore.
     _write(vault_root, "Team/ProjectX/Note.md", "keyword here")
 
     results = vault_search.search_structured(
-        {"vault_folders": ["Team/ProjectX"]}, "keyword", target_folder="Team"
+        {"vault_folders": ["Team/ProjectX"]}, "keyword"
     )
 
     assert [r["rel_path"] for r in results] == ["Team/ProjectX/Note.md"]

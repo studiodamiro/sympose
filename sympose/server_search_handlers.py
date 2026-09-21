@@ -10,9 +10,9 @@ from sympose import vault_search
 from sympose.profile import resolve_profile
 
 
-def search_vault(query: str, folder: str | None, persona: str | None) -> dict[str, Any]:
+def search_vault(query: str, persona: str | None) -> dict[str, Any]:
     profile = resolve_profile(persona)
     return {
         "query": query,
-        "results": vault_search.search_structured(profile, query, target_folder=folder),
+        "results": vault_search.search_structured(profile, query),
     }

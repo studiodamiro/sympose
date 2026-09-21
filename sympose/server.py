@@ -55,10 +55,9 @@ def create_app() -> FastAPI:
     @app.get("/api/vault/search")
     def search_vault(
         q: str = Query(..., description="Search query"),
-        folder: str | None = Query(None, description="Narrow to this folder"),
         persona: str | None = Query("samantha"),
     ) -> dict[str, Any]:
-        return sh.search_vault(q, folder, persona)
+        return sh.search_vault(q, persona)
 
     @app.get("/api/vault/note")
     def read_note(

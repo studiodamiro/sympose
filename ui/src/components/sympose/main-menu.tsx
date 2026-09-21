@@ -12,6 +12,8 @@ import { useResizable } from "@/lib/use-resizable"
 import { isNoteDrag, readNoteDrag } from "@/lib/vault-drag"
 import { Logo } from "@/components/logo"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { WorkspaceSwitcher } from "@/components/sympose/workspace-switcher"
+import type { Vault } from "@/lib/vaults-api"
 
 /**
  * Sympose main menu — the primary app-shell navigation (see the design
@@ -43,6 +45,10 @@ const MENU_MIN = 48
 const MENU_MAX = 256
 /** Release the handle narrower than this and the menu snaps to the rail. */
 const COLLAPSE_AT = 140
+
+/** Stable empty default so an omitted `vaults` prop never re-triggers
+ *  `<WorkspaceSwitcher>` on every render with a fresh `[]` literal. */
+const EMPTY_VAULTS: Vault[] = []
 
 export interface MainMenuItem {
   /** Stable id — also the vault folder name / route segment. */
@@ -96,6 +102,17 @@ interface MainMenuProps extends Omit<React.ComponentProps<"nav">, "onSelect"> {
    * accent for the avatar (falls back to the first letter on `bg-accent`).
    */
   account?: { name: string; icon?: IconSvgElement; accent?: string }
+  /**
+   * The workspace switcher hung off the brand mark (see `<WorkspaceSwitcher>`)
+   * — always interactive, since its add-path input is also how a vault gets
+   * configured in the first place. `vaultLabel` is the wordmark text: the
+   * active vault's name when known, else the "Sympose" product name.
+   */
+  vaults?: Vault[]
+  activeVault?: string | null
+  onSwitchVault?: (path: string) => void
+  onAddVault?: (path: string) => Promise<boolean>
+  vaultLabel?: string
   /** Cookie key to persist the dragged width as a user preference. */
   storageKey?: string
   /**
@@ -162,6 +179,11 @@ function MainMenu({
   onSelectTrash,
   onDropNote,
   account = { name: "Persona" },
+  vaults = EMPTY_VAULTS,
+  activeVault = null,
+  onSwitchVault,
+  onAddVault,
+  vaultLabel = "Sympose",
   storageKey,
   hideChrome = false,
   open = true,
@@ -248,24 +270,24 @@ function MainMenu({
       }
       {...props}
     >
-      {/* header — logo doubles as the expand/collapse toggle */}
+      {/* header — brand mark doubles as the workspace switcher trigger;
+          collapse/expand lives solely in the footer's Collapse row now */}
       {!hideChrome && (
-        <div className="flex h-14 shrink-0 items-center gap-2">
-          <div className={SLOT}>
-            <button
-              type="button"
-              onClick={() => setCollapsed(!collapsed)}
-              aria-label={collapsed ? "Expand menu" : "Collapse menu"}
-              aria-expanded={!collapsed}
-              className="grid size-8 place-items-center rounded-md transition-colors hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
-            >
-              <Logo className="size-6" />
-            </button>
-          </div>
-          <span className={cn(LABEL, "text-base font-semibold tracking-tight")}>
-            Sympose
+        <WorkspaceSwitcher
+          vaults={vaults}
+          active={activeVault}
+          onSwitch={onSwitchVault ?? (() => {})}
+          onAdd={onAddVault ?? (async () => false)}
+          align="start"
+          triggerClassName="flex h-14 w-full shrink-0 items-center gap-2 rounded-md text-left transition-colors hover:bg-accent/50 focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none data-popup-open:bg-accent/50"
+        >
+          <span className={SLOT}>
+            <Logo className="size-6" />
           </span>
-        </div>
+          <span className={cn(LABEL, "text-base font-semibold tracking-tight")}>
+            {vaultLabel}
+          </span>
+        </WorkspaceSwitcher>
       )}
 
       {/* folders */}

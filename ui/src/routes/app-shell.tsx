@@ -19,6 +19,7 @@ import {
   getCookieBool,
   setCookie,
   setCookieBool,
+  vaultScopedKey,
 } from "@/lib/cookies"
 import { useBreakpoint } from "@/lib/use-breakpoint"
 import { usePanels, type StagePanel } from "@/lib/use-panels"
@@ -36,6 +37,13 @@ import { useRecentNotes } from "@/lib/use-recent-notes"
 import { useNotificationPreferences } from "@/lib/use-notification-preferences"
 import { useNebulaPreferences } from "@/lib/use-nebula-preferences"
 import { useNebulaGraph } from "@/lib/use-nebula-graph"
+import { useBrandMarkLabel } from "@/lib/use-brand-mark-preference"
+import {
+  addVault,
+  fetchVaults,
+  setActiveVault,
+  type VaultsState,
+} from "@/lib/vaults-api"
 import {
   fetchPersonas,
   resolvePersonaVisuals,
@@ -74,6 +82,7 @@ import {
   TopBar,
   TrashList,
   VaultTree,
+  WorkspaceSection,
   collectFolderPaths,
   filterTreeByQuery,
   type MainMenuItem,
@@ -351,7 +360,32 @@ export function AppShell() {
   const [activePersona, setActivePersona] = useActivePersona()
   const [editorPrefs, setEditorPref] = useEditorPreferences()
   const [toolbarItems, setToolbarItems] = useToolbarItems()
-  const { isPinned, togglePin, unpinMany, pinnedPaths } = usePinnedNotes()
+
+  // The workspace switcher (ADR 003/004) — every configured vault plus which
+  // one is active. Declared before `usePinnedNotes`/`useRecentNotes` below,
+  // which key their own cookies off `vaultsState.active` so pinned/recent
+  // notes don't leak across a vault switch. Bumping `vaultRefreshKey` after
+  // a switch (declared further down, alongside the tree fetch it already
+  // drives) re-pulls the tree, the nebula graph, and any live search against
+  // the newly active vault.
+  const [vaultsState, setVaultsState] = React.useState<VaultsState>({
+    vaults: [],
+    active: null,
+  })
+  React.useEffect(() => {
+    let alive = true
+    fetchVaults().then((state) => {
+      if (alive) setVaultsState(state)
+    })
+    return () => {
+      alive = false
+    }
+  }, [])
+  const [brandMarkLabel, setBrandMarkLabel] = useBrandMarkLabel()
+
+  const { isPinned, togglePin, unpinMany, pinnedPaths } = usePinnedNotes(
+    vaultsState.active
+  )
   const {
     recentPaths,
     shownCount,
@@ -361,14 +395,20 @@ export function AppShell() {
     recordVisit,
     removeFromRecents,
     clearRecents,
-  } = useRecentNotes()
+  } = useRecentNotes(vaultsState.active)
   const [notifyPrefs, setNotifyPref] = useNotificationPreferences()
   const [nebulaPrefs, setNebulaPref] = useNebulaPreferences()
+  // Bumped after a note is created, or the active vault is switched, to
+  // re-pull the tree, the nebula graph, and any live search so they follow
+  // without a persona switch.
+  const [vaultRefreshKey, setVaultRefreshKey] = React.useState(0)
   // Lifted here (not called inside `<AmbientNebula>`) so the one fetch also
   // backs `tagSource` below — the ambient layer and the editor's `#tag`
   // autocomplete share the same master graph instead of each hitting
-  // `GET /api/vault/graph` on its own.
-  const { graph: nebulaGraph, source: nebulaGraphSource } = useNebulaGraph()
+  // `GET /api/vault/graph` on its own. Re-fetches when `vaultRefreshKey`
+  // bumps, since the graph is vault-scoped, not persona-scoped.
+  const { graph: nebulaGraph, source: nebulaGraphSource } =
+    useNebulaGraph(vaultRefreshKey)
   const explore = nebulaPrefs.interaction === "explore"
 
   // Explore auto-collapses the stage panels — content, editor —
@@ -441,16 +481,58 @@ export function AppShell() {
   // The vault root's display name (master vault directory basename) — the
   // leading segment of the editor's read-mode breadcrumb. `null` until the
   // first `/api/vault/tree` response lands, or permanently if the backend
-  // has no `MASTER_VAULT_PATH` configured.
+  // has no `VAULT_PATHS` configured.
   const [vaultName, setVaultName] = React.useState<string | null>(null)
   // Persisted across a refresh so the editor reopens on the same note instead
   // of coming back empty — same cookie convention as `active` (SECTION_COOKIE).
+  // Scoped per vault (`vaultScopedKey`): a note path is a reference into one
+  // vault's content, meaningless in another, so each vault remembers its own
+  // last-open note rather than one shared globally.
+  //
+  // Deliberately *not* seeded synchronously from a cookie at mount — which
+  // vault is active isn't known yet then (`vaultsState.active` starts
+  // `null` until `GET /api/vaults` answers), so `noteCookieKey` would still
+  // be the bare, unscoped key. The reseed effect below resolves the real
+  // value once the key is actually known, uniformly for that first
+  // resolution and every later vault switch — no special-casing needed,
+  // and nothing is ever read from (or, worse, written back to) the wrong
+  // vault's key.
+  const noteCookieKey = vaultScopedKey(NOTE_COOKIE, vaultsState.active)
+  // Mirrors `noteCookieKey`, updated during render (not in an effect) so the
+  // write effect below always targets the *current* vault's key — see why
+  // that matters in its own comment.
+  const noteCookieKeyRef = React.useRef(noteCookieKey)
+  // eslint-disable-next-line react-hooks/refs -- mirrors noteCookieKey for the write effect below to read live, see its comment
+  noteCookieKeyRef.current = noteCookieKey
   const [selectedNote, setSelectedNote] = React.useState<string | undefined>(
-    () => getCookie(NOTE_COOKIE) || undefined
+    undefined
   )
+  // Keyed on `selectedNote` alone, deliberately *not* also on `noteCookieKey`
+  // — a vault switch changes `noteCookieKey` without changing `selectedNote`
+  // in that same commit (the reseed effect below schedules that for the
+  // *next* render), so keying this on both would fire it once with the
+  // outgoing vault's still-current `selectedNote` value but the incoming
+  // vault's key, stamping one vault's open note onto another's — exactly
+  // the "switch back and get 'couldn't load this note'" bug this avoids.
+  // Reading the key from `noteCookieKeyRef` (always current) rather than
+  // closing over `noteCookieKey` keeps this effect from needing it as a
+  // dependency at all.
   React.useEffect(() => {
-    setCookie(NOTE_COOKIE, selectedNote ?? "")
+    setCookie(noteCookieKeyRef.current, selectedNote ?? "")
   }, [selectedNote])
+  // Resolve/reseed `selectedNote` whenever the scope key changes — the
+  // first resolution from the bare key (mount, before `vaultsState.active`
+  // is known) to a real vault's key, and every later A-to-B switch, are
+  // handled the same way: read whatever *this* key already has (or none).
+  // `<MarkdownPanel>`'s own `vaultPath` prop is what makes its leave-note
+  // flush stash a switch locally instead of writing to the backend — see
+  // its doc comment.
+  const prevNoteCookieKey = React.useRef<string | null>(null)
+  React.useEffect(() => {
+    if (noteCookieKey === prevNoteCookieKey.current) return
+    prevNoteCookieKey.current = noteCookieKey
+    setSelectedNote(getCookie(noteCookieKey) || undefined)
+  }, [noteCookieKey])
   // A note genuinely opened by the user (row click, wikilink, search result,
   // newly created) — as opposed to `setSelectedNote` alone, used to just
   // remap the still-open note's path after a rename or clear it after a
@@ -472,9 +554,6 @@ export function AppShell() {
   // ambient nebula's focus/highlight (see `AmbientNebula`'s
   // `activeNoteId`) with no transformation needed at all.
   const activeNoteId = selectedNote
-  // Bumped after a note is created to re-pull the tree so the new
-  // file shows up without a persona switch.
-  const [vaultRefreshKey, setVaultRefreshKey] = React.useState(0)
   // `null` = no create-input open; otherwise which kind is being named, with
   // its current typed value in `createName`.
   const [pendingCreate, setPendingCreate] = React.useState<
@@ -528,6 +607,43 @@ export function AppShell() {
       alive = false
     }
   }, [activePersona, vaultRefreshKey])
+
+  // Workspace switcher: persist the choice, then re-pull everything scoped
+  // to "the active vault" via the same `vaultRefreshKey` bump a note create
+  // already uses.
+  const handleSwitchVault = React.useCallback(
+    async (path: string) => {
+      const res = await setActiveVault(path)
+      if (res.ok) {
+        setVaultsState(res.state)
+        setVaultRefreshKey((k) => k + 1)
+        const name = res.state.vaults.find((v) => v.path === path)?.name
+        notify.success(name ? `Switched to ${name}` : "Vault switched")
+      } else {
+        notify.error(res.error)
+      }
+    },
+    [setVaultsState, setVaultRefreshKey]
+  )
+
+  // Workspace switcher's add-path input (ADR 004) — adds and activates in
+  // one round trip. Resolves `false` on failure so the switcher's input
+  // keeps the typed path instead of clearing it.
+  const handleAddVault = React.useCallback(
+    async (path: string) => {
+      const res = await addVault(path)
+      if (res.ok) {
+        setVaultsState(res.state)
+        setVaultRefreshKey((k) => k + 1)
+        const name = res.state.vaults.find((v) => v.path === res.state.active)?.name
+        notify.success(name ? `Added ${name}` : "Vault added")
+        return true
+      }
+      notify.error(res.error)
+      return false
+    },
+    [setVaultsState, setVaultRefreshKey]
+  )
 
   // Main menu = the vault's surface (top-level folders + root notes like
   // README.md), in the tree's own order, with curated icons where the folder
@@ -652,14 +768,14 @@ export function AppShell() {
   // beyond-folder tier, where every match type is kept, since nothing else
   // surfaces a title or tag hit on a note living in a different folder.
   //
-  // Stored keyed to the query/persona it was actually fetched for, rather
-  // than cleared via effect-driven setState, so retyping the query (or
-  // switching personas) can never display a stale response — a fetch whose
-  // key no longer matches the current one is simply never read, in
-  // whatever order responses arrive. Switching which folder is in view
-  // needs no new fetch at all — both tiers below just re-derive from
-  // whatever's already in memory.
-  const searchKey = `${vaultSearchQuery}\u0000${activePersona}`
+  // Stored keyed to the query/persona/vault it was actually fetched for,
+  // rather than cleared via effect-driven setState, so retyping the query
+  // (or switching personas, or switching the active vault) can never
+  // display a stale response — a fetch whose key no longer matches the
+  // current one is simply never read, in whatever order responses arrive.
+  // Switching which folder is in view needs no new fetch at all — both
+  // tiers below just re-derive from whatever's already in memory.
+  const searchKey = `${vaultSearchQuery}\u0000${activePersona}\u0000${vaultRefreshKey}`
   const [searchState, setSearchState] = React.useState<{
     key: string
     results: VaultSearchResult[]
@@ -846,6 +962,11 @@ export function AppShell() {
   const activePersonaName =
     personas.find((p) => p.handle === activePersona)?.name ?? activePersona
   const activePersonaVisuals = resolvePersonaVisuals(activePersona)
+  // The brand-mark wordmark: the fixed product name, or the active vault's
+  // name when the Workspace setting asks for it (falling back to the name
+  // while the vault name hasn't loaded yet, or there's none configured).
+  const vaultLabel =
+    brandMarkLabel === "vault" ? (vaultName ?? "Sympose") : "Sympose"
   // Phone: the rail only shows alongside the content panel — the two are one
   // view. Desktop / tablet: always shown.
   const menuOpen = isPhone ? menuShown && contentOpen : true
@@ -1048,6 +1169,10 @@ export function AppShell() {
           </h1>
           <CollapseAllButton />
         </div>
+        <WorkspaceSection
+          brandMarkLabel={brandMarkLabel}
+          setBrandMarkLabel={setBrandMarkLabel}
+        />
         <EditorPreferencesSection
           prefs={editorPrefs}
           setPref={setEditorPref}
@@ -1067,7 +1192,7 @@ export function AppShell() {
       <div className="flex flex-col gap-2">
         <h2
           className={cn(
-            "-mx-2 w-fit rounded-md px-2 font-heading text-2xl font-semibold text-fg-strong transition-colors",
+            "-mx-2 min-w-0 truncate rounded-md px-2 font-heading text-2xl font-semibold text-fg-strong transition-colors",
             dragOverRootHeading &&
               "bg-accent/60 ring-1 ring-inset ring-brand/60"
           )}
@@ -1262,6 +1387,11 @@ export function AppShell() {
           onSettings={() => selectSection(MENU_SETTINGS_ID)}
           accountActive={contentOpen && active === MENU_ACCOUNT_ID}
           onAccount={() => selectSection(MENU_ACCOUNT_ID)}
+          vaults={vaultsState.vaults}
+          activeVault={vaultsState.active}
+          onSwitchVault={handleSwitchVault}
+          onAddVault={handleAddVault}
+          vaultLabel={vaultLabel}
         />
       )}
 
@@ -1286,6 +1416,11 @@ export function AppShell() {
           onSelectAccount={() => selectSection(MENU_ACCOUNT_ID)}
           onSelectTrash={() => selectSection(MENU_TRASH_ID)}
           onDropNote={moveNote}
+          vaults={vaultsState.vaults}
+          activeVault={vaultsState.active}
+          onSwitchVault={handleSwitchVault}
+          onAddVault={handleAddVault}
+          vaultLabel={vaultLabel}
           account={{
             name: activePersonaName,
             icon: activePersonaVisuals.icon,
@@ -1376,6 +1511,7 @@ export function AppShell() {
             storageKey="sympose:shell.md"
             path={selectedNote}
             persona={activePersona}
+            vaultPath={vaultsState.active}
             onWikiLinkClick={openWikilink}
             wikiLinkSource={wikiLinkSource}
             tagSource={tagSource}

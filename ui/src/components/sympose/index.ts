@@ -35,6 +35,8 @@ export {
 export { ThemeToggle } from "./theme-toggle"
 export { TopBar } from "./top-bar"
 export { TrashList } from "./trash-list"
+export { WorkspaceSection } from "./workspace-section"
+export { WorkspaceSwitcher } from "./workspace-switcher"
 export {
   filterVaultTree,
   filterTreeByQuery,

@@ -24,8 +24,13 @@ const MOCK_MASTER = buildMasterGraph(rawMock as NebulaGraph)
  *
  * Shared by the in-shell ambient layer and the standalone `/nebula` showcase
  * so both read exactly one implementation of the fetch + fold.
+ *
+ * `refreshKey` (opaque; compared by `===` in the effect's dependency array)
+ * re-runs the fetch on change — the app shell bumps it after switching the
+ * active vault (ADR 003), since the graph is scoped to whichever vault is
+ * active, not persona-scoped, and otherwise has no signal that it changed.
  */
-export function useNebulaGraph(): NebulaGraphState {
+export function useNebulaGraph(refreshKey?: unknown): NebulaGraphState {
   const [state, setState] = React.useState<NebulaGraphState>({
     graph: MOCK_MASTER,
     source: "sample",
@@ -43,6 +48,12 @@ export function useNebulaGraph(): NebulaGraphState {
             `[nebula] live vault · ${data.nodes.length} notes, ${data.links?.length ?? 0} links from /api/vault/graph`
           )
         } else {
+          // Explicit reset, not a no-op: on a vault switch (`refreshKey`
+          // changed) this fetch is re-running against a *different* vault,
+          // and an empty response there must clear whatever the previous
+          // vault's graph left in state — otherwise a vault with no notes
+          // yet would keep showing the last vault's graph under its name.
+          setState({ graph: MOCK_MASTER, source: "sample" })
           console.info(
             "[nebula] /api/vault/graph returned no nodes — showing the bundled sample"
           )
@@ -57,7 +68,7 @@ export function useNebulaGraph(): NebulaGraphState {
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [refreshKey])
 
   return state
 }

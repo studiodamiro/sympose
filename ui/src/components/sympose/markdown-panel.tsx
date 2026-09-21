@@ -53,6 +53,7 @@ import {
   slideExitClassName,
 } from "@/lib/use-slide-swap"
 import { fetchVaultNote, saveVaultNote } from "@/lib/vault-note-api"
+import { stashDraft } from "@/lib/local-drafts"
 import { extractWikilinks } from "@/lib/extract-wikilinks"
 import { extractInlineTags } from "@/lib/extract-inline-tags"
 import { parseFrontmatter, serializeFrontmatter } from "@/lib/frontmatter"
@@ -133,6 +134,12 @@ interface MarkdownPanelProps extends React.ComponentProps<"div"> {
   path?: string
   /** Persona handle to scope the `/api/vault/note` request to. */
   persona?: string
+  /** The active vault's absolute path — not resolved against, just compared
+   *  against its own previous value, to tell "the active vault changed"
+   *  apart from an ordinary note switch when this panel's `path` closes
+   *  (see the leave-note flush below). `null`/`undefined` when no vault is
+   *  configured. */
+  vaultPath?: string | null
   /** Fires when the reader clicks a `[[wikilink]]` in the canvas. */
   onWikiLinkClick?: (target: string) => void
   /** Supplies `[[wikilink]]` autocomplete candidates (stylo `>=0.7.0`) — omit
@@ -163,7 +170,7 @@ interface MarkdownPanelProps extends React.ComponentProps<"div"> {
    *  sections). Wire straight to `selectSection`. */
   onNavigateToRootFolder?: (rootPath: string) => void
   /** The vault root's display name, leading the read-mode breadcrumb — `null`
-   *  (backend has no `MASTER_VAULT_PATH` configured, or it hasn't loaded yet)
+   *  (backend has no `VAULT_PATHS` configured, or it hasn't loaded yet)
    *  drops that leading segment entirely rather than showing a placeholder. */
   vaultName?: string | null
   /** Editing surface/decoration preferences — Settings > Markdown editor. */
@@ -401,6 +408,7 @@ function MarkdownPanel({
   storageKey,
   path,
   persona = "samantha",
+  vaultPath = null,
   onWikiLinkClick,
   wikiLinkSource,
   tagSource,
@@ -534,6 +542,19 @@ function MarkdownPanel({
   const savedTextRef = React.useRef<string>("")
   const savingRef = React.useRef(false)
   const loadedPathRef = React.useRef<string | undefined>(undefined)
+  // Which vault `loadedPathRef`'s content was actually fetched from — set
+  // alongside it, same "only moves once the fetch lands" contract. The
+  // leave-note flush below compares this against `vaultPath`'s *current*
+  // value (via `currentVaultPathRef`) to tell a vault switch apart from an
+  // ordinary note switch.
+  const loadedVaultPathRef = React.useRef<string | null>(null)
+  const currentVaultPathRef = React.useRef(vaultPath)
+  // Assigned during render, not in an effect: an effect's cleanup for the
+  // *previous* render fires before this render's own effects do, so only a
+  // plain render-time assignment guarantees the ref already reads the
+  // incoming `vaultPath` by the time that cleanup runs.
+  // eslint-disable-next-line react-hooks/refs -- mirrors a prop for a cleanup to read live, see comment above
+  currentVaultPathRef.current = vaultPath
   // The note's exact `---`…`---` prefix as loaded, and whether the frontmatter
   // card has since edited a field — together these let a body-only save keep
   // the original YAML block byte-for-byte (see `joinNote`).
@@ -619,12 +640,18 @@ function MarkdownPanel({
       frontmatterEditedRef.current = false
       savedTextRef.current = joinNote(fm, bd, prefix, false)
       loadedPathRef.current = path
+      loadedVaultPathRef.current = currentVaultPathRef.current
       setFetch({ status: "ready", content: result.content })
     })
     return () => {
       alive = false
     }
-  }, [path, persona])
+    // `vaultPath` is a dependency (not just read via the ref above) so a
+    // vault switch always refetches, even on the rare coincidence that the
+    // new vault's own last-open note happens to share the old one's exact
+    // relative path — otherwise this effect would see no `path` change and
+    // go on showing the previous vault's content under the new vault's name.
+  }, [path, persona, vaultPath])
 
   // Persist the current frontmatter + body to the vault. Shared by the toolbar
   // `save` button, `⌘/Ctrl-S` (both via stylo's `onSave`), autosave, and the
@@ -633,12 +660,20 @@ function MarkdownPanel({
   // `silent` — it defaults to "explicit save" (`!silent`) but the flush
   // overrides it back on, since leaving a note silently is still a
   // deliberate-enough moment to finalize its tags (see the flush effect below
-  // for why autosave itself must stay excluded).
+  // for why autosave itself must stay excluded). `target: "local"` is the
+  // vault-switch case: stashes to `localStorage` (`stashDraft`) instead of
+  // `PUT`-ing — see the flush effect below for why that PUT would otherwise
+  // risk landing on a different vault's file at the same relative path.
   const saveNote = React.useCallback(
     async ({
       silent = false,
       syncTags = !silent,
-    }: { silent?: boolean; syncTags?: boolean } = {}) => {
+      target = "vault",
+    }: {
+      silent?: boolean
+      syncTags?: boolean
+      target?: "vault" | "local"
+    } = {}) => {
       // Targets `loadedPathRef.current` — the note `body`/`frontmatter`
       // state actually holds — rather than the `path` prop directly. On a
       // note switch `path` moves to the next note a frame before its fetch
@@ -670,6 +705,13 @@ function MarkdownPanel({
         frontmatterEditedRef.current
       )
       if (text === savedTextRef.current) return
+
+      if (target === "local") {
+        stashDraft(loadedVaultPathRef.current, targetPath, text)
+        savedTextRef.current = text
+        return
+      }
+
       savingRef.current = true
       const result = await saveVaultNote(targetPath, text, persona)
       savingRef.current = false
@@ -701,19 +743,43 @@ function MarkdownPanel({
   // Flush a save when leaving this note — switching to another one, or the
   // panel unmounting entirely (a full route change away from `/shell`) — so
   // an edit isn't lost just because autosave is off (its default) and the
-  // save button never got hit. `path` is the only dependency, so the
-  // cleanup fires exactly on a switch or an unmount, never on every
-  // keystroke; by the time it runs, `saveNoteRef.current` already targets
-  // `loadedPathRef.current` (see above), which still names the *leaving*
-  // note during the gap before the next note's fetch resolves. Silent (no
-  // toast — a background flush, not something the user asked for) but still
-  // syncs tags: unlike autosave's blind timer, leaving the note is a real
-  // "I'm done with this one" signal, not a mid-word coincidence.
+  // save button never got hit. `path`/`vaultPath` are the only dependencies,
+  // so the cleanup fires exactly on a note switch, a vault switch, or an
+  // unmount, never on every keystroke; by the time it runs, `saveNoteRef.
+  // current` already targets `loadedPathRef.current` (see above), which
+  // still names the *leaving* note during the gap before the next note's
+  // fetch resolves.
+  //
+  // A vault switch specifically is *not* a normal "flush to the vault"
+  // moment: `loadedVaultPathRef.current` (the vault this note's content
+  // actually came from) is compared against `currentVaultPathRef.current`
+  // (kept live every render, so this cleanup — which otherwise only ever
+  // sees the *previous* render's closed-over values — reads the vault this
+  // note is closing into, not the one it opened in). They differ exactly
+  // when the active vault changed, not just the open note; by the time a
+  // `PUT` from this flush would land, the backend has already switched
+  // vaults, so it would silently write this note's content into whatever
+  // file now sits at the *same relative path in the new vault* — a
+  // different note entirely. `target: "local"` avoids that: the edit is
+  // stashed (`stashDraft`) rather than sent to the backend at all.
+  //
+  // Either way this stays silent (no toast — a background flush, not
+  // something the user asked for). Tag-syncing only happens on the normal
+  // vault-flush path: unlike autosave's blind timer, leaving a note for
+  // another *in the same vault* is a real "I'm done with this one" signal,
+  // not a mid-word coincidence — but a vault-switch stash is closer to
+  // autosave's "background, not final" spirit, so it skips the sync too.
   React.useEffect(() => {
     return () => {
-      void saveNoteRef.current({ silent: true, syncTags: true })
+      const switchedVault =
+        loadedVaultPathRef.current !== currentVaultPathRef.current
+      if (switchedVault) {
+        void saveNoteRef.current({ silent: true, syncTags: false, target: "local" })
+      } else {
+        void saveNoteRef.current({ silent: true, syncTags: true })
+      }
     }
-  }, [path])
+  }, [path, vaultPath])
 
   // Autosave — a trailing debounce on every body/frontmatter change. Off by
   // default (Settings › Markdown editor); the explicit save paths stay live

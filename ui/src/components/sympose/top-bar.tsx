@@ -6,6 +6,8 @@ import { FolderOpenIcon, Settings01Icon } from "@hugeicons/core-free-icons"
 import { cn } from "@/lib/utils"
 import { Logo } from "@/components/logo"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { WorkspaceSwitcher } from "@/components/sympose/workspace-switcher"
+import type { Vault } from "@/lib/vaults-api"
 
 /**
  * The phone-only shell header. On desktop / tablet the brand mark, the vault
@@ -18,6 +20,11 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar"
  * The `Sympose` wordmark is the first thing to drop when the row gets tight.
  * `vault` slides the menu rail in and out (see `AppShell`).
  */
+
+/** Stable empty default so an omitted `vaults` prop never re-triggers
+ *  `<WorkspaceSwitcher>` on every render with a fresh `[]` literal. */
+const EMPTY_VAULTS: Vault[] = []
+
 interface TopBarProps extends React.ComponentProps<"header"> {
   account?: { name: string }
   /** Vault button — pressed while the menu rail is showing. */
@@ -27,6 +34,14 @@ interface TopBarProps extends React.ComponentProps<"header"> {
   onSettings?: () => void
   accountActive?: boolean
   onAccount?: () => void
+  /** The workspace switcher hung off the brand mark — see `<WorkspaceSwitcher>`
+   *  and `main-menu.tsx`'s desktop-rail counterpart. `vaultLabel` is the
+   *  wordmark text: the active vault's name when known, else "Sympose". */
+  vaults?: Vault[]
+  activeVault?: string | null
+  onSwitchVault?: (path: string) => void
+  onAddVault?: (path: string) => Promise<boolean>
+  vaultLabel?: string
 }
 
 function IconButton({
@@ -62,6 +77,11 @@ function TopBar({
   onSettings,
   accountActive,
   onAccount,
+  vaults = EMPTY_VAULTS,
+  activeVault = null,
+  onSwitchVault,
+  onAddVault,
+  vaultLabel = "Sympose",
   ...props
 }: TopBarProps) {
   return (
@@ -73,11 +93,20 @@ function TopBar({
       )}
       {...props}
     >
-      <Logo className="size-6 shrink-0" />
-      {/* wordmark is the first thing to drop when the row gets tight */}
-      <span className="hidden text-base font-semibold tracking-tight min-[380px]:inline">
-        Sympose
-      </span>
+      <WorkspaceSwitcher
+        vaults={vaults}
+        active={activeVault}
+        onSwitch={onSwitchVault ?? (() => {})}
+        onAdd={onAddVault ?? (async () => false)}
+        align="start"
+        triggerClassName="flex min-w-0 flex-1 items-center gap-2 rounded-md py-1 pr-2 -my-1 text-left transition-colors hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none data-popup-open:bg-accent"
+      >
+        <Logo className="size-6 shrink-0" />
+        {/* wordmark is the first thing to drop when the row gets tight */}
+        <span className="hidden min-w-0 truncate text-base font-semibold tracking-tight min-[380px]:inline">
+          {vaultLabel}
+        </span>
+      </WorkspaceSwitcher>
 
       <div className="ms-auto flex items-center gap-1">
         <div className="flex items-center gap-0.5">

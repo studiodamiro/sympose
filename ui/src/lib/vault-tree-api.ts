@@ -11,7 +11,7 @@ interface VaultTreeResponse {
   persona: string
   tree: VaultNode[]
   /** The master vault directory's basename, for the editor's read-mode
-   *  breadcrumb — `null` when `MASTER_VAULT_PATH` isn't configured. */
+   *  breadcrumb — `null` when `VAULT_PATHS` isn't configured. */
   vaultName: string | null
 }
 

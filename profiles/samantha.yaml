@@ -1,0 +1,6 @@
+name: 'Samantha'
+handle: 'samantha'
+title: 'Polymath Strategic Master Orchestrator'
+
+# "*" = full vault access.
+vault_folders: '*'

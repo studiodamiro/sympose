@@ -1,0 +1,29 @@
+# AI assistant & editor tooling — never committed
+.agents/
+.claude/
+.gemini/
+.cursor/
+CLAUDE.md
+GEMINI.md
+.vscode/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+*.egg-info/
+
+# Local env / secrets
+.env
+
+# Personas: Samantha ships as the only default persona; any other profile
+# is a personal customization and stays local-only, never committed.
+profiles/*.yaml
+!profiles/samantha.yaml
+profiles/*_soul.md
+!profiles/samantha_soul.md
+profiles/*_memory.md
+!profiles/samantha_memory.md
+
+# macOS
+.DS_Store

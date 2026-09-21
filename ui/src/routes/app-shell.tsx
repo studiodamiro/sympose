@@ -42,6 +42,7 @@ import {
   type LivePersona,
 } from "@/lib/personas"
 import { fetchVaultTree } from "@/lib/vault-tree-api"
+import { searchVault, type VaultSearchResult } from "@/lib/vault-search-api"
 import {
   createVaultNote,
   createVaultFolder,
@@ -571,6 +572,41 @@ export function AppShell() {
     [panelNodes, vaultSearchQuery]
   )
 
+  // Content matches — body text isn't in the already-fetched tree, so this
+  // can't be done client-side like the name/tag/link filter above; a
+  // debounced round trip to `/api/vault/search`, scoped to the same folder
+  // currently in view. Only `content`-type results are kept here — title/tag
+  // matches are already surfaced instantly by `searchedPanelNodes`, so this
+  // supplements it rather than duplicating it.
+  //
+  // Stored keyed to the query/folder/persona it was actually fetched for,
+  // rather than cleared via effect-driven setState, so switching folders or
+  // personas (or retyping the query) can never display a stale response
+  // under the new context's label — a fetch whose key no longer matches the
+  // current one is simply never read, in whatever order responses arrive.
+  const contentMatchKey = `${vaultSearchQuery}\u0000${resolvedActive}\u0000${activePersona}`
+  const [contentMatchState, setContentMatchState] = React.useState<{
+    key: string
+    results: VaultSearchResult[]
+  }>({ key: "", results: [] })
+  React.useEffect(() => {
+    if (!vaultSearchQuery || isSentinel) return
+    const key = contentMatchKey
+    const t = setTimeout(() => {
+      searchVault(vaultSearchQuery, resolvedActive, activePersona).then(
+        (results) => {
+          setContentMatchState({
+            key,
+            results: results.filter((r) => r.match_type === "content"),
+          })
+        }
+      )
+    }, 250)
+    return () => clearTimeout(t)
+  }, [vaultSearchQuery, resolvedActive, isSentinel, activePersona, contentMatchKey])
+  const contentMatches =
+    contentMatchState.key === contentMatchKey ? contentMatchState.results : []
+
   // Pinned is scoped to the current *root* folder (the top-level menu entry
   // — `activeNode` itself, since the content panel never changes which
   // top-level entry it's showing just because a nested subfolder inside it
@@ -992,7 +1028,8 @@ export function AppShell() {
             )}
             {!panelEmpty &&
               vaultSearchQuery &&
-              searchedPanelNodes.length === 0 && (
+              searchedPanelNodes.length === 0 &&
+              contentMatches.length === 0 && (
                 <p className="text-sm text-fg-muted">
                   No matches for "{vaultSearchQuery}" in {activeLabel}.
                 </p>
@@ -1020,6 +1057,43 @@ export function AppShell() {
                 }
                 {...vaultTreeActions}
               />
+            )}
+            {vaultSearchQuery && contentMatches.length > 0 && (
+              <div className="mt-4">
+                <p className="mb-1.5 text-xs font-medium text-fg-muted">
+                  Also found in {activeLabel}
+                </p>
+                <ul className="flex flex-col gap-0.5">
+                  {contentMatches.map((r) => (
+                    <li key={r.rel_path}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          selectNote(r.rel_path)
+                          panels.open("editor")
+                        }}
+                        className="flex w-full flex-col items-start gap-0.5 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-accent"
+                      >
+                        <span className="flex items-center gap-1.5 text-sm text-foreground">
+                          <HugeiconsIcon
+                            icon={Note01Icon}
+                            className="size-3.5 shrink-0 text-muted-foreground"
+                          />
+                          {stripMdExtension(r.file_name)}
+                          <span className="text-xs text-fg-muted">
+                            line {r.line_no}
+                          </span>
+                        </span>
+                        {r.snippet && (
+                          <span className="truncate pl-5 text-xs text-fg-muted">
+                            {r.snippet}
+                          </span>
+                        )}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
             )}
           </>
         )}

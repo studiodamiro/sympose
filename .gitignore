@@ -29,5 +29,10 @@ profiles/*_soul.md
 # handle — unlike the soul baseline above, there is no template variant.
 profiles/*_memory.md
 
+# Local-only progress tracker — a working status file for keeping in sync
+# during development, not a product doc; would just be commit noise every
+# time a checkbox flips.
+CHECKLIST.md
+
 # macOS
 .DS_Store

@@ -3,15 +3,15 @@ Minimal FastAPI backend for the Sympose dashboard — vault browsing, note
 editing, trash recovery, and the Knowledge Nebula graph. Ported from
 sympose-legacy's much larger `server.py` (~21 routes: chat, personas,
 skills, Slack, search, TLS, and a password-auth middleware), trimmed to
-the routes the dashboard's tree, editor, note-management menus, bin, and
-nebula actually call. Deliberately not included yet: full-text search and
-asset (image) serving. No auth yet — this is a local dev server bound to
+the routes the dashboard's tree, editor, note-management menus, bin,
+nebula, and search actually call. Deliberately not included yet: asset
+(image) serving. No auth yet — this is a local dev server bound to
 localhost; add `DashboardAuthMiddleware` back before this is ever exposed
 beyond that.
 
 Request/response models and handler logic live in `server_handlers.py`
-(note/folder CRUD) and `server_trash_handlers.py` (the bin); this file only
-wires routes to them.
+(note/folder CRUD), `server_trash_handlers.py` (the bin), and
+`server_search_handlers.py` (search); this file only wires routes to them.
 """
 
 from typing import Any
@@ -20,6 +20,7 @@ from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
 
 from sympose import server_handlers as h
+from sympose import server_search_handlers as sh
 from sympose import server_trash_handlers as th
 from sympose import vault_paths
 from sympose.server_models import TrashEmpty, TrashRestore
@@ -50,6 +51,14 @@ def create_app() -> FastAPI:
     @app.get("/api/vault/graph")
     def get_vault_graph() -> dict[str, Any]:
         return h.get_vault_graph()
+
+    @app.get("/api/vault/search")
+    def search_vault(
+        q: str = Query(..., description="Search query"),
+        folder: str | None = Query(None, description="Narrow to this folder"),
+        persona: str | None = Query("samantha"),
+    ) -> dict[str, Any]:
+        return sh.search_vault(q, folder, persona)
 
     @app.get("/api/vault/note")
     def read_note(

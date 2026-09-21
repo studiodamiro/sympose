@@ -50,12 +50,13 @@ not the reverse.
 
 ## Scope
 
-### Full-text search (next up, UI first)
+### Full-text search (done)
 
-The existing search bar (`app-shell.tsx`'s `vaultSearch` field) currently
-only filters the already-loaded tree by filename, tags, and links — it
-never touches note bodies, matching `CLAUDE.md`'s "no full-text search"
-note accurately.
+The search bar (`app-shell.tsx`'s `vaultSearch` field) used to only
+filter the already-loaded tree by filename, tags, and links — it never
+touched note bodies. It now also queries `/api/vault/search` for content
+matches (debounced, scoped to the folder in view), supplementing that
+client-side filter rather than replacing it.
 
 Legacy's `vault_search.py` has two implementations: a `direct` path
 (walks the parsed vault snapshot, classifies each note as a title/tag/

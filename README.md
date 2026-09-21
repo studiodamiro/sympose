@@ -13,17 +13,18 @@ with far less filtering than intended. Both have since been rebuilt
 properly — traced file-by-file and function-by-function down to only
 what's actually reachable from the real dashboard shell. Working today:
 vault browsing, the markdown editor, note/folder create/rename/delete,
-trash recovery (list/restore/purge), and the Knowledge Nebula graph.
-Still not built: chat/persona dialogue (the actual "talk to Samantha"
-feature), Slack status, full-text search, and a multi-persona roster.
+trash recovery (list/restore/purge), full-text search, and the
+Knowledge Nebula graph. Still not built: chat/persona dialogue (the
+actual "talk to Samantha" feature), Slack status, and a multi-persona
+roster — see `docs/VISION.md` for what's next and why.
 
 ## Project layout
 
 - `sympose/` — Python backend (FastAPI): vault browsing, note editing,
-  trash recovery, the Knowledge Nebula graph API.
+  trash recovery, full-text search, the Knowledge Nebula graph API.
 - `ui/` — React/TypeScript frontend (Vite): vault tree, markdown editor,
-  the bin, Knowledge Nebula 2D/3D graph. No chat panel, no Slack status,
-  no full-text search UI yet — those still have no backend behind them.
+  the bin, Knowledge Nebula 2D/3D graph. No chat panel or Slack status
+  yet — those still have no backend behind them.
 - `profiles/` — persona definitions. Only `samantha.yaml` (the shipped
   default) is committed; any other profile is a personal customization
   and stays local-only (see `.gitignore`).

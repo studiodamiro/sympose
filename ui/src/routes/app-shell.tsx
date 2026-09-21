@@ -112,6 +112,45 @@ const RAIL_COOKIE = "sympose:shell.rail"
 const NOTE_COOKIE = "sympose:shell.note"
 
 /**
+ * One row in the search results supplement (in-folder content matches, or
+ * beyond-folder matches of any type) — shared so the two sections render
+ * identically instead of drifting apart as separate copies. `label` is the
+ * bare filename for an in-folder row, the full vault-relative path for a
+ * beyond-folder one (folder context matters there, since the row isn't
+ * nested under anything that already shows it).
+ */
+function SearchResultRow({
+  label,
+  detail,
+  onSelect,
+}: {
+  label: string
+  detail?: React.ReactNode
+  onSelect: () => void
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      className="group/result flex w-full flex-col items-start gap-0.5 py-1 text-left focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
+    >
+      <span className="flex w-full items-start gap-1.5 text-sm text-entity/85 transition-colors group-hover/result:text-entity">
+        <HugeiconsIcon
+          icon={Note01Icon}
+          className="mt-0.5 size-3.5 shrink-0 text-fg-muted"
+        />
+        <span className="line-clamp-2 min-w-0 flex-1">{label}</span>
+      </span>
+      {detail && (
+        <span className="flex w-full min-w-0 items-center gap-1 pl-5 text-xs text-fg-muted">
+          {detail}
+        </span>
+      )}
+    </button>
+  )
+}
+
+/**
  * `<MainMenu>` mounted as the real app shell — full viewport height, no demo
  * frame. The three stage panels (content, editor, chat) toggle independently;
  * tablet caps the stage at two (oldest-evicted, rightmost fills), phone at one.
@@ -607,6 +646,38 @@ export function AppShell() {
   const contentMatches =
     contentMatchState.key === contentMatchKey ? contentMatchState.results : []
 
+  // Beyond-folder matches — a second, vault-wide tier (no `folder` param),
+  // separated from the in-folder results above rather than merged into
+  // them. Keyed on query + persona only, not `resolvedActive`: the raw
+  // fetch is genuinely folder-independent, so switching which folder is in
+  // view re-derives the display list from what's already in memory instead
+  // of re-fetching. All match types are kept here (unlike the in-folder
+  // fetch, which only needed `content` because title/tag hits *inside* the
+  // folder are already covered by the instant client-side filter above) —
+  // for a note living in a different folder, nothing else surfaces a
+  // title or tag hit on it at all.
+  const beyondFolderKey = `${vaultSearchQuery}\u0000${activePersona}`
+  const [beyondFolderState, setBeyondFolderState] = React.useState<{
+    key: string
+    results: VaultSearchResult[]
+  }>({ key: "", results: [] })
+  React.useEffect(() => {
+    if (!vaultSearchQuery || isSentinel) return
+    const key = beyondFolderKey
+    const t = setTimeout(() => {
+      searchVault(vaultSearchQuery, undefined, activePersona).then((results) => {
+        setBeyondFolderState({ key, results })
+      })
+    }, 250)
+    return () => clearTimeout(t)
+  }, [vaultSearchQuery, isSentinel, activePersona, beyondFolderKey])
+  const beyondFolderMatches = React.useMemo(() => {
+    if (beyondFolderState.key !== beyondFolderKey) return []
+    return beyondFolderState.results.filter(
+      (r) => r.rel_path !== resolvedActive && !r.rel_path.startsWith(`${resolvedActive}/`)
+    )
+  }, [beyondFolderState, beyondFolderKey, resolvedActive])
+
   // Pinned is scoped to the current *root* folder (the top-level menu entry
   // — `activeNode` itself, since the content panel never changes which
   // top-level entry it's showing just because a nested subfolder inside it
@@ -1066,30 +1137,63 @@ export function AppShell() {
                 <ul className="flex flex-col gap-0.5">
                   {contentMatches.map((r) => (
                     <li key={r.rel_path}>
-                      <button
-                        type="button"
-                        onClick={() => {
+                      <SearchResultRow
+                        label={stripMdExtension(r.file_name)}
+                        onSelect={() => {
                           selectNote(r.rel_path)
                           panels.open("editor")
                         }}
-                        className="flex w-full flex-col items-start gap-0.5 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-accent"
-                      >
-                        <span className="flex items-center gap-1.5 text-sm text-foreground">
-                          <HugeiconsIcon
-                            icon={Note01Icon}
-                            className="size-3.5 shrink-0 text-muted-foreground"
-                          />
-                          {stripMdExtension(r.file_name)}
-                          <span className="text-xs text-fg-muted">
-                            line {r.line_no}
-                          </span>
-                        </span>
-                        {r.snippet && (
-                          <span className="truncate pl-5 text-xs text-fg-muted">
-                            {r.snippet}
-                          </span>
-                        )}
-                      </button>
+                        detail={
+                          r.snippet ? (
+                            <>
+                              <span className="shrink-0">line {r.line_no}</span>
+                              <HugeiconsIcon
+                                icon={ArrowRight01Icon}
+                                className="size-3 shrink-0"
+                              />
+                              <span className="truncate">{r.snippet}</span>
+                            </>
+                          ) : undefined
+                        }
+                      />
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {vaultSearchQuery && beyondFolderMatches.length > 0 && (
+              <div className="mt-4">
+                <p className="mb-1.5 text-xs font-medium text-fg-muted">
+                  {beyondFolderMatches.length} match
+                  {beyondFolderMatches.length === 1 ? "" : "es"} beyond{" "}
+                  {activeLabel}
+                </p>
+                <ul className="flex flex-col gap-0.5">
+                  {beyondFolderMatches.map((r) => (
+                    <li key={r.rel_path}>
+                      <SearchResultRow
+                        label={stripMdExtension(r.rel_path)}
+                        onSelect={() => {
+                          selectNote(r.rel_path)
+                          panels.open("editor")
+                        }}
+                        detail={
+                          r.snippet ? (
+                            r.match_type === "content" ? (
+                              <>
+                                <span className="shrink-0">line {r.line_no}</span>
+                                <HugeiconsIcon
+                                  icon={ArrowRight01Icon}
+                                  className="size-3 shrink-0"
+                                />
+                                <span className="truncate">{r.snippet}</span>
+                              </>
+                            ) : (
+                              <span className="truncate">{r.snippet}</span>
+                            )
+                          ) : undefined
+                        }
+                      />
                     </li>
                   ))}
                 </ul>

@@ -13,3 +13,4 @@ Nothing is listed here yet.
 
 | # | Decision | Status |
 |---|---|---|
+| [001](001-never-commit-persona-memory.md) | Never commit persona memory, regardless of handle | Accepted |

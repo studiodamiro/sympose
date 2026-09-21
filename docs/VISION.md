@@ -159,6 +159,29 @@ until the engine exists behind it. Restores the desktop 3-panel cap
 (`content`, `editor`, `chat`) that was reduced to 2 when chat was
 stripped during the rewrite.
 
+**Composing directly in the editor.** When a chat instruction is about
+writing ("compose me a letter," "make this louder," "delete this one"),
+the note being written is the actual reply — so instead of only showing
+the new text in a chat bubble, the editor pane animates the transition:
+diff the old content against the new, visually "type" the inserted parts
+and "delete" the removed parts, rather than an instant content swap.
+Same visual idea as the streaming caret already in the chat mockup,
+applied to the editor instead of a chat bubble. This stays turn-based,
+not real-time multiplayer editing — the user is never locked out of
+typing except for the few seconds an animated reveal is actively
+playing, and is free to type again immediately after. If the user edits
+the note while Sam is composing in the background (before the reveal
+even starts), that's not a new problem: it's the existing
+`expected_mtime`/`NOTE_CONFLICT` optimistic-concurrency check already
+used for every save, applied to a second kind of writer — Sam's turn
+hits the same conflict path a normal save would, surfaced in the UI
+("the note changed while I was writing — redo against what's there
+now?") instead of silently overwritten. Open caveat: unclear whether
+`stylo` (the fixed external editor dependency this repo doesn't modify
+directly) already supports setting content with an animated diff, or
+whether that needs a capability request to it — a much smaller ask
+either way than real concurrent multi-writer sync would have been.
+
 ### Grounding = search, auto-triggered
 
 Grounding and search share one mechanism, not two. Search is the user

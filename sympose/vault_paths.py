@@ -2,17 +2,20 @@
 Vault root & sandbox path resolution.
 
 Every other vault module resolves "which directories can this persona touch"
-through here rather than re-deriving it — `MASTER_VAULT_PATH` is the single
-env var naming the vault root, and a persona's own `vault_folders` (or the
-legacy singular `vault_folder`) narrows that to a sandboxed subset. Stdlib
-only, no dependency on any other vault_*.py module, so nothing else here can
-create a circular import.
+through here rather than re-deriving it — `get_master_vault()` is the active
+vault from `vault_registry` (the configured list, "which one is active",
+and adding a new one live in that module — ADR 003, ADR 004), and a
+persona's own `vault_folders` (or the legacy singular `vault_folder`)
+narrows that to a sandboxed subset. No dependency on any other vault_*.py
+module besides `vault_registry`, so nothing here can create a circular
+import.
 """
 
 import logging
 import os
 from typing import Any, Callable, TypeVar
 
+from sympose import vault_registry
 from sympose.security import is_safe_path
 
 _T = TypeVar("_T")
@@ -21,18 +24,25 @@ log = logging.getLogger(__name__)
 
 
 def get_master_vault() -> str | None:
-    """Absolute, `~`-expanded vault root from `MASTER_VAULT_PATH`, or `None`
-    when it isn't set — the one env var naming where a linked vault lives."""
-    mv = os.getenv("MASTER_VAULT_PATH")
-    return os.path.abspath(os.path.expanduser(mv)) if mv else None
+    """Absolute, `~`-expanded path of the active vault, or `None` when no
+    vault is configured — every other vault module's entry point for
+    "which vault am I working in right now"."""
+    return vault_registry.get_active_vault_path()
 
 
 def get_vault_name() -> str | None:
-    """Display name for the vault root, for the dashboard's note-path
-    breadcrumb — the master vault directory's own basename. `None` when
-    `MASTER_VAULT_PATH` isn't set, same contract as `get_master_vault`."""
+    """Display name for the active vault, for the dashboard's note-path
+    breadcrumb — same `name` `vault_registry.get_configured_vaults()` gives
+    that vault (basename, or `<parent>/<basename>` on a collision). `None`
+    when no vault is configured, same contract as `get_master_vault`."""
     mv = get_master_vault()
-    return os.path.basename(mv) if mv else None
+    if not mv:
+        return None
+    match = next(
+        (v for v in vault_registry.get_configured_vaults() if v["path"] == mv),
+        None,
+    )
+    return match["name"] if match else os.path.basename(mv)
 
 
 def get_allowed_dirs(profile: dict[str, Any]) -> list[str]:

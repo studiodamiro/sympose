@@ -34,7 +34,7 @@ roster — see `docs/VISION.md` for what's next and why.
 
 ## Local setup
 
-1. Copy `.env.example` to `.env` and set `MASTER_VAULT_PATH` to an
+1. Copy `.env.example` to `.env` and set `VAULT_PATHS` to an
    Obsidian vault on disk.
 2. Backend: `pip install -e ".[dev]"` from the repo root.
 3. Frontend: `npm install` from `ui/`.

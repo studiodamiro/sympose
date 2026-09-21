@@ -1,4 +1,4 @@
-"""Dev entry point: `python -m sympose.main`. Reads `MASTER_VAULT_PATH` (and
+"""Dev entry point: `python -m sympose.main`. Reads `VAULT_PATHS` (and
 optionally `SYMPOSE_PROFILES_DIR`) from the environment — see `.env.example`."""
 
 import os

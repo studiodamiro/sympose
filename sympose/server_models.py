@@ -61,3 +61,10 @@ class TrashEmpty(BaseModel):
     in-scope trashed note."""
 
     persona: str = "samantha"
+
+
+class VaultActivate(BaseModel):
+    """Body of `POST /api/vaults/active` — switch the active vault to
+    `path`, one of `GET /api/vaults`' configured paths."""
+
+    path: str = Field(..., min_length=1)

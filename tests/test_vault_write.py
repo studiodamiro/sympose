@@ -13,7 +13,7 @@ from sympose.vault_write_status import NOTE_DENIED, NOTE_EXISTS, NOTE_NOT_FOUND
 
 @pytest.fixture
 def vault(tmp_path, monkeypatch):
-    monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_path))
+    monkeypatch.setenv("VAULT_PATHS", str(tmp_path))
     return str(tmp_path)
 
 

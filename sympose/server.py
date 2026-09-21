@@ -22,8 +22,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from sympose import server_handlers as h
 from sympose import server_search_handlers as sh
 from sympose import server_trash_handlers as th
+from sympose import server_vault_handlers as vh
 from sympose import vault_paths
-from sympose.server_models import TrashEmpty, TrashRestore
+from sympose.server_models import TrashEmpty, TrashRestore, VaultActivate
 
 
 def create_app() -> FastAPI:
@@ -43,6 +44,18 @@ def create_app() -> FastAPI:
     @app.get("/health")
     def health() -> dict[str, Any]:
         return {"status": "healthy", "vault": vault_paths.get_master_vault()}
+
+    @app.get("/api/vaults")
+    def list_vaults() -> dict[str, Any]:
+        return vh.list_vaults()
+
+    @app.post("/api/vaults/active")
+    def set_active_vault(body: VaultActivate) -> dict[str, Any]:
+        return vh.set_active_vault(body.path)
+
+    @app.post("/api/vaults", status_code=201)
+    def add_vault(body: VaultActivate) -> dict[str, Any]:
+        return vh.add_vault(body.path)
 
     @app.get("/api/vault/tree")
     def get_vault_tree(persona: str | None = Query("samantha")) -> dict[str, Any]:

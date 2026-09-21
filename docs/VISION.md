@@ -82,12 +82,16 @@ below) — building it once serves both.
 
 One active vault at a time, switchable — not multiple vaults open or
 searched simultaneously, which would require adding a vault dimension to
-every sandboxing/persona check in the backend. `MASTER_VAULT_PATH`
-becomes a list of configured vault paths; the backend tracks which one
-is active (`GET /api/vaults`, `POST /api/vaults/active`). The UI trigger
-is a Slack-style workspace-switcher popover hung off the existing brand
-mark (`<Logo>` + "Sympose" wordmark, present in both `top-bar.tsx`'s
-phone header and `main-menu.tsx`'s desktop rail) — no new chrome needed.
+every sandboxing/persona check in the backend. `VAULT_PATHS` is a
+comma-separated list of configured vault paths (see ADR 003); the backend
+tracks which one is active (`GET /api/vaults`, `POST /api/vaults/active`),
+persisted to a small settings file so the choice survives a restart. The UI
+trigger is a Slack-style workspace-switcher popover hung off the existing
+brand mark — `<Logo>` plus a wordmark, present in both `top-bar.tsx`'s
+phone header and `main-menu.tsx`'s desktop rail, that reads "Sympose" or
+the active vault's name depending on a Settings knob — no new chrome
+needed. Fewer than two configured vaults leaves the brand mark inert, since
+there is nothing to switch to.
 
 ### Chat core: one engine, many channels
 

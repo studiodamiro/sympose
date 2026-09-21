@@ -11,7 +11,7 @@ from sympose import vault_search
 
 @pytest.fixture
 def vault_root(tmp_path, monkeypatch):
-    monkeypatch.setenv("MASTER_VAULT_PATH", str(tmp_path))
+    monkeypatch.setenv("VAULT_PATHS", str(tmp_path))
     return str(tmp_path)
 
 

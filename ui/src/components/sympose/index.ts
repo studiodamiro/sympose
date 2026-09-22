@@ -1,3 +1,7 @@
+export { ActionBadge } from "./action-badge"
+export { ChatActionGroup } from "./chat-action-group"
+export { ChatMessage, StreamingCaret } from "./chat-message"
+export { ChatPanel } from "./chat-panel"
 export { ConfirmDialog } from "./confirm-dialog"
 export { ContentPanel } from "./content-panel"
 export {

@@ -1,7 +1,11 @@
 import * as React from "react"
 import { HugeiconsIcon } from "@hugeicons/react"
 import type { IconSvgElement } from "@hugeicons/react"
-import { FolderOpenIcon, Settings01Icon } from "@hugeicons/core-free-icons"
+import {
+  BubbleChatAddIcon,
+  FolderOpenIcon,
+  Settings01Icon,
+} from "@hugeicons/core-free-icons"
 
 import { cn } from "@/lib/utils"
 import { Logo } from "@/components/logo"
@@ -30,6 +34,8 @@ interface TopBarProps extends React.ComponentProps<"header"> {
   onSettings?: () => void
   accountActive?: boolean
   onAccount?: () => void
+  chatActive?: boolean
+  onChat?: () => void
   /** The workspace switcher hung off the brand mark — see `<WorkspaceSwitcher>`
    *  and `main-menu.tsx`'s desktop-rail counterpart. `vaultLabel` is the
    *  wordmark text: the active vault's name when known, else "Sympose". */
@@ -73,6 +79,8 @@ function TopBar({
   onSettings,
   accountActive,
   onAccount,
+  chatActive,
+  onChat,
   vaults = EMPTY_VAULTS,
   activeVault = null,
   onSwitchVault,
@@ -117,6 +125,12 @@ function TopBar({
             label="Settings"
             pressed={settingsActive}
             onClick={onSettings}
+          />
+          <IconButton
+            icon={BubbleChatAddIcon}
+            label="Chat"
+            pressed={chatActive}
+            onClick={onChat}
           />
           <button
             type="button"

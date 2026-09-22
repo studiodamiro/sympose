@@ -50,6 +50,7 @@ import {
   resolvePersonaVisuals,
   type LivePersona,
 } from "@/lib/personas"
+import { MOCK_TURNS, type ChatTurn } from "@/lib/chat-mock-data"
 import { fetchVaultTree } from "@/lib/vault-tree-api"
 import { searchVault, type VaultSearchResult } from "@/lib/vault-search-api"
 import {
@@ -66,6 +67,8 @@ import { resolveEmbed } from "@/lib/resolve-embed"
 import { VAULT_FOLDERS } from "@/lib/vault-folders"
 import {
   PersonaCard,
+  ChatActionGroup,
+  ChatPanel,
   CollapseAllButton,
   ContentPanel,
   ControlSectionsProvider,
@@ -286,8 +289,10 @@ export function AppShell() {
     setCookieBool(RAIL_COOKIE, menuShown)
   }, [menuShown])
 
-  // What was on screen before the vault view opened, so closing it returns there.
-  const beforeVault = React.useRef<"editor" | null>(null)
+  // What was on screen before the vault view opened, so closing it returns
+  // there. Phone caps the stage at one panel, so editor and chat can never
+  // both be open when this is read — no ambiguity in checking both.
+  const beforeVault = React.useRef<"editor" | "chat" | null>(null)
 
   // Close the vault view — rail out, content panel out, back to the prior panel.
   const closeVault = () => {
@@ -303,7 +308,11 @@ export function AppShell() {
       return
     }
     // toggle open — rail in, content panel in (on a folder, never a sentinel)
-    beforeVault.current = panels.isOpen("editor") ? "editor" : null
+    beforeVault.current = panels.isOpen("chat")
+      ? "chat"
+      : panels.isOpen("editor")
+        ? "editor"
+        : null
     if (
       (active === MENU_SETTINGS_ID ||
         active === MENU_ACCOUNT_ID ||
@@ -361,12 +370,30 @@ export function AppShell() {
 
   const contentOpen = panels.isOpen("content")
   const editorOpen = panels.isOpen("editor")
+  const chatOpen = panels.isOpen("chat")
   // Editor grows into the content panel's area when that's closed — but only
-  // on the smaller breakpoints, where screen room is scarce. On desktop the
+  // on the smaller breakpoints, where screen room is scarce, and only when
+  // chat isn't also open to claim that same freed space. On desktop the
   // editor keeps its dragged, cookie-persisted width and the resize handle
   // stays live so that width is the user's to set. Content never grows — it
   // is navigation, it keeps its dragged width even when alone.
-  const editorFill = editorOpen && breakpoint !== "desktop"
+  const editorFill = editorOpen && !chatOpen && breakpoint !== "desktop"
+
+  // Chat — presentational mock only (no engine yet): local, non-persisted
+  // state seeded from canned sample turns. Not cookie-backed like everything
+  // else in this shell on purpose — persisting fake turns risks them quietly
+  // surviving a refresh and reading as real during review.
+  const [chatTurns, setChatTurns] = React.useState<ChatTurn[]>(MOCK_TURNS)
+  const [chatDraft, setChatDraft] = React.useState("")
+  const submitChatDraft = () => {
+    const body = chatDraft.trim()
+    if (!body) return
+    setChatTurns((prev) => [
+      ...prev,
+      { id: `mock-${Date.now()}`, role: "user", body },
+    ])
+    setChatDraft("")
+  }
 
   // Persona picker — the active persona is client state (a cookie), and the
   // roster is fetched once. Both feed the `MENU_ACCOUNT_ID` panel; the handle
@@ -1379,6 +1406,8 @@ export function AppShell() {
           onSettings={() => selectSection(MENU_SETTINGS_ID)}
           accountActive={contentOpen && active === MENU_ACCOUNT_ID}
           onAccount={() => selectSection(MENU_ACCOUNT_ID)}
+          chatActive={chatOpen}
+          onChat={() => panels.toggle("chat")}
           vaults={vaultsState.vaults}
           activeVault={vaultsState.active}
           onSwitchVault={handleSwitchVault}
@@ -1444,6 +1473,10 @@ export function AppShell() {
             // border) — 8 + 37/2 - 32/2 = 10.5. A flat `top-4` (16px) sat
             // 5.5px low against it.
             <div className="pointer-events-auto absolute top-[10.5px] right-3 z-30 flex items-center gap-2">
+              <ChatActionGroup
+                chatOpen={chatOpen}
+                onToggleChat={() => panels.toggle("chat")}
+              />
               <NebulaModeToggle
                 explore={explore}
                 onToggle={() =>
@@ -1524,6 +1557,19 @@ export function AppShell() {
             toolbarItems={toolbarItems}
             open={editorOpen}
             fill={editorFill}
+            phone={isPhone}
+          />
+
+          <ChatPanel
+            turns={chatTurns}
+            draft={chatDraft}
+            onDraftChange={setChatDraft}
+            onSubmit={submitChatDraft}
+            model={
+              personas.find((p) => p.handle === activePersona)?.model
+            }
+            personaName={activePersonaName}
+            open={chatOpen}
             phone={isPhone}
           />
         </div>

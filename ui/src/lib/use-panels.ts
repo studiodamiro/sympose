@@ -7,9 +7,9 @@ import { PANEL_CAP, type Breakpoint } from "@/lib/use-breakpoint"
  * The stage panels, in fixed left-to-right DOM order. "Open" here means
  * "occupies the stage".
  */
-export type StagePanel = "content" | "editor"
+export type StagePanel = "content" | "editor" | "chat"
 
-const PANEL_ORDER: StagePanel[] = ["content", "editor"]
+const PANEL_ORDER: StagePanel[] = ["content", "editor", "chat"]
 const ORDER_COOKIE = "sympose:shell.order"
 
 /** How long an evicted panel gets to slide out before the newcomer slides in. */

@@ -7,15 +7,15 @@ import * as React from "react"
  *
  * - `phone`   — `< 768`   (layout is a later pass)
  * - `tablet`  — `768–1279` (editor toolbar wraps)
- * - `desktop` — `≥ 1280`  (both stage panels inline)
+ * - `desktop` — `≥ 1280`  (all three stage panels inline)
  */
 export type Breakpoint = "phone" | "tablet" | "desktop"
 
-/** Max stage panels ({content, editor}) visible at once, per breakpoint. */
+/** Max stage panels ({content, editor, chat}) visible at once, per breakpoint. */
 export const PANEL_CAP: Record<Breakpoint, number> = {
   phone: 1,
   tablet: 2,
-  desktop: 2,
+  desktop: 3,
 }
 
 function classify(width: number): Breakpoint {

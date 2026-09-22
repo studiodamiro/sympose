@@ -1,9 +1,11 @@
-"""The composer `Input` — a thin subclass adding Tab/Shift+Tab as the
-`/`-command cycle-and-fill shortcut. A plain `Input` doesn't bind Tab
-itself, so without this the key falls through to the Screen's default
-focus-cycling binding — which is what sent focus wandering off into the
-transcript before this existed, since Textual checks a focused widget's
-own bindings before walking up to its ancestors'."""
+"""The composer `Input` — a thin subclass adding Tab/Shift+Tab, and
+Down/Up as their more instinctive equivalent, as the `/`-command
+cycle-and-fill shortcut. A plain `Input` doesn't bind any of these
+itself, so without this they'd either fall through to the Screen's
+default focus-cycling binding (Tab — which is what sent focus wandering
+off into the transcript before this existed) or simply do nothing
+(Up/Down), since Textual checks a focused widget's own bindings before
+walking up to its ancestors'."""
 
 from textual.binding import Binding
 from textual.widgets import Input
@@ -16,6 +18,8 @@ class ComposerInput(Input):
     BINDINGS = [
         Binding("tab", "cycle_command(1)", show=False),
         Binding("shift+tab", "cycle_command(-1)", show=False),
+        Binding("down", "cycle_command(1)", show=False),
+        Binding("up", "cycle_command(-1)", show=False),
     ]
 
     def action_cycle_command(self, direction: int) -> None:

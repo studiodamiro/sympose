@@ -159,6 +159,33 @@ def test_tab_cycles_and_fills_matching_commands(profiles):
     run_async(scenario())
 
 
+def test_down_up_also_cycle_the_autocomplete(profiles):
+    """Down/Up are the more instinctive equivalent of Tab/Shift+Tab for
+    cycling the `/`-command overlay — same fill-the-input behavior,
+    still without ever moving focus off the composer."""
+
+    async def scenario():
+        app = SymposeCLI()
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            app.composer.focus()
+            await pilot.press("/")
+            await pilot.pause()
+            expected = [c.name for c in commands.matching_commands("/")]
+            await pilot.press("down")
+            await pilot.pause()
+            assert app.composer.value == expected[0]
+            assert app.focused is app.composer
+            await pilot.press("down")
+            await pilot.pause()
+            assert app.composer.value == expected[1]
+            await pilot.press("up")
+            await pilot.pause()
+            assert app.composer.value == expected[0]
+
+    run_async(scenario())
+
+
 def test_back_to_back_tab_cycles_survive_key_repeat(profiles):
     """Regression test: key-repeat (holding Tab down) can queue a second
     `Key(tab)` before the first fill's `Changed` message is delivered, so

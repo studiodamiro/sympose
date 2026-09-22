@@ -11,3 +11,5 @@ The original records 001–006 (backend dependencies, the legacy port strategy, 
 | [003](003-multi-vault-configured-list-plus-settings-file.md) | Multi-vault: a comma-separated configured list, one active vault, a new settings-file store | Accepted |
 | [004](004-add-vault-from-the-switcher.md) | Add a vault from the workspace switcher, persisted alongside the env-configured list | Accepted |
 | [005](005-cli-mock-built-on-textual.md) | CLI mock built on Textual, not `prompt_toolkit` | Accepted |
+| [006](006-chat-engine-v0-shape.md) | Chat engine v0: turn handling, grounding, sessions, and what's deliberately out | Accepted |
+| [007](007-litellm-for-model-calls.md) | litellm for model calls, `ollama_chat/` prefix, local-first default | Accepted |

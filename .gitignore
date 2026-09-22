@@ -20,6 +20,9 @@ __pycache__/
 # default / Slack allowlist) — backend-written local state, not source.
 settings.json
 
+# Chat session logs — per-conversation state generated at runtime, not source.
+sessions/
+
 # Personas: Samantha ships as the only default persona; any other profile
 # is a personal customization and stays local-only, never committed.
 profiles/*.yaml

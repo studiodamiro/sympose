@@ -1,18 +1,21 @@
 """The Textual app shell: a persistent, always-live `Input` docked at the
 bottom with a scrolling transcript above it — the one thing legacy's
 blocking `rich.prompt.Prompt` loop couldn't do (see `docs/VISION.md`,
-lines 46-50). No `PersonaEngine` wired in yet: replies are canned
-(`mock_data.py`), and every slash command is inert or mock this pass.
-Event handling and the actual command/streaming behavior live in
-`dispatch.py`/`runtime.py`/`picker.py`, split out to hold the
-200-LOC-per-file cap."""
+lines 46-50). Chat replies now come from the real engine
+(`sympose/engine/`, docs/decisions/006); model/persona pickers use real
+data (`mock_data.py`); `/compact`, `/settings`, and `/history` are still
+inert or mock, since nothing backs them yet. Event handling and the
+actual command/streaming behavior live in `dispatch.py`/`runtime.py`/
+`picker.py`, split out to hold the 200-LOC-per-file cap."""
+
+import asyncio
 
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import VerticalScroll
 from textual.widgets import Input, OptionList, Static
 
-from sympose.cli import dispatch, picker
+from sympose.cli import dispatch, picker, runtime
 from sympose.cli import transcript as transcript_mod
 from sympose.cli.composer import ComposerInput
 from sympose.cli.mock_data import MOCK_MODELS, list_personas
@@ -76,7 +79,24 @@ class SymposeCLI(App):
         self.model = MOCK_MODELS[0]
         self.panel: SelectionPanel | None = None
         self.panel_kind: str | None = None
-        self.reply_count = 0
+        # One session per CLI process run — the engine starts a new one on
+        # the first real turn; `/clear` wipes the visible transcript only,
+        # it does not reset this (no `/new`-style command exists yet).
+        self.session_id: str | None = None
+        # Bumped every time `session_id` is deliberately reset (a persona
+        # switch). A call still in flight when that happens must not write
+        # its own (now-stale) session_id back once it resolves — comparing
+        # against the persona handle alone isn't enough, since switching
+        # away and back to the *same* persona before the call resolves
+        # would restore a matching handle with a stale session_id anyway;
+        # this counter catches that too, not just a switch to someone else.
+        self.session_generation = 0
+        # Serializes actual engine calls (not composer input — the user can
+        # still type/submit freely) so two messages sent before the first
+        # reply lands can't run `engine.run_turn` concurrently and race each
+        # other's session read-modify-write (docs/decisions/006 assumes
+        # "one turn at a time"; this is what actually enforces it).
+        self.turn_lock = asyncio.Lock()
         self.reply_timer = None
         # Tab/Shift+Tab cycle-and-fill state for the `/`-autocomplete
         # overlay (see `composer.py`/`picker.py`); `None` means no
@@ -91,11 +111,23 @@ class SymposeCLI(App):
         self.last_speaker: str | None = None
         picker.update_banner(self)
         transcript_mod.mount_line(
-            self, "Mock CLI — canned replies only, no engine wired in yet.", "system"
+            self, "Talking to the real engine now — local by default.", "system"
         )
         transcript_mod.mount_line(self, "Type a message, or / for commands.", "system")
         picker.close_panel(self)  # syncs the composer's initial spacing (no panel yet)
         self.composer.focus()
+
+    async def action_quit(self) -> None:
+        # Textual's default ctrl+q binding and command-palette "Quit" both
+        # call this directly, bypassing `/quit`'s own turn_lock check
+        # (`sympose/cli/runtime.py`) entirely — reintroducing the exact
+        # hang that check exists to prevent, just through a different exit
+        # route. Overriding here, rather than only guarding the `/quit`
+        # command, covers every way this app can be told to quit.
+        if self.turn_lock.locked():
+            runtime._force_exit()
+            return
+        self.exit()
 
     @property
     def transcript(self) -> VerticalScroll:

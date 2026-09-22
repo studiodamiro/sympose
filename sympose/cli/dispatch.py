@@ -49,7 +49,7 @@ async def on_input_submitted(app, value: str) -> None:
         await runtime.run_command(app, command)
     else:
         picker.close_panel(app)
-        runtime.send_message(app, value)
+        await runtime.send_message(app, value)
 
 
 async def on_option_selected(app, event: OptionList.OptionSelected) -> None:

@@ -83,7 +83,11 @@ function WorkspaceSwitcher({
           // keys, Enter-selects-highlighted-item) from intercepting typing
           // and Enter meant for this plain input instead — same pattern as
           // the vault tree's inline-rename field in `vault-row-menu.tsx`.
-          onKeyDown={(e) => e.stopPropagation()}
+          // Escape is let through so it can still reach the menu's own
+          // document-level dismiss handler and close the popup.
+          onKeyDown={(e) => {
+            if (e.key !== "Escape") e.stopPropagation()
+          }}
         >
           <input
             value={newPath}

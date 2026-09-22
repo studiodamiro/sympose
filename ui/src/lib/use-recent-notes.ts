@@ -1,6 +1,7 @@
 import * as React from "react"
 
-import { getCookie, setCookie, vaultScopedKey } from "@/lib/cookies"
+import { getCookie, setCookie } from "@/lib/cookies"
+import { useVaultScopedState } from "@/lib/use-vault-scoped-state"
 
 const HISTORY_COOKIE = "sympose:vault.recents"
 const SHOWN_COOKIE = "sympose:vault.recents_shown"
@@ -12,9 +13,12 @@ const ENABLED_COOKIE = "sympose:vault.recents_enabled"
 const MAX_STORED = 20
 const DEFAULT_SHOWN = 5
 
-function readHistory(key: string): string[] {
-  const raw = getCookie(key)
+function readHistory(raw: string | null): string[] {
   return raw ? raw.split(",").filter(Boolean) : []
+}
+
+function serializeHistory(history: string[]): string {
+  return history.join(",")
 }
 
 function readShownCount(): number {
@@ -37,16 +41,10 @@ function readEnabled(): boolean {
  * render — so raising the knob later isn't limited by how many were ever
  * displayed before.
  *
- * History is scoped per `vaultPath` (see `vaultScopedKey`) — recent notes
- * are references into one vault's content, meaningless in another, so each
- * vault keeps its own list. `shownCount` / `enabled` stay global: they're
- * layout preferences, not vault content.
- *
- * `history` isn't seeded synchronously from a cookie at mount — which
- * vault is active usually isn't known yet then (`vaultPath` starts `null`
- * until the caller's own vault fetch answers), so `historyKey` would still
- * be the bare, unscoped key. The reseed effect below resolves the real
- * value once the key is actually known.
+ * History is vault-scoped and reseeds on a vault switch via
+ * `useVaultScopedState` — see its doc comment. `shownCount` / `enabled`
+ * stay global, on their own plain cookie-backed state: they're layout
+ * preferences, not vault content.
  */
 export function useRecentNotes(vaultPath: string | null): {
   /** The most recent `shownCount` paths, most-recent-first — empty whenever
@@ -67,50 +65,35 @@ export function useRecentNotes(vaultPath: string | null): {
   /** Empty the whole history — the "Recent" group caption's "Clear recents". */
   clearRecents: () => void
 } {
-  const historyKey = vaultScopedKey(HISTORY_COOKIE, vaultPath)
-  const [history, setHistory] = React.useState<string[]>([])
+  const [history, setHistory] = useVaultScopedState(
+    HISTORY_COOKIE,
+    vaultPath,
+    readHistory,
+    serializeHistory
+  )
   const [shownCount, setShownCountState] = React.useState<number>(readShownCount)
   const [enabled, setEnabledState] = React.useState<boolean>(readEnabled)
-
-  // Resolve/reseed `history` whenever the scope key changes — the first
-  // resolution from the bare key (before `vaultPath` is known) to a real
-  // vault's key, and every later A-to-B switch, are handled the same way:
-  // read whatever *this* key already has (or none), rather than continuing
-  // to show the previous vault's.
-  const prevHistoryKey = React.useRef<string | null>(null)
-  React.useEffect(() => {
-    if (historyKey === prevHistoryKey.current) return
-    prevHistoryKey.current = historyKey
-    setHistory(readHistory(historyKey))
-  }, [historyKey])
 
   const recordVisit = React.useCallback(
     (path: string) => {
       setHistory((prev) => {
         if (prev[0] === path) return prev
-        const next = [path, ...prev.filter((p) => p !== path)].slice(0, MAX_STORED)
-        setCookie(historyKey, next.join(","))
-        return next
+        return [path, ...prev.filter((p) => p !== path)].slice(0, MAX_STORED)
       })
     },
-    [historyKey]
+    [setHistory]
   )
 
   const removeFromRecents = React.useCallback(
     (path: string) => {
-      setHistory((prev) => {
-        const next = prev.filter((p) => p !== path)
-        setCookie(historyKey, next.join(","))
-        return next
-      })
+      setHistory((prev) => prev.filter((p) => p !== path))
     },
-    [historyKey]
+    [setHistory]
   )
 
   const clearRecents = React.useCallback(() => {
-    setCookie(historyKey, "")
     setHistory([])
-  }, [historyKey])
+  }, [setHistory])
 
   const setShownCount = React.useCallback((n: number) => {
     setCookie(SHOWN_COOKIE, String(n))

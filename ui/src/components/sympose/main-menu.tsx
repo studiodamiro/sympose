@@ -13,7 +13,7 @@ import { isNoteDrag, readNoteDrag } from "@/lib/vault-drag"
 import { Logo } from "@/components/logo"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { WorkspaceSwitcher } from "@/components/sympose/workspace-switcher"
-import type { Vault } from "@/lib/vaults-api"
+import { EMPTY_VAULTS, type Vault } from "@/lib/vaults-api"
 
 /**
  * Sympose main menu — the primary app-shell navigation (see the design
@@ -45,10 +45,6 @@ const MENU_MIN = 48
 const MENU_MAX = 256
 /** Release the handle narrower than this and the menu snaps to the rail. */
 const COLLAPSE_AT = 140
-
-/** Stable empty default so an omitted `vaults` prop never re-triggers
- *  `<WorkspaceSwitcher>` on every render with a fresh `[]` literal. */
-const EMPTY_VAULTS: Vault[] = []
 
 export interface MainMenuItem {
   /** Stable id — also the vault folder name / route segment. */
@@ -279,7 +275,7 @@ function MainMenu({
           onSwitch={onSwitchVault ?? (() => {})}
           onAdd={onAddVault ?? (async () => false)}
           align="start"
-          triggerClassName="flex h-14 w-full shrink-0 items-center gap-2 rounded-md text-left transition-colors hover:bg-accent/50 focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none data-popup-open:bg-accent/50"
+          triggerClassName="flex h-14 w-full shrink-0 items-center gap-2 rounded-md text-left text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none data-popup-open:text-foreground"
         >
           <span className={SLOT}>
             <Logo className="size-6" />

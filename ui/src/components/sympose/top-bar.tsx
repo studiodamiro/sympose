@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils"
 import { Logo } from "@/components/logo"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { WorkspaceSwitcher } from "@/components/sympose/workspace-switcher"
-import type { Vault } from "@/lib/vaults-api"
+import { EMPTY_VAULTS, type Vault } from "@/lib/vaults-api"
 
 /**
  * The phone-only shell header. On desktop / tablet the brand mark, the vault
@@ -20,10 +20,6 @@ import type { Vault } from "@/lib/vaults-api"
  * The `Sympose` wordmark is the first thing to drop when the row gets tight.
  * `vault` slides the menu rail in and out (see `AppShell`).
  */
-
-/** Stable empty default so an omitted `vaults` prop never re-triggers
- *  `<WorkspaceSwitcher>` on every render with a fresh `[]` literal. */
-const EMPTY_VAULTS: Vault[] = []
 
 interface TopBarProps extends React.ComponentProps<"header"> {
   account?: { name: string }
@@ -99,7 +95,7 @@ function TopBar({
         onSwitch={onSwitchVault ?? (() => {})}
         onAdd={onAddVault ?? (async () => false)}
         align="start"
-        triggerClassName="flex min-w-0 flex-1 items-center gap-2 rounded-md py-1 pr-2 -my-1 text-left transition-colors hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none data-popup-open:bg-accent"
+        triggerClassName="flex min-w-0 flex-1 items-center gap-2 rounded-md py-1 pr-2 -my-1 text-left text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none data-popup-open:text-foreground"
       >
         <Logo className="size-6 shrink-0" />
         {/* wordmark is the first thing to drop when the row gets tight */}

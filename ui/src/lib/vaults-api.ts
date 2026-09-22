@@ -17,6 +17,10 @@ export interface VaultsState {
   active: string | null
 }
 
+/** Stable empty default so an omitted `vaults` prop never re-triggers
+ *  `<WorkspaceSwitcher>` on every render with a fresh `[]` literal. */
+export const EMPTY_VAULTS: Vault[] = []
+
 /**
  * `GET /api/vaults` — every configured vault plus which one is active.
  * Returns an empty list on any error so a single-vault / offline dev setup

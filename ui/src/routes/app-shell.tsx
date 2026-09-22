@@ -34,6 +34,7 @@ import { useEditorPreferences } from "@/lib/use-editor-preferences"
 import { useToolbarItems } from "@/lib/use-toolbar-items"
 import { usePinnedNotes } from "@/lib/use-pinned-notes"
 import { useRecentNotes } from "@/lib/use-recent-notes"
+import { useVaultScopedState } from "@/lib/use-vault-scoped-state"
 import { useNotificationPreferences } from "@/lib/use-notification-preferences"
 import { useNebulaPreferences } from "@/lib/use-nebula-preferences"
 import { useNebulaGraph } from "@/lib/use-nebula-graph"
@@ -119,6 +120,20 @@ const AUTO_COLLAPSE_COOKIE = "sympose:pref.autoCollapseMenu"
 const SECTION_COOKIE = "sympose:shell.section"
 const RAIL_COOKIE = "sympose:shell.rail"
 const NOTE_COOKIE = "sympose:shell.note"
+function readSelectedNote(raw: string | null): string | undefined {
+  return raw || undefined
+}
+function serializeSelectedNote(path: string | undefined): string {
+  return path ?? ""
+}
+/** The note a vault switch/add should open to, read straight from that
+ *  vault's own scoped cookie — `handleSwitchVault`/`handleAddVault` call
+ *  this directly (bypassing `useVaultScopedState`'s own, one-render-later
+ *  reseed) so `<MarkdownPanel>` never sees the new vault paired with the
+ *  outgoing vault's still-selected note. */
+function resolveSelectedNoteFor(vaultPath: string | null): string | undefined {
+  return readSelectedNote(getCookie(vaultScopedKey(NOTE_COOKIE, vaultPath)))
+}
 /** How long the search field waits after the last keystroke before firing
  *  `/api/vault/search`. */
 const SEARCH_DEBOUNCE_MS = 250
@@ -407,8 +422,10 @@ export function AppShell() {
   // autocomplete share the same master graph instead of each hitting
   // `GET /api/vault/graph` on its own. Re-fetches when `vaultRefreshKey`
   // bumps, since the graph is vault-scoped, not persona-scoped.
-  const { graph: nebulaGraph, source: nebulaGraphSource } =
-    useNebulaGraph(vaultRefreshKey)
+  const { graph: nebulaGraph, source: nebulaGraphSource } = useNebulaGraph(
+    vaultRefreshKey,
+    vaultsState.active
+  )
   const explore = nebulaPrefs.interaction === "explore"
 
   // Explore auto-collapses the stage panels — content, editor —
@@ -485,54 +502,16 @@ export function AppShell() {
   const [vaultName, setVaultName] = React.useState<string | null>(null)
   // Persisted across a refresh so the editor reopens on the same note instead
   // of coming back empty — same cookie convention as `active` (SECTION_COOKIE).
-  // Scoped per vault (`vaultScopedKey`): a note path is a reference into one
-  // vault's content, meaningless in another, so each vault remembers its own
+  // Scoped per vault and reseeded on a vault switch via `useVaultScopedState`
+  // (see its doc comment) — a note path is a reference into one vault's
+  // content, meaningless in another, so each vault remembers its own
   // last-open note rather than one shared globally.
-  //
-  // Deliberately *not* seeded synchronously from a cookie at mount — which
-  // vault is active isn't known yet then (`vaultsState.active` starts
-  // `null` until `GET /api/vaults` answers), so `noteCookieKey` would still
-  // be the bare, unscoped key. The reseed effect below resolves the real
-  // value once the key is actually known, uniformly for that first
-  // resolution and every later vault switch — no special-casing needed,
-  // and nothing is ever read from (or, worse, written back to) the wrong
-  // vault's key.
-  const noteCookieKey = vaultScopedKey(NOTE_COOKIE, vaultsState.active)
-  // Mirrors `noteCookieKey`, updated during render (not in an effect) so the
-  // write effect below always targets the *current* vault's key — see why
-  // that matters in its own comment.
-  const noteCookieKeyRef = React.useRef(noteCookieKey)
-  // eslint-disable-next-line react-hooks/refs -- mirrors noteCookieKey for the write effect below to read live, see its comment
-  noteCookieKeyRef.current = noteCookieKey
-  const [selectedNote, setSelectedNote] = React.useState<string | undefined>(
-    undefined
+  const [selectedNote, setSelectedNote] = useVaultScopedState(
+    NOTE_COOKIE,
+    vaultsState.active,
+    readSelectedNote,
+    serializeSelectedNote
   )
-  // Keyed on `selectedNote` alone, deliberately *not* also on `noteCookieKey`
-  // — a vault switch changes `noteCookieKey` without changing `selectedNote`
-  // in that same commit (the reseed effect below schedules that for the
-  // *next* render), so keying this on both would fire it once with the
-  // outgoing vault's still-current `selectedNote` value but the incoming
-  // vault's key, stamping one vault's open note onto another's — exactly
-  // the "switch back and get 'couldn't load this note'" bug this avoids.
-  // Reading the key from `noteCookieKeyRef` (always current) rather than
-  // closing over `noteCookieKey` keeps this effect from needing it as a
-  // dependency at all.
-  React.useEffect(() => {
-    setCookie(noteCookieKeyRef.current, selectedNote ?? "")
-  }, [selectedNote])
-  // Resolve/reseed `selectedNote` whenever the scope key changes — the
-  // first resolution from the bare key (mount, before `vaultsState.active`
-  // is known) to a real vault's key, and every later A-to-B switch, are
-  // handled the same way: read whatever *this* key already has (or none).
-  // `<MarkdownPanel>`'s own `vaultPath` prop is what makes its leave-note
-  // flush stash a switch locally instead of writing to the backend — see
-  // its doc comment.
-  const prevNoteCookieKey = React.useRef<string | null>(null)
-  React.useEffect(() => {
-    if (noteCookieKey === prevNoteCookieKey.current) return
-    prevNoteCookieKey.current = noteCookieKey
-    setSelectedNote(getCookie(noteCookieKey) || undefined)
-  }, [noteCookieKey])
   // A note genuinely opened by the user (row click, wikilink, search result,
   // newly created) — as opposed to `setSelectedNote` alone, used to just
   // remap the still-open note's path after a rename or clear it after a
@@ -616,6 +595,14 @@ export function AppShell() {
       const res = await setActiveVault(path)
       if (res.ok) {
         setVaultsState(res.state)
+        // Resolved synchronously, in the same batch as `setVaultsState`
+        // above, rather than left to `useVaultScopedState`'s own reseed
+        // effect — otherwise `<MarkdownPanel>` sees the new `vaultPath` one
+        // render before `selectedNote` catches up, and fetches the outgoing
+        // vault's note path against the already-switched backend.
+        setSelectedNote(
+          resolveSelectedNoteFor(res.state.active)
+        )
         setVaultRefreshKey((k) => k + 1)
         const name = res.state.vaults.find((v) => v.path === path)?.name
         notify.success(name ? `Switched to ${name}` : "Vault switched")
@@ -623,7 +610,7 @@ export function AppShell() {
         notify.error(res.error)
       }
     },
-    [setVaultsState, setVaultRefreshKey]
+    [setVaultsState, setSelectedNote, setVaultRefreshKey]
   )
 
   // Workspace switcher's add-path input (ADR 004) — adds and activates in
@@ -634,6 +621,11 @@ export function AppShell() {
       const res = await addVault(path)
       if (res.ok) {
         setVaultsState(res.state)
+        // Same synchronous resolution as `handleSwitchVault` above, and for
+        // the same reason — this also activates a vault in one round trip.
+        setSelectedNote(
+          resolveSelectedNoteFor(res.state.active)
+        )
         setVaultRefreshKey((k) => k + 1)
         const name = res.state.vaults.find((v) => v.path === res.state.active)?.name
         notify.success(name ? `Added ${name}` : "Vault added")
@@ -642,7 +634,7 @@ export function AppShell() {
       notify.error(res.error)
       return false
     },
-    [setVaultsState, setVaultRefreshKey]
+    [setVaultsState, setSelectedNote, setVaultRefreshKey]
   )
 
   // Main menu = the vault's surface (top-level folders + root notes like

@@ -299,6 +299,36 @@ def test_clear_empties_transcript(profiles):
     run_async(scenario())
 
 
+def test_help_lists_every_command(profiles):
+    async def scenario():
+        app = SymposeCLI()
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            app.composer.focus()
+            await pilot.press(*"/help", "enter")
+            await pilot.pause()
+            lines = [plain_text(child) for child in app.transcript.children]
+            assert any("Commands:" in line for line in lines)
+            for command in commands.COMMANDS:
+                assert any(command.name in line for line in lines)
+
+    run_async(scenario())
+
+
+def test_compact_shows_a_mock_placeholder(profiles):
+    async def scenario():
+        app = SymposeCLI()
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            app.composer.focus()
+            await pilot.press(*"/compact", "enter")
+            await pilot.pause()
+            lines = [plain_text(child) for child in app.transcript.children]
+            assert any("compacted" in line.lower() for line in lines)
+
+    run_async(scenario())
+
+
 def test_unknown_command_shows_error(profiles):
     async def scenario():
         app = SymposeCLI()

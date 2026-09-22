@@ -101,6 +101,3 @@ class SelectionPanel(OptionList):
         if 0 <= index < len(self._selection_options):
             self.highlighted = index
             self.action_select()
-
-    def option_for(self, value: str | None) -> SelectionOption | None:
-        return next((o for o in self._selection_options if o.value == value), None)

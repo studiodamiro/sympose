@@ -344,6 +344,30 @@ def test_quit_command_exits_the_app(profiles):
     run_async(scenario())
 
 
+def test_composer_loses_its_top_margin_only_while_a_panel_is_open(profiles):
+    """Regression test: the fix for the composer's top margin used a
+    more-specific selector overriding just `margin-top`, which Textual's
+    CSS doesn't merge with the base rule's other three sides the way
+    plain CSS cascading would — it silently reset them to 0 too, so a
+    picker being open would leave the composer with no left/right/bottom
+    margin either, not just no top margin."""
+
+    async def scenario():
+        app = SymposeCLI()
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            assert app.composer.styles.margin == (1, 1, 1, 1)
+            app.composer.focus()
+            await pilot.press("/")
+            await pilot.pause()
+            assert app.composer.styles.margin == (0, 1, 1, 1)
+            await pilot.press("escape")
+            await pilot.pause()
+            assert app.composer.styles.margin == (1, 1, 1, 1)
+
+    run_async(scenario())
+
+
 def test_menu_lines_never_get_a_gap(profiles):
     """The gap is a chat-message thing, not a general transcript thing —
     `/help`'s listing and the startup hints (all "system") never get it,

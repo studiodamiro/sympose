@@ -19,11 +19,21 @@ def update_banner(app) -> None:
     )
 
 
+def _sync_composer_spacing(app) -> None:
+    # The composer's top margin (breathing room above the input) only
+    # belongs there when the transcript is what's directly above it — an
+    # open picker/autocomplete panel should read as part of the same
+    # input interaction, not a separate block with a gap before the
+    # input like the transcript gets.
+    app.composer.set_class(app.panel is None, "composer-spaced")
+
+
 def close_panel(app) -> None:
     if app.panel is not None:
         app.panel.remove()
     app.panel = None
     app.panel_kind = None
+    _sync_composer_spacing(app)
 
 
 async def open_picker(app, kind: str, title: str, options: list[SelectionOption]) -> None:
@@ -35,6 +45,7 @@ async def open_picker(app, kind: str, title: str, options: list[SelectionOption]
     app.panel_kind = kind
     await app.mount(panel, before="#composer")
     panel.focus()
+    _sync_composer_spacing(app)
 
 
 def show_autocomplete(app, value: str) -> None:
@@ -72,3 +83,4 @@ def _render_commands(app, matches, highlighted: int) -> None:
     app.panel = panel
     app.panel_kind = "autocomplete"
     app.mount(panel, before="#composer")
+    _sync_composer_spacing(app)

@@ -44,6 +44,15 @@ class SymposeCLI(App):
     }
     #composer {
         border: round $primary;
+        margin: 0 1 1 1;
+    }
+    #composer.composer-spaced {
+        /* Full shorthand here too, not just `margin-top` — Textual's
+        CSS doesn't merge a single longhand override from a more
+        specific selector with the base rule's other three sides the
+        way plain CSS cascading would; it resets them, so this must
+        restate all four rather than just the one that actually
+        differs. */
         margin: 1 1 1 1;
     }
     #composer:focus {
@@ -85,6 +94,7 @@ class SymposeCLI(App):
             self, "Mock CLI — canned replies only, no engine wired in yet.", "system"
         )
         transcript_mod.mount_line(self, "Type a message, or / for commands.", "system")
+        picker.close_panel(self)  # syncs the composer's initial spacing (no panel yet)
         self.composer.focus()
 
     @property

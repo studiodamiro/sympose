@@ -6,7 +6,7 @@ lines 46-50). Chat replies now come from the real engine
 data (`mock_data.py`); `/compact`, `/settings`, and `/history` are still
 inert or mock, since nothing backs them yet. Event handling and the
 actual command/streaming behavior live in `dispatch.py`/`runtime.py`/
-`picker.py`, split out to hold the 200-LOC-per-file cap."""
+`turns.py`/`picker.py`, split out to hold the 200-LOC-per-file cap."""
 
 import asyncio
 
@@ -15,7 +15,7 @@ from textual.binding import Binding
 from textual.containers import VerticalScroll
 from textual.widgets import Input, OptionList, Static
 
-from sympose.cli import dispatch, picker, runtime
+from sympose.cli import dispatch, picker, turns
 from sympose.cli import transcript as transcript_mod
 from sympose.cli.composer import ComposerInput
 from sympose.cli.mock_data import MOCK_MODELS, list_personas
@@ -91,13 +91,34 @@ class SymposeCLI(App):
         # would restore a matching handle with a stale session_id anyway;
         # this counter catches that too, not just a switch to someone else.
         self.session_generation = 0
-        # Serializes actual engine calls (not composer input — the user can
-        # still type/submit freely) so two messages sent before the first
-        # reply lands can't run `engine.run_turn` concurrently and race each
-        # other's session read-modify-write (docs/decisions/006 assumes
-        # "one turn at a time"; this is what actually enforces it).
-        self.turn_lock = asyncio.Lock()
-        self.reply_timer = None
+        # The session id each generation actually resolved to, so a queued
+        # message for the same persona/generation can continue it even if
+        # an unrelated persona switch has since reset `session_id` itself
+        # (docs/decisions/008). `session_id` above stays a convenient
+        # mirror of the *current* generation's entry here.
+        self.session_by_generation: dict[int, str | None] = {}
+        # One lock per persona handle (docs/decisions/008), not a single
+        # global one: sessions are stored per-handle
+        # (sympose/engine/session.py), so two different personas' turns
+        # never touch the same file and never actually race each other —
+        # only two turns for the *same* persona need to queue behind one
+        # another. The composer itself is never blocked either way.
+        self.turn_locks: dict[str, asyncio.Lock] = {}
+        # Every currently-streaming reply's own timer — not a single slot,
+        # since turns for different personas (or two queued same-persona
+        # turns) can now genuinely stream concurrently post-lock.
+        self.active_reply_timers: set = set()
+        # A plain counter, not `turn_locks[...].locked()`, for "is any turn
+        # genuinely in flight right now" (docs/decisions/008): incremented
+        # the instant `send_message` starts and decremented only once it's
+        # fully done, covering the *whole* call including any time spent
+        # queued. `Lock.locked()` is a point-in-time snapshot that briefly
+        # reads `False` in the gap between one queued call releasing the
+        # lock and the next one resuming to re-acquire it — a real, if
+        # narrow, window where `/quit` could wrongly take the graceful
+        # path and reproduce the exact hang this mechanism exists to
+        # prevent (an already-running blocking call can't be cancelled).
+        self.pending_turns = 0
         # Tab/Shift+Tab cycle-and-fill state for the `/`-autocomplete
         # overlay (see `composer.py`/`picker.py`); `None` means no
         # cycle session is active (last edit was real typing, not Tab).
@@ -119,13 +140,15 @@ class SymposeCLI(App):
 
     async def action_quit(self) -> None:
         # Textual's default ctrl+q binding and command-palette "Quit" both
-        # call this directly, bypassing `/quit`'s own turn_lock check
-        # (`sympose/cli/runtime.py`) entirely — reintroducing the exact
-        # hang that check exists to prevent, just through a different exit
+        # call this directly, bypassing `/quit`'s own in-flight check
+        # (`sympose/cli/turns.py`) entirely — reintroducing the exact hang
+        # that check exists to prevent, just through a different exit
         # route. Overriding here, rather than only guarding the `/quit`
         # command, covers every way this app can be told to quit.
-        if self.turn_lock.locked():
-            runtime._force_exit()
+        # `pending_turns`, not `turn_locks[...].locked()` — any persona's
+        # turn counts, in flight *or* still queued behind another.
+        if self.pending_turns > 0:
+            turns._force_exit()
             return
         self.exit()
 

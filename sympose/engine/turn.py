@@ -1,9 +1,11 @@
-"""One turn, end to end (docs/decisions/006). Each step below is a
-separately callable function rather than inlined logic, specifically so the
-seam between the model call returning (step 7) and persisting/returning
-(step 8) is visible — that's where a later message-queueing milestone would
-check for newly-arrived input before finalizing a turn. Queueing itself is
-not implemented here."""
+"""One turn, end to end (docs/decisions/006). `run_turn` stays a single
+atomic unit (ground -> build -> call -> persist) — message queueing
+(docs/decisions/008) is implemented at the CLI call site, sequencing and
+attributing `run_turn` calls per persona, not inside this function.
+`call_model` is a single blocking, non-cancelable call (ADR 007); there is
+no in-progress generation to check for new input against, so the seam this
+docstring used to point at (between the model call returning and the turn
+persisting) was never exercised — see ADR 008."""
 
 from dataclasses import dataclass, field
 from typing import Any

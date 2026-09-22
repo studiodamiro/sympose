@@ -3,7 +3,10 @@
 written to disk until a session's first turn, so a session that's opened but
 never used leaves no file behind — pruning-by-omission, no separate sweep
 needed. Same read-modify-write-whole-file posture as `settings_store.set`,
-not lock-hardened; fine at today's single-process, one-turn-at-a-time scale."""
+not lock-hardened; safe because each persona's own file only ever has one
+turn in flight at a time (`sympose/cli/turns.py`'s per-handle locking,
+docs/decisions/008) — a global "one turn process-wide" guarantee was never
+actually needed, since two different personas' files can't collide anyway."""
 
 import json
 import logging

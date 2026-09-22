@@ -13,3 +13,4 @@ The original records 001–006 (backend dependencies, the legacy port strategy, 
 | [005](005-cli-mock-built-on-textual.md) | CLI mock built on Textual, not `prompt_toolkit` | Accepted |
 | [006](006-chat-engine-v0-shape.md) | Chat engine v0: turn handling, grounding, sessions, and what's deliberately out | Accepted |
 | [007](007-litellm-for-model-calls.md) | litellm for model calls, `ollama_chat/` prefix, local-first default | Accepted |
+| [008](008-message-queueing.md) | Message queueing: per-persona locks, not one global lock | Accepted |

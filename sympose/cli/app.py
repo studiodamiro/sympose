@@ -13,6 +13,8 @@ from textual.containers import VerticalScroll
 from textual.widgets import Input, OptionList, Static
 
 from sympose.cli import dispatch, picker
+from sympose.cli import transcript as transcript_mod
+from sympose.cli.composer import ComposerInput
 from sympose.cli.mock_data import MOCK_MODELS, list_personas
 from sympose.cli.selection import SelectionPanel
 
@@ -28,17 +30,24 @@ class SymposeCLI(App):
         border: round $primary;
         height: auto;
         padding: 0 1;
-        margin: 0 1;
+        margin: 0 1 1 1;
     }
     #transcript {
         height: 1fr;
         margin: 0 1;
     }
+    .turn-gap {
+        margin-top: 1;
+    }
     SelectionPanel {
         margin: 0 1;
     }
     #composer {
-        margin: 0 1 1 1;
+        border: round $primary;
+        margin: 1 1 1 1;
+    }
+    #composer:focus {
+        border: round $accent;
     }
     """
 
@@ -47,7 +56,7 @@ class SymposeCLI(App):
     def compose(self) -> ComposeResult:
         yield Static("", id="banner")
         yield VerticalScroll(id="transcript")
-        yield Input(placeholder="Message… (/ for commands)", id="composer")
+        yield ComposerInput(placeholder="Message… (/ for commands)", id="composer")
 
     def on_mount(self) -> None:
         personas = list_personas()
@@ -60,11 +69,22 @@ class SymposeCLI(App):
         self.panel_kind: str | None = None
         self.reply_count = 0
         self.reply_timer = None
+        # Tab/Shift+Tab cycle-and-fill state for the `/`-autocomplete
+        # overlay (see `composer.py`/`picker.py`); `None` means no
+        # cycle session is active (last edit was real typing, not Tab).
+        self.tab_matches = None
+        self.tab_index = -1
+        self.filling_tab_count = 0
+        # Tracks which "chatter" (user / persona / system) mounted the
+        # last transcript line — `transcript.py`'s `mount_line` only adds
+        # a gap above a line when this changes, so consecutive lines
+        # from the same speaker stay grouped together.
+        self.last_speaker: str | None = None
         picker.update_banner(self)
-        self.transcript.mount(
-            Static("Mock CLI — canned replies only, no engine wired in yet.", classes="hint")
+        transcript_mod.mount_line(
+            self, "Mock CLI — canned replies only, no engine wired in yet.", "system"
         )
-        self.transcript.mount(Static("Type a message, or / for commands.", classes="hint"))
+        transcript_mod.mount_line(self, "Type a message, or / for commands.", "system")
         self.composer.focus()
 
     @property

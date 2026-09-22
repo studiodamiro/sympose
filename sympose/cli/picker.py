@@ -14,7 +14,7 @@ from sympose.cli.selection import SelectionOption, SelectionPanel
 def update_banner(app) -> None:
     banner = app.query_one("#banner", Static)
     banner.update(
-        f"[bold]Sympose[/] — talking to [bold]@{app.persona.handle}[/] "
+        f"[bold]<S> Sympose[/] — talking to [bold]@{app.persona.handle}[/] "
         f"· [dim]{app.model.label}[/]"
     )
 
@@ -38,19 +38,37 @@ async def open_picker(app, kind: str, title: str, options: list[SelectionOption]
 
 
 def show_autocomplete(app, value: str) -> None:
-    """Live `/`-command preview, filtered as more is typed. The `Input`
-    keeps focus throughout, so digit keys still type into it rather than
-    selecting a row — the same scoping rule `open_picker` relies on."""
+    """Live `/`-command preview, filtered on every real keystroke. The
+    `Input` keeps focus throughout — unnumbered (see `selection.py`),
+    cycled with Tab/Shift+Tab (`composer.py`) rather than digits, and
+    with no row highlighted yet since nothing's been cycled to."""
+    app.tab_matches = None
+    app.tab_index = -1
     matches = matching_commands(value)
     if not matches:
         if app.panel_kind == "autocomplete":
             close_panel(app)
         return
+    _render_commands(app, matches, highlighted=-1)
+
+
+def render_tab_cycle(app) -> None:
+    """Redraws the autocomplete overlay from `app.tab_matches`/
+    `app.tab_index` (owned by `composer.py`'s cycle action) rather than
+    recomputing from the input's current text — the text now holds
+    whichever command Tab just filled in, which is narrower than the
+    original typed prefix and would otherwise collapse the list to just
+    that one command instead of letting Tab keep cycling through all of
+    them."""
+    _render_commands(app, app.tab_matches, highlighted=app.tab_index)
+
+
+def _render_commands(app, matches, highlighted: int) -> None:
     close_panel(app)
     options = [
         SelectionOption(f"{c.name} — {c.summary}", c.name, danger=c.danger) for c in matches
     ]
-    panel = SelectionPanel("Commands", options)
+    panel = SelectionPanel("Commands", options, numbered=False, initial_highlight=highlighted)
     app.panel = panel
     app.panel_kind = "autocomplete"
     app.mount(panel, before="#composer")

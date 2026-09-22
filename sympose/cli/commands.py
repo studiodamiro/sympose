@@ -23,6 +23,7 @@ COMMANDS: list[SlashCommand] = [
     SlashCommand("/compact", "Compact the conversation (mock)"),
     SlashCommand("/clear", "Clear the transcript", danger=True),
     SlashCommand("/settings", "Open settings (not available in the CLI yet)"),
+    SlashCommand("/quit", "Exit the CLI"),
 ]
 
 

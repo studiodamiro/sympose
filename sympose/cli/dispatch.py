@@ -4,13 +4,23 @@ routing so neither of those two modules has to depend on the other."""
 
 from rich.style import Style
 from rich.text import Text
-from textual.widgets import OptionList, Static
+from textual.widgets import OptionList
 
 from sympose.cli import picker, runtime
+from sympose.cli import transcript as transcript_mod
 from sympose.cli.commands import find_command
 
 
 def on_input_changed(app, value: str) -> None:
+    # `composer.py`'s Tab-cycle already redrew the overlay itself (from
+    # the stable `tab_matches` list, not this now-narrower filled-in
+    # text) — consume one count and skip the normal live-filter reaction
+    # for the `Changed` event that fill produced. A counter, not a
+    # boolean: see `composer.py`'s comment on why key-repeat can queue
+    # more than one of these before either is processed.
+    if app.filling_tab_count > 0:
+        app.filling_tab_count -= 1
+        return
     if value.startswith("/"):
         picker.show_autocomplete(app, value)
     elif app.panel_kind == "autocomplete":
@@ -27,13 +37,13 @@ async def on_input_submitted(app, value: str) -> None:
         name = value.split()[0]
         command = find_command(name)
         if command is None:
-            app.transcript.mount(
-                Static(
-                    Text(
-                        f"Unknown command: {name} — try /help",
-                        style=Style(color=app.theme_color("error", "red"), bold=True),
-                    )
-                )
+            transcript_mod.mount_line(
+                app,
+                Text(
+                    f"Unknown command: {name} — try /help",
+                    style=Style(color=app.theme_color("error", "red"), bold=True),
+                ),
+                "system",
             )
             return
         await runtime.run_command(app, command)

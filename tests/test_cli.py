@@ -115,6 +115,99 @@ def test_autocomplete_populates_matching_options(profiles):
     run_async(scenario())
 
 
+def test_digit_keys_type_literally_during_autocomplete(profiles):
+    """Numbers are reserved for the model/persona/history pickers —
+    typing a digit while the `/`-autocomplete overlay is showing must
+    type into the input, not select a row, since the overlay is never
+    focused (only Tab/Shift+Tab cycle it)."""
+
+    async def scenario():
+        app = SymposeCLI()
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            app.composer.focus()
+            await pilot.press("/", "2")
+            await pilot.pause()
+            assert app.composer.value == "/2"
+            assert app.focused is app.composer
+
+    run_async(scenario())
+
+
+def test_tab_cycles_and_fills_matching_commands(profiles):
+    async def scenario():
+        app = SymposeCLI()
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            app.composer.focus()
+            await pilot.press("/")
+            await pilot.pause()
+            expected = [c.name for c in commands.matching_commands("/")]
+            first_match, second_match = expected[0], expected[1]
+            await pilot.press("tab")
+            await pilot.pause()
+            assert app.composer.value == first_match
+            assert app.focused is app.composer  # Tab never moves focus
+            await pilot.press("tab")
+            await pilot.pause()
+            assert app.composer.value == second_match
+            # Shift+Tab walks back to the first match.
+            await pilot.press("shift+tab")
+            await pilot.pause()
+            assert app.composer.value == first_match
+
+    run_async(scenario())
+
+
+def test_back_to_back_tab_cycles_survive_key_repeat(profiles):
+    """Regression test: key-repeat (holding Tab down) can queue a second
+    `Key(tab)` before the first fill's `Changed` message is delivered, so
+    `ComposerInput.action_cycle_command` runs twice before
+    `dispatch.on_input_changed` runs once. A plain boolean guard flag
+    gets consumed by the first `Changed` and leaves the second wrongly
+    treated as real typing, which resets `tab_matches` mid-cycle and
+    traps the cycle on whatever command that second fill landed on."""
+
+    async def scenario():
+        app = SymposeCLI()
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            app.composer.focus()
+            await pilot.press("/")
+            await pilot.pause()
+            expected = [c.name for c in commands.matching_commands("/")]
+            # Two cycles back-to-back, no `pilot.pause()` (no trip
+            # through the message pump) between them — the scenario the
+            # boolean flag couldn't survive.
+            app.composer.action_cycle_command(1)
+            app.composer.action_cycle_command(1)
+            await pilot.pause()
+            assert app.composer.value == expected[1]
+            assert [c.name for c in app.tab_matches] == expected  # not collapsed to 1 match
+            assert app.panel.option_count == len(expected)
+
+    run_async(scenario())
+
+
+def test_enter_after_tab_fill_runs_the_command(profiles):
+    async def scenario():
+        app = SymposeCLI()
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            app.composer.focus()
+            await pilot.press("/", "c", "l")
+            await pilot.pause()
+            await pilot.press("tab")  # only match for "/cl" is "/clear"
+            await pilot.pause()
+            assert app.composer.value == "/clear"
+            await pilot.press("enter")
+            await pilot.pause()
+            assert len(list(app.transcript.children)) == 0  # /clear ran
+            assert app.composer.value == ""
+
+    run_async(scenario())
+
+
 def test_model_picker_digit_select_updates_model_and_banner(profiles):
     async def scenario():
         app = SymposeCLI()
@@ -207,5 +300,43 @@ def test_escape_closes_autocomplete_and_keeps_typed_text(profiles):
             assert app.panel is None
             assert app.composer.value == "/his"
             assert app.focused is app.composer
+
+    run_async(scenario())
+
+
+def test_quit_command_exits_the_app(profiles):
+    async def scenario():
+        app = SymposeCLI()
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            app.composer.focus()
+            await pilot.press(*"/quit", "enter")
+            await pilot.pause()
+            assert app._exit is True
+
+    run_async(scenario())
+
+
+def test_speaker_change_adds_a_gap_same_speaker_does_not(profiles):
+    """No gap between consecutive lines from the same chatter (the two
+    startup hint lines, both "system"); a gap appears once the chatter
+    changes (to "user" for the first real message)."""
+
+    async def scenario():
+        app = SymposeCLI()
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            hint_lines = list(app.transcript.children)
+            assert len(hint_lines) == 2
+            # Regression: `last_speaker` starts `None`, so the very
+            # first line mounted must not get a gap either — there's no
+            # prior turn above it to separate from.
+            assert "turn-gap" not in hint_lines[0].classes
+            assert "turn-gap" not in hint_lines[1].classes  # same speaker as hint_lines[0]
+            app.composer.focus()
+            await pilot.press(*"hello", "enter")
+            await pilot.pause()
+            you_line = list(app.transcript.children)[2]
+            assert "turn-gap" in you_line.classes  # system -> user
 
     run_async(scenario())

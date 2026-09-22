@@ -317,10 +317,11 @@ def test_quit_command_exits_the_app(profiles):
     run_async(scenario())
 
 
-def test_speaker_change_adds_a_gap_same_speaker_does_not(profiles):
-    """No gap between consecutive lines from the same chatter (the two
-    startup hint lines, both "system"); a gap appears once the chatter
-    changes (to "user" for the first real message)."""
+def test_menu_lines_never_get_a_gap(profiles):
+    """The gap is a chat-message thing, not a general transcript thing —
+    `/help`'s listing and the startup hints (all "system") never get it,
+    including at the system/user boundary, since a menu-like block
+    shouldn't pick up the chat's own breathing room."""
 
     async def scenario():
         app = SymposeCLI()
@@ -328,15 +329,28 @@ def test_speaker_change_adds_a_gap_same_speaker_does_not(profiles):
             await pilot.pause()
             hint_lines = list(app.transcript.children)
             assert len(hint_lines) == 2
-            # Regression: `last_speaker` starts `None`, so the very
-            # first line mounted must not get a gap either — there's no
-            # prior turn above it to separate from.
             assert "turn-gap" not in hint_lines[0].classes
-            assert "turn-gap" not in hint_lines[1].classes  # same speaker as hint_lines[0]
+            assert "turn-gap" not in hint_lines[1].classes  # same speaker
             app.composer.focus()
             await pilot.press(*"hello", "enter")
             await pilot.pause()
             you_line = list(app.transcript.children)[2]
-            assert "turn-gap" in you_line.classes  # system -> user
+            assert "turn-gap" not in you_line.classes  # system -> user: no gap
+
+    run_async(scenario())
+
+
+def test_gap_appears_between_user_and_persona_turns(profiles):
+    async def scenario():
+        app = SymposeCLI()
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            app.composer.focus()
+            await pilot.press(*"hello", "enter")
+            await pilot.pause()
+            children = list(app.transcript.children)
+            you_line, reply_line = children[2], children[3]
+            assert "turn-gap" not in you_line.classes  # system -> user: no gap
+            assert "turn-gap" in reply_line.classes  # user -> persona: gap
 
     run_async(scenario())

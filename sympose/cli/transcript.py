@@ -1,18 +1,22 @@
-"""Mounts a line into the transcript with speaker-aware spacing:
-consecutive lines from the same "chatter" (user / persona / system) sit
-close together, and a blank-line gap only appears when the chatter
-changes — the grouped-messages convention ordinary chat apps use,
-rather than a flat gap after every single line regardless of who's
-talking."""
+"""Mounts a line into the transcript with speaker-aware spacing.
+
+The gap is a chat-message thing, not a general transcript thing: it
+appears only between a "user" turn and a "persona" turn (or back), never
+around "system" lines — hints, `/help` output, confirmations, errors.
+Those always stay tight against whatever surrounds them, so a menu-like
+block never picks up the chat's own breathing room."""
 
 from textual.widgets import Static
 
+_CHAT_SPEAKERS = {"user", "persona"}
+
 
 def mount_line(app, content, speaker: str) -> Static:
-    # `app.last_speaker` starts `None` (no prior turn), so the very
-    # first line ever mounted must not get a gap above it even though
-    # `speaker != None` — there's nothing above it to separate from.
-    changed = app.last_speaker is not None and speaker != app.last_speaker
+    changed = (
+        speaker in _CHAT_SPEAKERS
+        and app.last_speaker in _CHAT_SPEAKERS
+        and speaker != app.last_speaker
+    )
     widget = Static(content, classes="turn-gap" if changed else "")
     app.transcript.mount(widget)
     app.last_speaker = speaker

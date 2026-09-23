@@ -43,16 +43,30 @@ async def run_command(app, command) -> None:
     elif command.name == "/compact":
         transcript_mod.mount_line(app, "Conversation compacted (mock) — nothing to trim yet.", "system")
     elif command.name == "/clear":
-        # A reply may still be mid-stream — stop its timer rather than
-        # let it keep ticking against a transcript that was just cleared
-        # out from under it. Two or more replies can be streaming at once
-        # (docs/decisions/008 — one lock per persona), so every active
-        # timer is stopped, not just one slot's worth.
-        for timer in list(app.active_reply_timers):
-            timer.stop()
-        app.active_reply_timers.clear()
-        await transcript.remove_children()
-        app.last_speaker = None
+        # A turn that's queued or still running its engine call has no
+        # reply widget yet — clearing now would wipe its "You" line, so
+        # when that turn later resolves the reply would mount with no
+        # visible question above it. `pending_turns`, not a lock's
+        # `.locked()`, is what `action_quit` already uses for this same
+        # in-flight check (docs/decisions/008); a turn's own streaming
+        # reveal (below) only starts after `pending_turns` has already
+        # dropped back to 0, so this can't also block a plain clear during
+        # an active stream.
+        if app.pending_turns > 0:
+            transcript_mod.mount_line(
+                app, "Can't clear while a reply is queued or in progress.", "system"
+            )
+        else:
+            # A reply may still be mid-stream — stop its timer rather than
+            # let it keep ticking against a transcript that was just cleared
+            # out from under it. Two or more replies can be streaming at once
+            # (docs/decisions/008 — one lock per persona), so every active
+            # timer is stopped, not just one slot's worth.
+            for timer in app.active_reply_timers:
+                timer.stop()
+            app.active_reply_timers.clear()
+            await transcript.remove_children()
+            app.last_speaker = None
     elif command.name == "/settings":
         # No dashboard-style Settings page exists in a terminal, so unlike
         # the dashboard's `/settings` (wired to real navigation), this

@@ -1104,6 +1104,46 @@ def test_clear_empties_transcript(profiles):
     run_async(scenario())
 
 
+def test_clear_blocked_while_turn_pending(profiles, monkeypatch):
+    """Regression test for a `/code-review` finding: `/clear` used to wipe
+    the transcript unconditionally, including the "You" line of a turn
+    that hadn't reached its reply yet (queued behind another turn's lock,
+    or still running in the engine executor). When that turn's reply
+    landed, it mounted into the now-empty transcript with nothing above
+    it. `/clear` now checks `pending_turns` (the same signal
+    `action_quit` uses) and refuses instead."""
+    release = threading.Event()
+
+    def fake_run_turn(handle, user_message, session_id=None, model=None):
+        assert release.wait(timeout=2)
+        return engine.TurnResult(reply="the reply", session_id="sess-x", grounding=[])
+
+    monkeypatch.setattr(turns.engine, "run_turn", fake_run_turn)
+
+    async def scenario():
+        app = SymposeCLI()
+        async with app.run_test() as pilot:
+            await pilot.pause()
+
+            task = asyncio.create_task(turns.send_message(app, "hello"))
+            await asyncio.sleep(0.05)
+            assert app.pending_turns == 1
+            before = len(list(app.transcript.children))
+            assert before > 0  # the "You" line is already mounted
+
+            await runtime.run_command(app, commands.find_command("/clear"))
+
+            # Refused: the "You" line survives, plus the new system message.
+            assert len(list(app.transcript.children)) == before + 1
+
+            release.set()
+            await task
+            # The reply mounts normally once the pending turn resolves.
+            assert len(list(app.transcript.children)) == before + 2
+
+    run_async(scenario())
+
+
 def test_help_lists_every_command(profiles):
     async def scenario():
         app = SymposeCLI()

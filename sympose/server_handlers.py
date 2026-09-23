@@ -3,9 +3,10 @@ Note/folder route handler logic for the dashboard API — split out of
 `server.py` to keep that file to route registration only, out of
 `server_models.py` to keep this file to logic only, and out of
 `server_trash_handlers.py` to keep this file to the note/folder CRUD routes
-only (project's 200-LOC-per-file guideline). `translate_vault_result` is
-imported directly by `server_trash_handlers.py` too — it's the one
-sentinel→HTTP translation every handler module shares.
+only (project's 200-LOC-per-file guideline). `translate_vault_result` and
+`sandbox_denied` are imported directly by `server_trash_handlers.py` too
+— the one sentinel→HTTP translation, and the one denial message, every
+handler module shares.
 """
 
 import os
@@ -31,6 +32,14 @@ from sympose.vault_write_status import (
     NOTE_INVALID_NAME,
     NOTE_NOT_FOUND,
 )
+
+
+def _not_found(noun: str, path: str) -> str:
+    return f"{noun} `{path}` not found in allowed vault folders."
+
+
+def sandbox_denied(path: str) -> str:
+    return f"Path `{path}` is outside the assigned sandbox."
 
 
 def translate_vault_result(
@@ -77,9 +86,7 @@ def read_note(path: str, persona: str | None) -> dict[str, Any]:
     profile = resolve_profile(persona)
     target = resolve_existing_note(profile, path)
     if target is None:
-        raise HTTPException(
-            status_code=404, detail=f"Note `{path}` not found in allowed vault folders."
-        )
+        raise HTTPException(status_code=404, detail=_not_found("Note", path))
     try:
         with open(target, "r", encoding="utf-8", errors="replace") as f:
             # Only trims the trailing newline(s) `overwrite_note`/`create_note`
@@ -95,9 +102,7 @@ def read_note(path: str, persona: str | None) -> dict[str, Any]:
         # A concurrent delete landing between `resolve_existing_note`
         # returning this path and `open()` reaching it -- the note simply
         # isn't there anymore, not a server error.
-        raise HTTPException(
-            status_code=404, detail=f"Note `{path}` not found in allowed vault folders."
-        )
+        raise HTTPException(status_code=404, detail=_not_found("Note", path))
     except OSError as e:
         raise HTTPException(status_code=500, detail=f"Error reading note `{path}`: {e}")
     return {"path": path, "content": content, "mtime": mtime}
@@ -110,8 +115,8 @@ def write_note(body: NoteWrite) -> dict[str, Any]:
     )
     translate_vault_result(
         result,
-        not_found=f"Note `{body.path}` not found in allowed vault folders.",
-        denied=f"Path `{body.path}` is outside the assigned sandbox.",
+        not_found=_not_found("Note", body.path),
+        denied=sandbox_denied(body.path),
         conflict=f"Note `{body.path}` changed on disk since it was opened — reload before saving.",
     )
     return {"path": body.path, "detail": result}
@@ -123,7 +128,7 @@ def create_note(body: NoteCreate) -> dict[str, Any]:
     translate_vault_result(
         result,
         exists=f"A note already exists at `{body.path}`.",
-        denied=f"Path `{body.path}` is outside the assigned sandbox.",
+        denied=sandbox_denied(body.path),
     )
     return {"path": body.path, "detail": result}
 
@@ -134,7 +139,7 @@ def create_folder(body: FolderCreate) -> dict[str, Any]:
     translate_vault_result(
         result,
         exists=f"A file or folder already exists at `{body.path}`.",
-        denied=f"Path `{body.path}` is outside the assigned sandbox.",
+        denied=sandbox_denied(body.path),
     )
     return {"path": body.path, "detail": result}
 
@@ -144,9 +149,9 @@ def rename_note(body: NoteRename) -> dict[str, Any]:
     result = vault_write_rename.rename_note(profile, body.path, body.new_path)
     translate_vault_result(
         result,
-        not_found=f"Note `{body.path}` not found in allowed vault folders.",
+        not_found=_not_found("Note", body.path),
         exists=f"A note already exists at `{body.new_path}`.",
-        denied=f"Path `{body.new_path}` is outside the assigned sandbox.",
+        denied=sandbox_denied(body.new_path),
         invalid_name="New name can't contain `[`, `]`, `|`, or `#` — those break wikilink syntax.",
     )
     return {"path": body.new_path, "detail": result}
@@ -157,8 +162,8 @@ def delete_note(path: str, persona: str | None) -> dict[str, Any]:
     result = vault_write_delete.delete_note(profile, path)
     translate_vault_result(
         result,
-        not_found=f"Note `{path}` not found in allowed vault folders.",
-        denied=f"Path `{path}` is outside the assigned sandbox.",
+        not_found=_not_found("Note", path),
+        denied=sandbox_denied(path),
     )
     return {"path": path, "detail": result}
 
@@ -168,7 +173,7 @@ def delete_folder(path: str, persona: str | None) -> dict[str, Any]:
     result = vault_write_delete.delete_folder(profile, path)
     translate_vault_result(
         result,
-        not_found=f"Folder `{path}` not found in allowed vault folders.",
-        denied=f"Path `{path}` is outside the assigned sandbox.",
+        not_found=_not_found("Folder", path),
+        denied=sandbox_denied(path),
     )
     return {"path": path, "detail": result}

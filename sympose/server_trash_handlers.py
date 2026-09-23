@@ -9,8 +9,12 @@ from fastapi import HTTPException
 
 from sympose import vault_paths, vault_trash
 from sympose.profile import resolve_profile
-from sympose.server_handlers import translate_vault_result
+from sympose.server_handlers import sandbox_denied, translate_vault_result
 from sympose.server_models import TrashEmpty, TrashRestore
+
+
+def _not_in_bin(path: str) -> str:
+    return f"`{path}` is not in the bin."
 
 
 def _trash_scope(persona: str | None) -> tuple[str | None, list[str]]:
@@ -40,9 +44,9 @@ def restore_trash(body: TrashRestore) -> dict[str, Any]:
     result = vault_trash.restore(mv, allowed_dirs, body.path)
     translate_vault_result(
         result,
-        not_found=f"`{body.path}` is not in the bin.",
+        not_found=_not_in_bin(body.path),
         exists="Something already occupies that note's original location.",
-        denied=f"Path `{body.path}` is outside the assigned sandbox.",
+        denied=sandbox_denied(body.path),
     )
     return {"path": result, "detail": f"Restored to `{result}`"}
 
@@ -52,8 +56,8 @@ def purge_trash(path: str, persona: str | None) -> dict[str, Any]:
     result = vault_trash.purge(mv, allowed_dirs, path)
     translate_vault_result(
         result,
-        not_found=f"`{path}` is not in the bin.",
-        denied=f"Path `{path}` is outside the assigned sandbox.",
+        not_found=_not_in_bin(path),
+        denied=sandbox_denied(path),
     )
     return {"path": path, "detail": "Deleted permanently."}
 

@@ -92,17 +92,30 @@ def _resolve_in_trash(mv: str, trash_rel: str) -> str:
     return src
 
 
-def restore(mv: str, allowed_dirs: list[str], trash_rel: str) -> str:
-    """Move a trashed note back to its original vault-relative path. Returns
-    that path on success, or `NOTE_NOT_FOUND` / `NOTE_EXISTS` (something
-    occupies the original spot now) / `NOTE_DENIED` / `"Error: …"`."""
+def _resolve_trash_entry(
+    mv: str, trash_rel: str
+) -> tuple[str, str, str, str] | str:
+    """Resolves a trash-relative path to (`src`, `troot`, `trash_rel_actual`,
+    `orig_rel`) — the trashed file's absolute path, the trash root, its
+    actual trash-relative path, and its recorded original vault-relative
+    path — or a `NOTE_DENIED`/`NOTE_NOT_FOUND` sentinel."""
     troot = os.path.join(mv, TRASH_DIRNAME)
     src = _resolve_in_trash(mv, trash_rel)
     if src in (NOTE_DENIED, NOTE_NOT_FOUND):
         return src
-
     trash_rel_actual = os.path.relpath(src, troot).replace(os.sep, "/")
     orig_rel = original_relpath(troot, trash_rel_actual)
+    return src, troot, trash_rel_actual, orig_rel
+
+
+def restore(mv: str, allowed_dirs: list[str], trash_rel: str) -> str:
+    """Move a trashed note back to its original vault-relative path. Returns
+    that path on success, or `NOTE_NOT_FOUND` / `NOTE_EXISTS` (something
+    occupies the original spot now) / `NOTE_DENIED` / `"Error: …"`."""
+    entry = _resolve_trash_entry(mv, trash_rel)
+    if isinstance(entry, str):
+        return entry
+    src, troot, trash_rel_actual, orig_rel = entry
     dst = os.path.normpath(os.path.join(mv, orig_rel))
     if not any(is_safe_path(dst, a) for a in allowed_dirs):
         return NOTE_DENIED
@@ -127,13 +140,10 @@ def purge(mv: str, allowed_dirs: list[str], trash_rel: str) -> str:
     `NOTE_NOT_FOUND` / `NOTE_DENIED` / `"Error: …"`. Scoped: an entry whose
     original location is outside `allowed_dirs` cannot be purged through
     this persona."""
-    troot = os.path.join(mv, TRASH_DIRNAME)
-    src = _resolve_in_trash(mv, trash_rel)
-    if src in (NOTE_DENIED, NOTE_NOT_FOUND):
-        return src
-
-    trash_rel_actual = os.path.relpath(src, troot).replace(os.sep, "/")
-    orig_rel = original_relpath(troot, trash_rel_actual)
+    entry = _resolve_trash_entry(mv, trash_rel)
+    if isinstance(entry, str):
+        return entry
+    src, troot, trash_rel_actual, orig_rel = entry
     if not any(is_safe_path(os.path.join(mv, orig_rel), a) for a in allowed_dirs):
         return NOTE_DENIED
     try:

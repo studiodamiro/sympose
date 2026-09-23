@@ -112,6 +112,22 @@ def test_default_persona_is_samantha_not_alphabetically_first(profiles):
     run_async(scenario())
 
 
+def test_on_mount_raises_a_clear_error_on_an_empty_roster(tmp_path, monkeypatch):
+    """Regression test (`/code-review` finding): list_profiles() now
+    deliberately returns [] for an existing-but-empty profiles/ dir
+    (docs/decisions/009) -- `next((...), personas[0])` used to evaluate
+    `personas[0]` eagerly even when the generator matched, raising a
+    cryptic IndexError instead of a legible error. Called directly
+    (not through the full pilot lifecycle) since the guard runs before
+    any widget is touched."""
+    monkeypatch.setenv("SYMPOSE_PROFILES_DIR", str(tmp_path / "profiles"))
+    (tmp_path / "profiles").mkdir()
+
+    app = SymposeCLI()
+    with pytest.raises(RuntimeError, match="No personas configured"):
+        app.on_mount()
+
+
 def test_autocomplete_populates_matching_options(profiles):
     """Regression test: `SelectionPanel.__init__` used to store its
     options on `self._options`, which `OptionList.__init__` silently

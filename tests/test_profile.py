@@ -115,6 +115,23 @@ def test_resolve_profile_none_still_resolves_if_samantha_file_is_missing(profile
     assert p["vault_folders"] == ["*"]
 
 
+def test_resolve_profile_safety_net_matches_a_mixed_case_configured_default(profiles_dir):
+    """Regression test (`/code-review` finding): the safety net compared
+    the raw handle to FACTORY_DEFAULT_PERSONA (a lowercase literal)
+    without lowering it first -- a settings_store value of "Samantha"
+    (nothing normalizes case on write) would never match "samantha" and
+    the fallback would wrongly be skipped, returning None instead of
+    whole-vault access, even though samantha.yaml has simply gone
+    missing exactly like the all-lowercase case above."""
+    from sympose import settings_store
+
+    settings_store.set("default_persona", "Samantha")
+    p = profile.resolve_profile(None)
+    assert p is not None
+    assert p["handle"] == "samantha"
+    assert p["vault_folders"] == ["*"]
+
+
 def test_resolve_profile_none_fails_closed_for_a_broken_configured_default(profiles_dir):
     """A *configured* custom default whose file has gone missing must not
     cascade back to the whole-vault fallback under that orphaned handle —

@@ -55,6 +55,27 @@ def test_require_profile_404s_an_unknown_persona_with_a_profiles_dir_configured(
     assert exc_info.value.status_code == 404
 
 
+def test_require_profile_error_names_the_default_handle_not_none(monkeypatch, tmp_path):
+    """Regression test (`/code-review` finding): an omitted persona
+    (None) that fails to resolve used to report "Unknown persona
+    `None`." -- useless for debugging which persona actually broke.
+    Uses a configured custom default with no matching file, since the
+    factory default ("samantha") has its own whole-vault safety net and
+    would never actually reach the 404 path here."""
+    from sympose import settings_store
+
+    monkeypatch.setenv("SYMPOSE_SETTINGS_PATH", str(tmp_path / "settings.json"))
+    profiles = tmp_path / "profiles"
+    profiles.mkdir()  # exists but has no dev.yaml -- configured default fails to resolve
+    monkeypatch.setenv("SYMPOSE_PROFILES_DIR", str(profiles))
+    settings_store.set("default_persona", "dev")
+
+    with pytest.raises(HTTPException) as exc_info:
+        server_handlers.require_profile(None)
+    assert "dev" in exc_info.value.detail
+    assert "None" not in exc_info.value.detail
+
+
 def test_unknown_persona_cannot_read_outside_a_scoped_profiles_folders(monkeypatch, tmp_path):
     """Regression test for the live-verified sandbox bypass: before the
     profile.py fix, an unknown/typo'd persona with a profiles dir

@@ -100,7 +100,12 @@ def resolve_profile(persona: str | None) -> dict[str, Any] | None:
     profile = get_profile(handle)
     if profile is not None:
         return profile
-    if handle == FACTORY_DEFAULT_PERSONA:
+    # get_profile already lowercases handle internally for its own file
+    # lookup, but this comparison is against the raw handle -- without
+    # lowering it here too, a mixed-case configured default (nothing
+    # normalizes case on write to settings_store) would never match
+    # FACTORY_DEFAULT_PERSONA and silently lose its safety net.
+    if handle.lower() == FACTORY_DEFAULT_PERSONA:
         return _fallback_profile(handle)
     return None
 

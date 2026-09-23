@@ -23,7 +23,7 @@ from sympose import (
     vault_write_delete,
     vault_write_rename,
 )
-from sympose.profile import resolve_profile
+from sympose.profile import resolve_default_persona, resolve_profile
 from sympose.server_models import FolderCreate, NoteCreate, NoteRename, NoteWrite
 from sympose.vault_write_concurrency import NOTE_CONFLICT
 from sympose.vault_write_resolve import resolve_existing_note
@@ -51,7 +51,12 @@ def require_profile(persona: str | None) -> dict[str, Any]:
     not resolving to a profile at all."""
     profile = resolve_profile(persona)
     if profile is None:
-        raise HTTPException(status_code=404, detail=f"Unknown persona `{persona}`.")
+        # `persona` itself, not the handle actually attempted -- an
+        # omitted persona (None) resolves through the configured
+        # default, and the message should name *that* handle, not
+        # literally report "Unknown persona `None`."
+        handle = persona or resolve_default_persona()
+        raise HTTPException(status_code=404, detail=f"Unknown persona `{handle}`.")
     return profile
 
 

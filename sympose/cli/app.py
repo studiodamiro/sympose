@@ -73,6 +73,15 @@ class SymposeCLI(App):
 
     def on_mount(self) -> None:
         personas = list_personas()
+        if not personas:
+            # list_profiles() now deliberately returns [] once a
+            # profiles/ dir exists but has no valid *.yaml in it
+            # (docs/decisions/009) -- `personas[0]` below would be a
+            # cryptic IndexError instead of an actionable message.
+            raise RuntimeError(
+                "No personas configured -- check SYMPOSE_PROFILES_DIR points "
+                "at a directory containing at least one valid *.yaml profile."
+            )
         # The configured default persona (factory default: Samantha, see
         # `CLAUDE.md`'s project rules) — picked explicitly rather than
         # whichever profile happens to sort first alphabetically.

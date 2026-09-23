@@ -43,3 +43,17 @@ def test_creates_parent_directory(tmp_path, monkeypatch):
     monkeypatch.setenv("SYMPOSE_SETTINGS_PATH", nested)
     assert settings_store.set("active_vault", "/vault")
     assert os.path.exists(nested)
+
+
+def test_flag_only_honours_a_real_boolean(tmp_path, monkeypatch):
+    monkeypatch.setenv("SYMPOSE_SETTINGS_PATH", str(tmp_path / "settings.json"))
+    assert settings_store.flag("knob") is True  # missing: the default
+    assert settings_store.flag("knob", default=False) is False
+    settings_store.set("knob", False)
+    assert settings_store.flag("knob") is False
+    settings_store.set("knob", True)
+    assert settings_store.flag("knob", default=False) is True
+    for junk in ("false", "no", 0, 1, None, "", [False]):  # never flips the knob
+        settings_store.set("knob", junk)
+        assert settings_store.flag("knob") is True
+        assert settings_store.flag("knob", default=False) is False

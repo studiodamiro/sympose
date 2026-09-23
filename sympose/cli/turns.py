@@ -15,7 +15,7 @@ from rich.style import Style
 from rich.text import Text
 
 from sympose import engine
-from sympose.cli import grounding_line
+from sympose.cli import grounding_line, trim_notice
 from sympose.cli import transcript as transcript_mod
 from sympose.cli.mock_data import active_model
 
@@ -148,6 +148,7 @@ async def _send_message(app, value: str) -> None:
 
     if result.ttft_ms is not None:
         reply_header += f" · TTFT {_format_ttft(result.ttft_ms)}"
+    reply_header += trim_notice.segment(result.history_dropped, result.truncated)
     reply_header += grounding_line.header_segment(reply_header, result.grounding, app.size.width)
     _stream_reply(app, result.reply, reply_header)
 

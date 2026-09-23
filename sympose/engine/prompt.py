@@ -33,8 +33,18 @@ _CAPABILITY_LIMITS = (
 )
 
 
-def _format_grounding_block(grounding_results: list[dict[str, Any]]) -> str:
+def _format_grounding_block(grounding_results: list[dict[str, Any]], omitted: int = 0) -> str:
+    """`omitted` is how many matching passages were left out to fit the
+    model's window (docs/decisions/015): the block must say so, since "no
+    notes matched" would be false and the model would tell the user the vault
+    has nothing on it."""
     if not grounding_results:
+        if omitted:
+            return (
+                "Vault notes matched this message, but they could not be included because "
+                "the conversation is too long for the context window. Don't say the vault "
+                "has nothing on it: say you couldn't include the matching notes this time."
+            )
         return "No vault notes matched this message."
     lines = ["Vault context:"]
     for result in grounding_results:
@@ -43,10 +53,14 @@ def _format_grounding_block(grounding_results: list[dict[str, Any]]) -> str:
         if heading and heading != result["title"]:
             where += f" › {heading}"
         lines.append(f"- {result['title']} ({where}): {result['text']}")
+    if omitted:
+        lines.append(f"({omitted} more matching passages were left out to fit the context window.)")
     return "\n".join(lines)
 
 
-def build_system_prompt(profile: dict[str, Any], grounding_results: list[dict[str, Any]]) -> str:
+def build_system_prompt(
+    profile: dict[str, Any], grounding_results: list[dict[str, Any]], omitted: int = 0
+) -> str:
     # `handle` is always lowercase (`profile.get_profile` lowercases it
     # before building a file path) -- title-cased here so a fallback
     # profile's identity line reads "Samantha", not "samantha". The
@@ -62,7 +76,7 @@ def build_system_prompt(profile: dict[str, Any], grounding_results: list[dict[st
         [
             soul or DEFAULT_SOUL,
             identity,
-            _format_grounding_block(grounding_results),
+            _format_grounding_block(grounding_results, omitted),
             _GROUNDING_INSTRUCTION,
             _CAPABILITY_LIMITS,
         ]
@@ -74,7 +88,8 @@ def build_messages(
     history: list[dict[str, str]],
     grounding_results: list[dict[str, Any]],
     user_message: str,
+    omitted: int = 0,
 ) -> list[dict[str, str]]:
-    system = {"role": "system", "content": build_system_prompt(profile, grounding_results)}
+    system = {"role": "system", "content": build_system_prompt(profile, grounding_results, omitted)}
     user = {"role": "user", "content": user_message}
     return [system, *history, user]

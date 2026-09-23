@@ -223,3 +223,47 @@ def test_resolve_model_falls_through_when_the_persona_has_none(settings_file):
 
     settings_store.set("chat_model", "anthropic/claude-sonnet")
     assert model.resolve_model(None) == "anthropic/claude-sonnet"
+
+
+def test_call_model_forwards_the_window_and_reply_cap_only_when_given(settings_file, monkeypatch):
+    seen = []
+
+    def fake_completion(model, messages, stream, timeout, **extra):
+        seen.append(extra)
+        return _stream("ok")
+
+    monkeypatch.setattr(model.litellm, "completion", fake_completion)
+
+    model.call_model([{"role": "user", "content": "hi"}])
+    model.call_model([{"role": "user", "content": "hi"}], num_ctx=8192, max_tokens=1024)
+    model.call_model([{"role": "user", "content": "hi"}], num_ctx=4096)
+
+    assert seen == [{}, {"num_ctx": 8192, "max_tokens": 1024}, {"num_ctx": 4096}]
+
+
+def _finished(*contents, finish):
+    return iter([_chunk(c) for c in contents] + [_chunk(None, finish=finish)])
+
+
+def test_a_reply_that_stopped_at_the_reply_limit_is_marked_truncated(settings_file, monkeypatch):
+    monkeypatch.setattr(
+        model.litellm, "completion",
+        lambda model, messages, stream, timeout, **kw: _finished("half a sen", finish="length"),
+    )
+    reply = model.call_model([{"role": "user", "content": "hi"}], max_tokens=5)
+    assert reply.truncated is True and reply.text == "half a sen"
+
+
+def test_a_normal_reply_is_not_marked_truncated(settings_file, monkeypatch):
+    monkeypatch.setattr(model.litellm, "completion", lambda model, messages, stream, timeout: _stream("done."))
+    assert model.call_model([{"role": "user", "content": "hi"}]).truncated is False
+
+
+def test_a_model_that_spends_its_whole_reply_limit_thinking_gets_a_clear_error(settings_file, monkeypatch):
+    chunks = iter([_chunk(None, reasoning="thinking..."), _chunk(None, finish="length")])
+    monkeypatch.setattr(
+        model.litellm, "completion",
+        lambda model, messages, stream, timeout, **kw: chunks,
+    )
+    with pytest.raises(model.EngineModelError, match="reply limit"):
+        model.call_model([{"role": "user", "content": "hi"}], max_tokens=5)

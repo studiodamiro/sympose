@@ -142,3 +142,23 @@ def test_the_prompt_tells_every_persona_what_it_cannot_do_yet():
 
     assert "can't create or change notes, personas, or settings" in text
     assert "ask what they mean instead of assuming" in text
+
+
+def test_passages_left_out_for_size_are_not_reported_as_no_match():
+    """When the engine drops every passage to fit the window, the prompt must
+    not say "no notes matched": that would make the model tell the user the
+    vault has nothing on a topic it does have notes on."""
+    text = prompt.build_system_prompt({"name": "Samantha"}, [], omitted=3)
+    assert "No vault notes matched" not in text
+    assert "could not be included" in text and "context window" in text
+
+
+def test_some_passages_left_out_are_counted_after_the_ones_that_stayed():
+    text = prompt.build_system_prompt({"name": "Samantha"}, [_grounding_result()], omitted=2)
+    assert "2 more matching passages were left out" in text
+    assert "Vault context:" in text
+
+
+def test_nothing_omitted_changes_nothing():
+    text = prompt.build_system_prompt({"name": "Samantha"}, [_grounding_result()])
+    assert "left out" not in text

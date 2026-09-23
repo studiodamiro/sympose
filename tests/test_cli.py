@@ -12,7 +12,7 @@ import threading
 import pytest
 
 from sympose import engine
-from sympose.cli import commands, grounding_line, mock_data, runtime, turns
+from sympose.cli import commands, grounding_line, mock_data, runtime, trim_notice, turns
 from sympose.cli.app import SymposeCLI
 
 
@@ -1618,3 +1618,92 @@ def test_grounding_command_toggles_and_persists_the_setting(profiles):
             assert any("now shown" in line for line in lines)
 
     run_async(scenario())
+
+
+# -- the context-trim notice (docs/decisions/015) --
+
+
+def test_trim_notice_names_how_many_turns_were_left_out():
+    assert trim_notice.segment(3) == " · 3 older turns out of context"
+    assert trim_notice.segment(1) == " · 1 older turn out of context"
+
+
+def test_trim_notice_is_silent_when_nothing_was_left_out_or_when_turned_off():
+    from sympose import settings_store
+
+    assert trim_notice.segment(0) == ""
+    settings_store.set(trim_notice.SETTING, False)
+    assert trim_notice.segment(3) == ""
+    settings_store.set(trim_notice.SETTING, "false")  # malformed: the notice stays on
+    assert trim_notice.segment(3) != ""
+
+
+def _run_with_result(monkeypatch, **fields) -> str:
+    def fake_run_turn(handle, user_message, session_id=None, model=None):
+        return engine.TurnResult(reply="ok", session_id="s", ttft_ms=1840, model="m", **fields)
+
+    monkeypatch.setattr(turns.engine, "run_turn", fake_run_turn)
+    header = {}
+
+    async def scenario():
+        app = SymposeCLI()
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            app.composer.focus()
+            await pilot.press(*"hi", "enter")
+            for _ in range(100):
+                await pilot.pause(0.1)
+                replies = [plain_text(c) for c in app.transcript.children if plain_text(c).startswith("@samantha")]
+                if replies:
+                    header["text"] = replies[0].split("\n")[0]
+                    return
+            raise AssertionError("no reply header appeared")
+
+    run_async(scenario())
+    return header["text"]
+
+
+def test_the_reply_header_shows_the_trim_notice_before_the_grounded_note(profiles, monkeypatch):
+    header = _run_with_result(
+        monkeypatch, history_dropped=3, grounding=[_hit("Projects/Atlas.md")]
+    )
+    # The notice comes first and takes its room; the grounded path then keeps only what fits.
+    assert "TTFT 1.8s · 3 older turns out of context · from " in header
+    assert header.endswith("Atlas.md")
+
+
+def test_the_reply_header_has_no_trim_notice_when_nothing_was_dropped(profiles, monkeypatch):
+    assert "out of context" not in _run_with_result(monkeypatch, history_dropped=0)
+
+
+def test_a_window_too_small_for_the_persona_is_shown_as_a_failure_line(profiles, monkeypatch):
+    from sympose.engine import budget
+
+    def too_small(handle, user_message, session_id=None, model=None):
+        raise budget.ContextTooSmallError("Raise `context_window` in the settings file.")
+
+    monkeypatch.setattr(turns.engine, "run_turn", too_small)
+
+    async def scenario():
+        app = SymposeCLI()
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            app.composer.focus()
+            await pilot.press(*"hi", "enter")
+            await pilot.pause(0.5)
+            lines = [plain_text(c) for c in app.transcript.children]
+            assert any("couldn't reply" in line and "context_window" in line for line in lines)
+
+    run_async(scenario())
+
+
+def test_trim_notice_also_says_when_a_reply_was_cut_at_the_length_limit():
+    assert trim_notice.segment(0, truncated=True) == " · reply cut at the length limit"
+    assert trim_notice.segment(2, truncated=True) == (
+        " · 2 older turns out of context · reply cut at the length limit"
+    )
+    assert trim_notice.segment(0, truncated=False) == ""
+
+
+def test_the_reply_header_shows_a_reply_cut_at_the_length_limit(profiles, monkeypatch):
+    assert "reply cut at the length limit" in _run_with_result(monkeypatch, truncated=True)

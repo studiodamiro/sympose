@@ -36,6 +36,14 @@ def get(key: str, default: Any = None) -> Any:
     return _load().get(key, default)
 
 
+def flag(key: str, default: bool = True) -> bool:
+    """A true/false knob: only an actual boolean counts, anything else (a
+    hand-edited `"false"`, `0`, `null`) leaves it at `default`, so a
+    malformed value never silently flips a setting."""
+    value = get(key, default)
+    return value if isinstance(value, bool) else default
+
+
 def set(key: str, value: Any) -> bool:
     """Merges `key: value` into the settings file and writes it back
     whole — the file is small (a handful of app-wide knobs), so a

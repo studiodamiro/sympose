@@ -38,6 +38,9 @@ class ModelReply:
     # Milliseconds from just before the request to the first generated
     # token; `None` only if the stream ended without producing one.
     ttft_ms: int | None
+    # The model stopped because it reached the reply limit (`finish_reason:
+    # length`), so the text may end mid-sentence (docs/decisions/015).
+    truncated: bool = False
 
 
 class EngineModelError(Exception):
@@ -67,18 +70,27 @@ def _read(chunk) -> tuple[str, str | None]:
     )
 
 
-def call_model(messages: list[dict[str, str]], model: str | None = None) -> ModelReply:
+def call_model(
+    messages: list[dict[str, str]],
+    model: str | None = None,
+    num_ctx: int | None = None,
+    max_tokens: int | None = None,
+) -> ModelReply:
     """Streamed internally so time to first token can be measured (ADR 013),
     but the complete reply is still returned as one string — the CLI's own
     word-by-word reveal animates it client-side, so nothing downstream sees
     a stream. TTFT is time to the first *reply* text: a reasoning model's
     thinking is not counted, since that is not what the user is waiting to
     read. A stream that ends without a finish signal was cut off, and
-    raises instead of being saved as if it were a whole reply."""
+    raises instead of being saved as if it were a whole reply. `num_ctx` (the
+    window asked of a local Ollama model) and `max_tokens` (the reply's
+    limit) are only sent when given (docs/decisions/015)."""
     target_model = model or resolve_model()
+    limits = {"num_ctx": num_ctx, "max_tokens": max_tokens}
     parts: list[str] = []
     ttft_ms: int | None = None
     finished = False
+    truncated = False
     started = time.perf_counter()
     try:
         for chunk in litellm.completion(
@@ -86,6 +98,7 @@ def call_model(messages: list[dict[str, str]], model: str | None = None) -> Mode
             messages=messages,
             stream=True,
             timeout=_REQUEST_TIMEOUT_SECONDS,
+            **{name: value for name, value in limits.items() if value is not None},
         ):
             text, finish_reason = _read(chunk)
             if text:
@@ -94,16 +107,22 @@ def call_model(messages: list[dict[str, str]], model: str | None = None) -> Mode
                 parts.append(text)
             if finish_reason:
                 finished = True
+                truncated = finish_reason == "length"
     except Exception as e:
         log.warning("Model call to %s failed: %s", target_model, e)
         raise EngineModelError(
             f"Couldn't reach model '{target_model}': {e}"
         ) from e
     content = "".join(parts)
+    if not content and truncated:
+        raise EngineModelError(
+            f"Model '{target_model}' reached its reply limit before writing an answer "
+            "(a reasoning model can spend the whole limit thinking)."
+        )
     if not content:
         raise EngineModelError(f"Model '{target_model}' returned an empty reply.")
     if not finished:
         raise EngineModelError(
             f"The reply from '{target_model}' was cut off before it finished."
         )
-    return ModelReply(text=content, ttft_ms=ttft_ms)
+    return ModelReply(text=content, ttft_ms=ttft_ms, truncated=truncated)

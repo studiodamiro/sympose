@@ -23,7 +23,7 @@ _MARGIN = 4
 def enabled() -> bool:
     """On unless explicitly turned off: a hand-edited or malformed value
     (`"false"`, `0`) must not silently hide what grounded a reply."""
-    return settings_store.get(SETTING, True) is not False
+    return settings_store.flag(SETTING)
 
 
 def set_enabled(value: bool) -> bool:

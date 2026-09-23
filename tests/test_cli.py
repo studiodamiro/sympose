@@ -12,7 +12,7 @@ import threading
 import pytest
 
 from sympose import engine
-from sympose.cli import commands, mock_data, runtime, turns
+from sympose.cli import commands, grounding_line, mock_data, runtime, turns
 from sympose.cli.app import SymposeCLI
 
 
@@ -1477,5 +1477,144 @@ def test_the_reply_header_omits_ttft_when_the_engine_gave_none(profiles):
             lines = [plain_text(c) for c in app.transcript.children]
             header = next(line for line in lines if line.startswith("@samantha"))
             assert "TTFT" not in header
+
+    run_async(scenario())
+
+
+# -- grounded notes in the reply header (docs/decisions/016) --
+
+
+def _hit(path: str) -> dict:
+    return {"rel_path": path, "title": "t", "heading": "", "text": "x", "tags": [], "score": 1.0, "index": 1}
+
+
+def test_grounding_segment_is_empty_when_nothing_matched():
+    assert grounding_line.format_grounding([], 40) == ""
+    assert grounding_line.header_segment("@samantha · m", [], 100) == ""
+
+
+def test_grounding_segment_names_the_top_note_and_counts_the_others():
+    hits = [_hit("Projects/Atlas.md"), _hit("Projects/Atlas.md"), _hit("Work/Budget.md"), _hit("Work/Plan.md")]
+    # Two passages from one note are one note, not two.
+    assert grounding_line.format_grounding(hits, 60) == "from Projects/Atlas.md +2"
+    assert grounding_line.format_grounding(hits[:1], 60) == "from Projects/Atlas.md"
+
+
+def test_grounding_segment_cuts_a_long_path_from_the_front_so_the_filename_shows():
+    hits = [_hit("Deep/Nested/Folder/Structure/Atlas.md"), _hit("Other.md")]
+    # room 28, minus "from " (5) and " +1" (3), leaves 20 cells: the ellipsis and the last 19.
+    assert grounding_line.format_grounding(hits, 28) == "from …/Structure/Atlas.md +1"
+
+
+def test_grounding_segment_never_cuts_a_path_to_nothing_in_a_tiny_terminal():
+    segment = grounding_line.format_grounding([_hit("Projects/Atlas.md")], 3)
+    assert segment == "from …Atlas.md"
+
+
+def test_grounding_floor_is_eight_cells_for_a_short_filename():
+    # "A.md" is 4 cells; the floor of 8 binds, so 7 path cells + the ellipsis.
+    assert grounding_line.format_grounding([_hit("Some/Long/Folder/A.md")], 3) == "from …er/A.md"
+
+
+def test_grounding_keeps_at_most_32_cells_of_a_huge_filename():
+    name = "x" * 60 + ".md"
+    segment = grounding_line.format_grounding([_hit(f"Dir/{name}")], 3)
+    assert segment == "from …" + name[-31:]
+
+
+def test_grounding_header_segment_keeps_the_whole_line_within_the_terminal():
+    header = "@samantha · Gemma2:9b · TTFT 8.3s"
+    hits = [_hit("Deep/Nested/Folder/Structure/Atlas.md"), _hit("Other.md")]
+    for width in (60, 72, 80, 100):
+        line = header + grounding_line.header_segment(header, hits, width)
+        # 4 cells stay free for the transcript's own padding and scrollbar.
+        assert grounding_line.cell_len(line) <= width - 4, width
+
+
+def test_grounding_fits_wide_characters_by_cell_width_not_character_count():
+    hit = _hit("プロジェクト/アトラスの決定メモ.md")
+    segment = grounding_line.format_grounding([hit], 32)
+    assert segment.startswith("from …") and segment.endswith("メモ.md")
+    assert grounding_line.cell_len(segment) <= 32  # by characters it would be far under, by cells it is not
+
+
+def test_grounding_ignores_hits_without_a_path_instead_of_failing():
+    assert grounding_line.format_grounding([{"text": "x"}, {"rel_path": ""}], 40) == ""
+    assert grounding_line.format_grounding([{"text": "x"}, _hit("A.md")], 40) == "from A.md"
+
+
+def test_grounding_display_is_on_unless_explicitly_turned_off():
+    from sympose import settings_store
+
+    assert grounding_line.enabled() is True
+    for malformed in ("false", 0, None, ""):  # hand-edited junk must not hide it
+        settings_store.set(grounding_line.SETTING, malformed)
+        assert grounding_line.enabled() is True
+    settings_store.set(grounding_line.SETTING, False)
+    assert grounding_line.enabled() is False
+
+
+def _run_and_get_header(monkeypatch, grounding) -> str:
+    def fake_run_turn(handle, user_message, session_id=None, model=None):
+        return engine.TurnResult(
+            reply="ok", session_id="s", grounding=grounding, ttft_ms=1840, model="m"
+        )
+
+    monkeypatch.setattr(turns.engine, "run_turn", fake_run_turn)
+    header = {}
+
+    async def scenario():
+        app = SymposeCLI()
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            app.composer.focus()
+            await pilot.press(*"hi", "enter")
+            for _ in range(100):  # wait for the reveal's first tick, however slow the machine
+                await pilot.pause(0.1)
+                lines = [plain_text(c) for c in app.transcript.children]
+                replies = [line for line in lines if line.startswith("@samantha")]
+                if replies:
+                    header["text"] = replies[0].split("\n")[0]  # the header, not the reply body
+                    return
+            raise AssertionError("no reply header appeared")
+
+    run_async(scenario())
+    return header["text"]
+
+
+def test_the_reply_header_shows_the_grounded_note_after_the_ttft(profiles, monkeypatch):
+    header = _run_and_get_header(monkeypatch, [_hit("Projects/Atlas.md"), _hit("Work/Budget.md")])
+    assert "TTFT 1.8s · from Projects/Atlas.md +1" in header
+
+
+def test_the_reply_header_shows_nothing_when_nothing_grounded(profiles, monkeypatch):
+    header = _run_and_get_header(monkeypatch, [])
+    assert header.endswith("TTFT 1.8s")
+    assert "no notes" not in header and "from" not in header
+
+
+def test_the_reply_header_hides_grounding_when_the_knob_is_off(profiles, monkeypatch):
+    from sympose import settings_store
+
+    settings_store.set(grounding_line.SETTING, False)
+    header = _run_and_get_header(monkeypatch, [_hit("Projects/Atlas.md")])
+    assert header.endswith("TTFT 1.8s")
+
+
+def test_grounding_command_toggles_and_persists_the_setting(profiles):
+    async def scenario():
+        app = SymposeCLI()
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            app.composer.focus()
+            await pilot.press(*"/grounding", "enter")
+            await pilot.pause()
+            assert grounding_line.enabled() is False
+            await pilot.press(*"/grounding", "enter")
+            await pilot.pause()
+            assert grounding_line.enabled() is True
+            lines = [plain_text(c) for c in app.transcript.children]
+            assert any("now hidden" in line for line in lines)
+            assert any("now shown" in line for line in lines)
 
     run_async(scenario())

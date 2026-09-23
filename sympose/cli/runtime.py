@@ -10,7 +10,7 @@ out to hold the 200-LOC-per-file cap."""
 
 from rich.style import Style
 
-from sympose.cli import picker, transcript as transcript_mod
+from sympose.cli import grounding_line, picker, transcript as transcript_mod
 from sympose.cli.commands import COMMANDS
 from sympose.cli.mock_data import MOCK_HISTORY, MODEL_OPTIONS, list_personas
 from sympose.cli.selection import SelectionOption
@@ -44,6 +44,13 @@ async def run_command(app, command) -> None:
             line = f"@{app.persona.handle} is now the default persona."
         else:
             line = f"Couldn't save @{app.persona.handle} as the default persona."
+        transcript_mod.mount_line(app, line, "system")
+    elif command.name == "/grounding":
+        turned_on = not grounding_line.enabled()
+        if grounding_line.set_enabled(turned_on):
+            line = f"Grounded notes are now {'shown' if turned_on else 'hidden'} in reply headers."
+        else:
+            line = "Couldn't save the grounded-notes setting."
         transcript_mod.mount_line(app, line, "system")
     elif command.name == "/history":
         await picker.open_picker(

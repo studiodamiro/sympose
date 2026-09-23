@@ -3,10 +3,11 @@ Note/folder route handler logic for the dashboard API — split out of
 `server.py` to keep that file to route registration only, out of
 `server_models.py` to keep this file to logic only, and out of
 `server_trash_handlers.py` to keep this file to the note/folder CRUD routes
-only (project's 200-LOC-per-file guideline). `translate_vault_result` and
-`sandbox_denied` are imported directly by `server_trash_handlers.py` too
-— the one sentinel→HTTP translation, and the one denial message, every
-handler module shares.
+only (project's 200-LOC-per-file guideline). `translate_vault_result`,
+`sandbox_denied`, and `require_profile` are imported directly by
+`server_trash_handlers.py`/`server_search_handlers.py` too — the one
+sentinel→HTTP translation, the one denial message, and the one "reject an
+unknown persona" check every handler module shares.
 """
 
 import os
@@ -42,6 +43,18 @@ def sandbox_denied(path: str) -> str:
     return f"Path `{path}` is outside the assigned sandbox."
 
 
+def require_profile(persona: str | None) -> dict[str, Any]:
+    """`resolve_profile`, raising 404 instead of returning `None` — every
+    HTTP handler's one entry point for "resolve this request's persona or
+    reject it." Distinct from `sandbox_denied`'s 403: that's a *valid*
+    persona whose sandbox rejects a *path*; this is the persona itself
+    not resolving to a profile at all."""
+    profile = resolve_profile(persona)
+    if profile is None:
+        raise HTTPException(status_code=404, detail=f"Unknown persona `{persona}`.")
+    return profile
+
+
 def translate_vault_result(
     result: str,
     *,
@@ -70,7 +83,7 @@ def translate_vault_result(
 
 
 def get_vault_tree(persona: str | None) -> dict[str, Any]:
-    profile = resolve_profile(persona)
+    profile = require_profile(persona)
     return {
         "persona": persona,
         "tree": vault_graph.get_vault_tree(profile),
@@ -83,7 +96,7 @@ def get_vault_graph() -> dict[str, Any]:
 
 
 def read_note(path: str, persona: str | None) -> dict[str, Any]:
-    profile = resolve_profile(persona)
+    profile = require_profile(persona)
     target = resolve_existing_note(profile, path)
     if target is None:
         raise HTTPException(status_code=404, detail=_not_found("Note", path))
@@ -109,7 +122,7 @@ def read_note(path: str, persona: str | None) -> dict[str, Any]:
 
 
 def write_note(body: NoteWrite) -> dict[str, Any]:
-    profile = resolve_profile(body.persona)
+    profile = require_profile(body.persona)
     result = vault_write.overwrite_note(
         profile, body.path, body.content, expected_mtime=body.expected_mtime
     )
@@ -123,7 +136,7 @@ def write_note(body: NoteWrite) -> dict[str, Any]:
 
 
 def create_note(body: NoteCreate) -> dict[str, Any]:
-    profile = resolve_profile(body.persona)
+    profile = require_profile(body.persona)
     result = vault_write_create.create_note(profile, body.path, body.content)
     translate_vault_result(
         result,
@@ -134,7 +147,7 @@ def create_note(body: NoteCreate) -> dict[str, Any]:
 
 
 def create_folder(body: FolderCreate) -> dict[str, Any]:
-    profile = resolve_profile(body.persona)
+    profile = require_profile(body.persona)
     result = vault_write_create.create_folder(profile, body.path)
     translate_vault_result(
         result,
@@ -145,7 +158,7 @@ def create_folder(body: FolderCreate) -> dict[str, Any]:
 
 
 def rename_note(body: NoteRename) -> dict[str, Any]:
-    profile = resolve_profile(body.persona)
+    profile = require_profile(body.persona)
     result = vault_write_rename.rename_note(profile, body.path, body.new_path)
     translate_vault_result(
         result,
@@ -158,7 +171,7 @@ def rename_note(body: NoteRename) -> dict[str, Any]:
 
 
 def delete_note(path: str, persona: str | None) -> dict[str, Any]:
-    profile = resolve_profile(persona)
+    profile = require_profile(persona)
     result = vault_write_delete.delete_note(profile, path)
     translate_vault_result(
         result,
@@ -169,7 +182,7 @@ def delete_note(path: str, persona: str | None) -> dict[str, Any]:
 
 
 def delete_folder(path: str, persona: str | None) -> dict[str, Any]:
-    profile = resolve_profile(persona)
+    profile = require_profile(persona)
     result = vault_write_delete.delete_folder(profile, path)
     translate_vault_result(
         result,

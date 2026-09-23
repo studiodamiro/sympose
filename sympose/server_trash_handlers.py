@@ -8,8 +8,7 @@ from typing import Any
 from fastapi import HTTPException
 
 from sympose import vault_paths, vault_trash
-from sympose.profile import resolve_profile
-from sympose.server_handlers import sandbox_denied, translate_vault_result
+from sympose.server_handlers import require_profile, sandbox_denied, translate_vault_result
 from sympose.server_models import TrashEmpty, TrashRestore
 
 
@@ -18,7 +17,7 @@ def _not_in_bin(path: str) -> str:
 
 
 def _trash_scope(persona: str | None) -> tuple[str | None, list[str]]:
-    profile = resolve_profile(persona)
+    profile = require_profile(persona)
     return vault_paths.get_master_vault(), vault_paths.get_allowed_dirs(profile)
 
 

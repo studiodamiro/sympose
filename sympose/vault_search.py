@@ -47,14 +47,24 @@ def _extract_title_match_snippet(body: str) -> str:
 
 
 def _extract_content_match(body: str, query_clean: str) -> tuple[int, str]:
-    for line_idx, line in enumerate(body.splitlines(), start=1):
-        if query_clean in line.lower():
-            clean_l = " ".join(line.strip().strip("#*-> ").split())
-            q_idx = clean_l.lower().find(query_clean)
-            if q_idx > 25:
-                clean_l = "..." + clean_l[max(q_idx - 15, 0) :]
-            return line_idx, _truncate_snippet(clean_l)
-    return 1, ""
+    """Line number and display snippet for a content match already
+    confirmed to exist somewhere in `body`. A query that spans multiple
+    lines (e.g. a chat message verbatim-quoting two consecutive lines
+    from a note) can't be found by searching one line at a time — a
+    whole-body substring search instead, with the returned line number
+    and snippet anchored to where the match actually starts."""
+    lower_body = body.lower()
+    match_idx = lower_body.find(query_clean)
+    if match_idx == -1:
+        return 1, ""
+    line_no = lower_body.count("\n", 0, match_idx) + 1
+    line = body.splitlines()[line_no - 1]
+    clean_l = " ".join(line.strip().strip("#*-> ").split())
+    first_query_line = query_clean.splitlines()[0] if query_clean else query_clean
+    q_idx = clean_l.lower().find(first_query_line)
+    if q_idx > 25:
+        clean_l = "..." + clean_l[max(q_idx - 15, 0) :]
+    return line_no, _truncate_snippet(clean_l)
 
 
 def _base_match_result(entry: dict[str, Any], match_type: str, tags: list[str]) -> dict[str, Any]:

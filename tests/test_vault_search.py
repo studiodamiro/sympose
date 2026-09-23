@@ -56,6 +56,28 @@ def test_content_match_reports_line_number_and_snippet(vault_root):
     assert "keyword" in results[0]["snippet"]
 
 
+def test_content_match_spanning_multiple_lines_reports_correct_line(vault_root):
+    """Regression test for a `/code-review` finding: `_extract_content_match`
+    searched one line at a time, so a query spanning a newline (e.g. a
+    chat message verbatim-quoting two consecutive note lines) could never
+    match per-line even though `_classify_snapshot_entry`'s whole-body
+    check had already confirmed it exists — silently falling back to
+    `line_no=1` and a fabricated-looking "Match found on line 1" snippet."""
+    _write(
+        vault_root,
+        "Note.md",
+        "intro line\nDev machine specs:\napple m2 with 24gb ram\ntrailing line",
+    )
+
+    results = vault_search.search_structured(
+        {"vault_folders": ["*"]}, "Dev machine specs:\napple m2 with 24gb ram"
+    )
+
+    assert results[0]["match_type"] == "content"
+    assert results[0]["line_no"] == 2
+    assert results[0]["snippet"] != "Match found on line 1"
+
+
 def test_no_match_returns_empty(vault_root):
     _write(vault_root, "Note.md", "nothing relevant here")
 

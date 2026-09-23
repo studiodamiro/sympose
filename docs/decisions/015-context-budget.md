@@ -42,6 +42,8 @@ The engine sizes the prompt itself and never relies on the runtime's cut.
 
 **The user is told.** A turn where turns were left out because of size (not the 20-turn cap, or the notice would fire on every turn of a long chat) carries the count, and the CLI reply header shows it (`3 older turns out of context`, and `reply cut at the length limit` for a truncated reply) behind a `show_trim_notice` setting, on by default and turned off only by an explicit `false`, the same rule as `show_grounding` (ADR 016). It is shown only on turns where something was left out.
 
+**No history budget by default.** The default uses as much of the window as is safe: the prompt fills the window minus the reply reserve and the token margin (about 65 percent of it in real tokens at the defaults), bounded by the 20-turn history cap, and nothing else limits how much past conversation is sent. A separate, smaller limit on past conversation (a history budget, in tokens) was considered as a default and not chosen: recall did not degrade up to half the window in the measurements above, and a typical chat with short replies never reaches the slow range. What it would buy is a bounded wait on a long or resumed chat; it is recorded below as an optional knob, off by default, not built. The window itself is not shrunk for this: it costs memory, not time, and a smaller window also removes room for grounding passages and long messages.
+
 **A context meter** (percentage, CLI first; the web UI waits for the dashboard work) is the next slice, computed from the engine's own count of the full prompt, since the runtime's reported count is post-cut. Provider-reported usage is a cross-check where it is trustworthy, not the source.
 
 Follow-up grounding (a separate slice, still to be recorded) adds a model call whose prompt also has to fit, which is why this comes first.
@@ -56,10 +58,24 @@ The window follows the model with no setting (`context_window` is only a user's 
 
 **A header caveat.** The notice takes its room before the grounded note does, so with both showing at exactly 80 columns the header runs a few cells over and wraps (ADR 016's floor keeps the filename visible over fitting).
 
+## Not built yet (recorded so it is not lost)
+
+Each item says what it is, why it was left out, and what would prompt building it.
+
+- **A history budget knob.** A cap, in tokens, on how much past conversation is sent, independent of the window; a setting off by default, with a value (roughly 3,000 was floated for local models) chosen only if wanted. It bounds the cold first-turn wait (measured on one machine and model: about 10 seconds at 0.8k tokens, 30 to 39 at 2.8k, 81 to 100 at 4.1k; a resumed session or a turn after the model unloaded pays it, since Ollama reuses its earlier work only while the model stays loaded and the prompt's start is unchanged). Build it if real use shows long-reply chats waiting too long. Note the usable share of the window can also be raised by lowering `reply_limit` for someone whose replies are short.
+- **Dropping turns in larger steps** (hysteresis), so the start of the prompt stays the same for several turns and Ollama can keep reusing its work; today each turn that pushes an old turn out changes the start and pays the processing again. A refinement to weigh once the wait is felt.
+- **The context meter** (the percentage under the chat box): the engine's own count of the full prompt over the window, CLI first; the web UI waits for the dashboard work. The runtime's reported count cannot be the source (it is post-cut). Next in the agreed order after follow-up grounding.
+- **Marking a truncated reply in the session record.** A reply that stopped at its length limit is marked on screen (`ModelReply.truncated`, the header) but saved to the record as written, so a half-finished reply is sent back as history on later turns.
+- **Per-persona window and reply-limit overrides.** The window and `reply_limit` are global settings today.
+- **A CLI settings screen.** `context_window`, `reply_limit`, `show_trim_notice` and `show_grounding` live in the settings file (`show_grounding` also has `/grounding`); `/settings` is still a placeholder, and a slash command per knob was deliberately not added.
+- **A second look at the token margin and the recall result on other models.** The 15 percent margin was measured on one model's tokenizer; the recall test covered one model up to half its window, planted facts only, not facts spread across turns. Cloud models and other local models, and how the cold wait behaves after Ollama's keep-alive expires, are unmeasured. The `gemma4:e4b` memory readings did not make sense and are not trusted.
+- **Known rough edges.** With both header notices showing at exactly 80 columns the header runs a few cells over and wraps; a very long answer from a reasoning model can spend the whole reply limit thinking (a clear error, or a marked truncation); the model's-maximum cache lasts for the process, so re-pulling a model tag with a different context length is not noticed until restart; a lookup that returns no maximum without raising is repeated each turn (a local call).
+
 ## Alternatives rejected
 
 - **Do nothing and rely on Ollama's default cut.** Rejected on the measurements above: it removes the oldest turns first and can remove the soul and the grounding rules, silently.
 - **Only raise the window.** Delays the problem and costs memory for everyone, and a longer chat still reaches any fixed window.
 - **Keep the 20-turn cap as the only guard.** A count is not a size; 20 long turns overflow, 20 short ones leave most of the window unused.
 - **Trust the runtime's own truncation, or ask it for the model's whole native window.** The first is the measured problem. The second would ask a model with a very large maximum for a very large window and its memory by default; the setting is the ceiling instead.
+- **Shrinking the window by a fixed share (say 30 percent) because models handle long prompts badly.** Not chosen: recall held up to half the window on the model measured, the prompt already uses about 65 percent of the window, and the window costs memory, not time. The real cost of a long prompt is the cold wait, which a history budget bounds directly.
 - **Read the runtime's token count for the meter.** It is post-cut and cannot show the overflow it is meant to warn about.

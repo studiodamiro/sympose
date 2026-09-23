@@ -40,7 +40,7 @@ Grounding gets its own retriever. It is a plain, deterministic algorithm: no mod
 
 **Found along the way, not caused by this change:** when nothing is grounded, the small model sometimes says "I can't see your notes" (about 3 of 5 runs, and no better with the old retriever) instead of "I couldn't find that in your vault". A clearer empty-context sentence was tried and did not clearly help (and made a capability question worse in a small sample), so it was not kept; this is a model-behavior weakness to revisit, not solved here.
 
-Follow-up messages that carry no searchable words are not solved here; that is the next, separate slice (using recent turns as context), designed for but not built.
+Follow-up messages that carry no searchable words are not solved here; that is the next, separate slice (using recent turns as context), designed in ADR 017 and not built.
 
 ## Alternatives rejected
 

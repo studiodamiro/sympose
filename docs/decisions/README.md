@@ -22,3 +22,4 @@ The original records 001–006 (backend dependencies, the legacy port strategy, 
 | [014](014-dedicated-grounding-retriever.md) | A dedicated grounding retriever: passages and keyword scoring, precision over recall, not the search bar's matcher | Accepted |
 | [015](015-context-budget.md) | Context budget: an overflowing prompt is cut silently, so the engine sizes it (measured on Ollama and `gemma2:9b` only) | Accepted; meter pending |
 | [016](016-show-grounded-notes-in-the-cli.md) | Show which notes grounded a reply in the CLI reply header, fitted to width, behind a `show_grounding` knob and `/grounding` | Accepted |
+| [017](017-follow-up-aware-grounding.md) | Follow-up-aware grounding: retrieve first, rewrite a search-less message from recent turns on a miss, behind a mode knob | Proposed, not built |

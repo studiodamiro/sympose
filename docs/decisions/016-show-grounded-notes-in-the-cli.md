@@ -19,6 +19,14 @@ Later slices reuse the same segment: when follow-up grounding rewrites a query, 
 
 The path is fitted once, when the reply lands, against the terminal's width at that moment and a fixed 4-cell margin for the transcript's own padding: resizing the window afterwards re-wraps the header text but does not re-fit the path, and a change to the transcript's CSS margins would need the margin constant to follow. The display is best-effort and never costs a reply: a hit without a path is skipped. The header is longer, which is why it is fitted to the width and can be turned off. It shows the top note and a count, not every note or the passage text, on purpose: one line beside a reply is a signal, and the full set is a possible later view (the dashboard, or a command that lists the last turn's passages). Only the top note is named, so a reply grounded on several notes shows one path and `+N`; which of the others were used is not visible yet.
 
+## Not built yet
+
+- **The full set of grounded notes.** Only the top note and a count are shown; a command or a dashboard view that lists the last turn's passages (title, path, text, as the search bar does) is a possible later addition.
+- **Dim or separate styling for the segment.** The header is one styled string; splitting its styles is a larger change.
+- **Refitting on resize.** The path is fitted once when the reply lands.
+- **The rewritten query.** When follow-up grounding rewrites a query (ADR 017), it is to be shown in this same segment so a wrong rewrite is visible; not built.
+- **A grounded-note view in the web dashboard.** Waits for the dashboard's chat panel.
+
 ## Alternatives rejected
 
 - **A separate line under the header.** Rejected for now: it doubles the vertical space per reply, and the header line has the room when fitted to width.

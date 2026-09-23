@@ -91,6 +91,13 @@ def read_note(path: str, persona: str | None) -> dict[str, Any]:
             # replace and return a stale or missing mtime for content that was
             # in fact read successfully just above.
             mtime = os.fstat(f.fileno()).st_mtime
+    except FileNotFoundError:
+        # A concurrent delete landing between `resolve_existing_note`
+        # returning this path and `open()` reaching it -- the note simply
+        # isn't there anymore, not a server error.
+        raise HTTPException(
+            status_code=404, detail=f"Note `{path}` not found in allowed vault folders."
+        )
     except OSError as e:
         raise HTTPException(status_code=500, detail=f"Error reading note `{path}`: {e}")
     return {"path": path, "content": content, "mtime": mtime}

@@ -52,25 +52,6 @@ def _show_failure(app, transcript, message: str) -> None:
     transcript.scroll_end(animate=False)
 
 
-def _lock_for(app, handle: str) -> asyncio.Lock:
-    lock = app.turn_locks.get(handle)
-    if lock is None:
-        lock = asyncio.Lock()
-        app.turn_locks[handle] = lock
-    return lock
-
-
-def _resolve_session_id(app, generation: int) -> str | None:
-    """The session id a call for this generation should continue from — a
-    same-generation predecessor's result if one already finished, `None`
-    for a lineage's first call. Deliberately not `app.session_id` read
-    live: that single slot can be reset by an unrelated persona switch
-    that bumped `session_generation` in between, orphaning a queued
-    message onto a fresh session instead of the one it should continue
-    (docs/decisions/008)."""
-    return app.session_by_generation.get(generation)
-
-
 def _record_session_result(app, generation: int, session_id: str) -> None:
     app.session_by_generation[generation] = session_id
     if generation == app.session_generation:  # still the live conversation
@@ -127,13 +108,21 @@ async def _send_message(app, value: str) -> None:
     # need to queue behind one another. The composer itself is never
     # blocked either way; a message just waits its turn here if its
     # persona's lock is already held.
-    lock = _lock_for(app, handle)
-    if lock.locked():
+    lock = app.turn_locks.setdefault(handle, asyncio.Lock())
+    was_queued = lock.locked()
+    if was_queued:
         user_widget.update(_queued_text(line))
 
     async with lock:
-        user_widget.update(line)  # clear the "queued" marker (no-op if never set)
-        session_id = _resolve_session_id(app, generation)
+        if was_queued:
+            user_widget.update(line)  # clear the "queued" marker
+
+        # Deliberately not `app.session_id` read live: that single slot can
+        # be reset by an unrelated persona switch that bumped
+        # `session_generation` in between, orphaning a queued message onto
+        # a fresh session instead of the one it should continue
+        # (docs/decisions/008).
+        session_id = app.session_by_generation.get(generation)
         try:
             result = await asyncio.get_running_loop().run_in_executor(
                 _ENGINE_EXECUTOR, engine.run_turn, handle, value, session_id, model_id

@@ -9,12 +9,11 @@ from typing import Any
 
 from sympose import vault_paths
 from sympose.security import is_safe_path
+from sympose.vault_trash import TRASH_DIRNAME
 from sympose.vault_trash_index import record_clash
 from sympose.vault_write import get_file_locks
 from sympose.vault_write_resolve import resolve_existing_note
 from sympose.vault_write_status import NOTE_DENIED, NOTE_NOT_FOUND
-
-TRASH_DIRNAME = ".trash"
 
 
 def _trash_nonempty_folder(

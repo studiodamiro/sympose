@@ -15,7 +15,14 @@ from sympose.engine import grounding, prompt, session
 from sympose.engine import model as model_mod
 from sympose.engine.model import EngineModelError
 
-__all__ = ["TurnResult", "run_turn", "EngineModelError"]
+__all__ = ["TurnResult", "run_turn", "EngineModelError", "PersonaNotFoundError"]
+
+
+class PersonaNotFoundError(Exception):
+    """`resolve_profile(handle)` returned `None` — defensive-only today
+    (the CLI's persona picker only ever offers real roster handles), but
+    must degrade to a legible error instead of crashing a few lines
+    further into `run_turn` on a bare `None`."""
 
 
 @dataclass(frozen=True)
@@ -32,6 +39,8 @@ def run_turn(
     model: str | None = None,
 ) -> TurnResult:
     persona = profile_mod.resolve_profile(handle)
+    if persona is None:
+        raise PersonaNotFoundError(f"No profile found for persona '{handle}'.")
     sid = session_id or session.new_session_id()
     # A brand-new sid resolves to a file that doesn't exist yet, so this is
     # a cheap `os.path.exists` check in that case, not a real extra read —

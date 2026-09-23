@@ -114,6 +114,16 @@ def test_resumed_session_file_is_read_only_once_per_turn(sessions_root, monkeypa
     assert load_calls == [sid]  # exactly one read for the whole turn
 
 
+def test_unknown_persona_raises_persona_not_found(sessions_root, monkeypatch, tmp_path):
+    profiles = tmp_path / "profiles"
+    profiles.mkdir()
+    (profiles / "samantha.yaml").write_text("name: Samantha\nvault_folders: '*'\n")
+    monkeypatch.setenv("SYMPOSE_PROFILES_DIR", str(profiles))
+
+    with pytest.raises(turn.PersonaNotFoundError):
+        turn.run_turn("some-typo-handle", "hello")
+
+
 def test_per_call_model_override_is_passed_through(sessions_root, monkeypatch):
     monkeypatch.setattr(turn.grounding, "ground", lambda profile, msg, max_results=5: [])
     captured = {}

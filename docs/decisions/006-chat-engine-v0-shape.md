@@ -79,3 +79,5 @@ Also found and fixed live, not part of the original design: `python -m sympose.c
 - **Passing the raw message to `search_structured` unmodified, as originally designed.** Rejected after live verification showed it grounds almost nothing for real chat phrasing (see Context) — replaced with the whole-message-then-per-word fan-out above, discovered and fixed within this same slice rather than shipped and revisited later, given grounding's "non-negotiable" status (`docs/VISION.md`).
 
 **Path update (docs/decisions/011):** sessions no longer live in a top-level `sessions/<handle>/`; they are `profiles/<handle>/sessions/<id>.jsonl`, and `SYMPOSE_SESSIONS_DIR` is gone. With no `profiles/` directory at all they stay in `./sessions/<handle>/`. The session file format described here is unchanged.
+
+**Update (docs/decisions/012):** the placeholder soul is now `DEFAULT_SOUL`, the fallback for a persona with no `profiles/<handle>/soul.md`; a persona's soul is loaded per turn, and the grounding instruction gained rules about ambiguous references, unseen facts, and current limits.

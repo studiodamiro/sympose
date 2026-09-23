@@ -17,3 +17,4 @@ The original records 001–006 (backend dependencies, the legacy port strategy, 
 | [009](009-persona-profile-fail-closed.md) | `profile.py`'s final shape: fail-closed resolution, settings-backed default persona | Accepted |
 | [010](010-persona-scoped-graph-model-precedence-default-setter.md) | Persona-scoped nebula graph, model precedence, and a default-persona setter | Accepted |
 | [011](011-one-directory-per-persona.md) | One directory per persona: `profiles/<handle>/{persona.yaml, soul.md, memory.md, expertise.md, sessions/}` | Accepted |
+| [012](012-persona-soul-is-voice-only.md) | A persona's soul is voice only; engine rules stay in the engine | Accepted |

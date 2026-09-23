@@ -234,3 +234,64 @@ def test_a_traversal_handle_cannot_load_a_persona_outside_profiles(profiles_dir)
     (outside / "persona.yaml").write_text("name: Outside\nvault_folders: '*'\n")
 
     assert profile.get_profile("../outside") is None
+
+
+# -- load_soul (docs/decisions/012) --
+
+
+def test_load_soul_returns_the_stripped_text(profiles_dir):
+    directory = _persona_with(profiles_dir, "samantha")
+    (directory / "soul.md").write_text("\n  You are warm.  \n\n")
+
+    assert profile.load_soul("samantha") == "You are warm."
+
+
+def test_load_soul_is_none_when_missing_or_empty(profiles_dir):
+    directory = _persona_with(profiles_dir, "samantha")
+    assert profile.load_soul("samantha") is None
+
+    (directory / "soul.md").write_text("   \n")
+    assert profile.load_soul("samantha") is None
+
+
+def test_load_soul_is_none_with_no_profiles_dir(no_profiles_dir):
+    assert profile.load_soul("samantha") is None
+
+
+def test_load_soul_rejects_a_traversal_handle(profiles_dir):
+    outside = profiles_dir.parent / "outside"
+    outside.mkdir()
+    (outside / "soul.md").write_text("should never be read")
+
+    assert profile.load_soul("../outside") is None
+
+
+def test_load_soul_degrades_to_none_and_logs_when_unreadable(profiles_dir, caplog):
+    directory = _persona_with(profiles_dir, "samantha")
+    (directory / "soul.md").write_bytes(b"\xff\xfe not valid utf-8 \x80")
+
+    with caplog.at_level("WARNING"):
+        assert profile.load_soul("samantha") is None
+    assert "default soul" in caplog.text
+
+
+def _persona_with(profiles_dir, handle):
+    return write_persona(profiles_dir, handle, f"name: {handle.title()}\n")
+
+
+# -- a handle must be one plain path component --
+
+
+@pytest.mark.parametrize("handle", [".", "..", "a/b", "../outside", ""])
+def test_a_handle_that_is_not_a_single_path_component_resolves_to_nothing(profiles_dir, handle):
+    """`is_safe_path` only proves a path stays inside profiles/, which `.`
+    (profiles/ itself) and `a/b` (a nested path) do. A stray
+    profiles/persona.yaml or profiles/soul.md must never load as a persona."""
+    (profiles_dir / "persona.yaml").write_text("name: Stray\nvault_folders: '*'\n")
+    (profiles_dir / "soul.md").write_text("stray soul")
+    _write(profiles_dir, "a", "name: A\n")
+    (profiles_dir / "a" / "b").mkdir()
+    (profiles_dir / "a" / "b" / "persona.yaml").write_text("name: Nested\n")
+
+    assert profile.get_profile(handle) is None
+    assert profile.load_soul(handle) is None

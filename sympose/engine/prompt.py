@@ -1,19 +1,35 @@
-"""System-prompt assembly for a turn: persona identity, grounding evidence,
-and the zero-hallucination instruction (docs/decisions/006). `PLACEHOLDER_SOUL`
-is a minimal stand-in for Samantha's real voice-from-*Her* content, which is
-its own later, separately-scoped piece of product writing, not engine work."""
+"""System-prompt assembly for a turn: the persona's soul (voice only,
+docs/decisions/012), its identity, grounding evidence, and the
+zero-hallucination instruction (docs/decisions/006). The grounding
+instruction is appended last and lives here, not in any soul, so every
+persona gets it and no soul can weaken it."""
 
 from typing import Any
 
-PLACEHOLDER_SOUL = (
+from sympose.profile import load_soul
+
+# The fallback for a persona with no `soul.md` — generic on purpose.
+DEFAULT_SOUL = (
     "You are a warm, direct conversational companion talking with the user "
     "about their Obsidian vault. Keep replies natural and concise."
 )
 
 _GROUNDING_INSTRUCTION = (
     "Only state facts about the user's vault that are backed by the vault "
-    "context above. If nothing above answers the question, say so rather "
-    "than guessing."
+    "context above. If nothing above answers the question, say you couldn't "
+    "find it in the vault rather than guessing. Don't claim to know things "
+    "about the user that aren't in this conversation or the vault context "
+    "above, and if they refer to something you can't see (\"that layout\", "
+    "\"this note\"), ask what they mean instead of assuming."
+)
+
+# What this engine can't do yet, stated to every persona so a warm voice
+# never plays along with an action that won't happen. Drop or narrow this
+# as tool-calling (MCP) lands — see docs/decisions/012.
+_CAPABILITY_LIMITS = (
+    "You can read the vault context above and talk with the user, but you "
+    "can't create or change notes, personas, or settings, or run tools. If "
+    "asked to, say so plainly instead of pretending."
 )
 
 
@@ -37,12 +53,14 @@ def build_system_prompt(profile: dict[str, Any], grounding_results: list[dict[st
     # default here would silently return `None` and crash on `.title()`.
     name = profile.get("name") or (profile.get("handle") or "Sam").title()
     identity = f"Your name is {name}."
+    soul = load_soul(profile["handle"]) if profile.get("handle") else None
     return "\n\n".join(
         [
-            PLACEHOLDER_SOUL,
+            soul or DEFAULT_SOUL,
             identity,
             _format_grounding_block(grounding_results),
             _GROUNDING_INSTRUCTION,
+            _CAPABILITY_LIMITS,
         ]
     )
 

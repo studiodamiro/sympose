@@ -31,3 +31,5 @@ An empty-but-existing `profiles/` directory now yields an empty roster (`[]`), n
 **Correction to ADR 006:** the "Correction (2026-09-23, full-backend code review)" paragraph there named this gap and tracked it as parked; this record is where it was actually fixed.
 
 **Path update (docs/decisions/011):** a persona is now `profiles/<handle>/persona.yaml` rather than `profiles/<handle>.yaml`. The fail-closed contract is unchanged, restated against the new shape: no `profiles/` directory means the whole-vault fallback; once it exists, a handle with no `persona.yaml` (or an unsafe path, or an unparseable file) resolves to nothing.
+
+**Update (docs/decisions/012):** soul content is no longer deferred: `PLACEHOLDER_SOUL` became `DEFAULT_SOUL` (the fallback for a persona with no `soul.md`), and Samantha's real soul ships in `profiles/samantha/soul.md`, loaded per turn.

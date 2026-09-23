@@ -47,13 +47,13 @@ def _get_or_create_folder(container: dict[str, Any], name: str, path: str) -> di
     """Container's per-folder entry (VaultNode + nested children dict),
     creating it on first reference so a `real_folders` entry and a note's
     parent directory both resolve to the same node."""
-    entry = container.get(name)
-    if entry is None:
-        entry = {
+    entry = container.setdefault(
+        name,
+        {
             "node": {"name": name, "path": path, "type": "folder", "children": []},
             "children": {},
-        }
-        container[name] = entry
+        },
+    )
     return entry["children"]
 
 

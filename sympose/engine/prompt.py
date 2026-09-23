@@ -29,8 +29,13 @@ def _format_grounding_block(grounding_results: list[dict[str, Any]]) -> str:
 def build_system_prompt(profile: dict[str, Any], grounding_results: list[dict[str, Any]]) -> str:
     # `handle` is always lowercase (`profile.get_profile` lowercases it
     # before building a file path) -- title-cased here so a fallback
-    # profile's identity line reads "Samantha", not "samantha".
-    name = profile.get("name") or profile.get("handle", "Sam").title()
+    # profile's identity line reads "Samantha", not "samantha". The
+    # `or "Sam"` (not a `.get(..., "Sam")` default) matters: a profile
+    # with an explicit `handle: null`/blank YAML value has the key
+    # present but falsy, and `.get(key, default)`'s default only ever
+    # applies when the key is *absent* -- a `.get("handle", "Sam")`
+    # default here would silently return `None` and crash on `.title()`.
+    name = profile.get("name") or (profile.get("handle") or "Sam").title()
     identity = f"Your name is {name}."
     return "\n\n".join(
         [

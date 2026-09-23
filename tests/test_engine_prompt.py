@@ -38,6 +38,17 @@ def test_system_prompt_title_cases_a_handle_only_fallback_name():
     assert "Your name is samantha." not in text
 
 
+def test_system_prompt_does_not_crash_on_an_explicit_null_handle():
+    """Regression test: `profile.get("handle", "Sam")`'s default only
+    applies when the key is *absent*, not when it's present-but-`None`
+    (an explicit `handle:` with no value in YAML) -- that used to crash
+    on `.title()` instead of falling back to "Sam"."""
+    profile = {"handle": None}
+    text = prompt.build_system_prompt(profile, [])
+
+    assert "Your name is Sam." in text
+
+
 def test_system_prompt_always_includes_the_anti_hallucination_instruction():
     profile = {"name": "Samantha"}
     text = prompt.build_system_prompt(profile, [_grounding_result()])

@@ -1,14 +1,19 @@
-"""Mock slash-command behavior (still canned — no session/history data
-model exists yet) and applying a picker's selection. The real engine
-dispatch/streaming path lives in `turns.py`, split out to hold the
-200-LOC-per-file cap."""
+"""Slash-command handling and applying a picker's selection. `/clear` and
+`/quit` are real, concurrency-aware (they check `pending_turns`/
+`turn_locks`/`active_reply_timers`, state `turns.py`/`app.py` own);
+`/compact`/`/settings`/`/history` are still canned — no session/history
+data model exists yet. Persona-switch continuity (`session_id`/
+`session_generation` reset in `apply_picker_choice`) is also real state
+that `turns.py`'s generation-guard logic depends on, not mock behavior.
+The chat-turn dispatch/streaming path itself lives in `turns.py`, split
+out to hold the 200-LOC-per-file cap."""
 
 from rich.style import Style
 from rich.text import Text
 
 from sympose.cli import picker, transcript as transcript_mod
 from sympose.cli.commands import COMMANDS
-from sympose.cli.mock_data import MOCK_HISTORY, MOCK_MODELS, list_personas
+from sympose.cli.mock_data import MOCK_HISTORY, MODEL_OPTIONS, list_personas
 from sympose.cli.selection import SelectionOption
 
 
@@ -24,7 +29,7 @@ async def run_command(app, command) -> None:
             transcript_mod.mount_line(app, line, "system")
     elif command.name == "/model":
         await picker.open_picker(
-            app, "model", "Select a model", [SelectionOption(m.label, m.id) for m in MOCK_MODELS]
+            app, "model", "Select a model", [SelectionOption(m.label, m.id) for m in MODEL_OPTIONS]
         )
     elif command.name == "/persona":
         await picker.open_picker(
@@ -86,7 +91,7 @@ async def run_command(app, command) -> None:
 def apply_picker_choice(app, kind: str, value: str | None) -> None:
     transcript = app.transcript
     if kind == "model":
-        model = next((m for m in MOCK_MODELS if m.id == value), None)
+        model = next((m for m in MODEL_OPTIONS if m.id == value), None)
         if model is not None:
             app.model = model
             picker.update_banner(app)

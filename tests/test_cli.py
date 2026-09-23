@@ -279,7 +279,7 @@ def test_default_model_is_the_local_one(profiles):
         app = SymposeCLI()
         async with app.run_test() as pilot:
             await pilot.pause()
-            assert app.model.id == mock_data.MOCK_MODELS[0].id
+            assert app.model.id == mock_data.MODEL_OPTIONS[0].id
             assert app.model.id.startswith("ollama_chat/")
 
     run_async(scenario())

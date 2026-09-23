@@ -1,7 +1,7 @@
-"""The slash-command registry. Selecting one — whether by typing the full
-name and pressing Enter, or via the `/`-autocomplete overlay — is inert
-this pass: there's no engine underneath yet, so `/compact` and the rest
-only mock what they'll eventually do (see `runtime.py`'s `run_command`)."""
+"""The slash-command registry. `/clear` and `/quit` are real, wired to
+the actual engine's concurrency state (docs/decisions/008); `/compact`,
+`/settings`, and `/history` are still inert mocks — nothing backs them
+yet (see `runtime.py`'s `run_command`)."""
 
 from dataclasses import dataclass
 

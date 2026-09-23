@@ -66,7 +66,7 @@ def list_personas() -> list[PersonaOption]:
     return options
 
 
-MOCK_MODELS: list[ModelOption] = [
+MODEL_OPTIONS: list[ModelOption] = [
     # `DEFAULT_LOCAL_MODEL`, not a re-typed literal (docs/CODE_QUALITY_STANDARDS.md's
     # "declared once" rule) — the CLI always passes `app.model.id` as
     # `run_turn`'s per-call override, so this picker's own default id is

@@ -18,7 +18,7 @@ from textual.widgets import Input, OptionList, Static
 from sympose.cli import dispatch, picker, turns
 from sympose.cli import transcript as transcript_mod
 from sympose.cli.composer import ComposerInput
-from sympose.cli.mock_data import MOCK_MODELS, list_personas
+from sympose.cli.mock_data import MODEL_OPTIONS, list_personas
 from sympose.cli.selection import SelectionPanel
 
 
@@ -76,7 +76,7 @@ class SymposeCLI(App):
         # (see `CLAUDE.md`'s project rules) — pick her explicitly rather
         # than whichever profile happens to sort first alphabetically.
         self.persona = next((p for p in personas if p.handle == "samantha"), personas[0])
-        self.model = MOCK_MODELS[0]
+        self.model = MODEL_OPTIONS[0]
         self.panel: SelectionPanel | None = None
         self.panel_kind: str | None = None
         # One session per CLI process run — the engine starts a new one on

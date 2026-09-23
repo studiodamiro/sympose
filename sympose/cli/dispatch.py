@@ -78,6 +78,13 @@ async def on_option_selected(app, event: OptionList.OptionSelected) -> None:
     picker.close_panel(app)
     app.composer.focus()
     if kind == "autocomplete":
+        # Unlike `on_input_submitted`, which clears the composer itself
+        # before dispatching — this route never went through that handler,
+        # so the just-typed prefix (e.g. "/mo") would otherwise sit in the
+        # composer after the command already ran, and Textual's
+        # select_on_focus would then let the next keystroke silently
+        # replace it instead of appending.
+        app.composer.value = ""
         command = find_command(value) if value else None
         if command is not None:
             await runtime.run_command(app, command)

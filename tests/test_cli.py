@@ -158,6 +158,30 @@ def test_autocomplete_overlay_click_does_not_steal_focus(profiles):
     run_async(scenario())
 
 
+def test_autocomplete_selection_clears_the_composer(profiles):
+    """Regression test for a `/code-review` finding: selecting a command
+    from the autocomplete overlay via `OptionList.OptionSelected` (the
+    real selection path, not just Tab-fill-then-Enter) never cleared
+    `app.composer.value`, unlike `on_input_submitted`'s explicit clear —
+    the just-typed prefix stayed in the composer after the command
+    already ran."""
+
+    async def scenario():
+        app = SymposeCLI()
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            app.composer.focus()
+            await pilot.press("/", "h", "e", "l", "p")
+            await pilot.pause()
+            assert app.panel_kind == "autocomplete"
+            app.panel.highlighted = 0
+            app.panel.action_select()
+            await pilot.pause()
+            assert app.composer.value == ""
+
+    run_async(scenario())
+
+
 def test_digit_keys_type_literally_during_autocomplete(profiles):
     """Numbers are reserved for the model/persona/history pickers —
     typing a digit while the `/`-autocomplete overlay is showing must

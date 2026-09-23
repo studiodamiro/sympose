@@ -14,22 +14,26 @@ export interface NebulaGraphState {
 }
 
 const MOCK_MASTER = buildMasterGraph(rawMock as NebulaGraph)
+const EMPTY_LIVE = buildMasterGraph({ nodes: [], links: [] })
 
 /**
  * The Knowledge Nebula's data feed. First paint (and the offline fallback) is
  * the bundled `mock-nebula.json`; once `GET /api/vault/graph` answers with
- * nodes we swap to the live vault and flip `source` to `"live"`. The endpoint
- * is whole-vault and persona-independent (wiki spec §2 Module A) — the nebula
- * is an explorer surface, not a persona-scoped one — so this takes no persona.
+ * an answer (even an empty one) we swap to the live vault and flip `source`
+ * to `"live"`; the sample only shows while the backend is unreachable. The endpoint
+ * is scoped to the active persona's allowed folders (ADR 010), so `persona`
+ * is both a request parameter and a refetch trigger: switching to a
+ * restricted persona must not leave the previous persona's wider graph on
+ * screen, including when the new fetch fails (see the reset effect below).
  *
  * Shared by the in-shell ambient layer and the standalone `/nebula` showcase
  * so both read exactly one implementation of the fetch + fold.
  *
  * `refreshKey` (opaque; compared by `===` in the effect's dependency array)
- * is the *only* refetch trigger — the app shell bumps it after switching the
- * active vault (ADR 003) *and* after creating a note, since the graph is
- * scoped to whichever vault is active, not persona-scoped, and otherwise has
- * no signal that either happened. `vaultPath` (the active vault, when the
+ * is the refetch trigger for everything that isn't `persona` — the app shell
+ * bumps it after switching the active vault (ADR 003) *and* after creating a
+ * note, since the graph is scoped to whichever vault is active and otherwise
+ * has no signal that either happened. `vaultPath` (the active vault, when the
  * caller has one) is deliberately *not* also a refetch trigger — the
  * endpoint takes no vault parameter (the backend always answers for
  * whichever vault is active server-side right now), so adding it to that
@@ -42,14 +46,16 @@ const MOCK_MASTER = buildMasterGraph(rawMock as NebulaGraph)
  */
 export function useNebulaGraph(
   refreshKey?: unknown,
-  vaultPath?: string | null
+  vaultPath?: string | null,
+  persona?: string
 ): NebulaGraphState {
   const [state, setState] = React.useState<NebulaGraphState>({
     graph: MOCK_MASTER,
     source: "sample",
   })
-  // Whether the currently-displayed graph is known to match `vaultPath` —
-  // cleared whenever `vaultPath` changes, set again once a fetch (any
+  // Whether the currently-displayed graph is known to match `vaultPath` and
+  // `persona` — cleared whenever either changes (a persona switch can
+  // narrow what's visible just as a vault switch changes it entirely), set again once a fetch (any
   // fetch, whatever triggered it) actually succeeds. Declared as its own
   // effect, before the fetch effect below, so on a commit where a vault
   // switch changes both `vaultPath` and `refreshKey` at once, this one
@@ -74,29 +80,34 @@ export function useNebulaGraph(
   const vaultConfirmedRef = React.useRef(false)
   React.useEffect(() => {
     vaultConfirmedRef.current = false
-  }, [vaultPath])
+  }, [vaultPath, persona])
 
   React.useEffect(() => {
     let cancelled = false
-    fetch("/api/vault/graph")
+    const query = persona ? `?persona=${encodeURIComponent(persona)}` : ""
+    fetch(`/api/vault/graph${query}`)
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
       .then((data: NebulaGraph) => {
         if (cancelled) return
         vaultConfirmedRef.current = true
-        if (data?.nodes?.length) {
-          setState({ graph: buildMasterGraph(data), source: "live" })
+        if (Array.isArray(data?.nodes)) {
+          // An empty answer is a real answer: a persona whose allowed
+          // folders hold no notes (or a vault with none yet) gets an empty
+          // nebula, not the bundled sample — the sample's mock notes and
+          // tags don't exist in that vault, and would also feed the
+          // editor's `#tag` autocomplete. Also what clears a previous
+          // persona's/vault's graph on a switch to an empty one.
+          setState({
+            graph: data.nodes.length ? buildMasterGraph(data) : EMPTY_LIVE,
+            source: "live",
+          })
           console.info(
             `[nebula] live vault · ${data.nodes.length} notes, ${data.links?.length ?? 0} links from /api/vault/graph`
           )
         } else {
-          // Explicit reset, not a no-op: on a vault switch (`refreshKey`
-          // changed) this fetch is re-running against a *different* vault,
-          // and an empty response there must clear whatever the previous
-          // vault's graph left in state — otherwise a vault with no notes
-          // yet would keep showing the last vault's graph under its name.
           setState({ graph: MOCK_MASTER, source: "sample" })
           console.info(
-            "[nebula] /api/vault/graph returned no nodes — showing the bundled sample"
+            "[nebula] /api/vault/graph returned an unexpected shape — showing the bundled sample"
           )
         }
       })
@@ -125,7 +136,7 @@ export function useNebulaGraph(
     return () => {
       cancelled = true
     }
-  }, [refreshKey])
+  }, [refreshKey, persona])
 
   return state
 }

@@ -442,16 +442,18 @@ export function AppShell() {
   const [nebulaPrefs, setNebulaPref] = useNebulaPreferences()
   // Bumped after a note is created, or the active vault is switched, to
   // re-pull the tree, the nebula graph, and any live search so they follow
-  // without a persona switch.
+  // without a persona switch (a persona switch itself re-pulls them too).
   const [vaultRefreshKey, setVaultRefreshKey] = React.useState(0)
   // Lifted here (not called inside `<AmbientNebula>`) so the one fetch also
   // backs `tagSource` below — the ambient layer and the editor's `#tag`
   // autocomplete share the same master graph instead of each hitting
   // `GET /api/vault/graph` on its own. Re-fetches when `vaultRefreshKey`
-  // bumps, since the graph is vault-scoped, not persona-scoped.
+  // bumps or the active persona changes — the graph is scoped to the
+  // persona's allowed folders (ADR 010).
   const { graph: nebulaGraph, source: nebulaGraphSource } = useNebulaGraph(
     vaultRefreshKey,
-    vaultsState.active
+    vaultsState.active,
+    activePersona
   )
   const explore = nebulaPrefs.interaction === "explore"
 

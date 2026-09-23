@@ -20,6 +20,7 @@ from sympose.cli import transcript as transcript_mod
 from sympose.cli.composer import ComposerInput
 from sympose.cli.mock_data import MODEL_OPTIONS, list_personas
 from sympose.cli.selection import SelectionPanel
+from sympose.profile import resolve_default_persona
 
 
 class SymposeCLI(App):
@@ -72,10 +73,13 @@ class SymposeCLI(App):
 
     def on_mount(self) -> None:
         personas = list_personas()
-        # Samantha is the only persona that ships as a product default
-        # (see `CLAUDE.md`'s project rules) — pick her explicitly rather
-        # than whichever profile happens to sort first alphabetically.
-        self.persona = next((p for p in personas if p.handle == "samantha"), personas[0])
+        # The configured default persona (factory default: Samantha, see
+        # `CLAUDE.md`'s project rules) — picked explicitly rather than
+        # whichever profile happens to sort first alphabetically.
+        default_handle = resolve_default_persona()
+        self.persona = next(
+            (p for p in personas if p.handle == default_handle), personas[0]
+        )
         self.model = MODEL_OPTIONS[0]
         self.panel: SelectionPanel | None = None
         self.panel_kind: str | None = None

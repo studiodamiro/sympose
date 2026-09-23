@@ -63,7 +63,7 @@ def create_app() -> FastAPI:
         return ph.get_personas()
 
     @app.get("/api/vault/tree")
-    def get_vault_tree(persona: str | None = Query("samantha")) -> dict[str, Any]:
+    def get_vault_tree(persona: str | None = Query(None)) -> dict[str, Any]:
         return h.get_vault_tree(persona)
 
     @app.get("/api/vault/graph")
@@ -73,14 +73,14 @@ def create_app() -> FastAPI:
     @app.get("/api/vault/search")
     def search_vault(
         q: str = Query(..., description="Search query"),
-        persona: str | None = Query("samantha"),
+        persona: str | None = Query(None),
     ) -> dict[str, Any]:
         return sh.search_vault(q, persona)
 
     @app.get("/api/vault/note")
     def read_note(
         path: str = Query(..., description="Relative path of note"),
-        persona: str | None = Query("samantha"),
+        persona: str | None = Query(None),
     ) -> dict[str, Any]:
         return h.read_note(path, persona)
 
@@ -103,7 +103,7 @@ def create_app() -> FastAPI:
     @app.delete("/api/vault/note")
     def delete_note(
         path: str = Query(..., description="Relative path of the note to delete"),
-        persona: str | None = Query("samantha"),
+        persona: str | None = Query(None),
     ) -> dict[str, Any]:
         return h.delete_note(path, persona)
 
@@ -112,12 +112,12 @@ def create_app() -> FastAPI:
         path: str = Query(
             ..., description="Vault-relative path of the folder to delete"
         ),
-        persona: str | None = Query("samantha"),
+        persona: str | None = Query(None),
     ) -> dict[str, Any]:
         return h.delete_folder(path, persona)
 
     @app.get("/api/vault/trash")
-    def list_trash(persona: str | None = Query("samantha")) -> dict[str, Any]:
+    def list_trash(persona: str | None = Query(None)) -> dict[str, Any]:
         return th.list_trash(persona)
 
     @app.post("/api/vault/trash/restore")
@@ -127,7 +127,7 @@ def create_app() -> FastAPI:
     @app.delete("/api/vault/trash")
     def purge_trash(
         path: str = Query(..., description="`.trash`-relative path to delete"),
-        persona: str | None = Query("samantha"),
+        persona: str | None = Query(None),
     ) -> dict[str, Any]:
         return th.purge_trash(path, persona)
 

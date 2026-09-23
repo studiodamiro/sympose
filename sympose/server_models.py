@@ -10,7 +10,7 @@ class NoteWrite(BaseModel):
 
     path: str = Field(..., min_length=1)
     content: str
-    persona: str = "samantha"
+    persona: str | None = None
     expected_mtime: float | None = Field(
         None,
         description="mtime this save was opened from (from GET /api/vault/note). "
@@ -26,7 +26,7 @@ class NoteCreate(BaseModel):
 
     path: str = Field(..., min_length=1)
     content: str | None = None
-    persona: str = "samantha"
+    persona: str | None = None
 
 
 class FolderCreate(BaseModel):
@@ -34,7 +34,7 @@ class FolderCreate(BaseModel):
     `path` (relative to the vault, e.g. `Projects/Archive`)."""
 
     path: str = Field(..., min_length=1)
-    persona: str = "samantha"
+    persona: str | None = None
 
 
 class NoteRename(BaseModel):
@@ -44,7 +44,7 @@ class NoteRename(BaseModel):
 
     path: str = Field(..., min_length=1)
     new_path: str = Field(..., min_length=1)
-    persona: str = "samantha"
+    persona: str | None = None
 
 
 class TrashRestore(BaseModel):
@@ -53,14 +53,14 @@ class TrashRestore(BaseModel):
     where it was deleted from."""
 
     path: str = Field(..., min_length=1)
-    persona: str = "samantha"
+    persona: str | None = None
 
 
 class TrashEmpty(BaseModel):
     """Body of `POST /api/vault/trash/empty` — permanently delete every
     in-scope trashed note."""
 
-    persona: str = "samantha"
+    persona: str | None = None
 
 
 class VaultActivate(BaseModel):

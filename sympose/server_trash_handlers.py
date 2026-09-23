@@ -9,7 +9,7 @@ from fastapi import HTTPException
 
 from sympose import vault_paths, vault_trash
 from sympose.profile import resolve_profile
-from sympose.server_handlers import _translate_vault_result
+from sympose.server_handlers import translate_vault_result
 from sympose.server_models import TrashEmpty, TrashRestore
 
 
@@ -30,7 +30,7 @@ def restore_trash(body: TrashRestore) -> dict[str, Any]:
     if not mv or not allowed_dirs:
         raise HTTPException(status_code=403, detail="No vault configured for this persona.")
     result = vault_trash.restore(mv, allowed_dirs, body.path)
-    _translate_vault_result(
+    translate_vault_result(
         result,
         not_found=f"`{body.path}` is not in the bin.",
         exists="Something already occupies that note's original location.",
@@ -44,7 +44,7 @@ def purge_trash(path: str, persona: str | None) -> dict[str, Any]:
     if not mv or not allowed_dirs:
         raise HTTPException(status_code=403, detail="No vault configured for this persona.")
     result = vault_trash.purge(mv, allowed_dirs, path)
-    _translate_vault_result(
+    translate_vault_result(
         result,
         not_found=f"`{path}` is not in the bin.",
         denied=f"Path `{path}` is outside the assigned sandbox.",

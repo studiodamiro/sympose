@@ -3,9 +3,9 @@ Note/folder route handler logic for the dashboard API — split out of
 `server.py` to keep that file to route registration only, out of
 `server_models.py` to keep this file to logic only, and out of
 `server_trash_handlers.py` to keep this file to the note/folder CRUD routes
-only (project's 200-LOC-per-file guideline). `_translate_vault_result` is
-re-exported for `server_trash_handlers.py` — it's the one sentinel→HTTP
-translation every handler module shares.
+only (project's 200-LOC-per-file guideline). `translate_vault_result` is
+imported directly by `server_trash_handlers.py` too — it's the one
+sentinel→HTTP translation every handler module shares.
 """
 
 import os
@@ -33,7 +33,7 @@ from sympose.vault_write_status import (
 )
 
 
-def _translate_vault_result(
+def translate_vault_result(
     result: str,
     *,
     not_found: str | None = None,
@@ -101,7 +101,7 @@ def write_note(body: NoteWrite) -> dict[str, Any]:
     result = vault_write.overwrite_note(
         profile, body.path, body.content, expected_mtime=body.expected_mtime
     )
-    _translate_vault_result(
+    translate_vault_result(
         result,
         not_found=f"Note `{body.path}` not found in allowed vault folders.",
         denied=f"Path `{body.path}` is outside the assigned sandbox.",
@@ -113,7 +113,7 @@ def write_note(body: NoteWrite) -> dict[str, Any]:
 def create_note(body: NoteCreate) -> dict[str, Any]:
     profile = resolve_profile(body.persona)
     result = vault_write_create.create_note(profile, body.path, body.content)
-    _translate_vault_result(
+    translate_vault_result(
         result,
         exists=f"A note already exists at `{body.path}`.",
         denied=f"Path `{body.path}` is outside the assigned sandbox.",
@@ -124,7 +124,7 @@ def create_note(body: NoteCreate) -> dict[str, Any]:
 def create_folder(body: FolderCreate) -> dict[str, Any]:
     profile = resolve_profile(body.persona)
     result = vault_write_create.create_folder(profile, body.path)
-    _translate_vault_result(
+    translate_vault_result(
         result,
         exists=f"A file or folder already exists at `{body.path}`.",
         denied=f"Path `{body.path}` is outside the assigned sandbox.",
@@ -135,7 +135,7 @@ def create_folder(body: FolderCreate) -> dict[str, Any]:
 def rename_note(body: NoteRename) -> dict[str, Any]:
     profile = resolve_profile(body.persona)
     result = vault_write_rename.rename_note(profile, body.path, body.new_path)
-    _translate_vault_result(
+    translate_vault_result(
         result,
         not_found=f"Note `{body.path}` not found in allowed vault folders.",
         exists=f"A note already exists at `{body.new_path}`.",
@@ -148,7 +148,7 @@ def rename_note(body: NoteRename) -> dict[str, Any]:
 def delete_note(path: str, persona: str | None) -> dict[str, Any]:
     profile = resolve_profile(persona)
     result = vault_write_delete.delete_note(profile, path)
-    _translate_vault_result(
+    translate_vault_result(
         result,
         not_found=f"Note `{path}` not found in allowed vault folders.",
         denied=f"Path `{path}` is outside the assigned sandbox.",
@@ -159,7 +159,7 @@ def delete_note(path: str, persona: str | None) -> dict[str, Any]:
 def delete_folder(path: str, persona: str | None) -> dict[str, Any]:
     profile = resolve_profile(persona)
     result = vault_write_delete.delete_folder(profile, path)
-    _translate_vault_result(
+    translate_vault_result(
         result,
         not_found=f"Folder `{path}` not found in allowed vault folders.",
         denied=f"Path `{path}` is outside the assigned sandbox.",

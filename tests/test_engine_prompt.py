@@ -26,6 +26,18 @@ def test_system_prompt_includes_persona_name_and_grounding_snippet():
     assert "Some notes about fonts." in text
 
 
+def test_system_prompt_title_cases_a_handle_only_fallback_name():
+    """Regression test for a `/code-review` finding: a profile with no
+    `name` key fell back to the raw `handle`, which `profile.get_profile`
+    always lowercases before building a file path -- the model was told
+    "Your name is samantha" instead of "Samantha"."""
+    profile = {"handle": "samantha"}
+    text = prompt.build_system_prompt(profile, [])
+
+    assert "Your name is Samantha." in text
+    assert "Your name is samantha." not in text
+
+
 def test_system_prompt_always_includes_the_anti_hallucination_instruction():
     profile = {"name": "Samantha"}
     text = prompt.build_system_prompt(profile, [_grounding_result()])

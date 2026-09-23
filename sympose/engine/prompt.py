@@ -27,7 +27,10 @@ def _format_grounding_block(grounding_results: list[dict[str, Any]]) -> str:
 
 
 def build_system_prompt(profile: dict[str, Any], grounding_results: list[dict[str, Any]]) -> str:
-    name = profile.get("name") or profile.get("handle", "Sam")
+    # `handle` is always lowercase (`profile.get_profile` lowercases it
+    # before building a file path) -- title-cased here so a fallback
+    # profile's identity line reads "Samantha", not "samantha".
+    name = profile.get("name") or profile.get("handle", "Sam").title()
     identity = f"Your name is {name}."
     return "\n\n".join(
         [

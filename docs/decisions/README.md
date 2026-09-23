@@ -19,3 +19,4 @@ The original records 001–006 (backend dependencies, the legacy port strategy, 
 | [011](011-one-directory-per-persona.md) | One directory per persona: `profiles/<handle>/{persona.yaml, soul.md, memory.md, expertise.md, sessions/}` | Accepted |
 | [012](012-persona-soul-is-voice-only.md) | A persona's soul is voice only; engine rules stay in the engine | Accepted |
 | [013](013-record-ttft-every-turn.md) | Record time-to-first-token on every turn: stream the model call internally, store `ttft_ms` + `model` per turn | Accepted |
+| [014](014-dedicated-grounding-retriever.md) | A dedicated grounding retriever: passages and keyword scoring, precision over recall, not the search bar's matcher | Accepted |

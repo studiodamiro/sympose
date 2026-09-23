@@ -16,3 +16,5 @@ One matcher serves both search and grounding, so improving snippet quality or ma
 
 - **`sqlite_fts`** (BM25-ranked SQLite index) — real scale infrastructure, but it doesn't pay for itself at personal-vault scale, and it depends on a persisted-settings system (`config_manager`) this backend doesn't have. Revisit if vault size or query volume ever makes the plain walk genuinely slow.
 - **Embeddings / vector search** — would catch meaning-based matches `direct` misses, but is a materially bigger, different piece of infrastructure (an embedding model, a vector store, re-embedding on every vault edit) for a frugality-first product, before the simpler mechanism has even been shown insufficient. Not ruled out permanently, just not justified ahead of trying the simpler approach first.
+
+**Update (docs/decisions/014):** grounding no longer reuses this matcher. It got its own passage retriever, since the matcher's substring matching and one-line snippets proved wrong for chat. The search bar still uses this matcher unchanged, and both read the same cached snapshot.

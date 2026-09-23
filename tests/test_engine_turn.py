@@ -27,7 +27,7 @@ def _fake_grounding_result():
         "rel_path": "Typography.md",
         "match_type": "title",
         "line_no": 1,
-        "snippet": "Some notes about fonts, distinguishably unique text.",
+        "text": "Some notes about fonts, distinguishably unique text.",
         "title": "Typography",
         "tags": [],
         "index": 1,

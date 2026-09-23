@@ -23,7 +23,7 @@ def _grounding_result(title="Typography", rel_path="Typography.md", snippet="Som
         "rel_path": rel_path,
         "match_type": "title",
         "line_no": 1,
-        "snippet": snippet,
+        "text": snippet,
         "title": title,
         "tags": [],
         "index": 1,

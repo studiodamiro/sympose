@@ -38,7 +38,11 @@ def _format_grounding_block(grounding_results: list[dict[str, Any]]) -> str:
         return "No vault notes matched this message."
     lines = ["Vault context:"]
     for result in grounding_results:
-        lines.append(f"- {result['title']} ({result['rel_path']}): {result['snippet']}")
+        heading = result.get("heading")
+        where = result["rel_path"]
+        if heading and heading != result["title"]:
+            where += f" › {heading}"
+        lines.append(f"- {result['title']} ({where}): {result['text']}")
     return "\n".join(lines)
 
 

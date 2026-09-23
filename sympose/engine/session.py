@@ -39,10 +39,13 @@ def _sessions_root() -> str:
 
 def sessions_dir(handle: str) -> str:
     """Where `handle`'s sessions live: `profiles/<handle>/sessions/`, or
-    `./sessions/<handle>/` in fallback mode."""
+    `./sessions/<handle>/` in fallback mode. `persona_dir` runs first in
+    both modes so a handle that isn't one plain path component (`.`, `a/b`)
+    is rejected the same way everywhere."""
+    persona = persona_dir(handle)
     if _fallback_mode():
         return os.path.join(_sessions_root(), handle.lower())
-    return os.path.join(persona_dir(handle), "sessions")
+    return os.path.join(persona, "sessions")
 
 
 def session_path(handle: str, session_id: str) -> str:
@@ -119,6 +122,8 @@ def append_turn(
     user_message: str,
     reply: str,
     existing: dict[str, Any] | None = None,
+    ttft_ms: int | None = None,
+    model: str | None = None,
 ) -> None:
     """`existing` lets a caller that's already loaded the session (e.g.
     `turn.run_turn`, which loads it to build history) pass it straight
@@ -126,7 +131,11 @@ def append_turn(
     session file a second time in the same turn. Left unspecified, it's
     loaded here instead — cheap for a genuinely new session (a single
     `os.path.exists` check, not a real parse), so a plain
-    `append_turn(handle, sid, msg, reply)` call still works standalone."""
+    `append_turn(handle, sid, msg, reply)` call still works standalone.
+
+    `ttft_ms` and `model` (docs/decisions/013) are stored on the turn record
+    as-is, `null` when unknown; records written before they existed simply
+    lack the keys, and nothing reading a session depends on them."""
     session = existing if existing is not None else load_session(handle, session_id)
     now = datetime.now(timezone.utc).isoformat()
 
@@ -145,7 +154,16 @@ def append_turn(
         meta = session["meta"]
         turns = session["turns"]
 
-    turns.append({"type": "turn", "timestamp": now, "user": user_message, "assistant": reply})
+    turns.append(
+        {
+            "type": "turn",
+            "timestamp": now,
+            "user": user_message,
+            "assistant": reply,
+            "ttft_ms": ttft_ms,
+            "model": model,
+        }
+    )
     meta["updated_at"] = now
     meta["turns_count"] = len(turns)
 

@@ -30,6 +30,10 @@ class TurnResult:
     reply: str
     session_id: str
     grounding: list[dict[str, Any]] = field(default_factory=list)
+    # Time to first token in ms and the model that produced it
+    # (docs/decisions/013); `None` when a caller builds a result by hand.
+    ttft_ms: int | None = None
+    model: str | None = None
 
 
 def run_turn(
@@ -54,9 +58,22 @@ def run_turn(
     # An explicit per-call model wins; otherwise `resolve_model` owns the
     # rest of the order (persona's model > setting > default), so this
     # and every display of "which model runs" share one definition.
-    reply = model_mod.call_model(
-        messages, model=model or model_mod.resolve_model(persona.get("model"))
-    )
+    target_model = model or model_mod.resolve_model(persona.get("model"))
+    reply = model_mod.call_model(messages, model=target_model)
 
-    session.append_turn(handle, sid, user_message, reply, existing=existing)
-    return TurnResult(reply=reply, session_id=sid, grounding=grounding_results)
+    session.append_turn(
+        handle,
+        sid,
+        user_message,
+        reply.text,
+        existing=existing,
+        ttft_ms=reply.ttft_ms,
+        model=target_model,
+    )
+    return TurnResult(
+        reply=reply.text,
+        session_id=sid,
+        grounding=grounding_results,
+        ttft_ms=reply.ttft_ms,
+        model=target_model,
+    )

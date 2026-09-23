@@ -3,10 +3,11 @@ results actually reach the model call (not just that each piece works in
 isolation) and that session state is threaded through correctly
 (docs/decisions/006)."""
 
-from helpers import write_persona
 import pytest
+from helpers import write_persona
 
 from sympose.engine import session, turn
+from sympose.engine.model import ModelReply
 
 
 @pytest.fixture
@@ -41,7 +42,7 @@ def test_grounding_snippet_reaches_the_model_call(sessions_root, monkeypatch):
 
     def fake_call_model(messages, model=None):
         captured["messages"] = messages
-        return "a reply"
+        return ModelReply("a reply", 12)
 
     monkeypatch.setattr(turn.model_mod, "call_model", fake_call_model)
 
@@ -54,7 +55,7 @@ def test_grounding_snippet_reaches_the_model_call(sessions_root, monkeypatch):
 
 def test_new_session_id_generated_when_none_given(sessions_root, monkeypatch):
     monkeypatch.setattr(turn.grounding, "ground", lambda profile, msg, max_results=5: [])
-    monkeypatch.setattr(turn.model_mod, "call_model", lambda messages, model=None: "reply")
+    monkeypatch.setattr(turn.model_mod, "call_model", lambda messages, model=None: ModelReply("reply", 12))
 
     result = turn.run_turn("samantha", "hello")
 
@@ -71,7 +72,7 @@ def test_resumed_session_id_is_preserved_and_history_used(sessions_root, monkeyp
 
     def fake_call_model(messages, model=None):
         captured["messages"] = messages
-        return "second reply"
+        return ModelReply("second reply", 12)
 
     monkeypatch.setattr(turn.model_mod, "call_model", fake_call_model)
 
@@ -85,7 +86,7 @@ def test_resumed_session_id_is_preserved_and_history_used(sessions_root, monkeyp
 
 def test_append_turn_is_genuinely_called(sessions_root, monkeypatch):
     monkeypatch.setattr(turn.grounding, "ground", lambda profile, msg, max_results=5: [])
-    monkeypatch.setattr(turn.model_mod, "call_model", lambda messages, model=None: "reply text")
+    monkeypatch.setattr(turn.model_mod, "call_model", lambda messages, model=None: ModelReply("reply text", 12))
 
     result = turn.run_turn("samantha", "hello")
 
@@ -105,7 +106,7 @@ def test_resumed_session_file_is_read_only_once_per_turn(sessions_root, monkeypa
     session.append_turn("samantha", sid, "first", "first reply")
 
     monkeypatch.setattr(turn.grounding, "ground", lambda profile, msg, max_results=5: [])
-    monkeypatch.setattr(turn.model_mod, "call_model", lambda messages, model=None: "second reply")
+    monkeypatch.setattr(turn.model_mod, "call_model", lambda messages, model=None: ModelReply("second reply", 12))
 
     load_calls = []
     real_load_session = session.load_session
@@ -132,7 +133,7 @@ def test_per_call_model_override_is_passed_through(sessions_root, monkeypatch):
 
     def fake_call_model(messages, model=None):
         captured["model"] = model
-        return "reply"
+        return ModelReply("reply", 12)
 
     monkeypatch.setattr(turn.model_mod, "call_model", fake_call_model)
 
@@ -146,7 +147,7 @@ def _capture_model(monkeypatch):
 
     def fake_call_model(messages, model=None):
         captured["model"] = model
-        return "reply"
+        return ModelReply("reply", 12)
 
     monkeypatch.setattr(turn.grounding, "ground", lambda profile, msg, max_results=5: [])
     monkeypatch.setattr(turn.model_mod, "call_model", fake_call_model)
@@ -179,3 +180,57 @@ def test_run_turn_explicit_model_beats_the_personas_model(sessions_root, monkeyp
     turn.run_turn("dev", "hello", model="anthropic/claude-sonnet-5")
 
     assert captured["model"] == "anthropic/claude-sonnet-5"
+
+
+def test_ttft_and_model_are_recorded_on_the_turn_and_the_session(sessions_root, monkeypatch):
+    monkeypatch.setattr(turn.grounding, "ground", lambda profile, msg, max_results=5: [])
+    monkeypatch.setattr(
+        turn.model_mod, "call_model", lambda messages, model=None: ModelReply("hi", 734)
+    )
+
+    result = turn.run_turn("samantha", "hello", model="ollama_chat/some-model")
+
+    assert result.ttft_ms == 734
+    assert result.model == "ollama_chat/some-model"
+    record = session.load_session("samantha", result.session_id)["turns"][0]
+    assert record["ttft_ms"] == 734
+    assert record["model"] == "ollama_chat/some-model"
+
+
+def test_the_recorded_model_is_the_one_that_actually_ran(sessions_root, monkeypatch):
+    """Not the explicit argument (there is none here): the resolved
+    persona/setting/default model, which is what a later latency comparison
+    across models needs."""
+    monkeypatch.setattr(turn.grounding, "ground", lambda profile, msg, max_results=5: [])
+    seen = {}
+
+    def fake_call_model(messages, model=None):
+        seen["model"] = model
+        return ModelReply("hi", 5)
+
+    monkeypatch.setattr(turn.model_mod, "call_model", fake_call_model)
+
+    result = turn.run_turn("samantha", "hello")
+
+    assert result.model == seen["model"] == turn.model_mod.DEFAULT_LOCAL_MODEL
+
+
+def test_a_session_written_before_ttft_existed_still_loads_and_continues(sessions_root):
+    """Older turn records lack `ttft_ms`/`model`; nothing may depend on them."""
+    import json
+    import os
+
+    sid = "20260101T000000-old"
+    path = session.session_path("samantha", sid)
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(json.dumps({"type": "meta", "session_id": sid, "handle": "samantha", "title": "t",
+                            "created_at": "x", "updated_at": "x", "turns_count": 1}) + "\n")
+        f.write(json.dumps({"type": "turn", "timestamp": "x", "user": "old q", "assistant": "old a"}) + "\n")
+
+    loaded = session.load_session("samantha", sid)
+    assert session.history_as_messages(loaded)[0]["content"] == "old q"
+
+    session.append_turn("samantha", sid, "new q", "new a", ttft_ms=90, model="m")
+    turns = session.load_session("samantha", sid)["turns"]
+    assert "ttft_ms" not in turns[0] and turns[1]["ttft_ms"] == 90

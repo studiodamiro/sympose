@@ -18,3 +18,4 @@ The original records 001–006 (backend dependencies, the legacy port strategy, 
 | [010](010-persona-scoped-graph-model-precedence-default-setter.md) | Persona-scoped nebula graph, model precedence, and a default-persona setter | Accepted |
 | [011](011-one-directory-per-persona.md) | One directory per persona: `profiles/<handle>/{persona.yaml, soul.md, memory.md, expertise.md, sessions/}` | Accepted |
 | [012](012-persona-soul-is-voice-only.md) | A persona's soul is voice only; engine rules stay in the engine | Accepted |
+| [013](013-record-ttft-every-turn.md) | Record time-to-first-token on every turn: stream the model call internally, store `ttft_ms` + `model` per turn | Accepted |

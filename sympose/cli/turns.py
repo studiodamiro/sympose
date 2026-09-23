@@ -145,7 +145,13 @@ async def _send_message(app, value: str) -> None:
             return
         _record_session_result(app, generation, result.session_id)
 
+    if result.ttft_ms is not None:
+        reply_header += f" · TTFT {_format_ttft(result.ttft_ms)}"
     _stream_reply(app, result.reply, reply_header)
+
+
+def _format_ttft(ms: int) -> str:
+    return f"{ms} ms" if ms < 1000 else f"{ms / 1000:.1f}s"
 
 
 def _stream_reply(app, reply: str, header: str) -> None:

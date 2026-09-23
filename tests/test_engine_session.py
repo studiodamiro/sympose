@@ -198,3 +198,15 @@ def test_a_traversal_handle_is_rejected(sessions_root):
 def test_a_traversal_session_id_cannot_reach_another_personas_files(sessions_root):
     with pytest.raises(ValueError):
         session.session_path("samantha", "../../dev/sessions/other")
+
+
+@pytest.mark.parametrize("handle", [".", "a/b", ""])
+def test_a_handle_that_is_not_a_plain_component_is_rejected_in_both_modes(
+    sessions_root, tmp_path, monkeypatch, handle
+):
+    with pytest.raises(ValueError):
+        session.session_path(handle, "sid")
+
+    monkeypatch.setenv("SYMPOSE_PROFILES_DIR", str(tmp_path / "no-such-dir"))  # fallback mode
+    with pytest.raises(ValueError):
+        session.session_path(handle, "sid")

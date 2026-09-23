@@ -1433,3 +1433,49 @@ def test_default_command_persists_the_current_persona(profiles):
             assert any("@aria is now the default persona" in line for line in lines)
 
     run_async(scenario())
+
+
+# -- TTFT beside the model (docs/decisions/013) --
+
+
+def test_format_ttft_uses_ms_under_a_second_and_seconds_above():
+    assert turns._format_ttft(0) == "0 ms"
+    assert turns._format_ttft(734) == "734 ms"
+    assert turns._format_ttft(999) == "999 ms"
+    assert turns._format_ttft(1000) == "1.0s"
+    assert turns._format_ttft(2349) == "2.3s"
+
+
+def test_the_reply_header_shows_ttft_beside_the_model(profiles, monkeypatch):
+    def fake_run_turn(handle, user_message, session_id=None, model=None):
+        return engine.TurnResult(reply="ok", session_id="s", grounding=[], ttft_ms=1840, model="m")
+
+    monkeypatch.setattr(turns.engine, "run_turn", fake_run_turn)
+
+    async def scenario():
+        app = SymposeCLI()
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            app.composer.focus()
+            await pilot.press(*"hi", "enter")
+            await pilot.pause(0.5)
+            lines = [plain_text(c) for c in app.transcript.children]
+            header = next(line for line in lines if line.startswith("@samantha"))
+            assert "Gemma2:9b · TTFT 1.8s" in header
+
+    run_async(scenario())
+
+
+def test_the_reply_header_omits_ttft_when_the_engine_gave_none(profiles):
+    async def scenario():
+        app = SymposeCLI()
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            app.composer.focus()
+            await pilot.press(*"hi", "enter")
+            await pilot.pause(0.5)
+            lines = [plain_text(c) for c in app.transcript.children]
+            header = next(line for line in lines if line.startswith("@samantha"))
+            assert "TTFT" not in header
+
+    run_async(scenario())

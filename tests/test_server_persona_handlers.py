@@ -2,6 +2,7 @@
 matching ui/src/lib/personas.ts's PersonasResponse contract exactly
 (docs/decisions/009)."""
 
+from helpers import write_persona
 import pytest
 
 from sympose import server_persona_handlers as ph
@@ -29,8 +30,8 @@ def test_no_profiles_dir_returns_a_single_default_samantha_entry(tmp_path, monke
 def test_roster_shape_matches_the_frontend_contract(tmp_path, monkeypatch):
     profiles = tmp_path / "profiles"
     profiles.mkdir()
-    (profiles / "samantha.yaml").write_text("name: Samantha\nvault_folders: '*'\n")
-    (profiles / "dev.yaml").write_text(
+    write_persona(profiles, "samantha", "name: Samantha\nvault_folders: '*'\n")
+    write_persona(profiles, "dev", 
         "name: Dev\nvault_folders:\n  - Code\nmodel: ollama_chat/foo\nskills:\n  - triage\n"
     )
     monkeypatch.setenv("SYMPOSE_PROFILES_DIR", str(profiles))
@@ -51,8 +52,8 @@ def test_is_default_follows_a_configured_custom_default(tmp_path, monkeypatch):
 
     profiles = tmp_path / "profiles"
     profiles.mkdir()
-    (profiles / "samantha.yaml").write_text("name: Samantha\nvault_folders: '*'\n")
-    (profiles / "dev.yaml").write_text("name: Dev\nvault_folders:\n  - Code\n")
+    write_persona(profiles, "samantha", "name: Samantha\nvault_folders: '*'\n")
+    write_persona(profiles, "dev", "name: Dev\nvault_folders:\n  - Code\n")
     monkeypatch.setenv("SYMPOSE_PROFILES_DIR", str(profiles))
     settings_store.set("default_persona", "dev")
 
@@ -62,3 +63,18 @@ def test_is_default_follows_a_configured_custom_default(tmp_path, monkeypatch):
     by_handle = {p["handle"]: p for p in result["personas"]}
     assert by_handle["dev"]["is_default"] is True
     assert by_handle["samantha"]["is_default"] is False
+
+
+def test_a_personas_shown_model_follows_the_chat_model_setting(tmp_path, monkeypatch):
+    from sympose import settings_store
+
+    profiles = tmp_path / "profiles"
+    profiles.mkdir()
+    write_persona(profiles, "samantha", "name: Samantha\nvault_folders: '*'\n")
+    monkeypatch.setenv("SYMPOSE_PROFILES_DIR", str(profiles))
+    settings_store.set("chat_model", "anthropic/claude-sonnet-5")
+
+    entry = ph.get_personas()["personas"][0]
+
+    # What's displayed must be what a turn would actually run on.
+    assert entry["model"] == "anthropic/claude-sonnet-5"

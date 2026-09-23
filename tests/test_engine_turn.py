@@ -3,6 +3,7 @@ results actually reach the model call (not just that each piece works in
 isolation) and that session state is threaded through correctly
 (docs/decisions/006)."""
 
+from helpers import write_persona
 import pytest
 
 from sympose.engine import session, turn
@@ -10,7 +11,13 @@ from sympose.engine import session, turn
 
 @pytest.fixture
 def sessions_root(tmp_path, monkeypatch):
-    monkeypatch.setenv("SYMPOSE_SESSIONS_DIR", str(tmp_path))
+    """A profiles dir with a `samantha` persona; sessions land in
+    `<root>/<handle>/sessions/` (docs/decisions/011). Returns the root."""
+    base = tmp_path / "profiles"
+    write_persona(base, "samantha", "name: Samantha\nvault_folders: '*'\n")
+    monkeypatch.setenv("SYMPOSE_PROFILES_DIR", str(base))
+    monkeypatch.setenv("SYMPOSE_SETTINGS_PATH", str(tmp_path / "settings.json"))
+    return str(base)
 
 
 def _fake_grounding_result():
@@ -114,12 +121,7 @@ def test_resumed_session_file_is_read_only_once_per_turn(sessions_root, monkeypa
     assert load_calls == [sid]  # exactly one read for the whole turn
 
 
-def test_unknown_persona_raises_persona_not_found(sessions_root, monkeypatch, tmp_path):
-    profiles = tmp_path / "profiles"
-    profiles.mkdir()
-    (profiles / "samantha.yaml").write_text("name: Samantha\nvault_folders: '*'\n")
-    monkeypatch.setenv("SYMPOSE_PROFILES_DIR", str(profiles))
-
+def test_unknown_persona_raises_persona_not_found(sessions_root):
     with pytest.raises(turn.PersonaNotFoundError):
         turn.run_turn("some-typo-handle", "hello")
 
@@ -137,3 +139,43 @@ def test_per_call_model_override_is_passed_through(sessions_root, monkeypatch):
     turn.run_turn("samantha", "hello", model="ollama_chat/other")
 
     assert captured["model"] == "ollama_chat/other"
+
+
+def _capture_model(monkeypatch):
+    captured = {}
+
+    def fake_call_model(messages, model=None):
+        captured["model"] = model
+        return "reply"
+
+    monkeypatch.setattr(turn.grounding, "ground", lambda profile, msg, max_results=5: [])
+    monkeypatch.setattr(turn.model_mod, "call_model", fake_call_model)
+    return captured
+
+
+def test_run_turn_uses_the_personas_own_model_when_none_is_given(
+    sessions_root, monkeypatch
+):
+    monkeypatch.setattr(
+        turn.profile_mod,
+        "resolve_profile",
+        lambda h: {"handle": h, "name": "Dev", "vault_folders": ["*"], "model": "ollama_chat/dev-pick"},
+    )
+    captured = _capture_model(monkeypatch)
+
+    turn.run_turn("dev", "hello")
+
+    assert captured["model"] == "ollama_chat/dev-pick"
+
+
+def test_run_turn_explicit_model_beats_the_personas_model(sessions_root, monkeypatch):
+    monkeypatch.setattr(
+        turn.profile_mod,
+        "resolve_profile",
+        lambda h: {"handle": h, "name": "Dev", "vault_folders": ["*"], "model": "ollama_chat/dev-pick"},
+    )
+    captured = _capture_model(monkeypatch)
+
+    turn.run_turn("dev", "hello", model="anthropic/claude-sonnet-5")
+
+    assert captured["model"] == "anthropic/claude-sonnet-5"

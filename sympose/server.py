@@ -67,8 +67,8 @@ def create_app() -> FastAPI:
         return h.get_vault_tree(persona)
 
     @app.get("/api/vault/graph")
-    def get_vault_graph() -> dict[str, Any]:
-        return h.get_vault_graph()
+    def get_vault_graph(persona: str | None = Query(None)) -> dict[str, Any]:
+        return h.get_vault_graph(persona)
 
     @app.get("/api/vault/search")
     def search_vault(

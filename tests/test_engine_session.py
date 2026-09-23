@@ -5,14 +5,20 @@ import json
 import os
 
 import pytest
+from helpers import write_persona
 
 from sympose.engine import session
 
 
 @pytest.fixture
 def sessions_root(tmp_path, monkeypatch):
-    monkeypatch.setenv("SYMPOSE_SESSIONS_DIR", str(tmp_path))
-    return str(tmp_path)
+    """A profiles dir with a `samantha` persona; sessions land in
+    `<root>/<handle>/sessions/` (docs/decisions/011). Returns the root."""
+    base = tmp_path / "profiles"
+    write_persona(base, "samantha", "name: Samantha\nvault_folders: '*'\n")
+    monkeypatch.setenv("SYMPOSE_PROFILES_DIR", str(base))
+    monkeypatch.setenv("SYMPOSE_SETTINGS_PATH", str(tmp_path / "settings.json"))
+    return str(base)
 
 
 def test_no_file_until_first_append_turn(sessions_root):
@@ -142,3 +148,53 @@ def test_title_truncates_long_opening_messages(sessions_root):
 
     loaded = session.load_session("samantha", sid)
     assert loaded["meta"]["title"] == "one two three four five six..."
+
+
+# -- where sessions live (docs/decisions/011) --
+
+
+def test_sessions_are_written_inside_the_persona_directory(sessions_root):
+    sid = session.new_session_id()
+    session.append_turn("samantha", sid, "hi", "hello")
+
+    expected = os.path.join(sessions_root, "samantha", "sessions", f"{sid}.jsonl")
+    assert session.session_path("samantha", sid) == expected
+    assert os.path.exists(expected)
+
+
+def test_writing_a_session_does_not_make_a_persona_out_of_a_bare_directory(sessions_root):
+    """A session for a handle with no `persona.yaml` (the factory-default
+    safety net can produce one) creates `<handle>/sessions/` but must not
+    make that handle appear in the roster."""
+    from sympose import profile
+
+    session.append_turn("ghost", session.new_session_id(), "hi", "hello")
+
+    assert "ghost" not in [p["handle"] for p in profile.list_profiles()]
+
+
+def test_fallback_mode_keeps_sessions_out_of_profiles(tmp_path, monkeypatch):
+    """With no profiles/ dir at all, writing a session under profiles/
+    would create it and flip the system out of fallback mode."""
+    from sympose import profile
+
+    missing = tmp_path / "profiles"
+    monkeypatch.setenv("SYMPOSE_PROFILES_DIR", str(missing))
+    monkeypatch.chdir(tmp_path)
+    sid = session.new_session_id()
+
+    session.append_turn("samantha", sid, "hi", "hello")
+
+    assert os.path.exists(tmp_path / "sessions" / "samantha" / f"{sid}.jsonl")
+    assert not missing.exists()
+    assert profile.get_profile("samantha")["vault_folders"] == ["*"]  # still fallback
+
+
+def test_a_traversal_handle_is_rejected(sessions_root):
+    with pytest.raises(ValueError):
+        session.session_path("../outside", "sid")
+
+
+def test_a_traversal_session_id_cannot_reach_another_personas_files(sessions_root):
+    with pytest.raises(ValueError):
+        session.session_path("samantha", "../../dev/sessions/other")

@@ -21,20 +21,23 @@ __pycache__/
 settings.json
 
 # Chat session logs — per-conversation state generated at runtime, not source.
+# Live in profiles/<handle>/sessions/ (ignored above); this top-level dir is
+# only the fallback when no profiles/ directory exists at all.
 sessions/
 
-# Personas: Samantha ships as the only default persona; any other profile
-# is a personal customization and stays local-only, never committed.
-profiles/*.yaml
-!profiles/samantha.yaml
-profiles/*_soul.md
-!profiles/samantha_soul.md
-
-# Memory is never a shipped default, Samantha included: it's generated at
-# onboarding / agent-creation time and accumulates real personal content
-# from actual use. No `*_memory.md` file is ever committed, regardless of
-# handle — unlike the soul baseline above, there is no template variant.
-profiles/*_memory.md
+# Personas (docs/decisions/011): one directory per persona under profiles/.
+# Samantha ships as the only default persona — her persona.yaml and soul.md
+# are the committed baseline; every other persona is a personal
+# customization and stays local-only. Everything else under profiles/ is
+# ignored by default, which is what keeps a persona's memory.md and
+# sessions/ from ever being committed, Samantha's included (ADR 001) —
+# unlike soul, memory has no template variant. Whether Samantha's
+# expertise.md ships is decided when expertise is built.
+profiles/*
+!profiles/samantha/
+profiles/samantha/*
+!profiles/samantha/persona.yaml
+!profiles/samantha/soul.md
 
 # Local-only progress tracker — a working status file for keeping in sync
 # during development, not a product doc; would just be commit noise every

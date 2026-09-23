@@ -96,8 +96,8 @@ def get_vault_tree(persona: str | None) -> dict[str, Any]:
     }
 
 
-def get_vault_graph() -> dict[str, Any]:
-    return vault_graph.get_vault_graph()
+def get_vault_graph(persona: str | None) -> dict[str, Any]:
+    return vault_graph.get_vault_graph(require_profile(persona))
 
 
 def read_note(path: str, persona: str | None) -> dict[str, Any]:

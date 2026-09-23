@@ -5,6 +5,7 @@ Textual's headless pilot. `pytest-asyncio` isn't a declared dependency
 here, so each async scenario is run via a small `run_async` helper
 instead of an `async def` test function."""
 
+from helpers import write_persona
 import asyncio
 import threading
 
@@ -22,6 +23,13 @@ def run_async(coro):
 def plain_text(static) -> str:
     content = static.content
     return content.plain if hasattr(content, "plain") else str(content)
+
+
+@pytest.fixture(autouse=True)
+def isolated_settings_store(tmp_path, monkeypatch):
+    # `/default` writes the settings file and every turn's header reads
+    # `chat_model` from it — never the real one in the working directory.
+    monkeypatch.setenv("SYMPOSE_SETTINGS_PATH", str(tmp_path / "settings.json"))
 
 
 @pytest.fixture(autouse=True)
@@ -66,8 +74,8 @@ def test_find_command_unknown_returns_none():
 def profiles(tmp_path, monkeypatch):
     base = tmp_path / "profiles"
     base.mkdir()
-    (base / "samantha.yaml").write_text("name: Samantha\nhandle: samantha\ntitle: Vault Companion\n")
-    (base / "aria.yaml").write_text("name: Aria\nhandle: aria\ntitle: Test specialist\n")
+    write_persona(base, "samantha", "name: Samantha\nhandle: samantha\ntitle: Vault Companion\n")
+    write_persona(base, "aria", "name: Aria\nhandle: aria\ntitle: Test specialist\n")
     monkeypatch.setenv("SYMPOSE_PROFILES_DIR", str(base))
     return base
 
@@ -93,7 +101,7 @@ def test_list_personas_lowercases_a_capitalized_filename(tmp_path, monkeypatch):
     selection too."""
     base = tmp_path / "profiles"
     base.mkdir()
-    (base / "Samantha.yaml").write_text("name: Samantha\nhandle: samantha\n")
+    write_persona(base, "Samantha", "name: Samantha\nhandle: samantha\n")
     monkeypatch.setenv("SYMPOSE_PROFILES_DIR", str(base))
     personas = mock_data.list_personas()
     assert [p.handle for p in personas] == ["samantha"]
@@ -332,7 +340,7 @@ def test_model_picker_digit_select_updates_model_and_banner(profiles):
             assert app.panel_kind == "model"
             await pilot.press("2")
             await pilot.pause()
-            assert app.model.id == "anthropic/claude-sonnet-5"
+            assert app.model_override.id == "anthropic/claude-sonnet-5"
             assert app.panel is None  # closed after selection
             banner = plain_text(app.query_one("#banner"))
             assert "Claude Sonnet 5" in banner
@@ -340,13 +348,15 @@ def test_model_picker_digit_select_updates_model_and_banner(profiles):
     run_async(scenario())
 
 
-def test_default_model_is_the_local_one(profiles):
+def test_no_model_is_preselected_and_the_default_is_the_local_one(profiles):
     async def scenario():
         app = SymposeCLI()
         async with app.run_test() as pilot:
             await pilot.pause()
-            assert app.model.id == mock_data.MODEL_OPTIONS[0].id
-            assert app.model.id.startswith("ollama_chat/")
+            assert app.model_override is None
+            active = mock_data.active_model(app.persona, app.model_override)
+            assert active.id == mock_data.MODEL_OPTIONS[0].id
+            assert active.id.startswith("ollama_chat/")
 
     run_async(scenario())
 
@@ -367,7 +377,9 @@ def test_send_message_calls_the_engine_and_streams_the_reply(profiles, monkeypat
             app.composer.focus()
             await pilot.press(*"hello", "enter")
             await pilot.pause()
-            assert calls == [("samantha", "hello", None, app.model.id)]
+            # No explicit /model pick -> None, so the engine applies the
+            # persona's own model / the setting / the default itself.
+            assert calls == [("samantha", "hello", None, None)]
             assert app.session_id == "sess-1"
             lines = [plain_text(child) for child in app.transcript.children]
             assert any("hi there" in line for line in lines)
@@ -1344,5 +1356,80 @@ def test_gap_appears_between_user_and_persona_turns(profiles):
             you_line, reply_line = children[2], children[3]
             assert "turn-gap" not in you_line.classes  # system -> user: no gap
             assert "turn-gap" in reply_line.classes  # user -> persona: gap
+
+    run_async(scenario())
+
+
+def test_a_personas_own_model_is_shown_and_no_override_is_sent(tmp_path, monkeypatch):
+    base = tmp_path / "profiles"
+    base.mkdir()
+    write_persona(base, "aria", 
+        "name: Aria\nhandle: aria\nmodel: ollama_chat/aria-pick\n"
+    )
+    monkeypatch.setenv("SYMPOSE_PROFILES_DIR", str(base))
+    calls = []
+
+    def fake_run_turn(handle, user_message, session_id=None, model=None):
+        calls.append(model)
+        return engine.TurnResult(reply="ok", session_id="s", grounding=[])
+
+    monkeypatch.setattr(turns.engine, "run_turn", fake_run_turn)
+
+    async def scenario():
+        app = SymposeCLI()
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            assert app.persona.handle == "aria"
+            assert "ollama_chat/aria-pick" in plain_text(app.query_one("#banner"))
+            app.composer.focus()
+            await pilot.press(*"hi", "enter")
+            await pilot.pause()
+            assert calls == [None]  # the engine, not the CLI, applies aria's model
+
+    run_async(scenario())
+
+
+def test_an_explicit_model_pick_beats_the_personas_own_model(tmp_path, monkeypatch):
+    base = tmp_path / "profiles"
+    base.mkdir()
+    write_persona(base, "aria", 
+        "name: Aria\nhandle: aria\nmodel: ollama_chat/aria-pick\n"
+    )
+    monkeypatch.setenv("SYMPOSE_PROFILES_DIR", str(base))
+
+    async def scenario():
+        app = SymposeCLI()
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            app.composer.focus()
+            await pilot.press(*"/model", "enter")
+            await pilot.pause()
+            await pilot.press("2")
+            await pilot.pause()
+            banner = plain_text(app.query_one("#banner"))
+            assert "Claude Sonnet 5" in banner
+            assert "aria-pick" not in banner
+
+    run_async(scenario())
+
+
+def test_default_command_persists_the_current_persona(profiles):
+    from sympose import profile
+
+    async def scenario():
+        app = SymposeCLI()
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            app.composer.focus()
+            await pilot.press(*"/persona", "enter")
+            await pilot.pause()
+            await pilot.press("1")  # aria (sorted first)
+            await pilot.pause()
+            assert app.persona.handle == "aria"
+            await pilot.press(*"/default", "enter")
+            await pilot.pause()
+            assert profile.resolve_default_persona() == "aria"
+            lines = [plain_text(c) for c in app.transcript.children]
+            assert any("@aria is now the default persona" in line for line in lines)
 
     run_async(scenario())

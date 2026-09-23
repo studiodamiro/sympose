@@ -18,7 +18,7 @@ from textual.widgets import Input, OptionList, Static
 from sympose.cli import dispatch, picker, turns
 from sympose.cli import transcript as transcript_mod
 from sympose.cli.composer import ComposerInput
-from sympose.cli.mock_data import MODEL_OPTIONS, list_personas
+from sympose.cli.mock_data import list_personas
 from sympose.cli.selection import SelectionPanel
 from sympose.profile import resolve_default_persona
 
@@ -75,12 +75,12 @@ class SymposeCLI(App):
         personas = list_personas()
         if not personas:
             # list_profiles() now deliberately returns [] once a
-            # profiles/ dir exists but has no valid *.yaml in it
+            # profiles/ dir exists but has no valid <handle>/persona.yaml in it
             # (docs/decisions/009) -- `personas[0]` below would be a
             # cryptic IndexError instead of an actionable message.
             raise RuntimeError(
                 "No personas configured -- check SYMPOSE_PROFILES_DIR points "
-                "at a directory containing at least one valid *.yaml profile."
+                "at a directory containing at least one <handle>/persona.yaml."
             )
         # The configured default persona (factory default: Samantha, see
         # `CLAUDE.md`'s project rules) — picked explicitly rather than
@@ -89,7 +89,9 @@ class SymposeCLI(App):
         self.persona = next(
             (p for p in personas if p.handle == default_handle), personas[0]
         )
-        self.model = MODEL_OPTIONS[0]
+        # `None` until `/model` picks one, so a persona's own model (or the
+        # `chat_model` setting) applies — see `mock_data.active_model`.
+        self.model_override = None
         self.panel: SelectionPanel | None = None
         self.panel_kind: str | None = None
         # One session per CLI process run — the engine starts a new one on

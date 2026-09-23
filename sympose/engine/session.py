@@ -15,6 +15,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any
 
+from sympose.profile import persona_dir, profiles_dir
 from sympose.security import is_safe_path
 
 log = logging.getLogger(__name__)
@@ -22,14 +23,36 @@ log = logging.getLogger(__name__)
 _TITLE_WORDS = 6
 
 
-def sessions_dir() -> str:
-    return os.getenv("SYMPOSE_SESSIONS_DIR") or os.path.join(os.getcwd(), "sessions")
+def _fallback_mode() -> bool:
+    """No `profiles/` directory at all — the whole-vault fallback mode.
+    Sessions then go in `./sessions` instead of under `profiles/`: writing
+    there would create that directory, and creating it would flip the
+    whole system out of fallback mode as a side effect of a chat
+    (docs/decisions/011)."""
+    return not os.path.isdir(profiles_dir())
+
+
+def _sessions_root() -> str:
+    """The directory every persona's sessions must stay inside."""
+    return os.path.join(os.getcwd(), "sessions") if _fallback_mode() else profiles_dir()
+
+
+def sessions_dir(handle: str) -> str:
+    """Where `handle`'s sessions live: `profiles/<handle>/sessions/`, or
+    `./sessions/<handle>/` in fallback mode."""
+    if _fallback_mode():
+        return os.path.join(_sessions_root(), handle.lower())
+    return os.path.join(persona_dir(handle), "sessions")
 
 
 def session_path(handle: str, session_id: str) -> str:
-    base = sessions_dir()
-    path = os.path.join(base, handle.lower(), f"{session_id}.jsonl")
-    if not is_safe_path(path, base):
+    directory = sessions_dir(handle)
+    path = os.path.join(directory, f"{session_id}.jsonl")
+    # Two checks, not one: the handle must not escape the root (a `../x`
+    # handle would otherwise make `directory` itself the trusted base), and
+    # the session id must not escape its own persona's directory into a
+    # sibling persona's files.
+    if not is_safe_path(directory, _sessions_root()) or not is_safe_path(path, directory):
         raise ValueError(f"Unsafe session path for handle={handle!r} session_id={session_id!r}")
     return path
 

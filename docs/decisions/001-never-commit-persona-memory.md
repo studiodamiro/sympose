@@ -15,3 +15,5 @@ A fresh clone or install never ships with a memory file — memory files are cre
 ## Alternatives rejected
 
 Keeping `!profiles/samantha_memory.md` and relying on the user to simply never commit further changes to it once personalized. Rejected because it depends on remembering not to broadly stage a file that's tracked by default — a single accidental broad `git add` would commit real personal conversation content. Untracking the file entirely removes the failure mode instead of relying on discipline to avoid triggering it.
+
+**Path update (docs/decisions/011):** personas are now one directory each, so the ignore rule is `profiles/*/memory.md` (and `profiles/*/sessions/`) rather than `profiles/*_memory.md`, with Samantha's `persona.yaml` and `soul.md` the only committed files under `profiles/`. The invariant recorded here is unchanged: no persona's memory is ever committed.

@@ -14,6 +14,7 @@ from sympose.cli import picker, transcript as transcript_mod
 from sympose.cli.commands import COMMANDS
 from sympose.cli.mock_data import MOCK_HISTORY, MODEL_OPTIONS, list_personas
 from sympose.cli.selection import SelectionOption
+from sympose.profile import set_default_persona
 
 
 async def run_command(app, command) -> None:
@@ -38,6 +39,12 @@ async def run_command(app, command) -> None:
                 for p in list_personas()
             ],
         )
+    elif command.name == "/default":
+        if set_default_persona(app.persona.handle):
+            line = f"@{app.persona.handle} is now the default persona."
+        else:
+            line = f"Couldn't save @{app.persona.handle} as the default persona."
+        transcript_mod.mount_line(app, line, "system")
     elif command.name == "/history":
         await picker.open_picker(
             app, "history", "Recent conversations", [SelectionOption(e, e) for e in MOCK_HISTORY]
@@ -90,7 +97,7 @@ def apply_picker_choice(app, kind: str, value: str | None) -> None:
     if kind == "model":
         model = next((m for m in MODEL_OPTIONS if m.id == value), None)
         if model is not None:
-            app.model = model
+            app.model_override = model
             picker.update_banner(app)
             transcript_mod.mount_line(app, f"Switched model to {model.label}.", "system")
     elif kind == "persona":

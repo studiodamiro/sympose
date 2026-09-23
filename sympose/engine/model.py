@@ -33,8 +33,12 @@ class EngineModelError(Exception):
     traceback."""
 
 
-def resolve_model() -> str:
-    return settings_store.get(_SETTINGS_KEY, DEFAULT_LOCAL_MODEL)
+def resolve_model(persona_model: str | None = None) -> str:
+    """The model a turn runs on when the caller made no explicit choice:
+    the persona's own `model`, else the `chat_model` setting, else the
+    built-in local default (docs/decisions/010). An explicit per-call
+    model (`call_model`'s `model` argument) sits above all of these."""
+    return persona_model or settings_store.get(_SETTINGS_KEY, DEFAULT_LOCAL_MODEL)
 
 
 def call_model(messages: list[dict[str, str]], model: str | None = None) -> str:

@@ -14,3 +14,6 @@ The original records 001–006 (backend dependencies, the legacy port strategy, 
 | [006](006-chat-engine-v0-shape.md) | Chat engine v0: turn handling, grounding, sessions, and what's deliberately out | Accepted |
 | [007](007-litellm-for-model-calls.md) | litellm for model calls, `ollama_chat/` prefix, local-first default | Accepted |
 | [008](008-message-queueing.md) | Message queueing: per-persona locks, not one global lock | Accepted |
+| [009](009-persona-profile-fail-closed.md) | `profile.py`'s final shape: fail-closed resolution, settings-backed default persona | Accepted |
+| [010](010-persona-scoped-graph-model-precedence-default-setter.md) | Persona-scoped nebula graph, model precedence, and a default-persona setter | Accepted |
+| [011](011-one-directory-per-persona.md) | One directory per persona: `profiles/<handle>/{persona.yaml, soul.md, memory.md, expertise.md, sessions/}` | Accepted |

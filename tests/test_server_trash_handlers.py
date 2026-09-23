@@ -1,6 +1,7 @@
 """Tests for sympose.server_trash_handlers — fail-closed persona resolution
 via require_profile (docs/decisions/009)."""
 
+from helpers import write_persona
 import pytest
 from fastapi import HTTPException
 
@@ -13,7 +14,7 @@ def profiles_dir(tmp_path, monkeypatch):
     monkeypatch.setenv("VAULT_PATHS", str(tmp_path))
     profiles = tmp_path / "profiles"
     profiles.mkdir()
-    (profiles / "samantha.yaml").write_text("name: Samantha\nvault_folders: '*'\n")
+    write_persona(profiles, "samantha", "name: Samantha\nvault_folders: '*'\n")
     monkeypatch.setenv("SYMPOSE_PROFILES_DIR", str(profiles))
     return profiles
 

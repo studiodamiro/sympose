@@ -8,6 +8,7 @@ each other."""
 from textual.widgets import Static
 
 from sympose.cli.commands import matching_commands
+from sympose.cli.mock_data import active_model
 from sympose.cli.selection import SelectionOption, SelectionPanel
 
 
@@ -15,7 +16,7 @@ def update_banner(app) -> None:
     banner = app.query_one("#banner", Static)
     banner.update(
         f"[bold]<S> Sympose[/] — talking to [bold]@{app.persona.handle}[/] "
-        f"· [dim]{app.model.label}[/]"
+        f"· [dim]{active_model(app.persona, app.model_override).label}[/]"
     )
 
 

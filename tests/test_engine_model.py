@@ -137,3 +137,22 @@ def test_call_model_null_content_raises_engine_model_error_not_a_crash(settings_
 
     with pytest.raises(model.EngineModelError):
         model.call_model([{"role": "user", "content": "hi"}])
+
+
+# -- precedence: persona model > chat_model setting > built-in default
+# (docs/decisions/010; an explicit per-call model beats all of these, see
+# test_engine_turn.py) --
+
+
+def test_resolve_model_prefers_the_persona_model_over_the_setting(settings_file):
+    from sympose import settings_store
+
+    settings_store.set("chat_model", "anthropic/claude-sonnet")
+    assert model.resolve_model("ollama_chat/persona-pick") == "ollama_chat/persona-pick"
+
+
+def test_resolve_model_falls_through_when_the_persona_has_none(settings_file):
+    from sympose import settings_store
+
+    settings_store.set("chat_model", "anthropic/claude-sonnet")
+    assert model.resolve_model(None) == "anthropic/claude-sonnet"

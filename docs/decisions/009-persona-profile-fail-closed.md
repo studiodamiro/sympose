@@ -29,3 +29,5 @@ An empty-but-existing `profiles/` directory now yields an empty roster (`[]`), n
 - **Leaving `list_trash` silently-empty for an unknown handle** instead of 404ing (matching its existing "no vault configured" graceful-degradation path). Rejected: that's the same fail-open shape being fixed everywhere else, just reached through a GET route instead of a write route.
 
 **Correction to ADR 006:** the "Correction (2026-09-23, full-backend code review)" paragraph there named this gap and tracked it as parked; this record is where it was actually fixed.
+
+**Path update (docs/decisions/011):** a persona is now `profiles/<handle>/persona.yaml` rather than `profiles/<handle>.yaml`. The fail-closed contract is unchanged, restated against the new shape: no `profiles/` directory means the whole-vault fallback; once it exists, a handle with no `persona.yaml` (or an unsafe path, or an unparseable file) resolves to nothing.

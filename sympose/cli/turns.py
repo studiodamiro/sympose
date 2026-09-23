@@ -16,6 +16,7 @@ from rich.text import Text
 
 from sympose import engine
 from sympose.cli import transcript as transcript_mod
+from sympose.cli.mock_data import active_model
 
 log = logging.getLogger(__name__)
 
@@ -95,8 +96,11 @@ async def _send_message(app, value: str) -> None:
     # but must still be treated as stale, since the second switch's reset
     # is what should win.
     handle = app.persona.handle
-    model_id = app.model.id
-    reply_header = f"@{handle} · {app.model.short}"
+    # `None` when the user hasn't picked one with `/model`: the engine then
+    # applies the persona's own model / the setting / the default itself
+    # (docs/decisions/010), and `active_model` shows that same resolution.
+    model_id = app.model_override.id if app.model_override else None
+    reply_header = f"@{handle} · {active_model(app.persona, app.model_override).short}"
     generation = app.session_generation
 
     # One lock per persona (docs/decisions/008), not one global lock:

@@ -4,6 +4,7 @@ returning a path and open() reaching it) into a 500, since
 FileNotFoundError is also an OSError -- fixed to return 404 for that
 specific case instead."""
 
+from helpers import write_persona
 import os
 
 import pytest
@@ -47,7 +48,7 @@ def test_require_profile_404s_an_unknown_persona_with_a_profiles_dir_configured(
 ):
     profiles = tmp_path / "profiles"
     profiles.mkdir()
-    (profiles / "samantha.yaml").write_text("name: Samantha\nvault_folders: '*'\n")
+    write_persona(profiles, "samantha", "name: Samantha\nvault_folders: '*'\n")
     monkeypatch.setenv("SYMPOSE_PROFILES_DIR", str(profiles))
 
     with pytest.raises(HTTPException) as exc_info:
@@ -91,7 +92,7 @@ def test_unknown_persona_cannot_read_outside_a_scoped_profiles_folders(monkeypat
 
     profiles = tmp_path / "profiles"
     profiles.mkdir()
-    (profiles / "dev.yaml").write_text("name: Dev\nvault_folders:\n  - Code\n")
+    write_persona(profiles, "dev", "name: Dev\nvault_folders:\n  - Code\n")
     monkeypatch.setenv("SYMPOSE_PROFILES_DIR", str(profiles))
 
     with pytest.raises(HTTPException) as exc_info:
@@ -129,7 +130,7 @@ def test_every_persona_scoped_handler_404s_an_unknown_persona(monkeypatch, tmp_p
     monkeypatch.setenv("VAULT_PATHS", str(tmp_path))
     profiles = tmp_path / "profiles"
     profiles.mkdir()
-    (profiles / "samantha.yaml").write_text("name: Samantha\nvault_folders: '*'\n")
+    write_persona(profiles, "samantha", "name: Samantha\nvault_folders: '*'\n")
     monkeypatch.setenv("SYMPOSE_PROFILES_DIR", str(profiles))
 
     calls = [

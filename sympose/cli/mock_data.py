@@ -9,7 +9,7 @@ local-first default, not the cloud-first ordering this list used to have."""
 
 from dataclasses import dataclass
 
-from sympose.engine.model import DEFAULT_LOCAL_MODEL
+from sympose.engine.model import DEFAULT_LOCAL_MODEL, resolve_model
 from sympose.profile import list_profiles
 
 
@@ -18,6 +18,8 @@ class PersonaOption:
     handle: str
     name: str
     title: str
+    # The persona's own `model` from its profile, or `None` (docs/decisions/010).
+    model: str | None = None
 
 
 @dataclass(frozen=True)
@@ -36,17 +38,17 @@ def list_personas() -> list[PersonaOption]:
     on (docs/decisions/009), so a malformed/unsafe profile file is
     already handled and handles are already lowercased/deduped there."""
     return [
-        PersonaOption(handle=p["handle"], name=p["name"], title=p["title"])
+        PersonaOption(
+            handle=p["handle"], name=p["name"], title=p["title"], model=p["model"]
+        )
         for p in list_profiles()
     ]
 
 
 MODEL_OPTIONS: list[ModelOption] = [
     # `DEFAULT_LOCAL_MODEL`, not a re-typed literal (docs/CODE_QUALITY_STANDARDS.md's
-    # "declared once" rule) — the CLI always passes `app.model.id` as
-    # `run_turn`'s per-call override, so this picker's own default id is
-    # what the CLI actually runs with; a stale duplicate here would
-    # silently diverge from `sympose/engine/model.py`'s canonical default.
+    # "declared once" rule) — a stale duplicate here would silently diverge
+    # from `sympose/engine/model.py`'s canonical default.
     ModelOption(id=DEFAULT_LOCAL_MODEL, label="Gemma2:9b — local, default", short="Gemma2:9b"),
     # Real, litellm-resolvable provider-prefixed ids, not placeholders —
     # once the CLI called the real engine, selecting a placeholder id
@@ -60,6 +62,22 @@ MODEL_OPTIONS: list[ModelOption] = [
     ModelOption(id="anthropic/claude-sonnet-5", label="Claude Sonnet 5 — cloud", short="Claude Sonnet 5"),
     ModelOption(id="openai/gpt-4o-mini", label="GPT-4o mini — cloud", short="GPT-4o mini"),
 ]
+
+def model_option_for(model_id: str) -> ModelOption:
+    """The picker entry for `model_id`, or a synthesized one for an id the
+    picker doesn't list (a persona's own `model`, or the `chat_model`
+    setting, can name anything litellm resolves)."""
+    known = next((m for m in MODEL_OPTIONS if m.id == model_id), None)
+    return known or ModelOption(id=model_id, label=model_id, short=model_id.split("/")[-1])
+
+
+def active_model(persona: PersonaOption, override: ModelOption | None) -> ModelOption:
+    """What actually runs for `persona`: the user's explicit `/model` pick if
+    there is one, else the persona's model / setting / default, in the
+    engine's own order (`resolve_model`, docs/decisions/010) — the same
+    function `run_turn` uses, so the header can't show something else."""
+    return override or model_option_for(resolve_model(persona.model))
+
 
 # Visual placeholder only — no session/history data model exists anywhere
 # yet (backend or frontend), so this list never changes and selecting a

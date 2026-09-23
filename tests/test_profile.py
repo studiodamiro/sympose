@@ -3,6 +3,7 @@
 (docs/decisions/009)."""
 
 import pytest
+from helpers import write_persona
 
 from sympose import profile
 
@@ -26,7 +27,7 @@ def profiles_dir(tmp_path, monkeypatch):
 
 
 def _write(base, handle: str, body: str) -> None:
-    (base / f"{handle}.yaml").write_text(body)
+    write_persona(base, handle, body)
 
 
 # -- get_profile --
@@ -166,3 +167,70 @@ def test_list_profiles_skips_broken_files_keeps_good_ones(profiles_dir):
 
 def test_list_profiles_empty_dir_returns_empty_list(profiles_dir):
     assert profile.list_profiles() == []
+
+
+# -- set_default_persona (docs/decisions/010) --
+
+
+def test_set_default_persona_persists_and_is_read_back(profiles_dir):
+    _write(profiles_dir, "samantha", "name: Samantha\nvault_folders: '*'\n")
+    _write(profiles_dir, "dev", "name: Dev\nvault_folders:\n  - Code\n")
+
+    assert profile.set_default_persona("dev") is True
+    assert profile.resolve_default_persona() == "dev"
+    assert profile.resolve_profile(None)["handle"] == "dev"
+
+
+def test_set_default_persona_lowercases_the_handle(profiles_dir):
+    _write(profiles_dir, "dev", "name: Dev\nvault_folders:\n  - Code\n")
+
+    assert profile.set_default_persona("DEV") is True
+    assert profile.resolve_default_persona() == "dev"
+
+
+def test_set_default_persona_refuses_an_unknown_handle_and_writes_nothing(profiles_dir):
+    _write(profiles_dir, "samantha", "name: Samantha\nvault_folders: '*'\n")
+
+    assert profile.set_default_persona("some-typo-handle") is False
+    assert profile.resolve_default_persona() == profile.FACTORY_DEFAULT_PERSONA
+
+
+def test_set_default_persona_refuses_a_traversal_handle(profiles_dir):
+    _write(profiles_dir, "samantha", "name: Samantha\nvault_folders: '*'\n")
+
+    assert profile.set_default_persona("../samantha") is False
+
+
+# -- one directory per persona (docs/decisions/011) --
+
+
+def test_a_flat_yaml_file_is_not_a_persona(profiles_dir):
+    (profiles_dir / "samantha.yaml").write_text("name: Samantha\nvault_folders: '*'\n")
+    _write(profiles_dir, "dev", "name: Dev\nvault_folders:\n  - Code\n")
+
+    assert profile.get_profile("samantha") is None
+    assert [p["handle"] for p in profile.list_profiles()] == ["dev"]
+
+
+def test_a_directory_without_persona_yaml_is_not_a_persona(profiles_dir):
+    (profiles_dir / "half-made").mkdir()
+    (profiles_dir / "half-made" / "soul.md").write_text("voice")
+
+    assert profile.get_profile("half-made") is None
+    assert profile.list_profiles() == []
+
+
+def test_stray_files_in_the_profiles_dir_are_ignored_by_the_roster(profiles_dir):
+    _write(profiles_dir, "dev", "name: Dev\nvault_folders:\n  - Code\n")
+    (profiles_dir / "_shared_memory.md").write_text("cross-persona note")
+    (profiles_dir / "notes.txt").write_text("x")
+
+    assert [p["handle"] for p in profile.list_profiles()] == ["dev"]
+
+
+def test_a_traversal_handle_cannot_load_a_persona_outside_profiles(profiles_dir):
+    outside = profiles_dir.parent / "outside"
+    outside.mkdir()
+    (outside / "persona.yaml").write_text("name: Outside\nvault_folders: '*'\n")
+
+    assert profile.get_profile("../outside") is None

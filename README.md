@@ -25,9 +25,11 @@ roster — see `docs/VISION.md` for what's next and why.
 - `ui/` — React/TypeScript frontend (Vite): vault tree, markdown editor,
   the bin, Knowledge Nebula 2D/3D graph. No chat panel or Slack status
   yet — those still have no backend behind them.
-- `profiles/` — persona definitions. Only `samantha.yaml` (the shipped
-  default) is committed; any other profile is a personal customization
-  and stays local-only (see `.gitignore`).
+- `profiles/` — one directory per persona (`profiles/<handle>/persona.yaml`,
+  plus that persona's soul, memory, and chat sessions). Only Samantha's
+  `persona.yaml` and `soul.md` (the shipped default) are committed; any other
+  persona is a personal customization and stays local-only, and no persona's
+  memory or sessions are ever committed (see `.gitignore`).
 - `docs/` — the product vision (`VISION.md`), engineering standards
   (`COLLABORATION_STANDARDS.md`, `CODE_QUALITY_STANDARDS.md`), and
   architecture decision records (`decisions/`).

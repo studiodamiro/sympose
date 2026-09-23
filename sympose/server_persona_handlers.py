@@ -8,12 +8,13 @@ when unreachable — this route is what makes that live instead of static.
 
 from typing import Any
 
-from sympose.engine.model import DEFAULT_LOCAL_MODEL
+from sympose.engine.model import resolve_model
 from sympose.profile import list_profiles, resolve_default_persona
 
 
 def get_personas() -> dict[str, Any]:
     default_handle = resolve_default_persona()
+    fallback_model = resolve_model()  # read once, not per persona
     return {
         "default": default_handle,
         "personas": [
@@ -21,7 +22,7 @@ def get_personas() -> dict[str, Any]:
                 "handle": p["handle"],
                 "name": p["name"],
                 "title": p["title"],
-                "model": p["model"] or DEFAULT_LOCAL_MODEL,
+                "model": p["model"] or fallback_model,
                 "skills": p["skills"],
                 "is_default": p["handle"] == default_handle,
             }

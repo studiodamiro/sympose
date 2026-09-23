@@ -51,7 +51,12 @@ def run_turn(
 
     grounding_results = grounding.ground(persona, user_message)
     messages = prompt.build_messages(persona, history, grounding_results, user_message)
-    reply = model_mod.call_model(messages, model=model)
+    # An explicit per-call model wins; otherwise `resolve_model` owns the
+    # rest of the order (persona's model > setting > default), so this
+    # and every display of "which model runs" share one definition.
+    reply = model_mod.call_model(
+        messages, model=model or model_mod.resolve_model(persona.get("model"))
+    )
 
     session.append_turn(handle, sid, user_message, reply, existing=existing)
     return TurnResult(reply=reply, session_id=sid, grounding=grounding_results)

@@ -32,8 +32,14 @@ def _resolve_note_by_basename(allowed_dirs: list[str], clean: str) -> str | None
 
 def _resolve_note_recursively(allowed_dirs: list[str], stem: str) -> str | None:
     """Case 3 — a recursive case-insensitive stem match anywhere under an
-    allowed dir."""
+    allowed dir. When more than one note shares `stem`, resolves
+    deterministically to the alphabetically-first path rather than
+    whichever the filesystem happens to enumerate first — this call has no
+    "source note" to prefer a same-folder match against (unlike
+    `vault_manifest_build._pick_link_target`'s identical ambiguity for
+    wikilinks), so alphabetical order is the whole tie-break here."""
     ignore_dirs = {d.lower() for d in IGNORE_FOLDERS}
+    candidates: list[str] = []
     for allowed in allowed_dirs:
         for root, dirs, files in os.walk(allowed):
             dirs[:] = [
@@ -45,8 +51,8 @@ def _resolve_note_recursively(allowed_dirs: list[str], stem: str) -> str | None:
                 if fn.endswith(".md") and os.path.splitext(fn)[0].lower() == stem:
                     fp = os.path.join(root, fn)
                     if is_safe_path(fp, allowed):
-                        return fp
-    return None
+                        candidates.append(fp)
+    return min(candidates) if candidates else None
 
 
 def resolve_existing_note(profile: dict[str, Any], note_name: str) -> str | None:

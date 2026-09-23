@@ -80,3 +80,51 @@ def test_unknown_persona_cannot_read_outside_a_scoped_profiles_folders(monkeypat
     with pytest.raises(HTTPException) as exc_info:
         server_handlers.read_note("Secret/secret.md", "bogus-handle")
     assert exc_info.value.status_code == 404
+
+
+def test_note_write_body_defaults_persona_to_none_and_still_resolves(monkeypatch, tmp_path):
+    """`NoteWrite.persona` (and its siblings) changed from a hardcoded
+    `"samantha"` literal default to `None` -- confirms omitting the field
+    entirely still round-trips through `require_profile`'s None-means-
+    "use the configured default persona" handling, not just that passing
+    an explicit handle string works."""
+    monkeypatch.setenv("VAULT_PATHS", str(tmp_path))
+    (tmp_path / "Note.md").write_text("original\n")
+
+    body = server_handlers.NoteWrite(path="Note.md", content="updated")
+    assert body.persona is None
+
+    result = server_handlers.write_note(body)
+    assert result["path"] == "Note.md"
+    assert (tmp_path / "Note.md").read_text() == "updated\n"
+
+
+def test_every_persona_scoped_handler_404s_an_unknown_persona(monkeypatch, tmp_path):
+    """require_profile replaced a bare resolve_profile call in all 8
+    handlers here, not just the 3 (get_vault_tree/read_note/write_note)
+    already covered above -- confirms the other 5 (create_note,
+    create_folder, rename_note, delete_note, delete_folder) actually got
+    the same wiring, not just a visual copy-paste that missed one."""
+    monkeypatch.setenv("VAULT_PATHS", str(tmp_path))
+    profiles = tmp_path / "profiles"
+    profiles.mkdir()
+    (profiles / "samantha.yaml").write_text("name: Samantha\nvault_folders: '*'\n")
+    monkeypatch.setenv("SYMPOSE_PROFILES_DIR", str(profiles))
+
+    calls = [
+        lambda: server_handlers.create_note(
+            server_handlers.NoteCreate(path="X.md", persona="bogus")
+        ),
+        lambda: server_handlers.create_folder(
+            server_handlers.FolderCreate(path="X", persona="bogus")
+        ),
+        lambda: server_handlers.rename_note(
+            server_handlers.NoteRename(path="X.md", new_path="Y.md", persona="bogus")
+        ),
+        lambda: server_handlers.delete_note("X.md", "bogus"),
+        lambda: server_handlers.delete_folder("X", "bogus"),
+    ]
+    for call in calls:
+        with pytest.raises(HTTPException) as exc_info:
+            call()
+        assert exc_info.value.status_code == 404

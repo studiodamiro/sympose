@@ -46,6 +46,40 @@ def test_rename_missing_note_not_found(vault, profile):
     assert vault_write_rename.rename_note(profile, "Nope", "B") == NOTE_NOT_FOUND
 
 
+def test_rename_survives_a_concurrent_delete_and_recreate_race(vault, profile):
+    """Regression test for a `/code-review` finding: `os.path.samefile` had
+    no `try`/`except`, so a concurrent request racing in between path
+    resolution and the in-lock re-check (deleting `src`, creating
+    something new at `dst`) could raise an uncaught `FileNotFoundError`,
+    escaping this module's sentinel-only contract as an unhandled 500."""
+    src_path = os.path.join(vault, "Draft.md")
+    with open(src_path, "w") as f:
+        f.write("draft")
+
+    def racing_get_backlinks(profile, stem):
+        # Simulates another request landing while this rename is still
+        # resolving backlinks, before its own lock is acquired: the
+        # source note is deleted and something else now occupies the
+        # destination path.
+        os.remove(src_path)
+        with open(os.path.join(vault, "Final.md"), "w") as f:
+            f.write("someone else's note")
+        return []
+
+    result = vault_write_rename.rename_note(
+        profile,
+        "Draft",
+        "Final",
+        get_backlinks_fn=racing_get_backlinks,
+        find_notes_by_stem_fn=lambda profile, stem: [],
+    )
+    # Must not raise -- degrades to the module's own error contract instead.
+    assert result.startswith("Error:")
+    # The racing write is never silently clobbered by the failed rename.
+    with open(os.path.join(vault, "Final.md")) as f:
+        assert f.read() == "someone else's note"
+
+
 def test_delete_empty_folder_removes_it_outright(vault, profile):
     os.makedirs(os.path.join(vault, "Empty"))
     result = vault_write_delete.delete_folder(profile, "Empty")

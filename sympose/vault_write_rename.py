@@ -18,6 +18,25 @@ from sympose.vault_write_status import (
 )
 
 
+def _dst_already_taken(dst: str, src: str) -> bool:
+    """Whether `dst` is occupied by something other than `src` itself (a
+    pure case-change, not a real conflict). Race-safe: `os.path.exists`
+    and `os.path.samefile` aren't atomic with each other, so either path
+    can vanish in the gap between them (a concurrent request touching the
+    same note) — caught rather than left to raise `FileNotFoundError`/
+    `OSError` across the API boundary, unlike every other failure path in
+    this module. Treating a race here as "not a conflict" doesn't lose
+    the case where `src` itself vanished: `os.rename` right after this
+    check is the actual authoritative operation, and its own `OSError`
+    handling already covers that."""
+    if not os.path.exists(dst):
+        return False
+    try:
+        return not os.path.samefile(dst, src)
+    except OSError:
+        return False
+
+
 def _resolve_rename_destination(
     mv: str, allowed_dirs: list[str], src: str, new_name: str
 ) -> tuple[str | None, str]:
@@ -46,7 +65,7 @@ def _resolve_rename_destination(
     # nothing actually conflicts, so `os.path.samefile` (inode-based, not
     # string-based) is what actually distinguishes "same file, new casing"
     # from "a different file already lives there".
-    if os.path.exists(dst) and not os.path.samefile(dst, src):
+    if _dst_already_taken(dst, src):
         return None, NOTE_EXISTS
     return dst, ""
 
@@ -99,7 +118,7 @@ def rename_note(
         # Re-check under lock: the pre-lock check in
         # `_resolve_rename_destination` is only a fast-path rejection — a
         # concurrent create/rename could have landed on `dst` in between.
-        if os.path.exists(dst) and not os.path.samefile(dst, src):
+        if _dst_already_taken(dst, src):
             return NOTE_EXISTS
         try:
             os.makedirs(os.path.dirname(dst), exist_ok=True)

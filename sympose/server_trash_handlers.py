@@ -18,6 +18,16 @@ def _trash_scope(persona: str | None) -> tuple[str | None, list[str]]:
     return vault_paths.get_master_vault(), vault_paths.get_allowed_dirs(profile)
 
 
+def _require_trash_scope(persona: str | None) -> tuple[str, list[str]]:
+    """Same as `_trash_scope`, but raises 403 instead of returning an
+    empty/falsy scope — for the mutating routes, where "nothing configured"
+    is an error, not an empty result."""
+    mv, allowed_dirs = _trash_scope(persona)
+    if not mv or not allowed_dirs:
+        raise HTTPException(status_code=403, detail="No vault configured for this persona.")
+    return mv, allowed_dirs
+
+
 def list_trash(persona: str | None) -> dict[str, Any]:
     mv, allowed_dirs = _trash_scope(persona)
     if not mv or not allowed_dirs:
@@ -26,9 +36,7 @@ def list_trash(persona: str | None) -> dict[str, Any]:
 
 
 def restore_trash(body: TrashRestore) -> dict[str, Any]:
-    mv, allowed_dirs = _trash_scope(body.persona)
-    if not mv or not allowed_dirs:
-        raise HTTPException(status_code=403, detail="No vault configured for this persona.")
+    mv, allowed_dirs = _require_trash_scope(body.persona)
     result = vault_trash.restore(mv, allowed_dirs, body.path)
     translate_vault_result(
         result,
@@ -40,9 +48,7 @@ def restore_trash(body: TrashRestore) -> dict[str, Any]:
 
 
 def purge_trash(path: str, persona: str | None) -> dict[str, Any]:
-    mv, allowed_dirs = _trash_scope(persona)
-    if not mv or not allowed_dirs:
-        raise HTTPException(status_code=403, detail="No vault configured for this persona.")
+    mv, allowed_dirs = _require_trash_scope(persona)
     result = vault_trash.purge(mv, allowed_dirs, path)
     translate_vault_result(
         result,
@@ -53,9 +59,7 @@ def purge_trash(path: str, persona: str | None) -> dict[str, Any]:
 
 
 def empty_trash(body: TrashEmpty) -> dict[str, Any]:
-    mv, allowed_dirs = _trash_scope(body.persona)
-    if not mv or not allowed_dirs:
-        raise HTTPException(status_code=403, detail="No vault configured for this persona.")
+    mv, allowed_dirs = _require_trash_scope(body.persona)
     count = vault_trash.purge_all(mv, allowed_dirs)
     return {
         "count": count,

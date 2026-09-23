@@ -7,7 +7,6 @@ import os
 from typing import Any, Callable
 
 from sympose import vault_backlinks, vault_paths
-from sympose.security import is_safe_path
 from sympose.vault_write import get_file_locks
 from sympose.vault_write_relink import WIKILINK_UNSAFE_CHARS, relink_referencing_notes
 from sympose.vault_write_resolve import resolve_existing_note
@@ -39,7 +38,7 @@ def _resolve_rename_destination(
         if ("/" in clean_new or "\\" in clean_new)
         else os.path.join(os.path.dirname(src), clean_new)
     )
-    if not any(is_safe_path(dst, allowed) for allowed in allowed_dirs):
+    if not vault_paths.is_within_any(dst, allowed_dirs):
         return None, NOTE_DENIED
     # A pure case-change (`note.md` -> `Note.md`) resolves `dst` to the same
     # on-disk file as `src` on a case-insensitive filesystem (macOS's
@@ -68,19 +67,17 @@ def rename_note(
     it. `new_name` stays in the same folder unless it carries a separator.
     `NOTE_NOT_FOUND` / `NOTE_EXISTS` / `NOTE_DENIED` as for the other note
     ops."""
-    mv, allowed_dirs = (
-        vault_paths.get_master_vault(),
-        vault_paths.get_allowed_dirs(profile),
-    )
-    if not mv or not allowed_dirs:
+    scope = vault_paths.resolve_sandbox(profile)
+    if scope is None:
         return NOTE_DENIED
+    mv, allowed_dirs = scope
     src = resolve_existing_note(profile, old_name)
     if src is None:
         return NOTE_NOT_FOUND
     # Defense-in-depth re-check, same as `delete_note` — `resolve_existing_note`
     # already gates every path it returns on `is_safe_path`, but a rename
     # shouldn't rely on that invariant alone holding forever.
-    if not any(is_safe_path(src, allowed) for allowed in allowed_dirs):
+    if not vault_paths.is_within_any(src, allowed_dirs):
         return NOTE_DENIED
 
     dst, error = _resolve_rename_destination(mv, allowed_dirs, src, new_name)

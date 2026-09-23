@@ -72,6 +72,27 @@ def get_allowed_dirs(profile: dict[str, Any]) -> list[str]:
         return []
 
 
+def is_within_any(path: str, allowed_dirs: list[str]) -> bool:
+    """Whether `path` resolves safely inside at least one of `allowed_dirs`
+    — the sandbox-containment check every vault-mutating module repeats
+    before touching the filesystem."""
+    return any(is_safe_path(path, allowed) for allowed in allowed_dirs)
+
+
+def resolve_sandbox(profile: dict[str, Any]) -> tuple[str, list[str]] | None:
+    """The active vault and this persona's allowed directories, or `None`
+    if either isn't configured — the "resolve vault + sandbox, bail if
+    either's missing" precondition nearly every vault route/handler needs
+    before doing anything else. Callers keep choosing their own denial
+    return value (a sentinel, an empty result, an HTTP exception), since
+    that varies by caller."""
+    mv = get_master_vault()
+    allowed_dirs = get_allowed_dirs(profile)
+    if not mv or not allowed_dirs:
+        return None
+    return mv, allowed_dirs
+
+
 def get_primary_dir(profile: dict[str, Any]) -> str | None:
     """The persona's first allowed directory — where a bare (unqualified)
     note name is created, as opposed to an explicit `Folder/Note` path."""

@@ -11,7 +11,6 @@ from contextlib import ExitStack, contextmanager
 from typing import Any, Iterator
 
 from sympose import vault_paths
-from sympose.security import is_safe_path
 from sympose.vault_write_concurrency import NOTE_CONFLICT, mtime_matches
 from sympose.vault_write_resolve import resolve_existing_note
 from sympose.vault_write_status import NOTE_DENIED, NOTE_NOT_FOUND
@@ -76,17 +75,15 @@ def overwrite_note(
     persona's sandbox returns `NOTE_DENIED`; a caller-supplied
     `expected_mtime` that no longer matches the file on disk returns
     `NOTE_CONFLICT` instead of clobbering a concurrent write."""
-    mv, allowed_dirs = (
-        vault_paths.get_master_vault(),
-        vault_paths.get_allowed_dirs(profile),
-    )
-    if not mv or not allowed_dirs:
+    scope = vault_paths.resolve_sandbox(profile)
+    if scope is None:
         return NOTE_DENIED
+    mv, allowed_dirs = scope
 
     target_file = resolve_existing_note(profile, note_name)
     if target_file is None:
         return NOTE_NOT_FOUND
-    if not any(is_safe_path(target_file, allowed) for allowed in allowed_dirs):
+    if not vault_paths.is_within_any(target_file, allowed_dirs):
         return NOTE_DENIED
     with get_file_lock(target_file):
         if not mtime_matches(target_file, expected_mtime):

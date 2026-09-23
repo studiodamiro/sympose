@@ -128,10 +128,10 @@ def search_structured(
     derives two tiers — the folder in view, and everything beyond it —
     from this one unscoped list, and a low cap could starve the in-folder
     tier if enough out-of-folder matches happened to come first."""
-    mv = vault_paths.get_master_vault()
-    allowed_dirs = vault_paths.get_allowed_dirs(profile)
-    if not mv or not allowed_dirs:
+    scope = vault_paths.resolve_sandbox(profile)
+    if scope is None:
         return []
+    mv, allowed_dirs = scope
 
     query_clean = query.lower().strip().strip("\"'")
     if not query_clean:

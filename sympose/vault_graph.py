@@ -50,12 +50,10 @@ def get_vault_tree(profile: dict[str, Any]) -> list[dict[str, Any]]:
     to the persona's allowed folders. Rebuilt fresh from disk on every call
     (no persisted manifest cache — see `vault_manifest_build`'s module
     docstring); `[]` with no vault or no readable folders."""
-    mv = vault_paths.get_master_vault()
-    if not mv:
+    scope = vault_paths.resolve_sandbox(profile)
+    if scope is None:
         return []
-    allowed_dirs = vault_paths.get_allowed_dirs(profile)
-    if not allowed_dirs:
-        return []
+    mv, allowed_dirs = scope
 
     mv_real = os.path.realpath(mv)
     prefixes: list[str] = []

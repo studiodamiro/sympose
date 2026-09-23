@@ -17,6 +17,7 @@ import os
 from typing import Any
 
 from sympose.security import is_safe_path
+from sympose.vault_paths import is_within_any
 from sympose.vault_trash_index import forget_clash, load_index, original_relpath
 from sympose.vault_write import get_file_lock, get_file_locks
 from sympose.vault_write_status import NOTE_DENIED, NOTE_EXISTS, NOTE_NOT_FOUND
@@ -62,7 +63,7 @@ def list_trashed(mv: str, allowed_dirs: list[str]) -> list[dict[str, Any]]:
             trash_rel = os.path.relpath(fp, troot).replace(os.sep, "/")
             orig_rel = index.get(trash_rel, trash_rel)
             orig_abs = os.path.join(mv, orig_rel)
-            if not any(is_safe_path(orig_abs, a) for a in allowed_dirs):
+            if not is_within_any(orig_abs, allowed_dirs):
                 continue
             try:
                 st = os.stat(fp)
@@ -117,7 +118,7 @@ def restore(mv: str, allowed_dirs: list[str], trash_rel: str) -> str:
         return entry
     src, troot, trash_rel_actual, orig_rel = entry
     dst = os.path.normpath(os.path.join(mv, orig_rel))
-    if not any(is_safe_path(dst, a) for a in allowed_dirs):
+    if not is_within_any(dst, allowed_dirs):
         return NOTE_DENIED
     # Locks both ends: `src` against a concurrent restore/purge of the same
     # trash entry, `dst` against a concurrent create/restore landing on the
@@ -144,7 +145,7 @@ def purge(mv: str, allowed_dirs: list[str], trash_rel: str) -> str:
     if isinstance(entry, str):
         return entry
     src, troot, trash_rel_actual, orig_rel = entry
-    if not any(is_safe_path(os.path.join(mv, orig_rel), a) for a in allowed_dirs):
+    if not is_within_any(os.path.join(mv, orig_rel), allowed_dirs):
         return NOTE_DENIED
     try:
         with get_file_lock(src):

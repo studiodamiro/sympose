@@ -39,12 +39,10 @@ def delete_folder(profile: dict[str, Any], folder_name: str) -> str:
     subfolders moves as one unit to `<vault>/.trash/`, the same rename
     `delete_note` uses. `NOTE_NOT_FOUND` when the path isn't a real folder,
     `NOTE_DENIED` outside the sandbox."""
-    mv, allowed_dirs = (
-        vault_paths.get_master_vault(),
-        vault_paths.get_allowed_dirs(profile),
-    )
-    if not mv or not allowed_dirs:
+    scope = vault_paths.resolve_sandbox(profile)
+    if scope is None:
         return NOTE_DENIED
+    mv, allowed_dirs = scope
     clean_name = folder_name.strip().strip("\"'").strip("/\\")
     if not clean_name:
         return NOTE_DENIED
@@ -59,7 +57,7 @@ def delete_folder(profile: dict[str, Any], folder_name: str) -> str:
     # simply be rmdir'd away, silently discarding the whole recovery surface.
     if target_dir in (os.path.normpath(mv), os.path.join(mv, TRASH_DIRNAME)):
         return NOTE_DENIED
-    if not any(is_safe_path(target_dir, allowed) for allowed in allowed_dirs):
+    if not vault_paths.is_within_any(target_dir, allowed_dirs):
         return NOTE_DENIED
     if not os.path.isdir(target_dir):
         return NOTE_NOT_FOUND
@@ -91,16 +89,14 @@ def delete_note(profile: dict[str, Any], note_name: str) -> str:
     """Move a vault note to `<vault>/.trash/` preserving its relative path —
     recoverable, and `.trash` is already an ignored folder. A name clash in
     the trash gets a timestamp suffix."""
-    mv, allowed_dirs = (
-        vault_paths.get_master_vault(),
-        vault_paths.get_allowed_dirs(profile),
-    )
-    if not mv or not allowed_dirs:
+    scope = vault_paths.resolve_sandbox(profile)
+    if scope is None:
         return NOTE_DENIED
+    mv, allowed_dirs = scope
     src = resolve_existing_note(profile, note_name)
     if src is None:
         return NOTE_NOT_FOUND
-    if not any(is_safe_path(src, allowed) for allowed in allowed_dirs):
+    if not vault_paths.is_within_any(src, allowed_dirs):
         return NOTE_DENIED
 
     old_rel = os.path.relpath(src, mv)

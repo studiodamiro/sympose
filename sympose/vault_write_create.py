@@ -8,7 +8,6 @@ import os
 from typing import Any
 
 from sympose import vault_paths
-from sympose.security import is_safe_path
 from sympose.vault_write import get_file_lock, write_atomic_text
 from sympose.vault_write_status import NOTE_DENIED, NOTE_EXISTS
 
@@ -72,7 +71,7 @@ def _resolve_create_target(
     every allowed directory."""
     base = mv if ("/" in clean_name or "\\" in clean_name) else (primary_dir or mv)
     target = os.path.normpath(os.path.join(base, clean_name))
-    if not any(is_safe_path(target, allowed) for allowed in allowed_dirs):
+    if not vault_paths.is_within_any(target, allowed_dirs):
         return None
     return target
 
@@ -89,13 +88,11 @@ def create_note(
     is seeded so the editor opens onto the same frontmatter a hand-created
     note in that folder would get; a folder without a dedicated template
     falls back to a minimal title stub."""
-    mv, allowed_dirs, primary_dir = (
-        vault_paths.get_master_vault(),
-        vault_paths.get_allowed_dirs(profile),
-        vault_paths.get_primary_dir(profile),
-    )
-    if not mv or not allowed_dirs:
+    scope = vault_paths.resolve_sandbox(profile)
+    if scope is None:
         return NOTE_DENIED
+    mv, allowed_dirs = scope
+    primary_dir = vault_paths.get_primary_dir(profile)
     clean_name = note_name.strip().strip("\"'").lstrip("/\\")
     if not clean_name:
         return NOTE_DENIED
@@ -142,13 +139,11 @@ def create_folder(profile: dict[str, Any], folder_name: str) -> str:
     vault and lands under the master vault when it contains a separator,
     otherwise in the persona's primary folder. `NOTE_EXISTS` when the path
     is already a file or directory, `NOTE_DENIED` outside the sandbox."""
-    mv, allowed_dirs, primary_dir = (
-        vault_paths.get_master_vault(),
-        vault_paths.get_allowed_dirs(profile),
-        vault_paths.get_primary_dir(profile),
-    )
-    if not mv or not allowed_dirs:
+    scope = vault_paths.resolve_sandbox(profile)
+    if scope is None:
         return NOTE_DENIED
+    mv, allowed_dirs = scope
+    primary_dir = vault_paths.get_primary_dir(profile)
     clean_name = folder_name.strip().strip("\"'").strip("/\\")
     if not clean_name:
         return NOTE_DENIED

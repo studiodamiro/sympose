@@ -53,12 +53,10 @@ def resolve_existing_note(profile: dict[str, Any], note_name: str) -> str | None
     """Absolute path of the file for `note_name`, or `None`: direct path
     under the master vault → basename in an allowed folder → recursive
     case-insensitive stem match."""
-    mv, allowed_dirs = (
-        vault_paths.get_master_vault(),
-        vault_paths.get_allowed_dirs(profile),
-    )
-    if not mv or not allowed_dirs:
+    scope = vault_paths.resolve_sandbox(profile)
+    if scope is None:
         return None
+    mv, allowed_dirs = scope
     clean = note_name.strip().strip("\"'")
     if not clean.endswith(".md"):
         clean += ".md"

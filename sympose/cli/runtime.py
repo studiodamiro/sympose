@@ -9,7 +9,6 @@ The chat-turn dispatch/streaming path itself lives in `turns.py`, split
 out to hold the 200-LOC-per-file cap."""
 
 from rich.style import Style
-from rich.text import Text
 
 from sympose.cli import picker, transcript as transcript_mod
 from sympose.cli.commands import COMMANDS
@@ -23,9 +22,7 @@ async def run_command(app, command) -> None:
         transcript_mod.mount_line(app, "Commands:", "system")
         for c in COMMANDS:
             color = app.theme_color("error", "red") if c.danger else app.theme_color("primary", "cyan")
-            line = Text()
-            line.append(f"  {c.name:<10}", style=Style(color=color, bold=True))
-            line.append(c.summary)
+            line = transcript_mod.styled_line(f"  {c.name:<10}", Style(color=color, bold=True), c.summary)
             transcript_mod.mount_line(app, line, "system")
     elif command.name == "/model":
         await picker.open_picker(

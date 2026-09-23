@@ -6,9 +6,21 @@ around "system" lines — hints, `/help` output, confirmations, errors.
 Those always stay tight against whatever surrounds them, so a menu-like
 block never picks up the chat's own breathing room."""
 
+from rich.style import Style
+from rich.text import Text
 from textual.widgets import Static
 
 _CHAT_SPEAKERS = {"user", "persona"}
+
+
+def styled_line(prefix: str, prefix_style: Style, body: str) -> Text:
+    """A `rich.text.Text` built from a styled prefix followed by a plain
+    body — the shape shared by the "You" line, a streamed reply's colored
+    header, and `/help`'s colored command names."""
+    text = Text()
+    text.append(prefix, style=prefix_style)
+    text.append(body)
+    return text
 
 
 def mount_line(app, content, speaker: str) -> Static:

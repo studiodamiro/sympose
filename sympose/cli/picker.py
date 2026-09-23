@@ -36,13 +36,23 @@ def close_panel(app) -> None:
     _sync_composer_spacing(app)
 
 
+def _prepare_panel(app, panel: SelectionPanel, kind: str) -> None:
+    """Shared pre-mount setup for both a focused numbered picker and the
+    unfocused autocomplete overlay: close whatever's open, install the new
+    panel as current. Mounting itself (awaited-and-focused for a numbered
+    picker, fire-and-forget for the autocomplete overlay) and the trailing
+    `_sync_composer_spacing` call stay each caller's own job, since the
+    await/focus difference is the one real distinction between the two."""
+    close_panel(app)
+    app.panel = panel
+    app.panel_kind = kind
+
+
 async def open_picker(app, kind: str, title: str, options: list[SelectionOption]) -> None:
     """Mounts a focused picker — digit-key selection applies while it
     holds focus, per `selection.py`'s scoping rule."""
-    close_panel(app)
     panel = SelectionPanel(title, options)
-    app.panel = panel
-    app.panel_kind = kind
+    _prepare_panel(app, panel, kind)
     await app.mount(panel, before="#composer")
     panel.focus()
     _sync_composer_spacing(app)
@@ -75,12 +85,10 @@ def render_tab_cycle(app) -> None:
 
 
 def _render_commands(app, matches, highlighted: int) -> None:
-    close_panel(app)
     options = [
         SelectionOption(f"{c.name} — {c.summary}", c.name, danger=c.danger) for c in matches
     ]
     panel = SelectionPanel("Commands", options, numbered=False, initial_highlight=highlighted)
-    app.panel = panel
-    app.panel_kind = "autocomplete"
+    _prepare_panel(app, panel, "autocomplete")
     app.mount(panel, before="#composer")
     _sync_composer_spacing(app)

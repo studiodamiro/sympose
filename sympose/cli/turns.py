@@ -81,9 +81,7 @@ async def send_message(app, value: str) -> None:
 
 async def _send_message(app, value: str) -> None:
     transcript = app.transcript
-    line = Text()
-    line.append("You  ", style=Style(bold=True, dim=True))
-    line.append(value)
+    line = transcript_mod.styled_line("You  ", Style(bold=True, dim=True), value)
     user_widget = transcript_mod.mount_line(app, line, "user")
     transcript.scroll_end(animate=False)
 
@@ -167,9 +165,9 @@ def _stream_reply(app, reply: str, header: str) -> None:
         shown["count"] += 1
         body = " ".join(words[: shown["count"]])
         done = shown["count"] >= len(words)
-        text = Text()
-        text.append(header + "\n", style=Style(color=accent, bold=True))
-        text.append(body + ("" if done else " ▋"))
+        text = transcript_mod.styled_line(
+            header + "\n", Style(color=accent, bold=True), body + ("" if done else " ▋")
+        )
         reply_widget.update(text)
         transcript.scroll_end(animate=False)
         if done:

@@ -7,12 +7,10 @@ engine's `/model` picker override passes straight through (docs/decisions/007)
 — the local Ollama model is listed first/default, matching the engine's own
 local-first default, not the cloud-first ordering this list used to have."""
 
-import glob
-import os
 from dataclasses import dataclass
 
 from sympose.engine.model import DEFAULT_LOCAL_MODEL
-from sympose.profile import get_profile, profiles_dir
+from sympose.profile import list_profiles
 
 
 @dataclass(frozen=True)
@@ -33,37 +31,14 @@ class ModelOption:
 
 
 def list_personas() -> list[PersonaOption]:
-    """Every configured `profiles/*.yaml` handle, loaded through
-    `profile.get_profile` rather than read directly, so a malformed or
-    unsafe file is handled the same way the vault routes already handle
-    it. Falls back to just "samantha" if the profiles directory doesn't
-    exist yet, matching `get_profile`'s own fallback.
-
-    Handles are lowercased — `get_profile` itself lowercases the handle
-    before building a file path, so a `Samantha.yaml` on disk is still
-    read as "samantha"; without lowering it here too, the two would
-    disagree (this picker showing "Samantha", the default-persona lookup
-    in `app.py` comparing against the lowercase literal and missing)."""
-    base = profiles_dir()
-    handles = sorted(
-        {
-            os.path.splitext(os.path.basename(path))[0].lower()
-            for path in glob.glob(os.path.join(base, "*.yaml"))
-        }
-    )
-    if not handles:
-        handles = ["samantha"]
-    options = []
-    for handle in handles:
-        profile = get_profile(handle)
-        options.append(
-            PersonaOption(
-                handle=handle,
-                name=profile.get("name", handle.title()),
-                title=profile.get("title", ""),
-            )
-        )
-    return options
+    """The CLI's narrower projection of `profile.list_profiles()` — the
+    one canonical roster the dashboard's `GET /api/personas` also builds
+    on (docs/decisions/009), so a malformed/unsafe profile file is
+    already handled and handles are already lowercased/deduped there."""
+    return [
+        PersonaOption(handle=p["handle"], name=p["name"], title=p["title"])
+        for p in list_profiles()
+    ]
 
 
 MODEL_OPTIONS: list[ModelOption] = [

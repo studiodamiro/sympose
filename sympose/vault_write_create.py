@@ -63,6 +63,20 @@ def _render_template(raw_tmpl: str, title_heading: str, now: datetime.datetime) 
     ).strip()
 
 
+def _resolve_create_target(
+    mv: str, allowed_dirs: list[str], primary_dir: str | None, clean_name: str
+) -> str | None:
+    """Absolute target path for a new note/folder named `clean_name` — under
+    the master vault when it contains a path separator, otherwise the
+    persona's primary folder. `None` if the resolved path falls outside
+    every allowed directory."""
+    base = mv if ("/" in clean_name or "\\" in clean_name) else (primary_dir or mv)
+    target = os.path.normpath(os.path.join(base, clean_name))
+    if not any(is_safe_path(target, allowed) for allowed in allowed_dirs):
+        return None
+    return target
+
+
 def create_note(
     profile: dict[str, Any], note_name: str, content: str | None = None
 ) -> str:
@@ -88,9 +102,8 @@ def create_note(
     if not clean_name.endswith(".md"):
         clean_name += ".md"
 
-    base = mv if ("/" in clean_name or "\\" in clean_name) else (primary_dir or mv)
-    target_file = os.path.normpath(os.path.join(base, clean_name))
-    if not any(is_safe_path(target_file, allowed) for allowed in allowed_dirs):
+    target_file = _resolve_create_target(mv, allowed_dirs, primary_dir, clean_name)
+    if target_file is None:
         return NOTE_DENIED
 
     with get_file_lock(target_file):
@@ -140,9 +153,8 @@ def create_folder(profile: dict[str, Any], folder_name: str) -> str:
     if not clean_name:
         return NOTE_DENIED
 
-    base = mv if ("/" in clean_name or "\\" in clean_name) else (primary_dir or mv)
-    target_dir = os.path.normpath(os.path.join(base, clean_name))
-    if not any(is_safe_path(target_dir, allowed) for allowed in allowed_dirs):
+    target_dir = _resolve_create_target(mv, allowed_dirs, primary_dir, clean_name)
+    if target_dir is None:
         return NOTE_DENIED
 
     rel_display = os.path.relpath(target_dir, mv)

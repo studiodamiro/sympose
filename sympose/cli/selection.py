@@ -71,6 +71,13 @@ class SelectionPanel(OptionList):
         self._numbered = numbered
         self._initial_highlight = initial_highlight
         super().__init__(**kwargs)
+        # Unnumbered (the autocomplete overlay) must never take focus, not
+        # even via a mouse click — `OptionList`'s own default click handler
+        # focuses whatever it's clicked on before checking if an option was
+        # actually hit, which would otherwise steal focus from the
+        # composer and silently swallow the next keystroke (nothing sets
+        # this, so it inherited `OptionList`'s default `can_focus = True`).
+        self.can_focus = numbered
 
     def on_mount(self) -> None:
         self.border_title = self._title

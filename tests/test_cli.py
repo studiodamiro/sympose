@@ -132,6 +132,32 @@ def test_autocomplete_populates_matching_options(profiles):
     run_async(scenario())
 
 
+def test_autocomplete_overlay_click_does_not_steal_focus(profiles):
+    """Regression test for a `/code-review` finding: the `/`-autocomplete
+    overlay never set `can_focus = False`, so a mouse click on it (even
+    the border, not just an option row) stole focus from the composer and
+    silently swallowed the next keystroke — contradicting the documented
+    "Input keeps focus throughout" guarantee."""
+
+    async def scenario():
+        app = SymposeCLI()
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            app.composer.focus()
+            await pilot.press("/", "m", "o", "d")
+            await pilot.pause()
+            assert app.panel_kind == "autocomplete"
+            clicked = await pilot.click("SelectionPanel", offset=(3, 0))
+            await pilot.pause()
+            assert clicked
+            assert app.focused is app.composer
+            await pilot.press("1")
+            await pilot.pause()
+            assert app.composer.value == "/mod1"
+
+    run_async(scenario())
+
+
 def test_digit_keys_type_literally_during_autocomplete(profiles):
     """Numbers are reserved for the model/persona/history pickers —
     typing a digit while the `/`-autocomplete overlay is showing must

@@ -64,10 +64,11 @@ class Passage:
     tags: tuple[str, ...]
     tf: Counter  # weighted term counts (body + title/tag/heading, boosted)
     length: int  # body terms, for length normalization
-    # Terms from the note's title, tags, or this passage's heading: a match on
-    # one of these says the message is about this note, where a body-only
-    # match on an ordinary word often does not.
-    topical: frozenset[str]
+    # The term sets of the passage's own labels: its note's title, the filename when it
+    # differs, each tag, and this passage's heading. A message that names half of one of
+    # them is about this note, where an ordinary word of a longer label, or of the body,
+    # often is not (docs/decisions/024).
+    labels: tuple[frozenset[str], ...]
     # Terms from the note's title alone (filename or `title:`), one set shared
     # by all of the note's passages. `tf` mixes them into every passage, so
     # this tells a message that is just a note's name from one that shares words
@@ -181,10 +182,12 @@ def build_index(notes: list[dict[str, Any]]) -> Index:
                 tf[term] += _HEADING_WEIGHT
             tf.update(header_terms)
             note_terms.update(tf)
-            topical = frozenset(heading_terms) | frozenset(header_terms)
+            labels = tuple(dict.fromkeys(
+                frozenset(index_terms(label)) for label in (title, stem, *tags, heading)
+            ))
             passages.append(
                 Passage(
-                    note["rel_path"], title, heading, text, tags, tf, len(body_terms), topical, title_terms
+                    note["rel_path"], title, heading, text, tags, tf, len(body_terms), labels, title_terms
                 )
             )
             made_any = True

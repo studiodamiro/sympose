@@ -22,7 +22,8 @@ HOW_YOU_WORK = (
     "short recaps shown with the message, when there are any; otherwise you know only this "
     "conversation and the notes found for the current message. "
     "When the user asks what \"we\" decided, planned or wrote, they mean the notes in their "
-    "vault: answer from the notes or say you couldn't find it there, don't say you don't remember."
+    "vault: answer from the notes or say you couldn't find it there, don't say you don't remember. "
+    "You have no internet, but you can answer general questions from your own knowledge."
 )
 
 GROUNDING_RULE = (
@@ -63,13 +64,15 @@ ANSWER_FROM_REFERENCE = "If the message is about Sympose itself, answer it from 
 
 # Next to the notes, only when there are some.
 ANSWER_FROM_NOTES = (
-    "Answer the user's message below from these notes, in your own voice. If they don't "
-    "answer it, say you couldn't find it in the vault rather than guessing."
+    "These notes were found by keywords and may not be about the user's message. If the message is "
+    "about the user's own notes, answer from them in your own voice, and if they don't answer it, say "
+    "you couldn't find it in the vault rather than guessing. If it is a general question that does not "
+    "depend on the vault, ignore the notes and answer from your own knowledge."
 )
 
 NO_NOTES = (
-    "No notes in the vault matched this message. If it asks about something in the vault, "
-    "say you couldn't find it there rather than guessing; otherwise just answer."
+    "No notes in the vault matched this message. If it asks about something in the vault, say you "
+    "couldn't find it there rather than guessing; otherwise answer from your own knowledge."
 )
 
 # Earlier conversations (docs/decisions/023): the recaps of them travel with the

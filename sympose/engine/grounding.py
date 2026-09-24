@@ -25,6 +25,8 @@ _MIN_NOTES_FOR_SHARE = 10
 # strong hit is not diluted by a tail of weak ones.
 _RELATIVE_CUTOFF = 0.4
 _PASSAGES_PER_NOTE = 2
+# Of the message's informative words a passage must match at least this share (and two).
+_MIN_SHARE = 0.4
 # "sam" is addressing Samantha; two letters would be a prefix of too many words.
 _MIN_ADDRESS_PREFIX = 3
 
@@ -78,6 +80,14 @@ def _own_terms(passage: Passage) -> set[str]:
     return own
 
 
+def _covers_a_field(passage: Passage, matched: list[str]) -> bool:
+    """The message names at least half of one of the passage's own labels (its note's
+    title, the filename, a tag, or its heading). One ordinary word of a longer label
+    ("name" in "Company Name Rationale") is not the note being asked for."""
+    said = set(matched)
+    return any(label and 2 * len(label & said) >= len(label) for label in passage.labels)
+
+
 def _qualifies(passage: Passage, matched: list[str], informative: list[str], strict: bool) -> bool:
     """Precision over recall: a wrong note derails a small model's reply
     (tested on the default model: it answered the irrelevant context instead
@@ -99,8 +109,8 @@ def _qualifies(passage: Passage, matched: list[str], informative: list[str], str
         own = _own_terms(passage)
         return len([t for t in matched if t in own]) >= 2 or set(informative) <= passage.title_terms
     return (
-        any(t in passage.topical for t in matched)
-        or len(matched) >= 2
+        _covers_a_field(passage, matched)
+        or len(matched) >= max(2, math.ceil(_MIN_SHARE * len(informative)))
         or len(informative) == 1
     )
 

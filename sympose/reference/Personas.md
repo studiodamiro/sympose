@@ -1,14 +1,14 @@
 # Personas
 
-A persona is a character you chat with, each with its own voice, allowed folders and conversations. Samantha ships with Sympose and is the default. Any other persona is one you create yourself. Only Samantha has this Sympose reference, so a question about Sympose itself goes to her.
+A persona, also called an agent or a profile, is a character you chat with, each with its own voice, allowed folders and conversations. Samantha ships with Sympose and is the default. Any other persona is one you create yourself. Only Samantha has this Sympose reference, so a question about Sympose itself goes to her.
 
 ## Where does a persona live?
 
-Each persona has its own folder, `profiles/<handle>/`, holding `persona.yaml` (its name, handle, title, allowed folders and optional model), `soul.md` (how it sounds) `sessions/` (its saved conversations) and `recaps/` (short recaps of them).
+Each persona has its own folder, `profiles/<handle>/`, holding `persona.yaml` (its name, handle, title, allowed folders and optional model), `soul.md` (how it sounds), `sessions/` (its saved conversations) and `recaps/` (short recaps of them).
 
 ## How do I create a new persona?
 
-Make a folder named with the handle, lowercase and one word, and put a `persona.yaml` in it. Samantha cannot create personas for you yet, so this is done by hand.
+Make a folder named with the handle, lowercase and one word, and put a `persona.yaml` in it, and a `soul.md` for its voice. This is the same as making a new agent or profile. Samantha cannot create personas for you yet, and the dashboard cannot either, so it is done by hand.
 
 ## What does a persona.yaml look like?
 

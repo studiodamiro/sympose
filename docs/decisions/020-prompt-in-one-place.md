@@ -75,3 +75,5 @@ The system prompt grew from about 500 to about 750 tokens (measured with the eng
 - **Telling the model to always answer in one line from the notes.** Would flatten the persona's voice, which is the reason the persona exists.
 
 **Update (ADR 023):** the text now lives in `engine/prompt_text.py` and the layout in `engine/prompt.py`, which re-exports the text, so the file stays under the size cap and `prompt` is still the one place other code imports from.
+
+**Update (ADR 024):** the notes directive no longer says to answer from the notes unconditionally: a general question that does not depend on the vault is answered from her own knowledge, and `HOW_YOU_WORK` says she has no internet.

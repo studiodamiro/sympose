@@ -49,3 +49,5 @@ Amended by ADR 021: a hit that rests on a single matched word is now put to the 
 - **Embeddings or a reranking model.** A materially bigger piece of infrastructure (an embedding model, a store, re-embedding on every edit) before the simpler mechanism has been shown insufficient; the eval's documented gap is how we will know.
 - **A model deciding what is relevant** (a rewriter, or a sub-agent). Costs a round trip on every turn, is slower and less predictable, and is excluded for sub-agents by the project's non-goals; the round-trip variant belongs to the follow-up slice, where it can be weighed as a reliability-versus-cost choice.
 - **Putting whole notes in the prompt.** Simple, but unbounded in size for a small local model, and it buries the relevant paragraph.
+
+**Update (ADR 024):** a passage now qualifies only when the message names at least half of one of its labels (title, a tag, or its heading), or matches at least two of its words and two fifths of the message's informative words, or the message has one informative word. One ordinary word of a long title, or two words of a long request, no longer attach a note.

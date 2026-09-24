@@ -131,6 +131,20 @@ LIVE_CASES: list[LiveCase] = [
         forbid=(r"switcher|VAULT_PATHS",),
         persona="ada",
     ),
+    # A general question needs no note (docs/decisions/024): she answers it herself, with or
+    # without unrelated notes attached (the trip request finds the Lisbon Trip note by one word).
+    LiveCase(
+        "general-knowledge-with-no-notes",
+        ("who wrote Pride and Prejudice?",),
+        expect=(r"Austen",),
+        forbid=(r"(?:my|your) notes|couldn't find|can't find|in the vault",),
+    ),
+    LiveCase(
+        "general-knowledge-with-an-unrelated-note-attached",
+        ("can you name some famous explorers from history for my trip?",),
+        expect=(r"Magellan|Columbus|Marco Polo|Vasco|Cook|Drake|Zheng|Shackleton|Amundsen|Livingstone|Ibn Battuta|Cabot",),
+        forbid=(r"(?:my|your) notes (?:don't|do not|doesn't)|couldn't find|can't find any|not in (?:the|your) vault",),
+    ),
     # Recaps of earlier conversations (docs/decisions/023).
     LiveCase(
         "recap-last-time",

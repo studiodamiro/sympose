@@ -113,6 +113,23 @@ REF_CASES: list[RefCase] = [
         first="Personas.md",
     ),
     RefCase(
+        "create-agent",
+        "im thinking or creating a new agent. a coder in nature.",
+        find=("persona.yaml",),
+        first="Personas.md",
+    ),
+    RefCase(
+        "create-profile-with-a-typo",
+        "can you help me create a ne profile for sympose or not? your drifting..",
+        find=("persona.yaml",),
+    ),
+    RefCase(
+        "make-agent-in-dashboard",
+        "can I make a new agent from the dashboard?",
+        find=("the dashboard cannot either",),
+        first="Personas.md",
+    ),
+    RefCase(
         "soul-file",
         "what goes in a soul file?",
         find=("voice",),

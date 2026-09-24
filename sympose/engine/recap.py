@@ -15,6 +15,7 @@ and is left as it is; a header with no text means "looked at, nothing to carry o
 
 import os
 import re
+import tempfile
 from datetime import datetime
 
 from sympose import settings_store
@@ -57,13 +58,21 @@ def load(handle: str, session_id: str) -> tuple[int | None, str] | None:
 
 def write(handle: str, session_id: str, turns: int, text: str) -> None:
     """Save a recap whole or not at all: an interrupted write must not leave an empty,
-    headerless file, which would read as the user's own and never be rewritten."""
+    headerless file, which would read as the user's own and never be rewritten. The
+    temporary file has its own name, so two processes refreshing at once do not share it."""
     target = path(handle, session_id)
-    os.makedirs(os.path.dirname(target), exist_ok=True)
+    directory = os.path.dirname(target)
+    os.makedirs(directory, exist_ok=True)
     header = f"<!-- turns: {turns} -->\n"
-    with open(target + ".tmp", "w", encoding="utf-8") as f:
-        f.write(f"{header}{text}\n" if text else header)
-    os.replace(target + ".tmp", target)
+    fd, temporary = tempfile.mkstemp(dir=directory, suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(f"{header}{text}\n" if text else header)
+        os.replace(temporary, target)
+    except BaseException:
+        if os.path.exists(temporary):
+            os.unlink(temporary)
+        raise
 
 
 def _date(session_id: str) -> str:

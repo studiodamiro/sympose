@@ -333,6 +333,16 @@ def test_a_session_whose_record_has_no_update_time_is_skipped_not_guessed(asked)
     assert asked == [] and not has_recap(NEW)
 
 
+def test_an_unusable_reply_stops_the_run_so_it_costs_one_call_not_three(asked):
+    for sid in (NEW, OLD, OLDER):
+        talk(sid)
+    asked.replies[:] = [ModelReply("They were choosing a data", 5, truncated=True)]
+
+    recap_refresh.refresh("samantha", now=LATER)
+
+    assert len(asked) == 1 and not any(has_recap(s) for s in (NEW, OLD, OLDER))
+
+
 def test_a_reply_of_only_whitespace_is_not_kept(asked):
     talk(NEW)
     asked.replies[:] = [ModelReply("  \n ", 5)]
@@ -598,6 +608,23 @@ def test_an_interrupted_write_leaves_the_earlier_recap_as_it_was(asked, monkeypa
     recap_refresh.refresh("samantha", now=LATER)
 
     assert recap_file(NEW) == "<!-- turns: 2 -->\nThe earlier recap.\n"
+    assert os.listdir(session.recaps_dir("samantha")) == [f"{NEW}.md"]  # and no half-written file is left
+
+
+def test_two_writers_do_not_share_a_temporary_file(monkeypatch):
+    sources = []
+    real_replace = os.replace
+
+    def spy(src, dst):
+        sources.append(src)
+        real_replace(src, dst)
+
+    monkeypatch.setattr(recap.os, "replace", spy)
+    recap.write("samantha", NEW, 2, "first")
+    recap.write("samantha", NEW, 2, "second")
+
+    assert len(set(sources)) == 2 and all(not s.endswith(f"{NEW}.md.tmp") for s in sources)
+    assert recap_file(NEW) == "<!-- turns: 2 -->\nsecond\n"
 
 
 def test_throwaway_sessions_do_not_starve_a_real_one_of_its_recap(asked):

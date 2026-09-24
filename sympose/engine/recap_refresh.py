@@ -86,7 +86,7 @@ def _write_one(
         cut = max(text.rfind(mark) for mark in ".!?")
         text = text[: cut + 1] if cut > 0 else None
     if text is None:
-        return True
+        return False  # nothing usable: stop, so a model that keeps doing this costs one call per launch
     try:
         recap.write(handle, session_id, len(session_turns), text)
     except OSError as e:

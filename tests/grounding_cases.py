@@ -150,9 +150,14 @@ CASES: list[Case] = [
         "common-word-attaches-notes-when-the-distinctive-word-is-absent",
         "can you help me plan dinner",
         none=True,
-        known_gap="'plan' matches the Fitness Plan and Budget notes while 'dinner' "
-        "is nowhere in the vault. In a real vault 'plan' is common enough to be "
-        "ignored or weak; in this 17-note fixture it stands out. Kept to show the class.",
+        known_gap="'plan' is half of the two-word title Training Plan, so it grounds that note "
+        "while 'dinner' is nowhere in the vault. A rare word could be told from an ordinary one "
+        "only by how many notes use it, which was measured not to separate them (ADR 021).",
+    ),
+    Case(
+        "a-long-general-request-sharing-ordinary-words-grounds-nothing",
+        "please suggest a good name for my new project and something to do over the next few weeks",
+        none=True,
     ),
     Case(
         "lexical-ceiling",
@@ -215,11 +220,11 @@ FOLLOWUP_CASES: list[FollowupCase] = [
     FollowupCase("thanks-attaches-nothing-old", _ATLAS_CHAT, "thanks, that helps!", followup.NO_TOPIC_QUERY, none=True),
     FollowupCase("small-talk-attaches-nothing-old", _ATLAS_CHAT, "how are you today?", followup.NO_TOPIC_QUERY, none=True),
     # Weak evidence (one matched word) is put to the rewrite, with no earlier chat too:
-    # 'plan' alone attaches the Fitness Plan and Budget notes to a dinner question.
+    # 'trip' alone attaches the Lisbon Trip note to a request to plan a trip.
     FollowupCase(
         "a-lone-title-word-in-chatter-is-dropped-when-the-model-says-no-topic",
         (),
-        "can you help me plan dinner",
+        "can you help me plan a trip",
         followup.NO_TOPIC_QUERY,
         none=True,
     ),

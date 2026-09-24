@@ -406,3 +406,28 @@ def test_only_the_recap_of_the_real_last_conversation_is_called_that():
     assert "- An earlier conversation (2026-09-24): Was choosing a database" in text
     assert "- An earlier conversation (2026-09-23): Planned a trip." in text
     assert text.index("Planned a trip.") < text.index("Was choosing a database")  # the newest still comes last
+
+
+# -- general questions need no note (docs/decisions/024) --
+
+
+def test_the_notes_may_be_ignored_for_a_general_question_but_not_for_one_about_the_vault():
+    text = prompt.build_user_turn("who wrote Emma?", [_grounding_result()])
+
+    assert "found by keywords and may not be about the user's message" in text
+    assert "If it is a general question that does not depend on the vault, ignore the notes and answer from your own knowledge." in text
+    assert "if they don't answer it, say you couldn't find it in the vault rather than guessing" in text
+
+
+def test_with_no_notes_a_general_question_is_answered_from_her_own_knowledge():
+    text = prompt.build_user_turn("who wrote Emma?", [])
+
+    assert "answer from your own knowledge" in text
+    assert "say you couldn't find it there rather than guessing" in text  # a question about the vault still is not guessed
+
+
+def test_she_is_told_she_has_no_internet_and_may_answer_general_questions_herself():
+    text = prompt.build_system_prompt({"name": "Samantha"})
+
+    assert "You have no internet, but you can answer general questions from your own knowledge." in text
+    assert "Only state facts about the user's vault that are backed by the notes" in text  # the vault rule stays

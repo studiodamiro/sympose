@@ -364,3 +364,89 @@ def test_junk_in_the_aliases_does_not_break_grounding(vault_root):
     _write(vault_root, "Wine.md", "The merlot from the cellar.")
 
     assert grounding.ground({**WHOLE, "aliases": [None, 3, {"a": 1}, ""]}, "merlot") != []
+
+
+# -- a longer message needs a bigger share of its words in the note (docs/decisions/024) --
+
+
+def _grounded(vault_root, message):
+    return [h["rel_path"] for h in grounding.ground(WHOLE, message)]
+
+
+def test_two_ordinary_words_of_a_long_request_do_not_ground_a_note(vault_root):
+    # The message that pulled unrelated notes into a general-knowledge question: two of its
+    # seven words ("name", "history") sit in a note about something else.
+    _write(vault_root, "Dear Future.md", "In history we choose a name for each child, and write it down.")
+
+    assert _grounded(vault_root, "I want you to suggest names of female coders existed from human history") == []
+
+
+def test_the_same_two_words_ground_a_short_message(vault_root):
+    _write(vault_root, "Dear Future.md", "In history we choose a name for each child, and write it down.")
+
+    assert _grounded(vault_root, "name history") == ["Dear Future.md"]
+
+
+def test_a_share_of_two_fifths_of_the_words_is_the_least_that_grounds_a_note(vault_root):
+    _write(vault_root, "Note.md", "alpha and beta appear here in the body text")
+
+    assert _grounded(vault_root, "alpha beta gamma delta epsilon") == ["Note.md"]  # 2 of 5: exactly 0.4
+    assert _grounded(vault_root, "alpha beta gamma delta epsilon zeta") == []  # 2 of 6: under it
+    assert _grounded(vault_root, "alpha beta gamma delta epsilon zeta") == []
+    _write(vault_root, "Note.md", "alpha beta and gamma appear here in the body text")
+    assert _grounded(vault_root, "alpha beta gamma delta epsilon zeta") == ["Note.md"]  # 3 of 6
+
+
+def test_one_ordinary_word_of_a_longer_title_does_not_ground_a_note(vault_root):
+    _write(vault_root, "Company Name Rationale.md", "Why the firm was called what it is called.")
+
+    assert _grounded(vault_root, "suggest a name for my agent") == []
+
+
+def test_half_of_a_notes_title_is_enough_to_ground_it(vault_root):
+    _write(vault_root, "Fitness Plan.md", "Run three times a week and stretch daily.")
+    _write(vault_root, "Company Name Rationale.md", "Why the firm was called what it is called.")
+
+    assert _grounded(vault_root, "how is my fitness going this long month of travelling around") == ["Fitness Plan.md"]
+    assert _grounded(vault_root, "explain the company name to my colleague in the long meeting") == ["Company Name Rationale.md"]
+
+
+def test_the_whole_of_a_one_word_title_grounds_it_however_long_the_message(vault_root):
+    _write(vault_root, "Atlas.md", "The database choice for the project.")
+
+    message = "tell me everything you remember about the Atlas decision from the long meeting last spring"
+    assert _grounded(vault_root, message) == ["Atlas.md"]
+
+
+def test_a_word_that_is_a_notes_whole_tag_grounds_it_and_one_of_two_tag_words_does_too(vault_root):
+    _write(vault_root, "One.md", "---\ntags: [baking]\n---\nStarter feeding schedule.")
+    _write(vault_root, "Two.md", "---\ntags: [deep-work]\n---\nFocus blocks in the morning.")
+
+    assert _grounded(vault_root, "any baking notes for the long weekend trip to visit family?") == ["One.md"]
+    assert _grounded(vault_root, "anything on work for my long weekend trip to visit family?") == ["Two.md"]
+
+
+def test_one_word_of_a_long_heading_does_not_ground_a_passage(vault_root):
+    _write(vault_root, "Ops.md", "# Ops\n\n## Storage backup schedule rotation\n\nEvery night at two.")
+
+    assert _grounded(vault_root, "help me schedule a long weekend trip to visit family") == []
+
+
+def test_naming_a_passages_whole_heading_grounds_it_however_long_the_message(vault_root):
+    _write(vault_root, "Ops.md", "# Ops\n\n## Backup schedule\n\nEvery night at two.")
+
+    message = "let us go over the backup schedule for the coming long winter season please"
+    assert _grounded(vault_root, message) == ["Ops.md"]
+
+
+def test_a_note_can_be_asked_for_by_half_of_its_title_or_half_of_its_filename(vault_root):
+    # The title in the front matter differs from the file name: either one alone counts.
+    _write(vault_root, "atlas-plan.md", "---\ntitle: Project Atlas Roadmap\n---\nMilestones for the year.")
+
+    assert _grounded(vault_root, "how is my atlas budget looking for the long winter season please") == ["atlas-plan.md"]
+
+
+def test_a_notes_front_matter_title_alone_can_ground_it_when_the_filename_says_something_else(vault_root):
+    _write(vault_root, "q3.md", "---\ntitle: Atlas Roadmap\n---\nMilestones for the year.")
+
+    assert _grounded(vault_root, "how is the roadmap looking for the long winter season please") == ["q3.md"]

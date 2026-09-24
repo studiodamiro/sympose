@@ -58,6 +58,18 @@ def test_system_prompt_does_not_crash_on_an_explicit_null_handle():
     assert "Your name is Sam." in text
 
 
+def test_she_is_told_the_other_names_the_user_may_call_her():
+    text = prompt.build_system_prompt({"name": "Samantha", "aliases": ["Sam", "Sammy"]})
+
+    assert "Your name is Samantha. The user may also call you Sam or Sammy." in text
+
+
+def test_with_no_aliases_the_identity_line_is_just_the_name():
+    for profile in ({"name": "Samantha"}, {"name": "Samantha", "aliases": []}, {"name": "Samantha", "aliases": [None, "", 3]}):
+        text = prompt.build_system_prompt(profile)
+        assert "Your name is Samantha." in text and "also call you" not in text
+
+
 def test_the_system_prompt_never_holds_the_notes_so_it_is_the_same_every_turn():
     """The notes travel with the question (docs/decisions/020): the system
     prompt and the history stay identical from turn to turn, which is what

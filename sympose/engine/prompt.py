@@ -115,7 +115,9 @@ def build_system_prompt(profile: dict[str, Any]) -> str:
     # default here would silently return `None` and crash on `.title()`.
     name = profile.get("name") or (profile.get("handle") or "Sam").title()
     soul = load_soul(profile["handle"]) if profile.get("handle") else None
-    return "\n\n".join([soul or DEFAULT_SOUL, f"Your name is {name}.", HOW_YOU_WORK, GROUNDING_RULE])
+    aliases = [a for a in profile.get("aliases") or [] if isinstance(a, str) and a.strip()]
+    identity = f"Your name is {name}." + (f" The user may also call you {' or '.join(aliases)}." if aliases else "")
+    return "\n\n".join([soul or DEFAULT_SOUL, identity, HOW_YOU_WORK, GROUNDING_RULE])
 
 
 def build_user_turn(user_message: str, grounding_results: list[dict[str, Any]], omitted: int = 0) -> str:

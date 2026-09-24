@@ -347,3 +347,20 @@ def test_contractions_that_are_also_words_stay_searchable(vault_root):
     [hit] = grounding.ground(WHOLE, "where is my passport id")
 
     assert hit["matched"] == 2  # passport and id
+
+
+def test_an_alias_that_is_not_a_prefix_of_the_name_is_addressing_too(vault_root):
+    _write(vault_root, "Sammy.md", "Sammy is the neighbour's dog and barks at night.")
+    plain = {**WHOLE, "name": "Samantha", "handle": "samantha"}
+
+    [without] = grounding.ground(plain, "hey sammy, how are you?")
+    [with_alias] = grounding.ground({**plain, "aliases": ["Sammy"]}, "hey sammy, how are you?")
+
+    assert without["matched"] == 1  # "sammy" is not a prefix of "samantha"
+    assert with_alias["matched"] == 0  # told it is one of her names
+
+
+def test_junk_in_the_aliases_does_not_break_grounding(vault_root):
+    _write(vault_root, "Wine.md", "The merlot from the cellar.")
+
+    assert grounding.ground({**WHOLE, "aliases": [None, 3, {"a": 1}, ""]}, "merlot") != []

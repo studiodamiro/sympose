@@ -177,6 +177,7 @@ def ground(profile: dict[str, Any], user_message: str, max_results: int = 5) -> 
     if scope is None:
         return []
     mv, allowed_dirs = scope
-    # The persona's name and handle: what the user calls her is addressing, not a topic.
-    address = frozenset(index_terms(f"{profile.get('name') or ''} {profile.get('handle') or ''}"))
+    # The persona's name, handle and aliases: what the user calls her is addressing, not a topic.
+    names = [profile.get("name") or "", profile.get("handle") or "", *(profile.get("aliases") or [])]
+    address = frozenset(index_terms(" ".join(n for n in names if isinstance(n, str))))
     return retrieve(_index_for(mv, allowed_dirs), user_message, max_results, address=address)

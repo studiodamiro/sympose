@@ -75,6 +75,24 @@ def test_model_and_skills_preserved_when_present(profiles_dir):
     assert p["skills"] == ["triage"]
 
 
+def test_aliases_default_to_none_and_are_kept_when_a_list(profiles_dir):
+    _write(profiles_dir, "dev", "name: Dev\n")
+    assert profile.get_profile("dev")["aliases"] == []
+    _write(profiles_dir, "samantha", "name: Samantha\naliases:\n  - Sam\n  - ' Sammy '\n")
+    assert profile.get_profile("samantha")["aliases"] == ["Sam", "Sammy"]
+
+
+def test_a_single_alias_written_as_a_string_is_one_alias(profiles_dir):
+    _write(profiles_dir, "samantha", "name: Samantha\naliases: Sam\n")
+    assert profile.get_profile("samantha")["aliases"] == ["Sam"]
+
+
+@pytest.mark.parametrize("value", ["{a: 1}", "42", "[1, null, '', '  ', {x: y}]", "~"])
+def test_malformed_aliases_are_ignored_not_fatal(profiles_dir, value):
+    _write(profiles_dir, "dev", f"name: Dev\naliases: {value}\n")
+    assert profile.get_profile("dev")["aliases"] == []
+
+
 # -- resolve_default_persona --
 
 

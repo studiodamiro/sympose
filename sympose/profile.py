@@ -87,6 +87,17 @@ def set_default_persona(handle: str) -> bool:
     return settings_store.set(_DEFAULT_PERSONA_SETTINGS_KEY, handle)
 
 
+def _aliases(value: Any) -> list[str]:
+    """The other names a persona is called by (`aliases:` in persona.yaml): a
+    list of names, or a single name. Anything else, and blank entries, are
+    ignored rather than failing the persona."""
+    if isinstance(value, str):
+        value = [value]
+    if not isinstance(value, list):
+        return []
+    return [name.strip() for name in value if isinstance(name, str) and name.strip()]
+
+
 def _normalize(data: dict[str, Any], handle: str) -> dict[str, Any]:
     """Fills in every key a caller might read, so nothing downstream needs
     its own `.get(key, default)` duplication. `model` is left as whatever
@@ -103,6 +114,7 @@ def _normalize(data: dict[str, Any], handle: str) -> dict[str, Any]:
         "title": data.get("title") or "",
         "model": data.get("model"),
         "skills": data.get("skills") or [],
+        "aliases": _aliases(data.get("aliases")),
     }
 
 

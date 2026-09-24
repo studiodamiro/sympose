@@ -25,6 +25,8 @@ _MIN_NOTES_FOR_SHARE = 10
 # strong hit is not diluted by a tail of weak ones.
 _RELATIVE_CUTOFF = 0.4
 _PASSAGES_PER_NOTE = 2
+# "sam" is addressing Samantha; two letters would be a prefix of too many words.
+_MIN_ADDRESS_PREFIX = 3
 
 # `(snapshot list object, its Index)` per scope. The snapshot is already
 # mtime-cached and returns the very same list until the vault changes, so an
@@ -41,6 +43,15 @@ def _index_for(mv: str, allowed_dirs: list[str]) -> Index:
     index = build_index(snapshot)
     _INDEX_CACHE[key] = (snapshot, index)
     return index
+
+
+def _is_addressing(word: str, address: frozenset[str]) -> bool:
+    """A message word that is a word of the persona's name, or a prefix of one
+    ("sam" for Samantha): the user is probably talking to her, so it is no
+    evidence that a note is what they are asking about. It is still searched:
+    it may be a topic ("who is Sam?"), and the rewrite step decides
+    (docs/decisions/021)."""
+    return any(name == word or (len(word) >= _MIN_ADDRESS_PREFIX and name.startswith(word)) for name in address)
 
 
 def _informative_terms(message: str, index: Index, strict: bool) -> list[str]:
@@ -108,13 +119,19 @@ def _score(passage: Passage, terms: list[str], index: Index) -> float:
 
 
 def retrieve(
-    index: Index, message: str, max_results: int = 5, strict: bool = False
+    index: Index,
+    message: str,
+    max_results: int = 5,
+    strict: bool = False,
+    address: frozenset[str] = frozenset(),
 ) -> list[dict[str, Any]]:
     """The best passages for `message`, best first, as hit dicts. Knows
     nothing about vaults or personas. `strict` is for a small source about one
     subject (docs/decisions/019): common words are kept, and a passage needs
     two of the message's words in its own text, or a message that is just the
-    note's name."""
+    note's name. Each hit says how many distinct message words it matched
+    (`matched`), not counting `address`, the terms of the persona's own name
+    (docs/decisions/021)."""
     informative = _informative_terms(message, index, strict)
     terms = [t for t in informative if index.note_df.get(t, 0) > 0]
     if not terms:
@@ -123,7 +140,8 @@ def retrieve(
     for passage in index.passages:
         matched = [t for t in terms if t in passage.tf]
         if matched and _qualifies(passage, matched, informative, strict):
-            scored.append((_score(passage, terms, index), passage))
+            evidence = [t for t in matched if not _is_addressing(t, address)]
+            scored.append((_score(passage, terms, index), passage, len(evidence)))
     if not scored:
         return []
     scored.sort(key=lambda sp: -sp[0])
@@ -131,7 +149,7 @@ def retrieve(
 
     hits: list[dict[str, Any]] = []
     per_note: dict[str, int] = {}
-    for score, passage in scored:
+    for score, passage, matched_count in scored:
         if score < floor or len(hits) >= max_results:
             break
         if per_note.get(passage.rel_path, 0) >= _PASSAGES_PER_NOTE:
@@ -145,6 +163,7 @@ def retrieve(
                 "text": passage.text,
                 "tags": list(passage.tags),
                 "score": round(score, 3),
+                "matched": matched_count,
                 "index": len(hits) + 1,
             }
         )
@@ -158,4 +177,6 @@ def ground(profile: dict[str, Any], user_message: str, max_results: int = 5) -> 
     if scope is None:
         return []
     mv, allowed_dirs = scope
-    return retrieve(_index_for(mv, allowed_dirs), user_message, max_results)
+    # The persona's name and handle: what the user calls her is addressing, not a topic.
+    address = frozenset(index_terms(f"{profile.get('name') or ''} {profile.get('handle') or ''}"))
+    return retrieve(_index_for(mv, allowed_dirs), user_message, max_results, address=address)

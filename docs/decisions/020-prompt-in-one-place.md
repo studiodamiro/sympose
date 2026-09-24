@@ -60,7 +60,7 @@ The system prompt grew from about 500 to about 750 tokens (measured with the eng
 
 ## Not built yet
 
-- **Retrieval precision, the next change.** A message whose only informative word is common in the vault ("information", "read", or the persona's own name in "hey sam") still attaches unrelated notes, because ADR 014 lets a lone informative word match any body text. The persona's own name and handle are addressing, not a topic, and could be filler; a lone word could be required to be rare in the vault. This interacts with the prompt as measured above and should land with or straight after it.
+- **Retrieval precision: built as ADR 021 (Proposed), which supersedes what is written here about a rare lone word (measured not to work).** A message whose only informative word is common in the vault ("information", "read", or the persona's own name in "hey sam") still attaches unrelated notes, because ADR 014 lets a lone informative word match any body text. The persona's own name and handle are addressing, not a topic, and could be filler; a lone word could be required to be rare in the vault. This interacts with the prompt as measured above and should land with or straight after it.
 - Thin or cut-off passages (a list's introduction without its items) and the literal reading of an idiom ("what do we have in our table").
 - Logging the notes that grounded each turn in the session record, and saying so to the model on the next turn, which would let it answer "where did you get that" truthfully (an amendment to ADR 006).
 - The reference library (ADR 019) rendering: it must use this layout, in the user's turn, with its own label.

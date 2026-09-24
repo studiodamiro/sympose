@@ -279,3 +279,71 @@ def test_strict_a_title_word_plus_a_word_of_the_passage_qualifies():
     notes = [_note("Settings", "## context_window\n\nThe context_window setting is a size in tokens.")]
 
     assert _strict(notes, "what does the context_window setting do") == ["Settings.md"]
+
+
+# -- what is not a topic (docs/decisions/021) --
+
+
+def test_a_hit_says_how_many_distinct_message_words_it_matched(vault_root):
+    _write(vault_root, "Wine.md", "The merlot from the cellar was better than the malbec.")
+
+    [both] = grounding.ground(WHOLE, "merlot malbec")
+    [one] = grounding.ground(WHOLE, "merlot")
+
+    assert both["matched"] == 2 and one["matched"] == 1
+
+
+def test_the_personas_name_and_a_nickname_of_it_are_searched_but_are_no_evidence(vault_root):
+    _write(vault_root, "Sam.md", "Sam is my brother and lives in Porto.")
+    samantha = {**WHOLE, "name": "Samantha", "handle": "samantha"}
+
+    # Still found ("who is Sam?" is a real question) but reported as matching no
+    # word that says which note is meant, so the rewrite step decides.
+    for message in ("hey sam, how are you?", "who is Sam?"):
+        [hit] = grounding.ground(samantha, message)
+        assert hit["matched"] == 0, message
+    # For a persona with another name the same word is evidence.
+    [hit] = grounding.ground({**WHOLE, "name": "Grace", "handle": "grace"}, "hey sam, how are you?")
+    assert hit["matched"] == 1
+
+
+def test_a_topic_word_that_is_also_the_personas_role_is_still_searched(vault_root):
+    _write(vault_root, "Editing.md", "How to edit a chapter: read it aloud, then cut a third.")
+
+    [hit] = grounding.ground({**WHOLE, "name": "The Editor", "handle": "editor"}, "how do I edit a chapter")
+
+    assert hit["rel_path"] == "Editing.md"  # found, not filtered out of the search
+
+
+def test_only_a_real_prefix_of_the_name_counts_as_addressing():
+    address = frozenset({"samantha"})
+
+    assert grounding._is_addressing("sam", address)
+    assert grounding._is_addressing("samantha", address)
+    assert not grounding._is_addressing("sa", address)  # too short to mean anything
+    assert not grounding._is_addressing("samuel", address)
+    assert not grounding._is_addressing("mantha", address)  # a suffix is not a nickname
+
+
+def test_contractions_typed_without_their_apostrophe_are_filler(vault_root):
+    _write(vault_root, "Whats up.md", "Whats going on. Arent we late? Theres time. Im fine, dont worry.")
+
+    assert grounding.ground(WHOLE, "whats with theres arent im dont") == []
+    assert grounding.ground(WHOLE, "what's with there's aren't I'm don't") == []  # as they always were
+
+
+def test_the_handle_counts_as_addressing_even_when_the_display_name_differs(vault_root):
+    _write(vault_root, "Ed.md", "Ed runs the print shop on Elm Street.")
+
+    [by_handle] = grounding.ground({**WHOLE, "name": "The Editor", "handle": "ed"}, "hey ed, how are you?")
+    [by_other] = grounding.ground({**WHOLE, "name": "The Editor", "handle": "editor"}, "hey ed, how are you?")
+
+    assert by_handle["matched"] == 0 and by_other["matched"] == 1
+
+
+def test_contractions_that_are_also_words_stay_searchable(vault_root):
+    _write(vault_root, "Passport.md", "The passport id is on the second page.")
+
+    [hit] = grounding.ground(WHOLE, "where is my passport id")
+
+    assert hit["matched"] == 2  # passport and id

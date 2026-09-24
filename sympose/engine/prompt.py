@@ -67,7 +67,7 @@ NO_NOTES = (
 NO_TOPIC = "NONE"
 REWRITE_INSTRUCTIONS = (
     "You turn a user's last chat message into one standalone search query for their personal notes. "
-    "The message refers back to the conversation (it, that, go on, and, what about...). "
+    "The message may refer back to the conversation (it, that, go on, and, what about...). "
     "Use the conversation to name what is meant, and always include the specific names involved "
     "(the project, person, place or note title), plus the question's own key words. "
     "If the message is only thanks, a greeting, small talk, or a change of subject with no topic "

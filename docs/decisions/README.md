@@ -26,3 +26,4 @@ The original records 001–006 (backend dependencies, the legacy port strategy, 
 | [018](018-context-meter.md) | A context meter under the chat box: the share of the prompt budget in use, from the engine's own count, behind a `show_context_meter` knob | Accepted |
 | [019](019-sympose-reference-library.md) | A Sympose reference library: read-only notes about Sympose itself, shipped in the package, searched by the same retriever in a strict mode, Samantha only | Proposed |
 | [020](020-prompt-in-one-place.md) | The chat prompt in one place: the notes travel with the question, and the model is told how Sympose works | Proposed |
+| [021](021-weak-evidence-asks-the-rewrite.md) | Weak evidence is not enough to ground a reply: address names and typed contractions are filler, and a one-word match is checked by the rewrite step | Proposed |

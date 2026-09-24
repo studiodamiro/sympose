@@ -50,6 +50,10 @@ Five turns in one chat, the knob on and then off: "what did we decide about the 
 - **Nothing stale was attached.** "thanks, that helps!" and "how are you today?" both ran with the knob on and grounded nothing; "and what's the launch target?" grounded on its own (a first-pass hit) and did not run a rewrite.
 - **Cost, wall time of the whole turn for the follow-up:** about 4.0 s, 3.5 s and 4.3 s with the rewrite against about 2.9 s and 2.7 s without in the quiet runs, so roughly one to one and a half seconds more. The machine was not quiet for all runs (the chat's own TTFT swung between 0.4 and 5.7 s in both modes), so this is an indication, not a benchmark.
 
+## Amended by ADR 021
+
+The rewrite step also runs when the first search is *weak* (every hit rests on one matched word), with or without earlier conversation, and a `NONE` answer then drops the weak hits. The mixed-topic risk listed below is seen in practice: a rewrite of "what did we talked about last time?" carried "our table" over from an earlier turn.
+
 ## Not built yet
 
 - The `recent-words` and `model-searches` modes.

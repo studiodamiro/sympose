@@ -212,8 +212,26 @@ FOLLOWUP_CASES: list[FollowupCase] = [
         find=("boom swings across",),
         searched="tacking and jibing risks in strong breeze",
     ),
-    FollowupCase("thanks-attaches-nothing-old", _ATLAS_CHAT, "thanks, that helps!", None, none=True),
-    FollowupCase("small-talk-attaches-nothing-old", _ATLAS_CHAT, "how are you today?", None, none=True),
+    FollowupCase("thanks-attaches-nothing-old", _ATLAS_CHAT, "thanks, that helps!", followup.NO_TOPIC_QUERY, none=True),
+    FollowupCase("small-talk-attaches-nothing-old", _ATLAS_CHAT, "how are you today?", followup.NO_TOPIC_QUERY, none=True),
+    # Weak evidence (one matched word) is put to the rewrite, with no earlier chat too:
+    # 'plan' alone attaches the Fitness Plan and Budget notes to a dinner question.
+    FollowupCase(
+        "a-lone-title-word-in-chatter-is-dropped-when-the-model-says-no-topic",
+        (),
+        "can you help me plan dinner",
+        followup.NO_TOPIC_QUERY,
+        none=True,
+    ),
+    # ... but a lone name that is a real topic survives, on the model's own query.
+    FollowupCase(
+        "a-lone-name-that-is-a-topic-survives-the-check",
+        (),
+        "who is Priya?",
+        "Priya",
+        find=("Priya",),
+        searched="Priya",
+    ),
     FollowupCase(
         "a-query-about-something-the-vault-lacks-grounds-nothing",
         _ATLAS_CHAT,

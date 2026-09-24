@@ -13,7 +13,10 @@ from sympose.vault_manifest_build import _stem, _tags_of
 
 # Generic English filler, plus the product's own vocabulary: "note" and
 # "vault" are in nearly every message to a notes assistant and say nothing
-# about which note is meant.
+# about which note is meant. Contractions typed without their apostrophe
+# ("whats", "arent") are the same filler: with the apostrophe the tokenizer
+# already splits them into filler (docs/decisions/021). Only those that are
+# nothing else: "id", "ill", "cant" and "wont" are words in their own right.
 STOPWORDS = frozenset(
     """a about above after again all also am an and any are as at be because
     been before being below between both but by can could did do does doing
@@ -26,7 +29,10 @@ STOPWORDS = frozenset(
     ok okay please thanks thank tell say said give get got let lets like want
     need know think thing things one ones really much many something anything
     everything maybe still ever going go make made note notes vault file
-    files""".split()
+    files
+    whats thats hows wheres theres heres whos im ive youre youve youll youd hes
+    shes isnt arent wasnt werent dont doesnt didnt couldnt wouldnt shouldnt
+    havent hasnt hadnt""".split()
 )
 
 _WORD = re.compile(r"\w+")

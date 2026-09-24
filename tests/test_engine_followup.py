@@ -1,6 +1,7 @@
-"""Tests for sympose.engine.followup (docs/decisions/017): when a follow-up is
-rewritten, what the rewrite is shown, and that every way the step can fail
-leaves the turn grounded exactly as before. Retrieval on the fixture vault is
+"""Tests for sympose.engine.followup (docs/decisions/017, 021): when a message is
+rewritten (an empty first search with earlier conversation, or a weak one), what
+the rewrite is shown, and that every way the step can fail leaves the turn
+grounded exactly as before. Retrieval on the fixture vault is
 covered by the follow-up cases in test_grounding_eval.py."""
 
 import pytest
@@ -14,6 +15,9 @@ HISTORY = [
     {"role": "assistant", "content": "You decided on SQLite for the Atlas prototype."},
 ]
 HIT = {"rel_path": "Projects/Atlas.md", "text": "SQLite", "title": "Atlas", "index": 1}
+# What the retriever reports (docs/decisions/021): one matched word is weak evidence.
+WEAK = {**HIT, "matched": 1}
+STRONG = {**HIT, "matched": 2}
 
 
 @pytest.fixture(autouse=True)
@@ -123,6 +127,79 @@ def test_the_knob_turns_the_step_off_only_when_explicitly_off(monkeypatch):
         assert followup.ground({}, "it?", HISTORY, "m", None, rewriter=rw) == ([HIT], "q"), value
 
 
+# --- ground: weak evidence (docs/decisions/021) ---
+
+
+def test_strong_evidence_never_runs_the_rewrite(monkeypatch):
+    fake_ground(monkeypatch, {"atlas database": [STRONG]})
+    rw = rewriter("unused")
+    assert followup.ground({}, "atlas database", HISTORY, "m", None, rewriter=rw) == ([STRONG], None)
+    assert rw.asked == []
+
+
+def test_one_strong_hit_among_weak_ones_is_strong_evidence(monkeypatch):
+    fake_ground(monkeypatch, {"q": [WEAK, STRONG]})
+    rw = rewriter("unused")
+    assert followup.ground({}, "q", HISTORY, "m", None, rewriter=rw) == ([WEAK, STRONG], None)
+    assert rw.asked == []
+
+
+@pytest.mark.parametrize("history", [HISTORY, []])
+def test_weak_evidence_is_put_to_the_rewrite_with_or_without_earlier_turns(monkeypatch, history):
+    fake_ground(monkeypatch, {"hey there": [WEAK]})
+    rw = rewriter(followup.NO_TOPIC_QUERY)
+    assert followup.ground({}, "hey there", history, "m", None, rewriter=rw) == ([], None)
+    assert len(rw.asked) == 1  # NONE: the weak hits are dropped
+
+
+def test_weak_evidence_is_replaced_by_the_rewritten_querys_hits(monkeypatch):
+    asked = fake_ground(monkeypatch, {"where did you get this information?": [WEAK], "Atlas database": [STRONG]})
+    result = followup.ground({}, "where did you get this information?", HISTORY, "m", None, rewriter=rewriter("Atlas database"))
+    assert result == ([STRONG], "Atlas database")
+    assert asked == ["where did you get this information?", "Atlas database"]
+
+
+def test_weak_evidence_and_a_rewrite_that_finds_nothing_grounds_nothing(monkeypatch):
+    fake_ground(monkeypatch, {"m": [WEAK]})
+    assert followup.ground({}, "m", HISTORY, "m", None, rewriter=rewriter("something else")) == ([], None)
+
+
+def test_weak_evidence_stands_when_the_model_vouches_for_the_message_as_it_is(monkeypatch):
+    asked = fake_ground(monkeypatch, {"who is Priya?": [WEAK]})
+    assert followup.ground({}, "who is Priya?", [], "m", None, rewriter=rewriter("who is Priya?")) == ([WEAK], None)
+    assert asked == ["who is Priya?"]  # and is not searched twice
+
+
+@pytest.mark.parametrize("query", ["who is priya", "Who is Priya", "who is  Priya??"])
+def test_a_query_that_differs_only_in_case_or_punctuation_is_the_message_itself(monkeypatch, query):
+    asked = fake_ground(monkeypatch, {"who is Priya?": [WEAK]})
+    assert followup.ground({}, "who is Priya?", [], "m", None, rewriter=rewriter(query)) == ([WEAK], None)
+    assert asked == ["who is Priya?"]
+
+
+def test_weak_evidence_stands_when_the_model_cannot_judge(monkeypatch):
+    fake_ground(monkeypatch, {"m": [WEAK]})
+    assert followup.ground({}, "m", HISTORY, "m", None, rewriter=rewriter(None)) == ([WEAK], None)
+
+
+def test_weak_evidence_stands_when_the_step_is_off_or_there_is_no_vault(monkeypatch):
+    fake_ground(monkeypatch, {"m": [WEAK]})
+    rw = rewriter(followup.NO_TOPIC_QUERY)
+    settings_store.set(followup.SETTING, "off")
+    assert followup.ground({}, "m", HISTORY, "m", None, rewriter=rw) == ([WEAK], None)
+    settings_store.set(followup.SETTING, None)
+    monkeypatch.setattr(followup.vault_paths, "resolve_sandbox", lambda persona: None)
+    assert followup.ground({}, "m", HISTORY, "m", None, rewriter=rw) == ([WEAK], None)
+    assert rw.asked == []
+
+
+def test_a_hit_that_does_not_say_how_many_words_it_matched_counts_as_strong(monkeypatch):
+    fake_ground(monkeypatch, {"m": [HIT]})
+    rw = rewriter(followup.NO_TOPIC_QUERY)
+    assert followup.ground({}, "m", HISTORY, "m", None, rewriter=rw) == ([HIT], None)
+    assert rw.asked == []
+
+
 # --- rewrite_query: the model call ---
 
 
@@ -148,18 +225,32 @@ def test_long_messages_are_cut_in_the_rewrite_prompt(monkeypatch):
     assert "b" * 300 in body and "b" * 301 not in body
 
 
-@pytest.mark.parametrize("reply", ["NONE", "none", "None.", "NONE\nbecause it is small talk", "", "   \n"])
-def test_a_reply_with_no_query_in_it_is_no_rewrite(monkeypatch, reply):
-    if not reply.strip():  # the model call itself refuses an empty reply
-        fake_model(monkeypatch, EngineModelError("returned an empty reply"))
-    else:
-        fake_model(monkeypatch, reply)
+@pytest.mark.parametrize("reply", ["NONE", "none", "None.", "NONE\nbecause it is small talk"])
+def test_none_is_the_models_judgement_that_there_is_no_topic(monkeypatch, reply):
+    fake_model(monkeypatch, reply)
+    assert followup.rewrite_query(HISTORY, "thanks", "m", None) == followup.NO_TOPIC_QUERY
+
+
+def test_an_empty_reply_is_no_judgement_at_all(monkeypatch):
+    fake_model(monkeypatch, EngineModelError("returned an empty reply"))  # the call itself refuses one
     assert followup.rewrite_query(HISTORY, "thanks", "m", None) is None
+
+
+def test_a_judgement_of_no_topic_is_not_the_same_as_no_answer():
+    assert followup.NO_TOPIC_QUERY is not None and followup.NO_TOPIC_QUERY == ""
 
 
 def test_a_query_that_merely_starts_with_none_is_kept(monkeypatch):
     fake_model(monkeypatch, "None of the meeting notes mention Priya")
     assert followup.rewrite_query(HISTORY, "and that?", "m", None) == "None of the meeting notes mention Priya"
+
+
+def test_with_no_earlier_conversation_the_prompt_says_so_instead_of_showing_a_blank(monkeypatch):
+    calls = fake_model(monkeypatch, "Priya")
+    followup.rewrite_query([], "who is Priya?", "m", None)
+    body = calls[0]["messages"][1]["content"]
+    assert "(nothing yet: this is the first message)" in body
+    assert "Conversation so far:\n\n" not in body
 
 
 def test_the_query_is_the_first_line_without_quotes(monkeypatch):

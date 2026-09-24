@@ -102,7 +102,9 @@ def _notes_block(grounding_results: list[dict[str, Any]], omitted: int = 0) -> s
     return "\n".join(lines)
 
 
-def build_system_prompt(profile: dict[str, Any]) -> str:
+def build_system_prompt(
+    profile: dict[str, Any], recaps: list[dict[str, Any]] | None = None, recaps_omitted: int = 0
+) -> str:
     # `handle` is always lowercase (`profile.get_profile` lowercases it
     # before building a file path) -- title-cased here so a fallback
     # profile's identity line reads "Samantha", not "samantha". The
@@ -118,6 +120,12 @@ def build_system_prompt(profile: dict[str, Any]) -> str:
     parts = [soul or DEFAULT_SOUL, identity, HOW_YOU_WORK, GROUNDING_RULE]
     if profile.get("sympose_reference"):
         parts.append(SYMPOSE_RULE)
+    # Recaps go here, not in the message: beside a request in the middle of a chat that is on the
+    # same topic as a recap, they made her comment on the conversation instead of continuing it
+    # (docs/decisions/026).
+    recaps_block = _recaps_block(recaps or [], recaps_omitted)
+    if recaps_block:
+        parts.append(recaps_block)
     return "\n\n".join(parts)
 
 
@@ -128,21 +136,15 @@ def build_user_turn(
     reference: bool = False,
     reference_omitted: int = 0,
     point_to: list[str] | None = None,
-    recaps: list[dict[str, Any]] | None = None,
-    recaps_omitted: int = 0,
 ) -> str:
-    """`recaps`: what earlier conversations were about, each `{"date", "text"}`
-    (docs/decisions/023), above the notes; `recaps_omitted` are those left out for size.
-    `reference`: the persona has the Sympose reference library, so the turn
+    """`reference`: the persona has the Sympose reference library, so the turn
     says what it found in it (or that nothing matched). Its passages are marked
     `source: "sympose"` and kept apart from the user's own notes; `omitted` and
     `reference_omitted` count the passages of each left out for size. `point_to`:
     the personas that have the library, for one that does not to send the user to."""
     reference_hits = [h for h in grounding_results if h.get("source") == "sympose"]
     notes = [h for h in grounding_results if h.get("source") != "sympose"]
-    recaps_block = _recaps_block(recaps or [], recaps_omitted)
-    parts = [recaps_block] if recaps_block else []
-    parts.append(_notes_block(notes, omitted))
+    parts = [_notes_block(notes, omitted)]
     if notes:
         parts.append(ANSWER_FROM_NOTES)
     if reference:
@@ -166,18 +168,19 @@ def build_messages(
     recaps: list[dict[str, Any]] | None = None,
     recaps_omitted: int = 0,
 ) -> list[dict[str, str]]:
-    """The system prompt, the history as it was said (the notes of earlier turns
-    are not repeated), and this turn's notes with the message. `point_to`: the
+    """The system prompt (with the recaps of earlier conversations, docs/decisions/023 and 026),
+    the history as it was said (the notes of earlier turns are not repeated), and this turn's
+    notes with the message. `point_to`: the
     personas that have the reference library, read from the roster when not given
     (a turn gives it once, since fitting builds this many times)."""
-    system = {"role": "system", "content": build_system_prompt(profile)}
+    system = {"role": "system", "content": build_system_prompt(profile, recaps, recaps_omitted)}
     has_library = bool(profile.get("sympose_reference"))
     if point_to is None:
         point_to = [] if has_library else reference_persona_names()
     user = {
         "role": "user",
         "content": build_user_turn(
-            user_message, grounding_results, omitted, has_library, reference_omitted, point_to, recaps, recaps_omitted
+            user_message, grounding_results, omitted, has_library, reference_omitted, point_to
         ),
     }
     return [system, *history, user]

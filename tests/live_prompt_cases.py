@@ -177,6 +177,21 @@ LIVE_CASES: list[LiveCase] = [
         forbid=(r"you decided to (?:use|go with|back)",),
         recaps=_ATLAS_RECAPS,
     ),
+    # A request in the middle of a chat, with a recap of an earlier conversation on the same topic
+    # (docs/decisions/026): with the recap in the message she answered "one more name coming right
+    # up..." or commented on the chat and gave no name (2 of 8); in the system prompt 7 of 8.
+    LiveCase(
+        "recap-does-not-derail-a-follow-up-mid-chat",
+        ("name four famous composers, one line each", "5 more please", "ok thats 4.. one mor\\e.."),
+        expect=(r"Bach|Mozart|Beethoven|Chopin|Haydn|Brahms|Verdi|Wagner|Vivaldi|Handel|Schubert|Liszt|Tchaikovsky|Debussy|Mahler|Stravinsky|Schumann|Puccini|Rossini|Ravel",),
+        recaps=(
+            (
+                "20260924T090000-bbbbbbbb",
+                "The user was choosing a name for a new music-themed agent and asked for names of famous "
+                "composers to name it after. They wanted a list of five and were still collecting names.",
+            ),
+        ),
+    ),
     LiveCase(
         "recap-stays-out-of-small-talk",
         ("hey, how are you today?",),

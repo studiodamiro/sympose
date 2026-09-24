@@ -31,3 +31,4 @@ The original records 001–006 (backend dependencies, the legacy port strategy, 
 | [023](023-recaps-of-earlier-conversations.md) | Recaps: a short, model-written summary of each earlier conversation, kept in the persona's own folder and read at the start of the next one | Proposed |
 | [024](024-general-questions-need-no-note.md) | A general question needs no note: notes attach only on a real share of the message, and she is told she may answer from her own knowledge | Proposed |
 | [025](025-record-what-reached-each-turn.md) | Record which notes and recaps reached each turn: paths and session ids on the turn record, never their text, never read back into a prompt | Proposed |
+| [026](026-recaps-in-the-system-prompt.md) | Recaps go in the system prompt, not beside the message: next to a same-topic request mid-chat they made her comment instead of continue | Proposed |

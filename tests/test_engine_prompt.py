@@ -109,7 +109,7 @@ def test_the_prompt_says_she_keeps_only_the_recaps_shown_and_does_not_learn():
 
     assert "do not learn over time" in text
     assert (
-        "Of earlier conversations you know only the short recaps shown with the message, when there are any; "
+        "Of earlier conversations you know only the short recaps given below, when there are any; "
         "otherwise you know only this conversation and the notes found for the current message."
     ) in text
     assert "no memory between conversations" not in text
@@ -354,37 +354,42 @@ _RECAPS = [
 ]
 
 
-def test_recaps_go_above_the_notes_each_with_its_date_and_are_answered_from():
-    text = prompt.build_user_turn("where were we?", [_grounding_result()], recaps=_RECAPS)
+def test_recaps_go_in_the_system_prompt_each_with_its_date_and_are_answered_from():
+    text = prompt.build_system_prompt({"name": "Ada", "handle": "ada"}, recaps=_RECAPS)
 
-    assert text.startswith(prompt.RECAPS_LABEL)
+    assert prompt.RECAPS_LABEL in text
     assert "- Last conversation (2026-09-24): Was choosing a database for the Atlas project." in text
     assert "- An earlier conversation (2026-09-23): Planned a trip." in text
-    assert text.index("Planned a trip.") < text.index("Was choosing a database")  # oldest first, the newest nearest the question
-    assert text.index("Was choosing a database") < text.index("Notes found in the vault")
-    assert text.index(prompt.ANSWER_FROM_RECAPS) < text.index("Notes found in the vault")
-    assert text.endswith("User's message: where were we?")
+    assert text.index("Planned a trip.") < text.index("Was choosing a database")  # oldest first, the newest last
+    assert text.index(prompt.GROUNDING_RULE) < text.index(prompt.RECAPS_LABEL)  # after the rules
+    assert text.endswith(prompt.ANSWER_FROM_RECAPS)
 
 
-def test_no_recaps_add_nothing_to_the_turn():
-    assert prompt.build_user_turn("hi", []) == prompt.build_user_turn("hi", [], recaps=[])
-    assert prompt.RECAPS_LABEL not in prompt.build_user_turn("hi", [], recaps=[])
+def test_the_message_never_carries_the_recaps():
+    messages = prompt.build_messages(
+        {"name": "Ada", "handle": "ada"}, [], [_grounding_result()], "where were we?", recaps=_RECAPS
+    )
+
+    assert "Was choosing a database" not in messages[-1]["content"]
+    assert prompt.RECAPS_LABEL not in messages[-1]["content"]
+    assert "Was choosing a database" in messages[0]["content"]
+    assert messages[-1]["content"].endswith("User's message: where were we?")
+
+
+def test_no_recaps_add_nothing_to_the_prompt():
+    profile = {"name": "Ada", "handle": "ada"}
+    assert prompt.build_system_prompt(profile) == prompt.build_system_prompt(profile, recaps=[])
+    assert prompt.RECAPS_LABEL not in prompt.build_system_prompt(profile, recaps=[])
 
 
 def test_recaps_left_out_for_size_are_reported_and_not_called_nonexistent():
-    partly = prompt.build_user_turn("hi", [], recaps=_RECAPS[:1], recaps_omitted=1)
+    profile = {"name": "Ada", "handle": "ada"}
+    partly = prompt.build_system_prompt(profile, recaps=_RECAPS[:1], recaps_omitted=1)
     assert "(1 more recaps were left out to fit the context window.)" in partly
-    none_fit = prompt.build_user_turn("hi", [], recaps=[], recaps_omitted=2)
+    none_fit = prompt.build_system_prompt(profile, recaps=[], recaps_omitted=2)
     assert "Recaps of earlier conversations exist but could not be included" in none_fit
     assert "Don't say there were none" in none_fit
     assert prompt.RECAPS_LABEL not in none_fit
-
-
-def test_build_messages_passes_the_recaps_to_the_last_turn_only():
-    messages = prompt.build_messages({"name": "Ada", "handle": "ada"}, [], [], "hi", recaps=_RECAPS)
-
-    assert "Was choosing a database" in messages[-1]["content"]
-    assert "Was choosing a database" not in messages[0]["content"]
 
 
 def test_the_recap_instructions_ask_for_a_short_recap_from_the_users_words_or_none():
@@ -400,7 +405,7 @@ def test_only_the_recap_of_the_real_last_conversation_is_called_that():
     # The last session was small talk (nothing to recap) or too short: what is left is older.
     older = [{**_RECAPS[0], "last": False}, _RECAPS[1]]
 
-    text = prompt.build_user_turn("hi", [], recaps=older)
+    text = prompt.build_system_prompt({"name": "Ada", "handle": "ada"}, recaps=older)
 
     assert "Last conversation" not in text
     assert "- An earlier conversation (2026-09-24): Was choosing a database" in text

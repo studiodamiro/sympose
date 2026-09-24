@@ -713,16 +713,17 @@ def _put_recap(session_id, text, handle="samantha"):
         f.write(f"<!-- turns: 2 -->\n{text}\n")
 
 
-def test_the_recaps_of_earlier_conversations_travel_with_the_message(sessions_root, monkeypatch):
+def test_the_recaps_of_earlier_conversations_are_in_the_system_prompt_not_the_message(sessions_root, monkeypatch):
     _put_recap("20260923T090000-bbbbbbbb", "Was planning a trip to Lisbon.")
     calls = _capture_call(monkeypatch)
 
     turn.run_turn("samantha", "where did we leave off?")
 
+    system = calls[0]["messages"][0]["content"]
+    assert "- Last conversation (2026-09-23): Was planning a trip to Lisbon." in system
     last = calls[0]["messages"][-1]["content"]
-    assert "- Last conversation (2026-09-23): Was planning a trip to Lisbon." in last
     assert last.endswith("User's message: where did we leave off?")
-    assert "Lisbon" not in calls[0]["messages"][0]["content"]
+    assert "Lisbon" not in last and prompt.RECAPS_LABEL not in last
 
 
 def test_the_conversation_being_run_is_not_recapped_into_itself(sessions_root, monkeypatch):
@@ -732,7 +733,7 @@ def test_the_conversation_being_run_is_not_recapped_into_itself(sessions_root, m
 
     turn.run_turn("samantha", "hello", session_id="20260924T090000-aaaaaaaa")
 
-    last = calls[0]["messages"][-1]["content"]
+    last = calls[0]["messages"][0]["content"]
     assert "Lisbon" in last and "This very conversation" not in last
 
 
@@ -741,7 +742,7 @@ def test_with_no_recaps_the_turn_says_nothing_about_them(sessions_root, monkeypa
 
     turn.run_turn("samantha", "hello")
 
-    assert prompt.RECAPS_LABEL not in calls[0]["messages"][-1]["content"]
+    assert prompt.RECAPS_LABEL not in calls[0]["messages"][0]["content"]
 
 
 def test_the_knob_keeps_recaps_out_of_the_prompt(sessions_root, monkeypatch):
@@ -753,7 +754,7 @@ def test_the_knob_keeps_recaps_out_of_the_prompt(sessions_root, monkeypatch):
 
     turn.run_turn("samantha", "hello")
 
-    assert "Lisbon" not in calls[0]["messages"][-1]["content"]
+    assert "Lisbon" not in calls[0]["messages"][0]["content"]
 
 
 def test_when_the_window_is_short_the_recaps_go_first_and_the_turn_says_so(sessions_root, monkeypatch):
@@ -768,7 +769,7 @@ def test_when_the_window_is_short_the_recaps_go_first_and_the_turn_says_so(sessi
 
     result = turn.run_turn("samantha", "hello")
 
-    last = calls[0]["messages"][-1]["content"]
+    last = calls[0]["messages"][0]["content"]
     assert "2026-09-23" in last and "2026-09-22" not in last  # the older recap went, the newer stayed
     assert "(1 more recaps were left out to fit the context window.)" in last
     assert result.grounding == [big]  # the note passage was not sacrificed for it
@@ -785,7 +786,7 @@ def test_when_no_recap_fits_the_turn_does_not_claim_there_were_none(sessions_roo
 
     result = turn.run_turn("samantha", "hello")
 
-    last = calls[0]["messages"][-1]["content"]
+    last = calls[0]["messages"][0]["content"]
     assert result.grounding == [big]
     assert "Recaps of earlier conversations exist but could not be included" in last
     assert prompt.RECAPS_LABEL not in last
@@ -797,7 +798,7 @@ def test_recaps_reach_the_prompt_of_a_model_whose_window_is_unknown_too(sessions
 
     turn.run_turn("samantha", "hello", model="someprovider/unknown-model")
 
-    assert "Was planning a trip to Lisbon." in calls[0]["messages"][-1]["content"]
+    assert "Was planning a trip to Lisbon." in calls[0]["messages"][0]["content"]
 
 
 def test_a_turn_waits_for_the_recap_being_written_at_launch_before_reading_recaps(sessions_root, monkeypatch):
@@ -813,7 +814,7 @@ def test_a_turn_waits_for_the_recap_being_written_at_launch_before_reading_recap
     turn.run_turn("samantha", "where did we leave off?")
 
     assert waited == ["samantha"]
-    assert "Was planning a trip to Lisbon." in calls[0]["messages"][-1]["content"]
+    assert "Was planning a trip to Lisbon." in calls[0]["messages"][0]["content"]
 
 
 # -- what reached the model, kept on the record (docs/decisions/025) --

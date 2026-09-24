@@ -73,6 +73,7 @@ class Fitted:
     messages: list[dict[str, str]]
     grounding: list[dict[str, Any]]  # the passages that survived
     history_dropped: int  # turns left out for size, not counting the turn-count cap
+    tokens: int  # what the fitted prompt counts as, margin included (docs/decisions/018)
 
 
 def is_ollama(model: str) -> bool:
@@ -185,4 +186,4 @@ def fit(
             f"shorten it; otherwise use a model with a larger window (and if you set "
             f"`{_SETTING}`, raise it)."
         )
-    return Fitted(messages, kept_grounding, dropped)
+    return Fitted(messages, kept_grounding, dropped, used)

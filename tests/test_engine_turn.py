@@ -497,3 +497,29 @@ def test_the_rewrite_call_runs_in_the_same_window_as_the_chat_call(sessions_root
     windows.clear()
     turn.run_turn("samantha", "thanks", first.session_id, model="ollama_chat/x")
     assert windows == [8192, 8192]  # the rewrite, then the chat: no reload between them
+
+
+def test_the_result_reports_the_conversations_size_for_the_meter(sessions_root, monkeypatch):
+    from sympose import settings_store
+
+    settings_store.set("context_window", 1024)  # prompt budget: 1024 minus a quarter kept for the reply
+    monkeypatch.setattr(turn.budget, "count_tokens", lambda messages, model: sum(len(m["content"].split()) for m in messages))
+    monkeypatch.setattr(grounding, "ground", lambda profile, msg, max_results=5: [])
+    sent = []
+
+    def call_model(messages, model=None, **limits):
+        sent.append(messages)
+        return ModelReply("one two three", 5)
+
+    monkeypatch.setattr(turn.model_mod, "call_model", call_model)
+    result = turn.run_turn("samantha", "hello there")
+    prompt_words = sum(len(m["content"].split()) for m in sent[0])
+    assert result.context_limit == 768
+    assert result.context_used == prompt_words + 3  # what was sent, plus the reply it produced
+
+
+def test_no_meter_figures_when_the_models_window_is_unknown(sessions_root, monkeypatch):
+    monkeypatch.setattr(grounding, "ground", lambda profile, msg, max_results=5: [])
+    monkeypatch.setattr(turn.model_mod, "call_model", lambda messages, model=None, **limits: ModelReply("ok", 5))
+    result = turn.run_turn("samantha", "hi", model="someprovider/unknown-model")
+    assert result.context_used is None and result.context_limit is None

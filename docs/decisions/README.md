@@ -20,6 +20,7 @@ The original records 001–006 (backend dependencies, the legacy port strategy, 
 | [012](012-persona-soul-is-voice-only.md) | A persona's soul is voice only; engine rules stay in the engine | Accepted |
 | [013](013-record-ttft-every-turn.md) | Record time-to-first-token on every turn: stream the model call internally, store `ttft_ms` + `model` per turn | Accepted |
 | [014](014-dedicated-grounding-retriever.md) | A dedicated grounding retriever: passages and keyword scoring, precision over recall, not the search bar's matcher | Accepted |
-| [015](015-context-budget.md) | Context budget: an overflowing prompt is cut silently, so the engine sizes it (measured on Ollama and `gemma2:9b` only) | Accepted; meter pending |
+| [015](015-context-budget.md) | Context budget: an overflowing prompt is cut silently, so the engine sizes it (measured on Ollama and `gemma2:9b` only) | Accepted |
 | [016](016-show-grounded-notes-in-the-cli.md) | Show which notes grounded a reply in the CLI reply header, fitted to width, behind a `show_grounding` knob and `/grounding` | Accepted |
 | [017](017-follow-up-aware-grounding.md) | Follow-up-aware grounding: retrieve first, rewrite a search-less message from recent turns on a miss, behind a mode knob | Accepted |
+| [018](018-context-meter.md) | A context meter under the chat box: the share of the prompt budget in use, from the engine's own count, behind a `show_context_meter` knob | Accepted |

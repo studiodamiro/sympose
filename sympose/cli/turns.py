@@ -15,7 +15,7 @@ from rich.style import Style
 from rich.text import Text
 
 from sympose import engine
-from sympose.cli import grounding_line, trim_notice
+from sympose.cli import grounding_line, meter, trim_notice
 from sympose.cli import transcript as transcript_mod
 from sympose.cli.mock_data import active_model
 
@@ -103,6 +103,7 @@ async def _send_message(app, value: str) -> None:
     model_id = app.model_override.id if app.model_override else None
     reply_header = f"@{handle} · {active_model(app.persona, app.model_override).short}"
     generation = app.session_generation
+    meter_epoch = meter.epoch(app)  # a model or persona switch meanwhile makes the figure stale
 
     # One lock per persona (docs/decisions/008), not one global lock:
     # sessions are stored per-handle (sympose/engine/session.py), so two
@@ -146,6 +147,7 @@ async def _send_message(app, value: str) -> None:
             return
         _record_session_result(app, generation, result.session_id)
 
+    meter.show(app, result.context_used, result.context_limit, meter_epoch)
     if result.ttft_ms is not None:
         reply_header += f" · TTFT {_format_ttft(result.ttft_ms)}"
     reply_header += trim_notice.segment(result.history_dropped, result.truncated)

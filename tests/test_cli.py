@@ -12,7 +12,7 @@ import threading
 import pytest
 
 from sympose import engine
-from sympose.cli import commands, grounding_line, mock_data, runtime, trim_notice, turns
+from sympose.cli import commands, grounding_line, meter, mock_data, runtime, trim_notice, turns
 from sympose.cli.app import SymposeCLI
 
 
@@ -1303,20 +1303,21 @@ def test_composer_loses_its_top_margin_only_while_a_panel_is_open(profiles):
     CSS doesn't merge with the base rule's other three sides the way
     plain CSS cascading would — it silently reset them to 0 too, so a
     picker being open would leave the composer with no left/right/bottom
-    margin either, not just no top margin."""
+    margin either, not just no top margin. (The bottom side is 0: the
+    context meter's line, ADR 018, takes the gap that used to be there.)"""
 
     async def scenario():
         app = SymposeCLI()
         async with app.run_test() as pilot:
             await pilot.pause()
-            assert app.composer.styles.margin == (1, 1, 1, 1)
+            assert app.composer.styles.margin == (1, 1, 0, 1)
             app.composer.focus()
             await pilot.press("/")
             await pilot.pause()
-            assert app.composer.styles.margin == (0, 1, 1, 1)
+            assert app.composer.styles.margin == (0, 1, 0, 1)
             await pilot.press("escape")
             await pilot.pause()
-            assert app.composer.styles.margin == (1, 1, 1, 1)
+            assert app.composer.styles.margin == (1, 1, 0, 1)
 
     run_async(scenario())
 
@@ -1745,3 +1746,197 @@ def test_trim_notice_also_says_when_a_reply_was_cut_at_the_length_limit():
 
 def test_the_reply_header_shows_a_reply_cut_at_the_length_limit(profiles, monkeypatch):
     assert "reply cut at the length limit" in _run_with_result(monkeypatch, truncated=True)
+
+
+# --- the context meter (docs/decisions/018) ---
+
+
+def test_the_meter_draws_a_bar_and_a_percentage_of_the_prompt_budget():
+    assert meter.format_meter(0, 5000, "yellow", "red").plain == "context ░░░░░░░░░░ 0%"
+    assert meter.format_meter(3100, 5000, "yellow", "red").plain == "context ██████░░░░ 62%"
+    assert meter.format_meter(5000, 5000, "yellow", "red").plain == "context ██████████ 100%"
+
+
+def test_the_meter_never_shows_more_than_full_or_less_than_empty():
+    assert meter.format_meter(9000, 5000, "yellow", "red").plain == "context ██████████ 100%"
+    assert meter.format_meter(-1000, 5000, "yellow", "red").plain == "context ░░░░░░░░░░ 0%"
+
+
+def test_the_meter_reads_100_only_once_the_budget_is_reached():
+    assert meter.percent(4980, 5000) == 99  # 99.6 rounds up, but the next turn still fits
+    assert meter.percent(4999, 5000) == 99
+    assert meter.percent(5000, 5000) == 100
+    assert meter.percent(5001, 5000) == 100
+
+
+def test_the_meter_rounds_to_the_nearest_percent_and_bar_cell():
+    assert meter.percent(3130, 5000) == 63  # 62.6, not cut down to 62
+    assert meter.format_meter(3130, 5000, "yellow", "red").plain == "context ██████░░░░ 63%"  # 6.3 cells
+    assert meter.format_meter(3300, 5000, "yellow", "red").plain == "context ███████░░░ 66%"  # 6.6 cells
+
+
+def _colours(text):
+    return [span.style.color.name for span in text.spans]
+
+
+def test_the_meter_turns_to_the_warning_colour_at_70_and_the_error_colour_at_90():
+    # The colour follows the percentage as displayed.
+    assert _colours(meter.format_meter(3450, 5000, "yellow", "red")) == []  # 69%
+    assert _colours(meter.format_meter(3500, 5000, "yellow", "red")) == ["yellow"]  # 70%
+    assert _colours(meter.format_meter(4450, 5000, "yellow", "red")) == ["yellow"]  # 89%
+    assert _colours(meter.format_meter(4500, 5000, "yellow", "red")) == ["red"]  # 90%
+
+
+def test_the_meter_knob_is_on_unless_explicitly_false():
+    from sympose import settings_store
+
+    assert meter.enabled() is True
+    for malformed in ("false", 0, None, ""):
+        settings_store.set(meter.SETTING, malformed)
+        assert meter.enabled() is True
+    settings_store.set(meter.SETTING, False)
+    assert meter.enabled() is False
+
+
+def _meter_text(app) -> str:
+    return plain_text(app.query_one(meter.ContextMeter))
+
+
+def _run_meter_scenario(monkeypatch, results, then=None):
+    """Sends one message per entry of `results` (a TurnResult, or an exception
+    to raise) and returns the meter's text after the last, plus what `then(app)` returned."""
+    queue = list(results)
+
+    def fake_run_turn(handle, user_message, session_id=None, model=None):
+        item = queue.pop(0)
+        if isinstance(item, Exception):
+            raise item
+        return item
+
+    monkeypatch.setattr(turns.engine, "run_turn", fake_run_turn)
+    seen = {}
+
+    async def scenario():
+        app = SymposeCLI()
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            seen["start"] = _meter_text(app)
+            app.composer.focus()
+            for _ in results:
+                before = len([c for c in app.transcript.children])
+                await pilot.press(*"hi", "enter")
+                for _ in range(100):
+                    await pilot.pause(0.1)
+                    if len(app.transcript.children) >= before + 2 and app.pending_turns == 0:
+                        break
+            await pilot.pause(0.2)
+            seen["text"] = _meter_text(app)
+            if then:
+                seen["then"] = await then(app, pilot)
+
+    run_async(scenario())
+    return seen
+
+
+def _result(used, limit):
+    return engine.TurnResult(reply="ok", session_id="s", ttft_ms=100, model="m", context_used=used, context_limit=limit)
+
+
+def test_the_meter_is_empty_before_the_first_reply_and_filled_after_it(profiles, monkeypatch):
+    seen = _run_meter_scenario(monkeypatch, [_result(3100, 5000)])
+    assert seen["start"] == ""
+    assert seen["text"] == "context ██████░░░░ 62%"
+
+
+def test_the_meter_follows_the_latest_reply(profiles, monkeypatch):
+    seen = _run_meter_scenario(monkeypatch, [_result(1000, 5000), _result(4600, 5000)])
+    assert seen["text"] == "context █████████░ 92%"
+
+
+def test_the_meter_stays_empty_when_the_knob_is_off_or_the_window_is_unknown(profiles, monkeypatch):
+    from sympose import settings_store
+
+    assert _run_meter_scenario(monkeypatch, [_result(None, None)])["text"] == ""
+    settings_store.set(meter.SETTING, False)
+    assert _run_meter_scenario(monkeypatch, [_result(3100, 5000)])["text"] == ""
+
+
+def test_a_zero_budget_is_treated_as_unknown_not_divided_by(profiles, monkeypatch):
+    assert _run_meter_scenario(monkeypatch, [_result(100, 0)])["text"] == ""
+
+
+def test_a_failed_turn_leaves_the_meter_as_it_was(profiles, monkeypatch):
+    seen = _run_meter_scenario(monkeypatch, [_result(3100, 5000), engine.EngineModelError("down")])
+    assert seen["text"] == "context ██████░░░░ 62%"
+
+
+def test_switching_the_model_or_the_persona_clears_the_meter(profiles, monkeypatch):
+    async def switch_model(app, pilot):
+        runtime.apply_picker_choice(app, "model", mock_data.MODEL_OPTIONS[1].id)
+        return _meter_text(app)
+
+    assert _run_meter_scenario(monkeypatch, [_result(3100, 5000)], then=switch_model)["then"] == ""
+
+    async def switch_persona(app, pilot):
+        other = next(p for p in mock_data.list_personas() if p.handle != app.persona.handle)
+        runtime.apply_picker_choice(app, "persona", other.handle)
+        return _meter_text(app)
+
+    write_persona(profiles, "grace", "name: Grace\nvault_folders: '*'\n")
+    assert _run_meter_scenario(monkeypatch, [_result(3100, 5000)], then=switch_persona)["then"] == ""
+
+
+def _switched_while_in_flight(profiles, monkeypatch, switch):
+    """Sends a message, runs `switch(app)` while its reply is still being
+    produced, lets it land, and returns the meter's text."""
+    write_persona(profiles, "grace", "name: Grace\nvault_folders: '*'\n")
+    release = threading.Event()
+
+    def slow_run_turn(handle, user_message, session_id=None, model=None):
+        release.wait(5)
+        return _result(3100, 5000)
+
+    monkeypatch.setattr(turns.engine, "run_turn", slow_run_turn)
+    seen = {}
+
+    async def scenario():
+        app = SymposeCLI()
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            app.composer.focus()
+            await pilot.press(*"hi", "enter")
+            await pilot.pause(0.2)
+            switch(app)
+            release.set()
+            for _ in range(50):
+                await pilot.pause(0.1)
+                if app.pending_turns == 0:
+                    break
+            await pilot.pause(0.2)
+            seen["text"] = _meter_text(app)
+
+    run_async(scenario())
+    return seen["text"]
+
+
+def test_a_reply_that_lands_after_a_persona_switch_does_not_fill_the_new_conversations_meter(
+    profiles, monkeypatch
+):
+    def to_other_persona(app):
+        other = next(p for p in mock_data.list_personas() if p.handle != app.persona.handle)
+        runtime.apply_picker_choice(app, "persona", other.handle)
+
+    assert _switched_while_in_flight(profiles, monkeypatch, to_other_persona) == ""
+
+
+def test_a_reply_that_lands_after_a_model_switch_does_not_show_the_old_models_percentage(
+    profiles, monkeypatch
+):
+    def to_other_model(app):
+        runtime.apply_picker_choice(app, "model", mock_data.MODEL_OPTIONS[1].id)
+
+    assert _switched_while_in_flight(profiles, monkeypatch, to_other_model) == ""
+
+
+def test_a_reply_with_no_switch_meanwhile_does_fill_the_meter(profiles, monkeypatch):
+    assert _switched_while_in_flight(profiles, monkeypatch, lambda app: None) == "context ██████░░░░ 62%"

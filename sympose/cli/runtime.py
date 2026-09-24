@@ -10,7 +10,7 @@ out to hold the 200-LOC-per-file cap."""
 
 from rich.style import Style
 
-from sympose.cli import grounding_line, picker, transcript as transcript_mod
+from sympose.cli import grounding_line, meter, picker, transcript as transcript_mod
 from sympose.cli.commands import COMMANDS
 from sympose.cli.mock_data import MOCK_HISTORY, MODEL_OPTIONS, list_personas
 from sympose.cli.selection import SelectionOption
@@ -105,6 +105,7 @@ def apply_picker_choice(app, kind: str, value: str | None) -> None:
         model = next((m for m in MODEL_OPTIONS if m.id == value), None)
         if model is not None:
             app.model_override = model
+            meter.clear(app)  # the old figure was measured against the previous window
             picker.update_banner(app)
             transcript_mod.mount_line(app, f"Switched model to {model.label}.", "system")
     elif kind == "persona":
@@ -119,6 +120,7 @@ def apply_picker_choice(app, kind: str, value: str | None) -> None:
             # A new persona starts a fresh session, same as a fresh process.
             app.session_id = None
             app.session_generation += 1
+            meter.clear(app)  # a fresh session starts empty
             picker.update_banner(app)
             transcript_mod.mount_line(app, f"Now talking to @{persona.handle}.", "system")
     elif kind == "history":

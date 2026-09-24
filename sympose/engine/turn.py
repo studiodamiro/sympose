@@ -40,8 +40,17 @@ class TurnResult:
     # The search query a follow-up was rewritten into when that rewrite is what
     # grounded the reply (docs/decisions/017); `None` when the message itself was.
     searched: str | None = None
+    # The conversation's size as the next turn starts from it, and the prompt
+    # budget it is measured against (docs/decisions/018); `None` when the
+    # model's window is unknown.
+    context_used: int | None = None
+    context_limit: int | None = None
     # The reply stopped at the reply limit, so it may end mid-sentence.
     truncated: bool = False
+
+
+def _reply_tokens(text: str, model: str) -> int:
+    return budget.count_tokens([{"role": "assistant", "content": text}], model)
 
 
 def run_turn(
@@ -77,11 +86,13 @@ def run_turn(
         # instead of claiming nothing matched.
         return prompt.build_messages(persona, hist, hits, user_message, omitted=found - len(hits))
 
+    prompt_tokens = 0
     if limits is None:
         messages, dropped = build(history, grounding_results), 0
     else:
         fitted = budget.fit(build, history, grounding_results, target_model, limits.prompt_tokens)
         messages, grounding_results, dropped = fitted.messages, fitted.grounding, fitted.history_dropped
+        prompt_tokens = fitted.tokens
     reply = model_mod.call_model(
         messages,
         model=target_model,
@@ -106,5 +117,7 @@ def run_turn(
         model=target_model,
         history_dropped=dropped,
         searched=searched if grounding_results else None,
+        context_used=prompt_tokens + _reply_tokens(reply.text, target_model) if limits else None,
+        context_limit=limits.prompt_tokens if limits else None,
         truncated=reply.truncated,
     )

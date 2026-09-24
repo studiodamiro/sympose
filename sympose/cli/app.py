@@ -18,6 +18,7 @@ from textual.widgets import Input, OptionList, Static
 from sympose.cli import dispatch, picker, turns
 from sympose.cli import transcript as transcript_mod
 from sympose.cli.composer import ComposerInput
+from sympose.cli.meter import ContextMeter
 from sympose.cli.mock_data import list_personas
 from sympose.cli.selection import SelectionPanel
 from sympose.profile import resolve_default_persona
@@ -48,7 +49,7 @@ class SymposeCLI(App):
     }
     #composer {
         border: round $primary;
-        margin: 0 1 1 1;
+        margin: 0 1 0 1;
     }
     #composer.composer-spaced {
         /* Full shorthand here too, not just `margin-top` — Textual's
@@ -57,7 +58,7 @@ class SymposeCLI(App):
         way plain CSS cascading would; it resets them, so this must
         restate all four rather than just the one that actually
         differs. */
-        margin: 1 1 1 1;
+        margin: 1 1 0 1;
     }
     #composer:focus {
         border: round $accent;
@@ -70,6 +71,7 @@ class SymposeCLI(App):
         yield Static("", id="banner")
         yield VerticalScroll(id="transcript")
         yield ComposerInput(placeholder="Message… (/ for commands)", id="composer")
+        yield ContextMeter("")
 
     def on_mount(self) -> None:
         personas = list_personas()
@@ -140,10 +142,9 @@ class SymposeCLI(App):
         self.tab_matches = None
         self.tab_index = -1
         self.filling_tab_count = 0
-        # Tracks which "chatter" (user / persona / system) mounted the
-        # last transcript line — `transcript.py`'s `mount_line` only adds
-        # a gap above a line when this changes, so consecutive lines
-        # from the same speaker stay grouped together.
+        # Which "chatter" (user / persona / system) mounted the last line:
+        # `transcript.py`'s `mount_line` only adds a gap above a line when
+        # this changes, so consecutive lines from one speaker stay grouped.
         self.last_speaker: str | None = None
         picker.update_banner(self)
         transcript_mod.mount_line(

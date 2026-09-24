@@ -225,6 +225,14 @@ def test_everything_that_fits_is_kept():
     assert len(fitted.messages) == 1 + 4 + 1
 
 
+def test_the_fitted_prompts_size_is_reported_for_the_meter():
+    hits = [{"id": 1}, {"id": 2}]
+    # system 20 + two passages 20 + two turns 40 + new message 5.
+    assert budget.fit(builder(20, 5), turns(2), hits, "m", prompt_tokens=200).tokens == 85
+    # After dropping two of four turns: 20 + 10 + 40 + 5, the figure of what is actually sent.
+    assert budget.fit(builder(20, 5), turns(4), [{"id": 1}], "m", prompt_tokens=75).tokens == 75
+
+
 def test_the_oldest_turns_are_dropped_first_and_only_as_many_as_needed():
     hits = [{"id": 1}]
     # system 20 + one passage 10 + new message 5 = 35; each turn is 20.

@@ -115,6 +115,11 @@ def _normalize(data: dict[str, Any], handle: str) -> dict[str, Any]:
         "model": data.get("model"),
         "skills": data.get("skills") or [],
         "aliases": _aliases(data.get("aliases")),
+        # Whether the persona has the Sympose reference library (docs/decisions/022):
+        # an explicit true; and the shipped default persona unless it says otherwise, so a
+        # `persona.yaml` written before the key existed does not lose it.
+        "sympose_reference": data.get("sympose_reference") is True
+        or (data.get("sympose_reference") is None and handle == FACTORY_DEFAULT_PERSONA),
     }
 
 
@@ -122,7 +127,9 @@ def _fallback_profile(handle: str) -> dict[str, Any]:
     """Whole-vault default — only for "profiles/ doesn't exist at all", or
     as `resolve_profile`'s last-resort safety net for the factory default
     specifically (see there)."""
-    return _normalize({"vault_folders": ["*"]}, handle)
+    return _normalize(
+        {"vault_folders": ["*"], "sympose_reference": handle.lower() == FACTORY_DEFAULT_PERSONA}, handle
+    )
 
 
 def get_profile(handle: str) -> dict[str, Any] | None:
@@ -196,3 +203,9 @@ def list_profiles() -> list[dict[str, Any]]:
         }
     )
     return [p for h in handles if (p := get_profile(h)) is not None]
+
+
+def reference_persona_names() -> list[str]:
+    """The display names of the personas that have the Sympose reference
+    library, for the ones that do not to point the user to (docs/decisions/022)."""
+    return [str(p["name"]) for p in list_profiles() if p.get("sympose_reference")]

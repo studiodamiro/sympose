@@ -230,6 +230,18 @@ REF_CASES: list[RefCase] = [
         first="Not built yet.md",
     ),
     RefCase(
+        "session-logs-review",
+        "arent you supposed to review our session logs?",
+        find=("Not yet",),
+        first="Not built yet.md",
+    ),
+    RefCase(
+        "history-and-logs-pressed",
+        "theres history and session logs for you to know what we talked last time. arent you aware of that?",
+        find=("Not yet",),
+        first="Not built yet.md",
+    ),
+    RefCase(
         "writes-notes",
         "can Samantha write or edit my notes for me in the chat?",
         find=("cannot",),

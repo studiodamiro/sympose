@@ -25,6 +25,10 @@ build-backend = "setuptools.build_meta"
 [tool.setuptools.packages.find]
 include = ["sympose*"]
 
+[tool.setuptools.package-data]
+# The Sympose reference notes (docs/decisions/019, 022) are read at run time.
+sympose = ["reference/*.md"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 

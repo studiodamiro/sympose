@@ -11,7 +11,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from sympose import profile as profile_mod
-from sympose.engine import budget, followup, prompt, session
+from sympose.engine import budget, followup, prompt, reference, session
 from sympose.engine import model as model_mod
 from sympose.engine.model import EngineModelError
 
@@ -49,6 +49,14 @@ class TurnResult:
     truncated: bool = False
 
 
+def _interleave(first: list[dict[str, Any]], second: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """`first[0], second[0], first[1], second[1], ...`, then whichever list is longer."""
+    merged: list[dict[str, Any]] = []
+    for i in range(max(len(first), len(second))):
+        merged.extend(part[i] for part in (first, second) if i < len(part))
+    return merged
+
+
 def _reply_tokens(text: str, model: str) -> int:
     return budget.count_tokens([{"role": "assistant", "content": text}], model)
 
@@ -77,14 +85,29 @@ def run_turn(
     # The prompt is sized to this model's window, not left to the runtime's
     # silent cut (docs/decisions/015); the follow-up rewrite shares that window.
     limits = budget.budget_for(target_model)
-    grounding_results, searched = followup.ground(persona, user_message, history, target_model, limits)
+    vault_hits, searched = followup.ground(persona, user_message, history, target_model, limits)
+    # The two sources take turns, the reference first: when the prompt does not fit, the
+    # end of the list goes first, so the best passage of each source stays longest and
+    # neither's evidence is dropped wholesale before the other's (docs/decisions/022).
+    grounding_results = _interleave(reference.ground(persona, user_message), vault_hits)
+    point_to = [] if persona.get("sympose_reference") else profile_mod.reference_persona_names()
 
-    found = len(grounding_results)
+    reference_found = sum(1 for h in grounding_results if h.get("source") == reference.SOURCE)
+    vault_found = len(grounding_results) - reference_found
 
     def build(hist: list[dict[str, str]], hits: list[dict[str, Any]]) -> list[dict[str, str]]:
-        # `found - len(hits)` passages were left out for size: the prompt says so
-        # instead of claiming nothing matched.
-        return prompt.build_messages(persona, hist, hits, user_message, omitted=found - len(hits))
+        # Passages of each source that did not fit are left out: the prompt says
+        # so, per source, instead of claiming nothing matched.
+        kept_reference = sum(1 for h in hits if h.get("source") == reference.SOURCE)
+        return prompt.build_messages(
+            persona,
+            hist,
+            hits,
+            user_message,
+            omitted=vault_found - (len(hits) - kept_reference),
+            reference_omitted=reference_found - kept_reference,
+            point_to=point_to,
+        )
 
     prompt_tokens = 0
     if limits is None:
@@ -116,7 +139,7 @@ def run_turn(
         ttft_ms=reply.ttft_ms,
         model=target_model,
         history_dropped=dropped,
-        searched=searched if grounding_results else None,
+        searched=searched if any(h.get("source") != reference.SOURCE for h in grounding_results) else None,
         context_used=prompt_tokens + _reply_tokens(reply.text, target_model) if limits else None,
         context_limit=limits.prompt_tokens if limits else None,
         truncated=reply.truncated,

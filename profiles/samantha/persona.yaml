@@ -1,6 +1,7 @@
 name: 'Samantha'
 handle: 'samantha'
 aliases: ['Sam']
+sympose_reference: true
 title: 'Polymath Strategic Master Orchestrator'
 
 # "*" = full vault access.

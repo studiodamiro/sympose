@@ -313,3 +313,46 @@ def test_a_handle_that_is_not_a_single_path_component_resolves_to_nothing(profil
 
     assert profile.get_profile(handle) is None
     assert profile.load_soul(handle) is None
+
+
+# -- the Sympose reference library flag (docs/decisions/022) --
+
+
+@pytest.mark.parametrize("value,expected", [("true", True), ("false", False), ("'true'", False), ("1", False), ("~", False)])
+def test_only_an_explicit_true_gives_a_persona_the_reference_library(profiles_dir, value, expected):
+    _write(profiles_dir, "dev", f"name: Dev\nsympose_reference: {value}\n")
+    assert profile.get_profile("dev")["sympose_reference"] is expected
+
+
+def test_the_default_persona_keeps_the_library_when_its_file_predates_the_key(profiles_dir):
+    _write(profiles_dir, "samantha", "name: Samantha\n")  # written before `sympose_reference` existed
+    _write(profiles_dir, "ada", "name: Ada\n")
+
+    assert profile.get_profile("samantha")["sympose_reference"] is True
+    assert profile.get_profile("ada")["sympose_reference"] is False
+
+
+def test_the_default_persona_can_turn_the_library_off_explicitly(profiles_dir):
+    _write(profiles_dir, "samantha", "name: Samantha\nsympose_reference: false\n")
+    assert profile.get_profile("samantha")["sympose_reference"] is False
+
+
+def test_a_persona_name_that_is_not_text_does_not_break_the_roster(profiles_dir):
+    _write(profiles_dir, "samantha", "name: Samantha\nsympose_reference: true\n")
+    _write(profiles_dir, "odd", "name: 2024\nsympose_reference: true\n")
+
+    assert profile.reference_persona_names() == ["2024", "Samantha"]
+
+
+def test_no_flag_means_no_library_and_the_synthetic_default_persona_has_it(tmp_path, monkeypatch):
+    monkeypatch.setenv("SYMPOSE_PROFILES_DIR", str(tmp_path / "no-profiles-here"))
+    assert profile.get_profile("samantha")["sympose_reference"] is True
+    assert profile.get_profile("someone-else")["sympose_reference"] is False
+
+
+def test_the_names_of_the_personas_that_have_the_library(profiles_dir):
+    _write(profiles_dir, "samantha", "name: Samantha\nsympose_reference: true\n")
+    _write(profiles_dir, "dev", "name: Dev\n")
+    _write(profiles_dir, "ada", "name: Ada\nsympose_reference: true\n")
+
+    assert profile.reference_persona_names() == ["Ada", "Samantha"]

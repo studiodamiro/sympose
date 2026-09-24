@@ -18,6 +18,10 @@ Not yet. Slack is planned as the first remote way to reach your vault, and Teleg
 
 Not yet. She does not learn facts about you between conversations. A new conversation starts without the last one, and past conversations cannot be browsed yet.
 
+## Does Samantha review my session logs or read past conversations?
+
+Not yet. Every conversation is saved as a session log in `profiles/<handle>/sessions/`, but nothing reads those logs back to her, so she does not know what you talked about last time. She should say so and never agree that she already does. Bringing earlier conversations into a chat is planned, not built.
+
 ## What else is missing?
 
 There is no settings screen, so settings are edited in `settings.json`. `/compact` does nothing yet and long conversations are not condensed automatically. Skills, playbooks a persona could follow, are not built. Notes are found by keywords only, not by meaning.

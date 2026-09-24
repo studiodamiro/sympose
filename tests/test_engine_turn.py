@@ -8,7 +8,7 @@ import os
 import pytest
 from helpers import write_persona
 
-from sympose.engine import followup, grounding, prompt, session, turn
+from sympose.engine import followup, grounding, prompt, reference, session, turn
 from sympose.engine.model import ModelReply
 
 
@@ -36,7 +36,9 @@ def sessions_root(tmp_path, monkeypatch):
     """A profiles dir with a `samantha` persona; sessions land in
     `<root>/<handle>/sessions/` (docs/decisions/011). Returns the root."""
     base = tmp_path / "profiles"
-    write_persona(base, "samantha", "name: Samantha\nvault_folders: '*'\n")
+    # These tests were written for a persona without the Sympose reference library
+    # (docs/decisions/022); the library tests turn it on with `_library_persona`.
+    write_persona(base, "samantha", "name: Samantha\nvault_folders: '*'\nsympose_reference: false\n")
     monkeypatch.setenv("SYMPOSE_PROFILES_DIR", str(base))
     monkeypatch.setenv("SYMPOSE_SETTINGS_PATH", str(tmp_path / "settings.json"))
     return str(base)
@@ -524,3 +526,177 @@ def test_no_meter_figures_when_the_models_window_is_unknown(sessions_root, monke
     monkeypatch.setattr(turn.model_mod, "call_model", lambda messages, model=None, **limits: ModelReply("ok", 5))
     result = turn.run_turn("samantha", "hi", model="someprovider/unknown-model")
     assert result.context_used is None and result.context_limit is None
+
+
+# -- the Sympose reference library (docs/decisions/022) --
+
+
+def _reference_hit(text="Not yet. A new conversation starts without the last one."):
+    return {
+        "rel_path": "Sympose reference/Not built yet.md", "title": "Not built yet", "heading": "Memory",
+        "text": text, "source": "sympose", "matched": 2, "index": 1,
+    }
+
+
+def _library_persona(sessions_root):
+    write_persona(__import__("pathlib").Path(sessions_root), "samantha", "name: Samantha\nvault_folders: '*'\nsympose_reference: true\n")
+
+
+def test_the_reference_passages_come_first_and_travel_in_their_own_block(sessions_root, monkeypatch):
+    _library_persona(sessions_root)
+    calls = _capture_call(monkeypatch)
+    monkeypatch.setattr(grounding, "ground", lambda profile, msg, max_results=5: [_fake_grounding_result()])
+    monkeypatch.setattr(reference, "ground", lambda persona, msg: [_reference_hit()])
+
+    result = turn.run_turn("samantha", "do you remember last time?")
+
+    assert [h.get("source") for h in result.grounding] == ["sympose", None]
+    last = calls[0]["messages"][-1]["content"]
+    assert last.index("Notes found in the vault") < last.index(prompt.REFERENCE_LABEL)
+    assert "A new conversation starts without the last one." in last
+
+
+def test_a_persona_without_the_library_never_searches_it(sessions_root, monkeypatch):
+    monkeypatch.setattr(grounding, "ground", lambda profile, msg, max_results=5: [])
+    calls = _capture_call(monkeypatch)
+
+    result = turn.run_turn("samantha", "who made Sympose?")  # the fixture persona has no flag
+
+    assert result.grounding == []
+    assert prompt.REFERENCE_LABEL not in calls[0]["messages"][-1]["content"]
+
+
+def test_the_rewritten_query_is_reported_only_for_the_vaults_passages(sessions_root, monkeypatch):
+    _library_persona(sessions_root)
+    monkeypatch.setattr(reference, "ground", lambda persona, msg: [_reference_hit()])
+    result, _ = _first_turn_then_follow_up(
+        monkeypatch, "why SQLite for Atlas", {"why SQLite for Atlas": [_fake_grounding_result()]}
+    )
+    assert result.searched == "why SQLite for Atlas"
+    assert [h.get("source") for h in result.grounding] == ["sympose", None]
+
+
+def test_when_the_prompt_does_not_fit_the_vaults_passages_go_before_the_reference(sessions_root, monkeypatch):
+    from sympose import settings_store
+
+    _library_persona(sessions_root)
+    settings_store.set("context_window", 1024)
+    big = {**_fake_grounding_result(), "text": "filler words for the passage " * 60}
+    calls = _capture_call(monkeypatch)
+    monkeypatch.setattr(grounding, "ground", lambda profile, msg, max_results=5: [big, {**big, "title": "Other"}])
+    monkeypatch.setattr(reference, "ground", lambda persona, msg: [_reference_hit()])
+
+    result = turn.run_turn("samantha", "hello")
+
+    assert result.grounding and result.grounding[0].get("source") == "sympose"  # kept
+    assert [h.get("source") for h in result.grounding] == ["sympose"]  # both vault passages went, the reference stayed
+    last = calls[0]["messages"][-1]["content"]
+    assert "Notes in the vault matched this message, but they could not be included" in last  # the vault says so
+    assert "Sympose reference passages matched" not in last  # and the reference does not
+    assert "A new conversation starts without the last one." in last
+    assert prompt.NO_REFERENCE not in last
+
+
+def _free_tokens(persona_handle="samantha", model="ollama_chat/gemma2:9b", window=2048):
+    """How many tokens of the prompt budget are left once the persona's own prompt and an
+    empty turn are in, so the trimming tests size their passages from the prompt as it is
+    now and do not break each time its wording changes."""
+    from sympose.engine import budget
+    from sympose.profile import resolve_profile
+
+    messages = prompt.build_messages(resolve_profile(persona_handle), [], [], "hello")
+    return window - budget.reply_reserve(window) - budget.count_tokens(messages, model)
+
+
+def _text_of_tokens(tokens: int, model="ollama_chat/gemma2:9b") -> str:
+    from sympose.engine import budget
+
+    unit = "filler words for the passage "
+    per_unit = budget.count_tokens([{"role": "user", "content": unit * 10}], model) / 10
+    return unit * max(1, int(tokens / per_unit))
+
+
+def test_vault_passages_left_out_are_counted_while_the_reference_stays(sessions_root, monkeypatch):
+    from sympose import settings_store
+
+    _library_persona(sessions_root)
+    settings_store.set("context_window", 2048)
+    size = int(_free_tokens() * 0.45)  # two of the three fit, three do not
+    vault = [{**_fake_grounding_result(), "title": f"V{i}", "text": _text_of_tokens(size)} for i in range(3)]
+    calls = _capture_call(monkeypatch)
+    monkeypatch.setattr(grounding, "ground", lambda profile, msg, max_results=5: list(vault))
+    monkeypatch.setattr(reference, "ground", lambda persona, msg: [_reference_hit()])
+
+    result = turn.run_turn("samantha", "hello")
+
+    assert [h.get("source") for h in result.grounding] == ["sympose", None, None]
+    last = calls[0]["messages"][-1]["content"]
+    assert "(1 more matching passages were left out" in last
+    assert "more reference passages were left out" not in last
+
+
+def test_reference_passages_left_out_are_counted_apart_from_the_vaults(sessions_root, monkeypatch):
+    from sympose import settings_store
+
+    _library_persona(sessions_root)
+    settings_store.set("context_window", 2048)
+    text = _text_of_tokens(int(_free_tokens() * 0.7))  # one fits, two do not
+    two = [_reference_hit(text), {**_reference_hit(text), "title": "Other"}]
+    calls = _capture_call(monkeypatch)
+    monkeypatch.setattr(reference, "ground", lambda persona, msg: list(two))
+
+    result = turn.run_turn("samantha", "hello")
+
+    assert [h.get("source") for h in result.grounding] == ["sympose"]
+    last = calls[0]["messages"][-1]["content"]
+    assert "(1 more reference passages were left out" in last
+    assert prompt.NO_NOTES in last  # the vault had nothing, and is not said to have had something
+    assert "Notes in the vault matched" not in last
+
+
+def test_the_two_sources_take_turns_so_neither_is_dropped_wholesale():
+    ref = [{"source": "sympose", "n": i} for i in range(3)]
+    vault = [{"n": i} for i in range(2)]
+
+    merged = turn._interleave(ref, vault)
+
+    assert [(h.get("source"), h["n"]) for h in merged] == [
+        ("sympose", 0), (None, 0), ("sympose", 1), (None, 1), ("sympose", 2),
+    ]
+    assert turn._interleave([], vault) == vault and turn._interleave(ref, []) == ref
+
+
+def test_under_a_tight_window_the_best_vault_passage_outlasts_the_weaker_reference_ones(sessions_root, monkeypatch):
+    from sympose import settings_store
+
+    _library_persona(sessions_root)
+    settings_store.set("context_window", 2048)
+    text = _text_of_tokens(int(_free_tokens() * 0.4))  # two of the four fit
+    refs = [{**_reference_hit(text), "title": f"R{i}"} for i in range(2)]
+    vault = [{**_fake_grounding_result(), "title": f"V{i}", "text": text} for i in range(2)]
+    _capture_call(monkeypatch)
+    monkeypatch.setattr(grounding, "ground", lambda profile, msg, max_results=5: list(vault))
+    monkeypatch.setattr(reference, "ground", lambda persona, msg: list(refs))
+
+    result = turn.run_turn("samantha", "hello")
+
+    assert [(h.get("source"), h["title"]) for h in result.grounding] == [("sympose", "R0"), (None, "V0")]
+
+
+def test_the_roster_is_read_once_per_turn_not_once_per_trimming_attempt(sessions_root, monkeypatch):
+    from sympose import settings_store
+
+    settings_store.set("context_window", 1024)
+    reads = []
+    monkeypatch.setattr(turn.profile_mod, "reference_persona_names", lambda: reads.append(1) or [])
+    monkeypatch.setattr(prompt, "reference_persona_names", lambda: reads.append(1) or [])
+    _capture_call(monkeypatch)
+    monkeypatch.setattr(
+        grounding, "ground",
+        lambda profile, msg, max_results=5: [{**_fake_grounding_result(), "text": "filler words " * 200}] * 3,
+    )
+
+    turn.run_turn("samantha", "hello")
+
+    assert len(reads) == 1  # although three passages were dropped one attempt at a time
+

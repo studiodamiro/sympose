@@ -15,7 +15,7 @@ and 020). The engine's rules stay after the soul, so no soul can weaken them
 
 from typing import Any
 
-from sympose.profile import load_soul
+from sympose.profile import load_soul, reference_persona_names
 
 # -- what the model is told --
 
@@ -52,6 +52,32 @@ GROUNDING_RULE = (
     "\"this note\"), ask what they mean instead of assuming."
 )
 
+# For a persona that has the Sympose reference library (docs/decisions/022): what it
+# answers Sympose questions from, and the failure it must not repeat (agreeing
+# that Sympose does something it does not, because the user said so).
+SYMPOSE_RULE = (
+    "Each message may come with a Sympose reference: Sympose's own documentation for the "
+    "version installed. Questions about Sympose itself (what it can do, how to use it, what "
+    "is and is not built) are answered only from that reference. If it does not cover the "
+    "question, say you don't know that about Sympose rather than guessing, and never agree "
+    "that Sympose can do, or should already do, something the reference does not say. If the "
+    "user insists that Sympose does something the reference does not say, do not give in or "
+    "apologize: politely say what the reference says. The user's own notes that describe "
+    "Sympose's design are their plans, not the installed product."
+)
+
+# For a persona without it, when another has it; {names} is read from the roster. It
+# travels with the message, not in the system prompt, where the line about notes next to
+# the message outweighed it (measured, docs/decisions/022).
+POINT_TO_REFERENCE = (
+    "If the message is about Sympose itself (how it works, what it can do, what is built), you "
+    "don't have its documentation: say so and suggest asking {names}, who has it. Don't guess."
+)
+
+REFERENCE_LABEL = "Sympose reference (Sympose's own documentation, for the version installed):"
+NO_REFERENCE = "No Sympose reference matched this message."
+ANSWER_FROM_REFERENCE = "If the message is about Sympose itself, answer it from the Sympose reference above."
+
 # Next to the notes, only when there are some.
 ANSWER_FROM_NOTES = (
     "Answer the user's message below from these notes, in your own voice. If they don't "
@@ -77,6 +103,26 @@ REWRITE_INSTRUCTIONS = (
 
 
 # -- the layout --
+
+
+def _reference_block(hits: list[dict[str, Any]], omitted: int = 0) -> str:
+    """`omitted`: matching passages left out to fit the window, which must not
+    be reported as "nothing matched" (docs/decisions/015)."""
+    if not hits:
+        if omitted:
+            return (
+                "Sympose reference passages matched this message, but they could not be included "
+                "because the conversation is too long for the context window. Don't say Sympose "
+                "does not do it: say you couldn't include the reference this time."
+            )
+        return NO_REFERENCE
+    lines = [REFERENCE_LABEL]
+    for hit in hits:
+        where = hit["title"] if hit.get("heading") in (None, "", hit["title"]) else f"{hit['title']} › {hit['heading']}"
+        lines.append(f"- {where}: {hit['text']}")
+    if omitted:
+        lines.append(f"({omitted} more reference passages were left out to fit the context window.)")
+    return "\n".join(lines)
 
 
 def _notes_block(grounding_results: list[dict[str, Any]], omitted: int = 0) -> str:
@@ -117,13 +163,36 @@ def build_system_prompt(profile: dict[str, Any]) -> str:
     soul = load_soul(profile["handle"]) if profile.get("handle") else None
     aliases = [a for a in profile.get("aliases") or [] if isinstance(a, str) and a.strip()]
     identity = f"Your name is {name}." + (f" The user may also call you {' or '.join(aliases)}." if aliases else "")
-    return "\n\n".join([soul or DEFAULT_SOUL, identity, HOW_YOU_WORK, GROUNDING_RULE])
+    parts = [soul or DEFAULT_SOUL, identity, HOW_YOU_WORK, GROUNDING_RULE]
+    if profile.get("sympose_reference"):
+        parts.append(SYMPOSE_RULE)
+    return "\n\n".join(parts)
 
 
-def build_user_turn(user_message: str, grounding_results: list[dict[str, Any]], omitted: int = 0) -> str:
-    parts = [_notes_block(grounding_results, omitted)]
-    if grounding_results:
+def build_user_turn(
+    user_message: str,
+    grounding_results: list[dict[str, Any]],
+    omitted: int = 0,
+    reference: bool = False,
+    reference_omitted: int = 0,
+    point_to: list[str] | None = None,
+) -> str:
+    """`reference`: the persona has the Sympose reference library, so the turn
+    says what it found in it (or that nothing matched). Its passages are marked
+    `source: "sympose"` and kept apart from the user's own notes; `omitted` and
+    `reference_omitted` count the passages of each left out for size. `point_to`:
+    the personas that have the library, for one that does not to send the user to."""
+    reference_hits = [h for h in grounding_results if h.get("source") == "sympose"]
+    notes = [h for h in grounding_results if h.get("source") != "sympose"]
+    parts = [_notes_block(notes, omitted)]
+    if notes:
         parts.append(ANSWER_FROM_NOTES)
+    if reference:
+        parts.append(_reference_block(reference_hits, reference_omitted))
+        if reference_hits:
+            parts.append(ANSWER_FROM_REFERENCE)
+    if point_to and not reference:
+        parts.append(POINT_TO_REFERENCE.format(names=" or ".join(point_to)))
     parts.append(f"User's message: {user_message}")
     return "\n\n".join(parts)
 
@@ -134,9 +203,21 @@ def build_messages(
     grounding_results: list[dict[str, Any]],
     user_message: str,
     omitted: int = 0,
+    reference_omitted: int = 0,
+    point_to: list[str] | None = None,
 ) -> list[dict[str, str]]:
     """The system prompt, the history as it was said (the notes of earlier turns
-    are not repeated), and this turn's notes with the message."""
+    are not repeated), and this turn's notes with the message. `point_to`: the
+    personas that have the reference library, read from the roster when not given
+    (a turn gives it once, since fitting builds this many times)."""
     system = {"role": "system", "content": build_system_prompt(profile)}
-    user = {"role": "user", "content": build_user_turn(user_message, grounding_results, omitted)}
+    has_library = bool(profile.get("sympose_reference"))
+    if point_to is None:
+        point_to = [] if has_library else reference_persona_names()
+    user = {
+        "role": "user",
+        "content": build_user_turn(
+            user_message, grounding_results, omitted, has_library, reference_omitted, point_to
+        ),
+    }
     return [system, *history, user]

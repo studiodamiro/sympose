@@ -15,6 +15,7 @@ from textual.binding import Binding
 from textual.containers import VerticalScroll
 from textual.widgets import Input, OptionList, Static
 
+from sympose import engine
 from sympose.cli import dispatch, picker, turns
 from sympose.cli import transcript as transcript_mod
 from sympose.cli.composer import ComposerInput
@@ -101,12 +102,10 @@ class SymposeCLI(App):
         # it does not reset this (no `/new`-style command exists yet).
         self.session_id: str | None = None
         # Bumped every time `session_id` is deliberately reset (a persona
-        # switch). A call still in flight when that happens must not write
-        # its own (now-stale) session_id back once it resolves — comparing
-        # against the persona handle alone isn't enough, since switching
-        # away and back to the *same* persona before the call resolves
-        # would restore a matching handle with a stale session_id anyway;
-        # this counter catches that too, not just a switch to someone else.
+        # switch), so a call still in flight then must not write its own
+        # now-stale session_id back once it resolves. The persona handle
+        # alone isn't enough: switching away and back to the *same* persona
+        # would restore a matching handle with a stale session_id anyway.
         self.session_generation = 0
         # The session id each generation actually resolved to, so a queued
         # message for the same persona/generation can continue it even if
@@ -147,9 +146,8 @@ class SymposeCLI(App):
         # this changes, so consecutive lines from one speaker stay grouped.
         self.last_speaker: str | None = None
         picker.update_banner(self)
-        transcript_mod.mount_line(
-            self, "Talking to the real engine now — local by default.", "system"
-        )
+        engine.refresh_recaps(self.persona.handle)  # background, while the user types (ADR 023)
+        transcript_mod.mount_line(self, "Talking to the real engine now — local by default.", "system")
         transcript_mod.mount_line(self, "Type a message, or / for commands.", "system")
         picker.close_panel(self)  # syncs the composer's initial spacing (no panel yet)
         self.composer.focus()

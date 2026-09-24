@@ -47,6 +47,15 @@ def stub_engine(monkeypatch):
     monkeypatch.setattr(turns.engine, "run_turn", fake_run_turn)
 
 
+@pytest.fixture(autouse=True)
+def recap_calls(monkeypatch):
+    """Recaps (docs/decisions/023) are written by a background model call at launch
+    and on a persona switch: never a real one here. The handles it was asked for."""
+    calls: list[str] = []
+    monkeypatch.setattr(engine, "refresh_recaps", calls.append)
+    return calls
+
+
 # -- commands.py -------------------------------------------------------
 
 
@@ -877,6 +886,27 @@ def test_switching_persona_resets_session_id(profiles):
             await pilot.pause()
 
             assert app.session_id is None
+
+    run_async(scenario())
+
+
+def test_recaps_are_refreshed_at_launch_and_when_another_persona_is_picked(profiles, recap_calls):
+    async def scenario():
+        app = SymposeCLI()
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            assert recap_calls == ["samantha"]
+            app.composer.focus()
+            await pilot.press(*"/persona", "enter")
+            await pilot.pause()
+            await pilot.press("1")  # sorted: aria is option 1
+            await pilot.pause()
+            assert recap_calls == ["samantha", "aria"]
+            await pilot.press(*"/persona", "enter")
+            await pilot.pause()
+            await pilot.press("1")  # the persona already talked to: nothing switches
+            await pilot.pause()
+            assert recap_calls == ["samantha", "aria"]
 
     run_async(scenario())
 

@@ -16,7 +16,7 @@ the engine rules, or the new message. Nothing here calls a model."""
 
 import logging
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Callable
 
 import litellm
@@ -75,6 +75,7 @@ class Fitted:
     grounding: list[dict[str, Any]]  # the passages that survived
     history_dropped: int  # turns left out for size, not counting the turn-count cap
     tokens: int  # what the fitted prompt counts as, margin included (docs/decisions/018)
+    recaps: list[dict[str, Any]] = field(default_factory=list)  # the recaps that survived
 
 
 def is_ollama(model: str) -> bool:
@@ -156,23 +157,31 @@ def count_tokens(messages: list[dict[str, str]], model: str) -> int:
 
 
 def fit(
-    build_messages: Callable[[list[dict[str, str]], list[dict[str, Any]]], list[dict[str, str]]],
+    build_messages: Callable[
+        [list[dict[str, str]], list[dict[str, Any]], list[dict[str, Any]]], list[dict[str, str]]
+    ],
     history: list[dict[str, str]],
     grounding: list[dict[str, Any]],
     model: str,
     prompt_tokens: int,
+    recaps: list[dict[str, Any]] | None = None,
 ) -> Fitted:
-    """`build_messages(history, grounding)` assembles the whole prompt, so
+    """`build_messages(history, grounding, recaps)` assembles the whole prompt, so
     the soul, the rules and the new message are always in it. `history` is
-    `user, assistant` pairs, oldest first; `grounding` is best-first."""
-    kept_history, kept_grounding = list(history), list(grounding)
+    `user, assistant` pairs, oldest first; `grounding` is best-first; `recaps` of
+    earlier conversations (docs/decisions/023) are newest-first and go before
+    anything else: they matter only to a question about the past."""
+    kept_history, kept_grounding, kept_recaps = list(history), list(grounding), list(recaps or [])
     dropped = 0
 
     def attempt() -> tuple[list[dict[str, str]], int]:
-        messages = build_messages(kept_history, kept_grounding)
+        messages = build_messages(kept_history, kept_grounding, kept_recaps)
         return messages, count_tokens(messages, model)
 
     messages, used = attempt()
+    while used > prompt_tokens and kept_recaps:
+        kept_recaps.pop()
+        messages, used = attempt()
     while used > prompt_tokens and kept_history:
         del kept_history[:2]
         dropped += 1
@@ -187,4 +196,4 @@ def fit(
             f"shorten it; otherwise use a model with a larger window (and if you set "
             f"`{_SETTING}`, raise it)."
         )
-    return Fitted(messages, kept_grounding, dropped, used)
+    return Fitted(messages, kept_grounding, dropped, used, kept_recaps)

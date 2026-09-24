@@ -197,10 +197,10 @@ def test_a_failing_token_counter_degrades_to_an_estimate_not_an_error(monkeypatc
 
 def builder(system_words: int, user_words: int):
     """A prompt of a system message (`system_words`, plus 10 words per
-    passage), the history, and the new message."""
+    passage and 8 per recap), the history, and the new message."""
 
-    def build(history, hits):
-        system = words(system_words) + "".join(" " + words(10) for _ in hits)
+    def build(history, hits, recaps=()):
+        system = words(system_words) + "".join(" " + words(10) for _ in hits) + "".join(" " + words(8) for _ in recaps)
         return [
             {"role": "system", "content": system},
             *history,
@@ -266,6 +266,26 @@ def test_passages_go_only_after_history_and_the_lowest_scoring_first():
     fitted = budget.fit(builder(20, 5), turns(1), hits, "m", prompt_tokens=45)
     assert fitted.history_dropped == 1
     assert fitted.grounding == [{"id": 1}, {"id": 2}]
+
+
+def test_recaps_go_before_older_turns_and_the_oldest_recap_last_of_all():
+    recaps = [{"id": "new"}, {"id": "old"}]  # newest first, 8 words each
+    hits = [{"id": 1}]
+    # fixed 25 + one passage 10 + two recaps 16 + two turns 40 = 91.
+    fitted = budget.fit(builder(20, 5), turns(2), hits, "m", prompt_tokens=91, recaps=recaps)
+    assert fitted.recaps == recaps and fitted.history_dropped == 0
+    fitted = budget.fit(builder(20, 5), turns(2), hits, "m", prompt_tokens=90, recaps=recaps)
+    assert fitted.recaps == [{"id": "new"}]  # the older recap went first, and no turn had to
+    assert fitted.history_dropped == 0 and fitted.grounding == hits
+    fitted = budget.fit(builder(20, 5), turns(2), hits, "m", prompt_tokens=82, recaps=recaps)
+    assert fitted.recaps == [] and fitted.history_dropped == 0
+    fitted = budget.fit(builder(20, 5), turns(2), hits, "m", prompt_tokens=60, recaps=recaps)
+    assert fitted.recaps == [] and fitted.history_dropped == 1 and fitted.grounding == hits
+
+
+def test_the_fitted_prompt_counts_the_recaps_it_kept_for_the_meter():
+    recaps = [{"id": "new"}]
+    assert budget.fit(builder(20, 5), [], [], "m", prompt_tokens=100, recaps=recaps).tokens == 33
 
 
 def test_when_the_fixed_part_alone_does_not_fit_it_fails_loudly_instead_of_cutting_it():

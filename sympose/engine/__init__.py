@@ -2,6 +2,7 @@
 the one entrypoint every channel (CLI today; Slack/dashboard later) calls."""
 
 from sympose.engine.model import EngineModelError
+from sympose.engine.recap_refresh import refresh_in_background as refresh_recaps
 from sympose.engine.turn import PersonaNotFoundError, TurnResult, run_turn
 
-__all__ = ["run_turn", "TurnResult", "EngineModelError", "PersonaNotFoundError"]
+__all__ = ["run_turn", "TurnResult", "EngineModelError", "PersonaNotFoundError", "refresh_recaps"]

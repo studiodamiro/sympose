@@ -16,11 +16,11 @@ Not yet. Slack is planned as the first remote way to reach your vault, and Teleg
 
 ## Does Samantha remember me between conversations?
 
-Not yet. She does not learn facts about you between conversations. A new conversation starts without the last one, and past conversations cannot be browsed yet.
+Only in a small way. She does not learn facts about you. At the start of a conversation she is given short recaps of your last conversations, written from what you said, so she can pick up where you left off. Nothing else is kept between conversations, and past conversations cannot be browsed yet.
 
 ## Does Samantha review my session logs or read past conversations?
 
-Not yet. Every conversation is saved as a session log in `profiles/<handle>/sessions/`, but nothing reads those logs back to her, so she does not know what you talked about last time. She should say so and never agree that she already does. Bringing earlier conversations into a chat is planned, not built.
+No, not the logs. Every conversation is saved as a session log in `profiles/<handle>/sessions/`, but she never reads them. She only gets short recaps of your last conversations, so she cannot quote what was said or search old conversations. She should say what she has and never agree that she reads the logs. Searching past conversations is planned, not built.
 
 ## What else is missing?
 

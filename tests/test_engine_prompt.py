@@ -104,10 +104,15 @@ def test_the_prompt_tells_every_persona_what_it_cannot_do_yet():
     assert "ask what they mean instead of assuming" in text
 
 
-def test_the_prompt_says_there_is_no_memory_between_conversations_and_no_learning():
+def test_the_prompt_says_she_keeps_only_the_recaps_shown_and_does_not_learn():
     text = prompt.build_system_prompt({"name": "Samantha"})
 
-    assert "no memory between conversations" in text and "do not learn over time" in text
+    assert "do not learn over time" in text
+    assert (
+        "Of earlier conversations you know only the short recaps shown with the message, when there are any; "
+        "otherwise you know only this conversation and the notes found for the current message."
+    ) in text
+    assert "no memory between conversations" not in text
 
 
 def test_a_reply_that_uses_a_note_is_asked_to_name_it_so_the_source_stays_in_the_history():
@@ -339,3 +344,65 @@ def test_a_turn_for_a_persona_that_has_the_library_never_points_elsewhere_even_i
     text = prompt.build_user_turn("how do I add a vault?", [], reference=True, point_to=["Samantha"])
 
     assert "suggest asking" not in text
+
+
+# -- recaps of earlier conversations (docs/decisions/023) --
+
+_RECAPS = [
+    {"date": "2026-09-24", "text": "Was choosing a database for the Atlas project.", "last": True},
+    {"date": "2026-09-23", "text": "Planned a trip.", "last": False},
+]
+
+
+def test_recaps_go_above_the_notes_each_with_its_date_and_are_answered_from():
+    text = prompt.build_user_turn("where were we?", [_grounding_result()], recaps=_RECAPS)
+
+    assert text.startswith(prompt.RECAPS_LABEL)
+    assert "- Last conversation (2026-09-24): Was choosing a database for the Atlas project." in text
+    assert "- An earlier conversation (2026-09-23): Planned a trip." in text
+    assert text.index("Planned a trip.") < text.index("Was choosing a database")  # oldest first, the newest nearest the question
+    assert text.index("Was choosing a database") < text.index("Notes found in the vault")
+    assert text.index(prompt.ANSWER_FROM_RECAPS) < text.index("Notes found in the vault")
+    assert text.endswith("User's message: where were we?")
+
+
+def test_no_recaps_add_nothing_to_the_turn():
+    assert prompt.build_user_turn("hi", []) == prompt.build_user_turn("hi", [], recaps=[])
+    assert prompt.RECAPS_LABEL not in prompt.build_user_turn("hi", [], recaps=[])
+
+
+def test_recaps_left_out_for_size_are_reported_and_not_called_nonexistent():
+    partly = prompt.build_user_turn("hi", [], recaps=_RECAPS[:1], recaps_omitted=1)
+    assert "(1 more recaps were left out to fit the context window.)" in partly
+    none_fit = prompt.build_user_turn("hi", [], recaps=[], recaps_omitted=2)
+    assert "Recaps of earlier conversations exist but could not be included" in none_fit
+    assert "Don't say there were none" in none_fit
+    assert prompt.RECAPS_LABEL not in none_fit
+
+
+def test_build_messages_passes_the_recaps_to_the_last_turn_only():
+    messages = prompt.build_messages({"name": "Ada", "handle": "ada"}, [], [], "hi", recaps=_RECAPS)
+
+    assert "Was choosing a database" in messages[-1]["content"]
+    assert "Was choosing a database" not in messages[0]["content"]
+
+
+def test_the_recap_instructions_ask_for_a_short_recap_from_the_users_words_or_none():
+    text = prompt.RECAP_INSTRUCTIONS
+
+    assert "at most 80 words" in text
+    assert "what the user was working on" in text and "what was left open" in text
+    assert "only the user's own messages" in text and "Use only what the user wrote" in text
+    assert "output exactly: NONE" in text
+
+
+def test_only_the_recap_of_the_real_last_conversation_is_called_that():
+    # The last session was small talk (nothing to recap) or too short: what is left is older.
+    older = [{**_RECAPS[0], "last": False}, _RECAPS[1]]
+
+    text = prompt.build_user_turn("hi", [], recaps=older)
+
+    assert "Last conversation" not in text
+    assert "- An earlier conversation (2026-09-24): Was choosing a database" in text
+    assert "- An earlier conversation (2026-09-23): Planned a trip." in text
+    assert text.index("Planned a trip.") < text.index("Was choosing a database")  # the newest still comes last

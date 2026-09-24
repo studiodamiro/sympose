@@ -36,6 +36,19 @@ class LiveCase:
     forbid: tuple[str, ...] = ()
     # Which persona talks: "samantha" has the Sympose reference library, "ada" does not.
     persona: str = "samantha"
+    # Recaps of earlier conversations (docs/decisions/023) for this case, newest last:
+    # `(session id, recap text)`, written into the scratch persona's recaps folder.
+    recaps: tuple[tuple[str, str], ...] = ()
+
+
+_ATLAS_RECAPS = (
+    ("20260922T090000-aaaaaaaa", "The user asked about planning a trip to Lisbon and wanted to compare flights."),
+    (
+        "20260923T090000-bbbbbbbb",
+        "The user was discussing the database and rollout plan for Atlas. They decided to draft a "
+        "migration checklist tomorrow and still need to decide on backups.",
+    ),
+)
 
 
 _CANT_SEARCH = (
@@ -118,6 +131,58 @@ LIVE_CASES: list[LiveCase] = [
         forbid=(r"switcher|VAULT_PATHS",),
         persona="ada",
     ),
+    # Recaps of earlier conversations (docs/decisions/023).
+    LiveCase(
+        "recap-last-time",
+        ("what were we working on last time?",),
+        expect=(r"Atlas|migration|checklist",),
+        forbid=(r"no memory|can't remember|cannot remember|don't have (?:any )?(?:memory|record)",),
+        recaps=_ATLAS_RECAPS,
+    ),
+    # The newest earlier conversation had nothing to carry over (an empty recap), so what she
+    # is given is not "the last conversation": she should still say what she has.
+    LiveCase(
+        "recap-when-the-last-conversation-was-small-talk",
+        ("what were we working on last time?",),
+        expect=(r"Atlas|migration|checklist",),
+        recaps=(*_ATLAS_RECAPS, ("20260924T090000-cccccccc", "")),
+    ),
+    LiveCase(
+        "recap-where-we-left-off",
+        ("where did we leave off?",),
+        expect=(r"Atlas|checklist|backup",),
+        recaps=_ATLAS_RECAPS,
+    ),
+    # Not solved: asked what was decided about something the recap says is still open, she
+    # answers "I don't remember" or "not in your notes" in about half the replies; none
+    # invents a decision, but only some say it is still open (docs/decisions/023).
+    LiveCase(
+        "recap-open-item-is-still-open",
+        ("what did I decide about the backups last time?",),
+        expect=(r"still|not (?:yet )?decided|haven't decided|open|need to decide|undecided|yet to",),
+        forbid=(r"you decided to (?:use|go with|back)",),
+        recaps=_ATLAS_RECAPS,
+    ),
+    LiveCase(
+        "recap-stays-out-of-small-talk",
+        ("hey, how are you today?",),
+        forbid=(r"Atlas|Lisbon|recap|checklist|last time",),
+        recaps=_ATLAS_RECAPS,
+    ),
+    LiveCase(
+        "recap-does-not-hide-the-vault",
+        ("what are the four rules of deep work?",),
+        expect=(r"embrac\w* boredom",),
+        forbid=(r"Lisbon|checklist",),
+        recaps=_ATLAS_RECAPS,
+    ),
+    LiveCase(
+        "recap-says-what-she-has-when-asked-about-the-logs",
+        ("arent you supposed to review our session logs?",),
+        expect=(r"recap|summar",),
+        forbid=(r"you'?re (?:absolutely )?right", r"totally spaced|my bad|apologi"),
+        recaps=_ATLAS_RECAPS,
+    ),
     # Nothing in the vault: say so, do not invent.
     LiveCase(
         "honest-when-nothing-matches",
@@ -152,9 +217,19 @@ def run_case(case: LiveCase) -> tuple[bool, str]:
 
     session_id = None
     reply = ""
+    recaps = os.path.join(os.environ["SYMPOSE_PROFILES_DIR"], case.persona, "recaps")
+    from sympose.engine import session
+
+    for name, text in case.recaps:
+        session.append_turn(case.persona, name, "question", "answer")  # the session the recap is of
+        os.makedirs(recaps, exist_ok=True)
+        with open(os.path.join(recaps, f"{name}.md"), "w", encoding="utf-8") as f:
+            f.write(f"<!-- turns: 3 -->\n{text}\n")
     for message in case.messages:
         result = turn.run_turn(case.persona, message, session_id=session_id)
         session_id, reply = result.session_id, result.reply
+    shutil.rmtree(recaps, ignore_errors=True)  # the scratch persona's own folders, made above
+    shutil.rmtree(session.sessions_dir(case.persona), ignore_errors=True)  # scratch: no case sees another's sessions
     ok = all(re.search(p, reply, re.I) for p in case.expect) and not any(
         re.search(p, reply, re.I) for p in case.forbid
     )

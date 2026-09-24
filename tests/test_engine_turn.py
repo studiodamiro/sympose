@@ -700,3 +700,116 @@ def test_the_roster_is_read_once_per_turn_not_once_per_trimming_attempt(sessions
 
     assert len(reads) == 1  # although three passages were dropped one attempt at a time
 
+
+
+# -- recaps of earlier conversations (docs/decisions/023) --
+
+
+def _put_recap(session_id, text, handle="samantha"):
+    session.append_turn(handle, session_id, "question", "answer")  # the session the recap is of
+    os.makedirs(session.recaps_dir(handle), exist_ok=True)
+    with open(os.path.join(session.recaps_dir(handle), f"{session_id}.md"), "w", encoding="utf-8") as f:
+        f.write(f"<!-- turns: 2 -->\n{text}\n")
+
+
+def test_the_recaps_of_earlier_conversations_travel_with_the_message(sessions_root, monkeypatch):
+    _put_recap("20260923T090000-bbbbbbbb", "Was planning a trip to Lisbon.")
+    calls = _capture_call(monkeypatch)
+
+    turn.run_turn("samantha", "where did we leave off?")
+
+    last = calls[0]["messages"][-1]["content"]
+    assert "- Last conversation (2026-09-23): Was planning a trip to Lisbon." in last
+    assert last.endswith("User's message: where did we leave off?")
+    assert "Lisbon" not in calls[0]["messages"][0]["content"]
+
+
+def test_the_conversation_being_run_is_not_recapped_into_itself(sessions_root, monkeypatch):
+    _put_recap("20260923T090000-bbbbbbbb", "Was planning a trip to Lisbon.")
+    _put_recap("20260924T090000-aaaaaaaa", "This very conversation, earlier.")
+    calls = _capture_call(monkeypatch)
+
+    turn.run_turn("samantha", "hello", session_id="20260924T090000-aaaaaaaa")
+
+    last = calls[0]["messages"][-1]["content"]
+    assert "Lisbon" in last and "This very conversation" not in last
+
+
+def test_with_no_recaps_the_turn_says_nothing_about_them(sessions_root, monkeypatch):
+    calls = _capture_call(monkeypatch)
+
+    turn.run_turn("samantha", "hello")
+
+    assert prompt.RECAPS_LABEL not in calls[0]["messages"][-1]["content"]
+
+
+def test_the_knob_keeps_recaps_out_of_the_prompt(sessions_root, monkeypatch):
+    from sympose import settings_store
+
+    _put_recap("20260923T090000-bbbbbbbb", "Was planning a trip to Lisbon.")
+    settings_store.set("session_recaps", False)
+    calls = _capture_call(monkeypatch)
+
+    turn.run_turn("samantha", "hello")
+
+    assert "Lisbon" not in calls[0]["messages"][-1]["content"]
+
+
+def test_when_the_window_is_short_the_recaps_go_first_and_the_turn_says_so(sessions_root, monkeypatch):
+    from sympose import settings_store
+
+    settings_store.set("context_window", 2048)
+    _put_recap("20260923T090000-bbbbbbbb", _text_of_tokens(300))  # read back at 800 characters, about 170 tokens
+    _put_recap("20260922T090000-cccccccc", _text_of_tokens(300))
+    big = {**_fake_grounding_result(), "text": _text_of_tokens(_free_tokens() - 250)}  # room for one recap, not two
+    calls = _capture_call(monkeypatch)
+    monkeypatch.setattr(grounding, "ground", lambda profile, msg, max_results=5: [big])
+
+    result = turn.run_turn("samantha", "hello")
+
+    last = calls[0]["messages"][-1]["content"]
+    assert "2026-09-23" in last and "2026-09-22" not in last  # the older recap went, the newer stayed
+    assert "(1 more recaps were left out to fit the context window.)" in last
+    assert result.grounding == [big]  # the note passage was not sacrificed for it
+
+
+def test_when_no_recap_fits_the_turn_does_not_claim_there_were_none(sessions_root, monkeypatch):
+    from sympose import settings_store
+
+    settings_store.set("context_window", 2048)
+    _put_recap("20260923T090000-bbbbbbbb", _text_of_tokens(300))
+    big = {**_fake_grounding_result(), "text": _text_of_tokens(_free_tokens() - 100)}  # room for no recap
+    calls = _capture_call(monkeypatch)
+    monkeypatch.setattr(grounding, "ground", lambda profile, msg, max_results=5: [big])
+
+    result = turn.run_turn("samantha", "hello")
+
+    last = calls[0]["messages"][-1]["content"]
+    assert result.grounding == [big]
+    assert "Recaps of earlier conversations exist but could not be included" in last
+    assert prompt.RECAPS_LABEL not in last
+
+
+def test_recaps_reach_the_prompt_of_a_model_whose_window_is_unknown_too(sessions_root, monkeypatch):
+    _put_recap("20260923T090000-bbbbbbbb", "Was planning a trip to Lisbon.")
+    calls = _capture_call(monkeypatch)
+
+    turn.run_turn("samantha", "hello", model="someprovider/unknown-model")
+
+    assert "Was planning a trip to Lisbon." in calls[0]["messages"][-1]["content"]
+
+
+def test_a_turn_waits_for_the_recap_being_written_at_launch_before_reading_recaps(sessions_root, monkeypatch):
+    waited = []
+
+    def finish_writing(handle, *args):
+        waited.append(handle)
+        _put_recap("20260923T090000-bbbbbbbb", "Was planning a trip to Lisbon.")  # done by the time it returns
+
+    monkeypatch.setattr(turn.recap_refresh, "wait_for_refresh", finish_writing)
+    calls = _capture_call(monkeypatch)
+
+    turn.run_turn("samantha", "where did we leave off?")
+
+    assert waited == ["samantha"]
+    assert "Was planning a trip to Lisbon." in calls[0]["messages"][-1]["content"]

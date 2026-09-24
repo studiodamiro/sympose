@@ -10,6 +10,7 @@ out to hold the 200-LOC-per-file cap."""
 
 from rich.style import Style
 
+from sympose import engine
 from sympose.cli import grounding_line, meter, picker, transcript as transcript_mod
 from sympose.cli.commands import COMMANDS
 from sympose.cli.mock_data import MOCK_HISTORY, MODEL_OPTIONS, list_personas
@@ -122,6 +123,7 @@ def apply_picker_choice(app, kind: str, value: str | None) -> None:
             app.session_generation += 1
             meter.clear(app)  # a fresh session starts empty
             picker.update_banner(app)
+            engine.refresh_recaps(persona.handle)  # ADR 023
             transcript_mod.mount_line(app, f"Now talking to @{persona.handle}.", "system")
     elif kind == "history":
         transcript_mod.mount_line(

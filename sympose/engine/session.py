@@ -48,6 +48,26 @@ def sessions_dir(handle: str) -> str:
     return os.path.join(persona, "sessions")
 
 
+def recaps_dir(handle: str) -> str:
+    """Where `handle`'s recaps of earlier sessions live (docs/decisions/023), beside
+    its sessions: `profiles/<handle>/recaps/`, or `./recaps/<handle>/` in the
+    whole-vault fallback mode. Same path checks as `sessions_dir`."""
+    persona = persona_dir(handle)
+    if _fallback_mode():
+        return os.path.join(os.getcwd(), "recaps", handle.lower())
+    return os.path.join(persona, "recaps")
+
+
+def session_ids(handle: str) -> list[str]:
+    """The ids of `handle`'s saved sessions, newest first (an id starts with the
+    time the session began, so the names sort by age)."""
+    try:
+        names = os.listdir(sessions_dir(handle))
+    except OSError:
+        return []
+    return sorted((n.removesuffix(".jsonl") for n in names if n.endswith(".jsonl")), reverse=True)
+
+
 def session_path(handle: str, session_id: str) -> str:
     directory = sessions_dir(handle)
     path = os.path.join(directory, f"{session_id}.jsonl")

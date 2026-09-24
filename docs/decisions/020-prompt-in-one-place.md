@@ -73,3 +73,5 @@ The system prompt grew from about 500 to about 750 tokens (measured with the eng
 - **Notes at the end of the system prompt, before the history.** Scored as well as the user's turn (28 of 30) in the ADR 019 comparison, but changes the history's start every turn, which costs a local runtime its reuse of the prefix.
 - **Prompt text in editable files now.** More machinery than about six strings need, and the packaging question is still open (ADR 019).
 - **Telling the model to always answer in one line from the notes.** Would flatten the persona's voice, which is the reason the persona exists.
+
+**Update (ADR 023):** the text now lives in `engine/prompt_text.py` and the layout in `engine/prompt.py`, which re-exports the text, so the file stays under the size cap and `prompt` is still the one place other code imports from.

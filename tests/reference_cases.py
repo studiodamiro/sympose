@@ -232,14 +232,31 @@ REF_CASES: list[RefCase] = [
     RefCase(
         "session-logs-review",
         "arent you supposed to review our session logs?",
-        find=("Not yet",),
+        find=("never reads them",),
         first="Not built yet.md",
     ),
     RefCase(
         "history-and-logs-pressed",
         "theres history and session logs for you to know what we talked last time. arent you aware of that?",
-        find=("Not yet",),
+        find=("never reads them",),
         first="Not built yet.md",
+    ),
+    RefCase(
+        "remembers-last-conversation",
+        "does Samantha remember our last conversation?",
+        find=("recaps",),
+        first="Not built yet.md",
+    ),
+    RefCase(
+        "where-recaps-live",
+        "where are the recaps of my conversations kept?",
+        find=("profiles/<handle>/recaps/",),
+        first="Privacy and data.md",
+    ),
+    RefCase(
+        "turn-off-recaps",
+        "how do I turn off the recaps?",
+        find=("session_recaps",),  # the setting's own section and the privacy answer both say it
     ),
     RefCase(
         "writes-notes",

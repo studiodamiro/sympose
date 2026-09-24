@@ -4,7 +4,7 @@ A persona is a character you chat with, each with its own voice, allowed folders
 
 ## Where does a persona live?
 
-Each persona has its own folder, `profiles/<handle>/`, holding `persona.yaml` (its name, handle, title, allowed folders and optional model), `soul.md` (how it sounds) and `sessions/` (its saved conversations).
+Each persona has its own folder, `profiles/<handle>/`, holding `persona.yaml` (its name, handle, title, allowed folders and optional model), `soul.md` (how it sounds) `sessions/` (its saved conversations) and `recaps/` (short recaps of them).
 
 ## How do I create a new persona?
 

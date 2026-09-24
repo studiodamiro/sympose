@@ -24,7 +24,7 @@ The `default_persona` setting is the persona Sympose starts with. It is set by `
 
 ## context_window
 
-The `context_window` setting is the size in tokens of the conversation a local model is given. By default it follows the model's own window, up to 32768. A number you set is used as your own ceiling, and a value below 1024 is raised to 1024.
+The `context_window` setting is the size in tokens of the conversation a local model is given. By default it follows the model's own window, up to 32768. A number you set is used as your own ceiling, and a value below 2048 is raised to 2048.
 
 ## reply_limit
 
@@ -41,6 +41,10 @@ Setting `show_trim_notice` to `false` hides the notice that older turns were lef
 ## show_context_meter
 
 Setting `show_context_meter` to `false` hides the meter under the chat box.
+
+## session_recaps
+
+Setting `session_recaps` to `false` stops Samantha writing and reading recaps of your earlier conversations. Each recap is written by the model from your own messages, so with a cloud model those messages are sent to the provider.
 
 ## grounding_followups
 

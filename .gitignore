@@ -25,6 +25,10 @@ settings.json
 # only the fallback when no profiles/ directory exists at all.
 sessions/
 
+# Recaps of those sessions (docs/decisions/023): the same, in profiles/<handle>/recaps/
+# or, in that fallback, here.
+recaps/
+
 # Personas (docs/decisions/011): one directory per persona under profiles/.
 # Samantha ships as the only default persona — her persona.yaml and soul.md
 # are the committed baseline; every other persona is a personal

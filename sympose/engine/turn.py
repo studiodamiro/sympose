@@ -11,7 +11,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from sympose import profile as profile_mod
-from sympose.engine import budget, followup, prompt, reference, session
+from sympose.engine import budget, followup, prompt, recap, recap_refresh, reference, session
 from sympose.engine import model as model_mod
 from sympose.engine.model import EngineModelError
 
@@ -92,10 +92,17 @@ def run_turn(
     grounding_results = _interleave(reference.ground(persona, user_message), vault_hits)
     point_to = [] if persona.get("sympose_reference") else profile_mod.reference_persona_names()
 
+    # What earlier conversations were about (docs/decisions/023); the session being
+    # run is excluded, its own turns are already the history.
+    recap_refresh.wait_for_refresh(handle)  # right after launch the recap may still be being written
+    recaps_found = recap.latest(handle, exclude=sid)
+
     reference_found = sum(1 for h in grounding_results if h.get("source") == reference.SOURCE)
     vault_found = len(grounding_results) - reference_found
 
-    def build(hist: list[dict[str, str]], hits: list[dict[str, Any]]) -> list[dict[str, str]]:
+    def build(
+        hist: list[dict[str, str]], hits: list[dict[str, Any]], recaps: list[dict[str, Any]]
+    ) -> list[dict[str, str]]:
         # Passages of each source that did not fit are left out: the prompt says
         # so, per source, instead of claiming nothing matched.
         kept_reference = sum(1 for h in hits if h.get("source") == reference.SOURCE)
@@ -107,13 +114,15 @@ def run_turn(
             omitted=vault_found - (len(hits) - kept_reference),
             reference_omitted=reference_found - kept_reference,
             point_to=point_to,
+            recaps=recaps,
+            recaps_omitted=len(recaps_found) - len(recaps),
         )
 
     prompt_tokens = 0
     if limits is None:
-        messages, dropped = build(history, grounding_results), 0
+        messages, dropped = build(history, grounding_results, recaps_found), 0
     else:
-        fitted = budget.fit(build, history, grounding_results, target_model, limits.prompt_tokens)
+        fitted = budget.fit(build, history, grounding_results, target_model, limits.prompt_tokens, recaps_found)
         messages, grounding_results, dropped = fitted.messages, fitted.grounding, fitted.history_dropped
         prompt_tokens = fitted.tokens
     reply = model_mod.call_model(

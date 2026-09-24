@@ -210,3 +210,41 @@ def test_a_handle_that_is_not_a_plain_component_is_rejected_in_both_modes(
     monkeypatch.setenv("SYMPOSE_PROFILES_DIR", str(tmp_path / "no-such-dir"))  # fallback mode
     with pytest.raises(ValueError):
         session.session_path(handle, "sid")
+
+
+# -- where recaps live, and listing sessions (docs/decisions/023) --
+
+
+def test_recaps_live_beside_the_sessions_of_the_same_persona(sessions_root):
+    assert session.recaps_dir("samantha") == os.path.join(sessions_root, "samantha", "recaps")
+    assert os.path.dirname(session.recaps_dir("samantha")) == os.path.dirname(session.sessions_dir("samantha"))
+    assert session.recaps_dir("Samantha") == session.recaps_dir("samantha")
+
+
+def test_recaps_dir_rejects_a_handle_that_is_not_one_plain_name(sessions_root):
+    for bad in ("..", "a/b", ""):
+        with pytest.raises(ValueError):
+            session.recaps_dir(bad)
+
+
+def test_in_the_whole_vault_fallback_mode_recaps_stay_out_of_profiles(tmp_path, monkeypatch):
+    monkeypatch.setenv("SYMPOSE_PROFILES_DIR", str(tmp_path / "no-such-dir"))
+    monkeypatch.chdir(tmp_path)
+
+    assert session.recaps_dir("samantha") == os.path.join(str(tmp_path), "recaps", "samantha")
+
+
+def test_session_ids_are_listed_newest_first_and_only_the_session_files(sessions_root):
+    for sid in ("20260921T090000-aaaaaaaa", "20260924T090000-bbbbbbbb", "20260923T090000-cccccccc"):
+        session.append_turn("samantha", sid, "hi", "hello")
+    open(os.path.join(session.sessions_dir("samantha"), "notes.txt"), "w").close()
+
+    assert session.session_ids("samantha") == [
+        "20260924T090000-bbbbbbbb",
+        "20260923T090000-cccccccc",
+        "20260921T090000-aaaaaaaa",
+    ]
+
+
+def test_a_persona_with_no_sessions_yet_lists_none(sessions_root):
+    assert session.session_ids("samantha") == []

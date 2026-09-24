@@ -43,19 +43,21 @@ def _index_for(mv: str, allowed_dirs: list[str]) -> Index:
     return index
 
 
-def _informative_terms(message: str, index: Index) -> list[str]:
+def _informative_terms(message: str, index: Index, strict: bool) -> list[str]:
     """The message's own informative terms: no filler, and no term nearly
-    every note uses (which says nothing about which note is meant)."""
+    every note uses (which says nothing about which note is meant). A
+    `strict` (single-topic) source keeps those, since there most notes share
+    the subject's own words."""
     terms: list[str] = []
     for word in dict.fromkeys(index_terms(message)):
         df = index.note_df.get(word, 0)
-        if index.note_count >= _MIN_NOTES_FOR_SHARE and df / index.note_count > _MAX_NOTE_SHARE:
+        if not strict and index.note_count >= _MIN_NOTES_FOR_SHARE and df / index.note_count > _MAX_NOTE_SHARE:
             continue
         terms.append(word)
     return terms
 
 
-def _qualifies(passage: Passage, matched: list[str], informative_count: int) -> bool:
+def _qualifies(passage: Passage, matched: list[str], informative: list[str], strict: bool) -> bool:
     """Precision over recall: a wrong note derails a small model's reply
     (tested on the default model: it answered the irrelevant context instead
     of the question, and instructions to ignore it did not help), while no
@@ -63,11 +65,22 @@ def _qualifies(passage: Passage, matched: list[str], informative_count: int) -> 
     evidence: a match on its note's title, tags, or heading; or two distinct
     message words in it; or the message having just one informative word
     (so "who is Priya?" still finds Priya). One ordinary word matching one
-    body sentence ("create", "called") is not enough."""
+    body sentence ("create", "called") is not enough.
+
+    A `strict` source (small, written as questions and answers, so its
+    headings are made of ordinary words) asks for more: two distinct message
+    words in the passage's own text or heading (a title word does not count,
+    every passage of the note carries it), or a message made only of the
+    note's title words, which is asking for the note by name. Ordinary chat
+    ("thanks, that helps!", "I'm getting started on my taxes") is a heading
+    word or two away from a note."""
+    if strict:
+        own = [t for t in matched if t in passage.own_terms]
+        return len(own) >= 2 or set(informative) <= passage.title_terms
     return (
         any(t in passage.topical for t in matched)
         or len(matched) >= 2
-        or informative_count == 1
+        or len(informative) == 1
     )
 
 
@@ -84,17 +97,22 @@ def _score(passage: Passage, terms: list[str], index: Index) -> float:
     return total
 
 
-def retrieve(index: Index, message: str, max_results: int = 5) -> list[dict[str, Any]]:
+def retrieve(
+    index: Index, message: str, max_results: int = 5, strict: bool = False
+) -> list[dict[str, Any]]:
     """The best passages for `message`, best first, as hit dicts. Knows
-    nothing about vaults or personas."""
-    informative = _informative_terms(message, index)
+    nothing about vaults or personas. `strict` is for a small source about one
+    subject (docs/decisions/019): common words are kept, and a passage needs
+    two of the message's words in its own text, or a message that is just the
+    note's name."""
+    informative = _informative_terms(message, index, strict)
     terms = [t for t in informative if index.note_df.get(t, 0) > 0]
     if not terms:
         return []
     scored = []
     for passage in index.passages:
         matched = [t for t in terms if t in passage.tf]
-        if matched and _qualifies(passage, matched, len(informative)):
+        if matched and _qualifies(passage, matched, informative, strict):
             scored.append((_score(passage, terms, index), passage))
     if not scored:
         return []

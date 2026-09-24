@@ -217,3 +217,65 @@ def test_no_vault_configured_returns_an_empty_list(tmp_path, monkeypatch):
     monkeypatch.setenv("SYMPOSE_SETTINGS_PATH", str(tmp_path / "settings.json"))
 
     assert grounding.ground(WHOLE, "anything") == []
+
+
+# Strict mode: a small single-subject source written as questions and answers
+# (the Sympose reference library, docs/decisions/019).
+
+
+def _note(name: str, body: str) -> dict:
+    return {"rel_path": f"{name}.md", "file_name": f"{name}.md", "meta": {}, "body": body}
+
+
+def _strict(notes: list[dict], message: str) -> list[str]:
+    return [h["rel_path"] for h in grounding.retrieve(build_index(notes), message, strict=True)]
+
+
+def test_strict_keeps_a_word_most_notes_share_where_the_default_drops_it():
+    notes = [_note(f"N{i}", f"## About the widget\n\nThe widget number {i} is blue.") for i in range(12)]
+    notes.append(_note("Other", "## Something\n\nnothing here"))
+    index = build_index(notes)
+
+    assert grounding.retrieve(index, "widget blue") == []  # in 12 of 13 notes, so ignored
+    assert len(grounding.retrieve(index, "widget blue", strict=True)) > 0
+
+
+def test_strict_needs_two_words_where_a_lone_heading_word_is_enough_by_default():
+    notes = [_note("Chat commands", "## What can I do about help\n\nThe help command lists commands.")]
+    index = build_index(notes)
+
+    assert grounding.retrieve(index, "thanks, that helps!")  # the default trusts a lone heading word
+    assert grounding.retrieve(index, "thanks, that helps!", strict=True) == []
+
+
+def test_strict_two_distinct_words_in_a_passage_qualify():
+    notes = [_note("Chat commands", "## What does help do\n\nThe help command lists every command.")]
+
+    assert _strict(notes, "what does the help command do") == ["Chat commands.md"]
+
+
+def test_strict_a_message_that_is_only_a_note_name_qualifies():
+    notes = [_note("Personas", "Each persona has a folder."), _note("Settings", "Kept in a file.")]
+
+    assert _strict(notes, "tell me about personas") == ["Personas.md"]
+
+
+def test_strict_a_lone_word_from_a_heading_or_the_body_does_not():
+    notes = [_note("Settings", "## Where is the file\n\nIt lives next to the project.")]
+
+    assert _strict(notes, "where is my dinner") == []  # 'where' is filler, 'dinner' absent
+    assert _strict(notes, "any project ideas") == []  # a body word, one only
+    assert _strict(notes, "what file") == []  # a heading word, one only
+
+
+def test_strict_two_title_words_in_chat_are_one_signal_not_two():
+    notes = [_note("Getting started", "# Getting started\n\nPython and a vault folder.")]  # the first line repeats the title
+
+    assert _strict(notes, "I'm getting started on my taxes") == []
+    assert _strict(notes, "getting started") == ["Getting started.md"]  # asking for it by name
+
+
+def test_strict_a_title_word_plus_a_word_of_the_passage_qualifies():
+    notes = [_note("Settings", "## context_window\n\nThe context_window setting is a size in tokens.")]
+
+    assert _strict(notes, "what does the context_window setting do") == ["Settings.md"]

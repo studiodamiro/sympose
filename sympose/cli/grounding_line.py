@@ -16,6 +16,12 @@ _ELLIPSIS = "…"
 # ellipsis, but never more than this, so one huge filename cannot take the line.
 _MIN_PATH_WIDTH = 8
 _MAX_KEPT_FILENAME = 32
+# The rewritten query (docs/decisions/017) is cut at its end to what fits, and
+# left out when less than this many cells of it would show.
+_MIN_QUERY_WIDTH = 12
+# With a rewritten query to show, the note's path gives up this many cells
+# first (it keeps its filename), so both fit on an ordinary 80-column line.
+_QUERY_RESERVE = 26
 # Cells the transcript keeps for its own padding and scrollbar.
 _MARGIN = 4
 
@@ -64,12 +70,49 @@ def format_grounding(hits: list[dict[str, Any]], room: int) -> str:
     return f"{label}{_fit_from_front(paths[0], width)}{suffix}"
 
 
-def header_segment(header: str, hits: list[dict[str, Any]], terminal_width: int) -> str:
+def format_searched(query: str, room: int) -> str:
+    """`searched "<query>"`, the follow-up rewrite that grounded the reply
+    (docs/decisions/017), cut at its end to fit `room` cells, or `""` when
+    there is no room for a readable part of it."""
+    label = "searched \""
+    width = room - cell_len(label) - 1
+    if width < _MIN_QUERY_WIDTH:
+        return ""
+    if cell_len(query) > width:
+        kept: list[str] = []
+        used = cell_len(_ELLIPSIS)
+        for char in query:
+            used += cell_len(char)
+            if used > width:
+                break
+            kept.append(char)
+        query = "".join(kept).rstrip() + _ELLIPSIS
+    return f'{label}{query}"'
+
+
+def header_segment(
+    header: str, hits: list[dict[str, Any]], terminal_width: int, searched: str | None = None
+) -> str:
     """` · <segment>` to append to `header`, or `""` when the knob is off or
-    nothing matched."""
+    nothing matched; a follow-up's rewritten query follows the notes."""
     if not enabled():
         return ""
     separator = " · "
     room = terminal_width - cell_len(header) - len(separator) - _MARGIN
     segment = format_grounding(hits, room)
-    return separator + segment if segment else ""
+    if not segment:
+        return ""
+    line = separator + segment
+    if searched:
+        # The whole path if the query still shows beside it; else the path
+        # gives up room (keeping its filename); else the query is left out.
+        query = format_searched(searched, room - cell_len(segment) - len(separator))
+        if not query:
+            squeezed = format_grounding(hits, room - _QUERY_RESERVE)
+            if squeezed != segment:  # a short path cannot give up anything
+                query = format_searched(searched, room - cell_len(squeezed) - len(separator))
+                if query:
+                    line = separator + squeezed
+        if query:
+            line += separator + query
+    return line

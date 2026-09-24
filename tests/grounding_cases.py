@@ -14,6 +14,8 @@ import os
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
+from sympose.engine import followup
+
 FIXTURE_VAULT = os.path.join(os.path.dirname(__file__), "fixtures", "grounding_vault")
 
 WHOLE = {"vault_folders": ["*"]}
@@ -160,6 +162,89 @@ CASES: list[Case] = [
         "matching (embeddings) would cross. Kept to show where the ceiling is.",
     ),
 ]
+
+
+@dataclass(frozen=True)
+class FollowupCase:
+    """A bare follow-up after some chat (docs/decisions/017). `rewrite` is what
+    a fake rewriter answers (`None`: no query), so retrieval is tested without
+    a model; what the real model writes is measured separately."""
+
+    id: str
+    history: tuple[tuple[str, str], ...]
+    message: str
+    rewrite: str | None
+    find: tuple[str, ...] = ()
+    # The query the turn should report as having grounded it, when it is not the message.
+    searched: str | None = None
+    none: bool = False
+
+
+_ATLAS_CHAT = (
+    (
+        "what did we decide about the database for Atlas?",
+        "You decided on SQLite for the Atlas prototype because it needs zero setup.",
+    ),
+)
+
+FOLLOWUP_CASES: list[FollowupCase] = [
+    FollowupCase(
+        "why-did-we-pick-it",
+        _ATLAS_CHAT,
+        "why did we pick it?",
+        "why did we pick SQLite for the Atlas prototype",
+        find=("SQLite",),
+        searched="why did we pick SQLite for the Atlas prototype",
+    ),
+    FollowupCase(
+        "expand-on-that",
+        (("how did we go over budget?", "Q3 spend ran 12k over plan, mostly cloud costs."),),
+        "can you expand on that?",
+        "Q3 cloud costs",
+        find=("staging servers",),
+        searched="Q3 cloud costs",
+    ),
+    FollowupCase(
+        "go-on",
+        (("explain tacking and jibing", "Tacking turns the bow through the wind; jibing turns the stern."),),
+        "go on",
+        "tacking and jibing risks in strong breeze",
+        find=("boom swings across",),
+        searched="tacking and jibing risks in strong breeze",
+    ),
+    FollowupCase("thanks-attaches-nothing-old", _ATLAS_CHAT, "thanks, that helps!", None, none=True),
+    FollowupCase("small-talk-attaches-nothing-old", _ATLAS_CHAT, "how are you today?", None, none=True),
+    FollowupCase(
+        "a-query-about-something-the-vault-lacks-grounds-nothing",
+        _ATLAS_CHAT,
+        "what about that?",
+        "tax filing deadline",
+        none=True,
+    ),
+]
+
+
+def run_followup_case(
+    case: FollowupCase, persona: dict[str, Any], model: str = "ollama_chat/gemma2:9b"
+) -> str | None:
+    """`None` when the follow-up case passes, else a one-line reason."""
+    history = [
+        {"role": role, "content": text}
+        for user, assistant in case.history
+        for role, text in (("user", user), ("assistant", assistant))
+    ]
+    hits, searched = followup.ground(
+        persona, case.message, history, model, None, rewriter=lambda *_: case.rewrite
+    )
+    blob = "\n".join(_texts(hits))
+    if case.none:
+        return None if not hits and searched is None else f"expected nothing, got {[h['rel_path'] for h in hits]}"
+    for needle in case.find:
+        if needle not in blob:
+            return f"missing {needle!r} in what the model would see"
+    if searched != case.searched:
+        return f"reported query {searched!r}, wanted {case.searched!r}"
+    return None
 
 
 def _texts(hits: list[dict[str, Any]]) -> list[str]:

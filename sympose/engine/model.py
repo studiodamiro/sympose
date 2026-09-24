@@ -49,6 +49,11 @@ class EngineModelError(Exception):
     traceback."""
 
 
+class ReplyLimitError(EngineModelError):
+    """The model used its whole reply limit without writing any answer (a
+    reasoning model spends it thinking)."""
+
+
 def resolve_model(persona_model: str | None = None) -> str:
     """The model a turn runs on when the caller made no explicit choice:
     the persona's own `model`, else the `chat_model` setting, else the
@@ -115,7 +120,7 @@ def call_model(
         ) from e
     content = "".join(parts)
     if not content and truncated:
-        raise EngineModelError(
+        raise ReplyLimitError(
             f"Model '{target_model}' reached its reply limit before writing an answer "
             "(a reasoning model can spend the whole limit thinking)."
         )

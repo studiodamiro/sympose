@@ -149,7 +149,9 @@ async def _send_message(app, value: str) -> None:
     if result.ttft_ms is not None:
         reply_header += f" · TTFT {_format_ttft(result.ttft_ms)}"
     reply_header += trim_notice.segment(result.history_dropped, result.truncated)
-    reply_header += grounding_line.header_segment(reply_header, result.grounding, app.size.width)
+    reply_header += grounding_line.header_segment(
+        reply_header, result.grounding, app.size.width, result.searched
+    )
     _stream_reply(app, result.reply, reply_header)
 
 

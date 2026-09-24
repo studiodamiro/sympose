@@ -8,7 +8,7 @@ import os
 import pytest
 from helpers import write_persona
 
-from sympose.engine import session, turn
+from sympose.engine import followup, grounding, session, turn
 from sympose.engine.model import ModelReply
 
 
@@ -18,6 +18,17 @@ def no_local_server(monkeypatch):
     prompt with it (docs/decisions/015), and these tests must not depend on
     what is installed here."""
     monkeypatch.setattr(turn.budget, "_native_max", lambda model: None)
+
+
+@pytest.fixture(autouse=True)
+def no_follow_up_rewrite(monkeypatch):
+    """The follow-up step (docs/decisions/017) makes its own model call on an
+    ungrounded turn with history; these tests count and inspect the chat
+    calls, so it is off unless a test turns it on (which also needs a vault:
+    whether this machine has one configured must not matter)."""
+    monkeypatch.setattr(followup, "enabled", lambda: False)
+    monkeypatch.setattr(followup.vault_paths, "resolve_sandbox", lambda persona: ("/vault", ["*"]))
+    monkeypatch.setattr(followup, "_CANNOT_REWRITE", set())
 
 
 @pytest.fixture
@@ -46,7 +57,7 @@ def _fake_grounding_result():
 
 def test_grounding_snippet_reaches_the_model_call(sessions_root, monkeypatch):
     monkeypatch.setattr(
-        turn.grounding, "ground", lambda profile, msg, max_results=5: [_fake_grounding_result()]
+        grounding, "ground", lambda profile, msg, max_results=5: [_fake_grounding_result()]
     )
     captured = {}
 
@@ -64,7 +75,7 @@ def test_grounding_snippet_reaches_the_model_call(sessions_root, monkeypatch):
 
 
 def test_new_session_id_generated_when_none_given(sessions_root, monkeypatch):
-    monkeypatch.setattr(turn.grounding, "ground", lambda profile, msg, max_results=5: [])
+    monkeypatch.setattr(grounding, "ground", lambda profile, msg, max_results=5: [])
     monkeypatch.setattr(turn.model_mod, "call_model", lambda messages, model=None, **_: ModelReply("reply", 12))
 
     result = turn.run_turn("samantha", "hello")
@@ -73,7 +84,7 @@ def test_new_session_id_generated_when_none_given(sessions_root, monkeypatch):
 
 
 def test_resumed_session_id_is_preserved_and_history_used(sessions_root, monkeypatch):
-    monkeypatch.setattr(turn.grounding, "ground", lambda profile, msg, max_results=5: [])
+    monkeypatch.setattr(grounding, "ground", lambda profile, msg, max_results=5: [])
 
     sid = session.new_session_id()
     session.append_turn("samantha", sid, "first", "first reply")
@@ -95,7 +106,7 @@ def test_resumed_session_id_is_preserved_and_history_used(sessions_root, monkeyp
 
 
 def test_append_turn_is_genuinely_called(sessions_root, monkeypatch):
-    monkeypatch.setattr(turn.grounding, "ground", lambda profile, msg, max_results=5: [])
+    monkeypatch.setattr(grounding, "ground", lambda profile, msg, max_results=5: [])
     monkeypatch.setattr(turn.model_mod, "call_model", lambda messages, model=None, **_: ModelReply("reply text", 12))
 
     result = turn.run_turn("samantha", "hello")
@@ -115,7 +126,7 @@ def test_resumed_session_file_is_read_only_once_per_turn(sessions_root, monkeypa
     sid = session.new_session_id()
     session.append_turn("samantha", sid, "first", "first reply")
 
-    monkeypatch.setattr(turn.grounding, "ground", lambda profile, msg, max_results=5: [])
+    monkeypatch.setattr(grounding, "ground", lambda profile, msg, max_results=5: [])
     monkeypatch.setattr(turn.model_mod, "call_model", lambda messages, model=None, **_: ModelReply("second reply", 12))
 
     load_calls = []
@@ -138,7 +149,7 @@ def test_unknown_persona_raises_persona_not_found(sessions_root):
 
 
 def test_per_call_model_override_is_passed_through(sessions_root, monkeypatch):
-    monkeypatch.setattr(turn.grounding, "ground", lambda profile, msg, max_results=5: [])
+    monkeypatch.setattr(grounding, "ground", lambda profile, msg, max_results=5: [])
     captured = {}
 
     def fake_call_model(messages, model=None, **_):
@@ -159,7 +170,7 @@ def _capture_model(monkeypatch):
         captured["model"] = model
         return ModelReply("reply", 12)
 
-    monkeypatch.setattr(turn.grounding, "ground", lambda profile, msg, max_results=5: [])
+    monkeypatch.setattr(grounding, "ground", lambda profile, msg, max_results=5: [])
     monkeypatch.setattr(turn.model_mod, "call_model", fake_call_model)
     return captured
 
@@ -193,7 +204,7 @@ def test_run_turn_explicit_model_beats_the_personas_model(sessions_root, monkeyp
 
 
 def test_ttft_and_model_are_recorded_on_the_turn_and_the_session(sessions_root, monkeypatch):
-    monkeypatch.setattr(turn.grounding, "ground", lambda profile, msg, max_results=5: [])
+    monkeypatch.setattr(grounding, "ground", lambda profile, msg, max_results=5: [])
     monkeypatch.setattr(
         turn.model_mod, "call_model", lambda messages, model=None, **_: ModelReply("hi", 734)
     )
@@ -211,7 +222,7 @@ def test_the_recorded_model_is_the_one_that_actually_ran(sessions_root, monkeypa
     """Not the explicit argument (there is none here): the resolved
     persona/setting/default model, which is what a later latency comparison
     across models needs."""
-    monkeypatch.setattr(turn.grounding, "ground", lambda profile, msg, max_results=5: [])
+    monkeypatch.setattr(grounding, "ground", lambda profile, msg, max_results=5: [])
     seen = {}
 
     def fake_call_model(messages, model=None, **_):
@@ -257,7 +268,7 @@ def _capture_call(monkeypatch):
         calls.append({"messages": messages, "model": model, **limits})
         return ModelReply("reply", 12)
 
-    monkeypatch.setattr(turn.grounding, "ground", lambda profile, msg, max_results=5: [])
+    monkeypatch.setattr(grounding, "ground", lambda profile, msg, max_results=5: [])
     monkeypatch.setattr(turn.model_mod, "call_model", fake_call_model)
     return calls
 
@@ -355,7 +366,7 @@ def test_the_passages_reported_are_the_ones_the_model_actually_saw(sessions_root
          "text": ("filler words for the passage " * 40) + f"unique{i}"}
         for i in range(5)
     ]
-    monkeypatch.setattr(turn.grounding, "ground", lambda profile, msg, max_results=5: list(hits))
+    monkeypatch.setattr(grounding, "ground", lambda profile, msg, max_results=5: list(hits))
     calls = []
     monkeypatch.setattr(
         turn.model_mod,
@@ -377,7 +388,7 @@ def test_when_every_passage_is_left_out_the_prompt_does_not_claim_nothing_matche
 
     settings_store.set("context_window", 1024)
     big = {**_fake_grounding_result(), "text": "filler words for the passage " * 200}
-    monkeypatch.setattr(turn.grounding, "ground", lambda profile, msg, max_results=5: [big])
+    monkeypatch.setattr(grounding, "ground", lambda profile, msg, max_results=5: [big])
     calls = []
     monkeypatch.setattr(
         turn.model_mod, "call_model",
@@ -391,7 +402,7 @@ def test_when_every_passage_is_left_out_the_prompt_does_not_claim_nothing_matche
 
 
 def test_a_reply_that_hit_the_reply_limit_is_reported_on_the_result(sessions_root, monkeypatch):
-    monkeypatch.setattr(turn.grounding, "ground", lambda profile, msg, max_results=5: [])
+    monkeypatch.setattr(grounding, "ground", lambda profile, msg, max_results=5: [])
     monkeypatch.setattr(
         turn.model_mod, "call_model",
         lambda messages, model=None, **limits: ModelReply("half a sen", 12, truncated=True),
@@ -407,3 +418,82 @@ def test_a_users_reply_limit_reaches_the_model_call(sessions_root, monkeypatch):
     calls = _capture_call(monkeypatch)
     turn.run_turn("samantha", "hello")
     assert calls[0]["max_tokens"] == 500
+
+
+def _first_turn_then_follow_up(monkeypatch, rewrite_reply: str, answers: dict[str, list]):
+    """Runs a first turn, then the bare follow-up "why did we pick it?" with the
+    retriever answering only the queries in `answers`. Returns the follow-up's
+    result and every model call made during it, chat call last."""
+    monkeypatch.setattr(followup, "enabled", lambda: True)
+    monkeypatch.setattr(
+        grounding, "ground", lambda profile, msg, max_results=5: list(answers.get(msg, []))
+    )
+    calls: list[list[dict]] = []
+
+    def call_model(messages, model=None, **limits):
+        calls.append(messages)
+        is_rewrite = "standalone search query" in messages[0]["content"]
+        return ModelReply(rewrite_reply if is_rewrite else "a chat reply", 5)
+
+    monkeypatch.setattr(turn.model_mod, "call_model", call_model)
+    first = turn.run_turn("samantha", "what did we decide about Atlas?")
+    calls.clear()
+    return turn.run_turn("samantha", "why did we pick it?", first.session_id), calls
+
+
+def test_a_follow_up_is_grounded_on_its_rewritten_query(sessions_root, monkeypatch):
+    hit = _fake_grounding_result()
+    result, calls = _first_turn_then_follow_up(
+        monkeypatch, "why SQLite for Atlas", {"why SQLite for Atlas": [hit]}
+    )
+    assert len(calls) == 2  # the rewrite, then the chat
+    chat = calls[1]
+    assert "distinguishably unique text" in chat[0]["content"]  # the note reached the model
+    assert chat[-1] == {"role": "user", "content": "why did we pick it?"}  # the user's own words
+    assert all("why SQLite for Atlas" not in m["content"] for m in chat)  # the rewrite is not shown to it
+    assert result.searched == "why SQLite for Atlas"
+    assert result.grounding == [hit]
+
+
+def test_the_rewrite_is_not_saved_as_a_turn(sessions_root, monkeypatch):
+    result, _ = _first_turn_then_follow_up(
+        monkeypatch, "why SQLite for Atlas", {"why SQLite for Atlas": [_fake_grounding_result()]}
+    )
+    turns = session.load_session("samantha", result.session_id)["turns"]
+    assert [t["user"] for t in turns] == ["what did we decide about Atlas?", "why did we pick it?"]
+    assert "why SQLite for Atlas" not in str(turns)
+
+
+def test_a_follow_up_whose_rewrite_finds_nothing_is_an_ordinary_ungrounded_turn(sessions_root, monkeypatch):
+    result, calls = _first_turn_then_follow_up(monkeypatch, "NONE", {})
+    assert len(calls) == 2
+    assert result.searched is None and result.grounding == []
+    assert "No vault notes matched" in calls[1][0]["content"]
+
+
+def test_a_rewritten_query_is_not_reported_when_every_passage_was_left_out_for_size(
+    sessions_root, monkeypatch
+):
+    from sympose import settings_store
+
+    settings_store.set("context_window", 1024)
+    big = {**_fake_grounding_result(), "text": "filler words for the passage " * 200}
+    result, _ = _first_turn_then_follow_up(monkeypatch, "why SQLite for Atlas", {"why SQLite for Atlas": [big]})
+    assert result.grounding == [] and result.searched is None
+
+
+def test_the_rewrite_call_runs_in_the_same_window_as_the_chat_call(sessions_root, monkeypatch):
+    monkeypatch.setattr(turn.budget, "_native_max", lambda model: 8192)
+    monkeypatch.setattr(followup, "enabled", lambda: True)
+    monkeypatch.setattr(grounding, "ground", lambda profile, msg, max_results=5: [])
+    windows = []
+
+    def call_model(messages, model=None, **limits):
+        windows.append(limits.get("num_ctx"))
+        return ModelReply("NONE", 5)
+
+    monkeypatch.setattr(turn.model_mod, "call_model", call_model)
+    first = turn.run_turn("samantha", "hello", model="ollama_chat/x")
+    windows.clear()
+    turn.run_turn("samantha", "thanks", first.session_id, model="ollama_chat/x")
+    assert windows == [8192, 8192]  # the rewrite, then the chat: no reload between them

@@ -11,7 +11,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from sympose import profile as profile_mod
-from sympose.engine import budget, grounding, prompt, session
+from sympose.engine import budget, followup, prompt, session
 from sympose.engine import model as model_mod
 from sympose.engine.model import EngineModelError
 
@@ -37,6 +37,9 @@ class TurnResult:
     # Turns left out of what the model was sent because they did not fit its
     # window (docs/decisions/015); the session record keeps them all.
     history_dropped: int = 0
+    # The search query a follow-up was rewritten into when that rewrite is what
+    # grounded the reply (docs/decisions/017); `None` when the message itself was.
+    searched: str | None = None
     # The reply stopped at the reply limit, so it may end mid-sentence.
     truncated: bool = False
 
@@ -58,11 +61,14 @@ def run_turn(
     existing = session.load_session(handle, sid)
     history = session.history_as_messages(existing)
 
-    grounding_results = grounding.ground(persona, user_message)
     # An explicit per-call model wins; otherwise `resolve_model` owns the
     # rest of the order (persona's model > setting > default), so this
     # and every display of "which model runs" share one definition.
     target_model = model or model_mod.resolve_model(persona.get("model"))
+    # The prompt is sized to this model's window, not left to the runtime's
+    # silent cut (docs/decisions/015); the follow-up rewrite shares that window.
+    limits = budget.budget_for(target_model)
+    grounding_results, searched = followup.ground(persona, user_message, history, target_model, limits)
 
     found = len(grounding_results)
 
@@ -71,9 +77,6 @@ def run_turn(
         # instead of claiming nothing matched.
         return prompt.build_messages(persona, hist, hits, user_message, omitted=found - len(hits))
 
-    # The prompt is sized to this model's window here, not left to the
-    # runtime's silent cut (docs/decisions/015).
-    limits = budget.budget_for(target_model)
     if limits is None:
         messages, dropped = build(history, grounding_results), 0
     else:
@@ -102,5 +105,6 @@ def run_turn(
         ttft_ms=reply.ttft_ms,
         model=target_model,
         history_dropped=dropped,
+        searched=searched if grounding_results else None,
         truncated=reply.truncated,
     )

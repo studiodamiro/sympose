@@ -1531,6 +1531,36 @@ def test_grounding_header_segment_keeps_the_whole_line_within_the_terminal():
         assert grounding_line.cell_len(line) <= width - 4, width
 
 
+def test_a_follow_ups_rewritten_query_follows_the_note_and_is_cut_at_its_end():
+    header = "@samantha · Gemma2:9b · TTFT 8.3s"
+    hits = [_hit("Projects/Atlas.md")]
+    line = grounding_line.header_segment(header, hits, 120, "why did we pick SQLite for Atlas")
+    assert line == ' · from Projects/Atlas.md · searched "why did we pick SQLite for Atlas"'
+    narrow = grounding_line.header_segment(header, hits, 100, "why did we pick SQLite for Atlas")
+    assert narrow.startswith(" · from Projects/Atlas.md · searched \"why did")
+    assert narrow.endswith('…"')
+    assert grounding_line.cell_len(header + narrow) <= 100 - 4
+
+
+def test_the_rewritten_query_is_left_out_when_there_is_no_room_and_never_shown_alone():
+    header = "@samantha · Gemma2:9b · TTFT 8.3s"
+    hits = [_hit("Projects/Atlas.md")]
+    assert grounding_line.header_segment(header, hits, 66, "why did we pick SQLite") == " · from Projects/Atlas.md"
+    assert grounding_line.header_segment(header, [], 200, "why did we pick SQLite") == ""
+    from sympose import settings_store
+
+    settings_store.set(grounding_line.SETTING, False)
+    assert grounding_line.header_segment(header, hits, 200, "why did we pick SQLite") == ""
+
+
+def test_the_rewritten_query_line_stays_within_the_terminal_at_any_width():
+    header = "@samantha · Gemma2:9b · TTFT 8.3s"
+    hits = [_hit("Deep/Nested/Folder/Structure/Atlas.md"), _hit("Other.md")]
+    for width in range(40, 140):
+        line = header + grounding_line.header_segment(header, hits, width, "why did we pick SQLite for the Atlas prototype")
+        assert grounding_line.cell_len(line) <= max(width - 4, grounding_line.cell_len(header) + 30), width
+
+
 def test_grounding_fits_wide_characters_by_cell_width_not_character_count():
     hit = _hit("プロジェクト/アトラスの決定メモ.md")
     segment = grounding_line.format_grounding([hit], 32)
@@ -1670,6 +1700,14 @@ def test_the_reply_header_shows_the_trim_notice_before_the_grounded_note(profile
     # The notice comes first and takes its room; the grounded path then keeps only what fits.
     assert "TTFT 1.8s · 3 older turns out of context · from " in header
     assert header.endswith("Atlas.md")
+
+
+def test_the_reply_header_shows_the_query_a_follow_up_was_rewritten_into(profiles, monkeypatch):
+    header = _run_with_result(
+        monkeypatch, grounding=[_hit("Projects/Atlas.md")], searched="why we picked SQLite"
+    )
+    # An 80-column line: the path gives up room, keeping its filename, so the query shows too.
+    assert header.endswith(' · from …Atlas.md · searched "why we pick…"')
 
 
 def test_the_reply_header_has_no_trim_notice_when_nothing_was_dropped(profiles, monkeypatch):

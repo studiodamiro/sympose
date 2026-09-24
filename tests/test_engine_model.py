@@ -265,5 +265,5 @@ def test_a_model_that_spends_its_whole_reply_limit_thinking_gets_a_clear_error(s
         model.litellm, "completion",
         lambda model, messages, stream, timeout, **kw: chunks,
     )
-    with pytest.raises(model.EngineModelError, match="reply limit"):
+    with pytest.raises(model.ReplyLimitError, match="reply limit"):
         model.call_model([{"role": "user", "content": "hi"}], max_tokens=5)

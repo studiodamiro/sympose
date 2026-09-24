@@ -8,7 +8,7 @@ import os
 import pytest
 from helpers import write_persona
 
-from sympose.engine import followup, grounding, session, turn
+from sympose.engine import followup, grounding, prompt, session, turn
 from sympose.engine.model import ModelReply
 
 
@@ -69,8 +69,10 @@ def test_grounding_snippet_reaches_the_model_call(sessions_root, monkeypatch):
 
     result = turn.run_turn("samantha", "tell me about typography")
 
-    system_message = captured["messages"][0]["content"]
-    assert "Some notes about fonts, distinguishably unique text." in system_message
+    system_message, user_turn = captured["messages"][0]["content"], captured["messages"][-1]["content"]
+    assert "Some notes about fonts, distinguishably unique text." in user_turn  # with the question
+    assert "distinguishably unique text" not in system_message  # not in the system prompt (ADR 020)
+    assert user_turn.endswith("User's message: tell me about typography")
     assert result.reply == "a reply"
 
 
@@ -320,7 +322,6 @@ def test_a_long_chat_drops_the_oldest_turns_but_never_the_soul_or_the_record(
     sessions_root, monkeypatch, tmp_path
 ):
     from sympose import settings_store
-    from sympose.engine import prompt
 
     settings_store.set("context_window", 1024)  # small on purpose: trimming starts early
     calls = _capture_call(monkeypatch)
@@ -337,8 +338,8 @@ def test_a_long_chat_drops_the_oldest_turns_but_never_the_soul_or_the_record(
         sid = result.session_id
 
     sent = calls[-1]["messages"]
-    assert prompt._GROUNDING_INSTRUCTION in sent[0]["content"]  # the engine rules are never cut
-    assert sent[-1] == {"role": "user", "content": "question 5"}
+    assert prompt.GROUNDING_RULE in sent[0]["content"]  # the engine rules are never cut
+    assert sent[-1]["content"].endswith("User's message: question 5")
     pairs_sent = (len(sent) - 2) // 2
     assert result.history_dropped > 0
     assert result.history_dropped == 5 - pairs_sent  # five earlier turns, the rest are sent
@@ -374,7 +375,7 @@ def test_the_passages_reported_are_the_ones_the_model_actually_saw(sessions_root
         lambda messages, model=None, **limits: calls.append(messages) or ModelReply("ok", 12),
     )
     result = turn.run_turn("samantha", "hello")
-    system = calls[0][0]["content"]
+    system = calls[0][-1]["content"]
     assert 0 < len(result.grounding) < 5  # the lowest-scoring passages went first
     assert result.grounding == hits[: len(result.grounding)]
     for i in range(5):
@@ -395,9 +396,9 @@ def test_when_every_passage_is_left_out_the_prompt_does_not_claim_nothing_matche
         lambda messages, model=None, **limits: calls.append(messages) or ModelReply("ok", 12),
     )
     result = turn.run_turn("samantha", "hello")
-    system = calls[0][0]["content"]
+    system = calls[0][-1]["content"]
     assert result.grounding == []
-    assert "No vault notes matched" not in system
+    assert prompt.NO_NOTES not in system
     assert "could not be included" in system
 
 
@@ -448,8 +449,8 @@ def test_a_follow_up_is_grounded_on_its_rewritten_query(sessions_root, monkeypat
     )
     assert len(calls) == 2  # the rewrite, then the chat
     chat = calls[1]
-    assert "distinguishably unique text" in chat[0]["content"]  # the note reached the model
-    assert chat[-1] == {"role": "user", "content": "why did we pick it?"}  # the user's own words
+    assert "distinguishably unique text" in chat[-1]["content"]  # the note reached the model
+    assert chat[-1]["content"].endswith("User's message: why did we pick it?")  # the user's own words
     assert all("why SQLite for Atlas" not in m["content"] for m in chat)  # the rewrite is not shown to it
     assert result.searched == "why SQLite for Atlas"
     assert result.grounding == [hit]
@@ -468,7 +469,7 @@ def test_a_follow_up_whose_rewrite_finds_nothing_is_an_ordinary_ungrounded_turn(
     result, calls = _first_turn_then_follow_up(monkeypatch, "NONE", {})
     assert len(calls) == 2
     assert result.searched is None and result.grounding == []
-    assert "No vault notes matched" in calls[1][0]["content"]
+    assert prompt.NO_NOTES in calls[1][-1]["content"]
 
 
 def test_a_rewritten_query_is_not_reported_when_every_passage_was_left_out_for_size(

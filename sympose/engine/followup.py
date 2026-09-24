@@ -12,7 +12,7 @@ import logging
 from typing import Any, Callable
 
 from sympose import settings_store, vault_paths
-from sympose.engine import budget, grounding
+from sympose.engine import budget, grounding, prompt
 from sympose.engine import model as model_mod
 
 log = logging.getLogger(__name__)
@@ -24,17 +24,6 @@ _OFF = "off"
 _RECENT_EXCHANGES = 2
 _MAX_MESSAGE_CHARS = 300
 _MAX_QUERY_TOKENS = 60
-_NO_TOPIC = "NONE"
-
-_INSTRUCTIONS = (
-    "You turn a user's last chat message into one standalone search query for their personal notes. "
-    "The message refers back to the conversation (it, that, go on, and, what about...). "
-    "Use the conversation to name what is meant, and always include the specific names involved "
-    "(the project, person, place or note title), plus the question's own key words. "
-    "If the message is only thanks, a greeting, small talk, or a change of subject with no topic "
-    f"of its own, output exactly: {_NO_TOPIC}. "
-    f"Output only the query or {_NO_TOPIC}, nothing else."
-)
 
 # Models that used the whole small reply limit thinking, so the step cannot
 # work with them (a reasoning model took 9 to 11 s for nothing on every miss;
@@ -54,7 +43,7 @@ def _prompt(history: list[dict[str, str]], message: str) -> list[dict[str, str]]
         for turn in history[-2 * _RECENT_EXCHANGES :]
     ]
     body = "Conversation so far:\n" + "\n".join(lines) + f"\n\nLast message: {message}\n\nStandalone search query:"
-    return [{"role": "system", "content": _INSTRUCTIONS}, {"role": "user", "content": body}]
+    return [{"role": "system", "content": prompt.REWRITE_INSTRUCTIONS}, {"role": "user", "content": body}]
 
 
 def rewrite_query(
@@ -65,13 +54,13 @@ def rewrite_query(
     nothing, or failed, or the prompt would not fit the window)."""
     if model in _CANNOT_REWRITE:
         return None
-    prompt = _prompt(history, message)
-    if limits is not None and budget.count_tokens(prompt, model) > limits.prompt_tokens:
+    request = _prompt(history, message)
+    if limits is not None and budget.count_tokens(request, model) > limits.prompt_tokens:
         return None
     try:
         # The chat's own window, so a local model is not reloaded for this call.
         reply = model_mod.call_model(
-            prompt, model=model, num_ctx=limits.num_ctx if limits else None, max_tokens=_MAX_QUERY_TOKENS
+            request, model=model, num_ctx=limits.num_ctx if limits else None, max_tokens=_MAX_QUERY_TOKENS
         )
     except model_mod.ReplyLimitError as e:
         log.warning("'%s' cannot write a follow-up rewrite in its reply limit; not asking again: %s", model, e)
@@ -84,7 +73,7 @@ def rewrite_query(
         return None
     lines = reply.text.strip().splitlines()
     query = lines[0].strip().strip("\"'") if lines else ""
-    if not query or query.rstrip(".! ").upper() == _NO_TOPIC:
+    if not query or query.rstrip(".! ").upper() == prompt.NO_TOPIC:
         return None
     return query
 

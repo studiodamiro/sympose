@@ -62,13 +62,11 @@ class Passage:
     # one of these says the message is about this note, where a body-only
     # match on an ordinary word often does not.
     topical: frozenset[str]
-    # Terms from the note's title alone (filename or `title:`), and terms of
-    # this passage's own text and heading. `tf` mixes both with the title and
-    # tags of the whole note, so these tell a message that is just a note's
-    # name, or two words that really are in the passage, from a title word
-    # that every passage of the note carries.
+    # Terms from the note's title alone (filename or `title:`), one set shared
+    # by all of the note's passages. `tf` mixes them into every passage, so
+    # this tells a message that is just a note's name from one that shares words
+    # with the passage (docs/decisions/019).
     title_terms: frozenset[str]
-    own_terms: frozenset[str]
 
 
 @dataclass(frozen=True)
@@ -173,9 +171,6 @@ def build_index(notes: list[dict[str, Any]]) -> Index:
                 continue
             tf = Counter(body_terms)
             heading_terms = index_terms(heading)
-            # A heading that only repeats the note's title (a note's first
-            # line usually does) says nothing about this passage.
-            own_heading = [] if heading.strip().lower() == title.strip().lower() else heading_terms
             for term in heading_terms:
                 tf[term] += _HEADING_WEIGHT
             tf.update(header_terms)
@@ -183,8 +178,7 @@ def build_index(notes: list[dict[str, Any]]) -> Index:
             topical = frozenset(heading_terms) | frozenset(header_terms)
             passages.append(
                 Passage(
-                    note["rel_path"], title, heading, text, tags, tf, len(body_terms), topical,
-                    title_terms, frozenset(body_terms) | frozenset(own_heading),
+                    note["rel_path"], title, heading, text, tags, tf, len(body_terms), topical, title_terms
                 )
             )
             made_any = True

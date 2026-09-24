@@ -57,6 +57,16 @@ def _informative_terms(message: str, index: Index, strict: bool) -> list[str]:
     return terms
 
 
+def _own_terms(passage: Passage) -> set[str]:
+    """The terms of the passage's own text and heading, not the note's title
+    words that `tf` adds to every passage of the note. A heading that only
+    repeats the title (a note's first line usually does) is not the passage's."""
+    own = set(index_terms(passage.text))
+    if passage.heading.strip().lower() != passage.title.strip().lower():
+        own.update(index_terms(passage.heading))
+    return own
+
+
 def _qualifies(passage: Passage, matched: list[str], informative: list[str], strict: bool) -> bool:
     """Precision over recall: a wrong note derails a small model's reply
     (tested on the default model: it answered the irrelevant context instead
@@ -75,8 +85,8 @@ def _qualifies(passage: Passage, matched: list[str], informative: list[str], str
     ("thanks, that helps!", "I'm getting started on my taxes") is a heading
     word or two away from a note."""
     if strict:
-        own = [t for t in matched if t in passage.own_terms]
-        return len(own) >= 2 or set(informative) <= passage.title_terms
+        own = _own_terms(passage)
+        return len([t for t in matched if t in own]) >= 2 or set(informative) <= passage.title_terms
     return (
         any(t in passage.topical for t in matched)
         or len(matched) >= 2

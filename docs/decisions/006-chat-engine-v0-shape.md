@@ -83,3 +83,5 @@ Also found and fixed live, not part of the original design: `python -m sympose.c
 **Update (docs/decisions/012):** the placeholder soul is now `DEFAULT_SOUL`, the fallback for a persona with no `profiles/<handle>/soul.md`; a persona's soul is loaded per turn, and the grounding instruction gained rules about ambiguous references, unseen facts, and current limits.
 
 **Update (docs/decisions/014):** the multi-query workaround described here (the raw message, then each significant word as a separate query against the search matcher) is replaced by a dedicated passage retriever in one pass.
+
+**Update (docs/decisions/025):** a turn record now also carries `sent`: the notes (path and heading), recaps (session ids), rewritten search query and count of turns left out that reached the model on that turn. It is for diagnosis and is never read back into a prompt.

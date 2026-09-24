@@ -32,4 +32,4 @@ The path is fitted once, when the reply lands, against the terminal's width at t
 - **A separate line under the header.** Rejected for now: it doubles the vertical space per reply, and the header line has the room when fitted to width.
 - **Showing the passage text.** Too long for a line beside a reply; the search bar's result list already shows that shape, and a condensed version of it is what this line is.
 - **Always on, no knob.** Rejected: some users will find it noise once they trust the setup.
-- **Storing the display string in the session record.** Rejected: the record already keeps the turn; the grounding hits are recomputable from the vault and are not part of what the user said or the model replied.
+- **Storing the display string in the session record.** Rejected: the record already keeps the turn; the grounding hits are recomputable from the vault and are not part of what the user said or the model replied. (The premise did not hold up, since the vault and the retriever change: the notes are now recorded, as paths, not as this string; see ADR 025.)

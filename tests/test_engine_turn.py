@@ -464,7 +464,8 @@ def test_the_rewrite_is_not_saved_as_a_turn(sessions_root, monkeypatch):
     )
     turns = session.load_session("samantha", result.session_id)["turns"]
     assert [t["user"] for t in turns] == ["what did we decide about Atlas?", "why did we pick it?"]
-    assert "why SQLite for Atlas" not in str(turns)
+    # Not what the user said or she replied; it is only on the record of what was searched.
+    assert all("why SQLite for Atlas" not in t["user"] + t["assistant"] for t in turns)
 
 
 def test_a_follow_up_whose_rewrite_finds_nothing_is_an_ordinary_ungrounded_turn(sessions_root, monkeypatch):
@@ -813,3 +814,122 @@ def test_a_turn_waits_for_the_recap_being_written_at_launch_before_reading_recap
 
     assert waited == ["samantha"]
     assert "Was planning a trip to Lisbon." in calls[0]["messages"][-1]["content"]
+
+
+# -- what reached the model, kept on the record (docs/decisions/025) --
+
+
+def _sent_of(result):
+    return session.load_session("samantha", result.session_id)["turns"][-1]["sent"]
+
+
+def test_the_turn_record_says_which_notes_reached_the_model_without_their_text(sessions_root, monkeypatch):
+    _library_persona(sessions_root)
+    _capture_call(monkeypatch)
+    vault = {**_fake_grounding_result(), "heading": "Fonts"}
+    monkeypatch.setattr(grounding, "ground", lambda profile, msg, max_results=5: [vault])
+    monkeypatch.setattr(reference, "ground", lambda persona, msg: [_reference_hit()])
+
+    result = turn.run_turn("samantha", "what fonts do I use?")
+
+    sent = _sent_of(result)
+    assert sent["notes"] == [
+        {"path": "Sympose reference/Not built yet.md", "heading": "Memory", "source": "sympose"},
+        {"path": "Typography.md", "heading": "Fonts", "source": "vault"},
+    ]
+    raw = open(session.session_path("samantha", result.session_id), encoding="utf-8").read()
+    assert "distinguishably unique text" not in raw  # the path and heading, never the passage
+
+
+def test_a_turn_with_nothing_attached_records_that(sessions_root, monkeypatch):
+    _capture_call(monkeypatch)
+
+    result = turn.run_turn("samantha", "hello")
+
+    assert _sent_of(result) == {"notes": [], "recaps": [], "searched": None, "history_dropped": 0}
+
+
+def test_the_recaps_shown_are_recorded_by_session_and_a_left_out_one_is_not(sessions_root, monkeypatch):
+    from sympose import settings_store
+
+    settings_store.set("context_window", 2048)
+    _put_recap("20260923T090000-bbbbbbbb", _text_of_tokens(300))
+    _put_recap("20260922T090000-cccccccc", _text_of_tokens(300))
+    big = {**_fake_grounding_result(), "text": _text_of_tokens(_free_tokens() - 250)}  # room for one recap, not two
+    _capture_call(monkeypatch)
+    monkeypatch.setattr(grounding, "ground", lambda profile, msg, max_results=5: [big])
+
+    result = turn.run_turn("samantha", "hello")
+
+    assert _sent_of(result)["recaps"] == ["20260923T090000-bbbbbbbb"]
+
+
+def test_a_passage_left_out_for_size_is_not_recorded_as_sent(sessions_root, monkeypatch):
+    from sympose import settings_store
+
+    settings_store.set("context_window", 2048)
+    hits = [
+        {**_fake_grounding_result(), "title": f"Note{i}", "rel_path": f"Note{i}.md", "index": i + 1,
+         "text": ("filler words for the passage " * 40) + f"unique{i}"}
+        for i in range(5)
+    ]
+    _capture_call(monkeypatch)
+    monkeypatch.setattr(grounding, "ground", lambda profile, msg, max_results=5: list(hits))
+
+    result = turn.run_turn("samantha", "hello")
+
+    kept = len(result.grounding)
+    assert 0 < kept < 5
+    assert [n["path"] for n in _sent_of(result)["notes"]] == [f"Note{i}.md" for i in range(kept)]
+
+
+def test_the_rewritten_query_and_the_turns_left_out_are_recorded(sessions_root, monkeypatch):
+    result, _ = _first_turn_then_follow_up(
+        monkeypatch, "why SQLite for Atlas", {"why SQLite for Atlas": [_fake_grounding_result()]}
+    )
+
+    sent = _sent_of(result)
+    assert sent["searched"] == "why SQLite for Atlas"
+    assert sent["history_dropped"] == 0
+
+
+def test_the_rewritten_query_is_not_recorded_when_only_the_library_grounded_the_reply(sessions_root, monkeypatch):
+    _library_persona(sessions_root)
+    _capture_call(monkeypatch)
+    monkeypatch.setattr(reference, "ground", lambda persona, msg: [_reference_hit()])
+    monkeypatch.setattr(turn.followup, "ground", lambda *a, **k: ([], "a query that found nothing"))
+
+    result = turn.run_turn("samantha", "do you remember last time?")
+
+    assert _sent_of(result)["searched"] is None
+
+
+def test_the_number_of_turns_left_out_is_recorded(sessions_root, monkeypatch):
+    from sympose import settings_store
+
+    settings_store.set("context_window", 2048)
+    monkeypatch.setattr(grounding, "ground", lambda profile, msg, max_results=5: [])
+    monkeypatch.setattr(
+        turn.model_mod, "call_model", lambda messages, model=None, **limits: ModelReply("answer " * 250, 12)
+    )
+    sid, result = None, None
+    for i in range(6):
+        result = turn.run_turn("samantha", f"question {i}", session_id=sid)
+        sid = result.session_id
+
+    assert result.history_dropped > 0
+    assert _sent_of(result)["history_dropped"] == result.history_dropped
+
+
+def test_what_was_sent_never_comes_back_into_a_later_prompt(sessions_root, monkeypatch):
+    calls = _capture_call(monkeypatch)
+    monkeypatch.setattr(
+        grounding, "ground", lambda profile, msg, max_results=5: [{**_fake_grounding_result(), "rel_path": "Zebra/Path.md"}]
+    )
+    first = turn.run_turn("samantha", "tell me about fonts")
+
+    turn.run_turn("samantha", "and again?", session_id=first.session_id)
+
+    history = calls[1]["messages"][1:-1]  # after the system prompt, before the new message
+    assert [m["role"] for m in history] == ["user", "assistant"]
+    assert all("Zebra/Path.md" not in m["content"] for m in history)

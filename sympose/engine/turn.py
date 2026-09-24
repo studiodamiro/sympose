@@ -57,6 +57,22 @@ def _interleave(first: list[dict[str, Any]], second: list[dict[str, Any]]) -> li
     return merged
 
 
+def _sent(
+    grounding: list[dict[str, Any]], recaps: list[dict[str, Any]], searched: str | None, dropped: int
+) -> dict[str, Any]:
+    """What reached the model besides the messages, for the session record
+    (docs/decisions/025): where each note came from, never its text."""
+    return {
+        "notes": [
+            {"path": hit["rel_path"], "heading": hit.get("heading", ""), "source": hit.get("source", "vault")}
+            for hit in grounding
+        ],
+        "recaps": [r["session"] for r in recaps],
+        "searched": searched,
+        "history_dropped": dropped,
+    }
+
+
 def _reply_tokens(text: str, model: str) -> int:
     return budget.count_tokens([{"role": "assistant", "content": text}], model)
 
@@ -119,12 +135,13 @@ def run_turn(
         )
 
     prompt_tokens = 0
+    recaps_sent = recaps_found
     if limits is None:
         messages, dropped = build(history, grounding_results, recaps_found), 0
     else:
         fitted = budget.fit(build, history, grounding_results, target_model, limits.prompt_tokens, recaps_found)
         messages, grounding_results, dropped = fitted.messages, fitted.grounding, fitted.history_dropped
-        prompt_tokens = fitted.tokens
+        recaps_sent, prompt_tokens = fitted.recaps, fitted.tokens
     reply = model_mod.call_model(
         messages,
         model=target_model,
@@ -132,6 +149,7 @@ def run_turn(
         max_tokens=limits.reply_cap if limits else None,
     )
 
+    searched_used = searched if any(h.get("source") != reference.SOURCE for h in grounding_results) else None
     session.append_turn(
         handle,
         sid,
@@ -140,6 +158,7 @@ def run_turn(
         existing=existing,
         ttft_ms=reply.ttft_ms,
         model=target_model,
+        sent=_sent(grounding_results, recaps_sent, searched_used, dropped),
     )
     return TurnResult(
         reply=reply.text,
@@ -148,7 +167,7 @@ def run_turn(
         ttft_ms=reply.ttft_ms,
         model=target_model,
         history_dropped=dropped,
-        searched=searched if any(h.get("source") != reference.SOURCE for h in grounding_results) else None,
+        searched=searched_used,
         context_used=prompt_tokens + _reply_tokens(reply.text, target_model) if limits else None,
         context_limit=limits.prompt_tokens if limits else None,
         truncated=reply.truncated,

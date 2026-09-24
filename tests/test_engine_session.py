@@ -248,3 +248,24 @@ def test_session_ids_are_listed_newest_first_and_only_the_session_files(sessions
 
 def test_a_persona_with_no_sessions_yet_lists_none(sessions_root):
     assert session.session_ids("samantha") == []
+
+
+def test_what_reached_the_model_is_kept_on_the_turn_and_left_off_when_not_given(sessions_root):
+    sid = session.new_session_id()
+    sent = {"notes": [{"path": "A.md", "heading": "H", "source": "vault"}], "recaps": [], "searched": None}
+
+    session.append_turn("samantha", sid, "one", "reply", sent=sent)
+    session.append_turn("samantha", sid, "two", "reply")
+
+    first, second = session.load_session("samantha", sid)["turns"]
+    assert first["sent"] == sent
+    assert "sent" not in second  # nothing recorded is not an empty record
+
+
+def test_what_was_sent_is_not_part_of_the_history_the_model_gets(sessions_root):
+    sid = session.new_session_id()
+    session.append_turn("samantha", sid, "one", "reply", sent={"notes": [{"path": "Secret.md"}]})
+
+    history = session.history_as_messages(session.load_session("samantha", sid))
+
+    assert history == [{"role": "user", "content": "one"}, {"role": "assistant", "content": "reply"}]

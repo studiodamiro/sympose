@@ -84,8 +84,8 @@ def _date(session_id: str) -> str:
 
 
 def latest(handle: str, exclude: str | None = None) -> list[dict[str, str | bool]]:
-    """The newest recaps with something in them, newest first, as `{"date", "text",
-    "last"}`; `last` is true for the recap of the most recent earlier session of all,
+    """The newest recaps with something in them, newest first, as `{"session", "date",
+    "text", "last"}` (`session` is the id of the session it recaps); `last` is true for the recap of the most recent earlier session of all,
     and false when that session had nothing to carry over or no recap yet (so an older
     one is not presented as the last conversation). `exclude` is the session being
     run, whose own turns are already in the chat."""
@@ -104,7 +104,12 @@ def latest(handle: str, exclude: str | None = None) -> list[dict[str, str | bool
         loaded = load(handle, session_id)
         if loaded and loaded[1]:
             found.append(
-                {"date": _date(session_id), "text": loaded[1][:_MAX_READ_CHARS], "last": session_id == newest}
+                {
+                    "session": session_id,
+                    "date": _date(session_id),
+                    "text": loaded[1][:_MAX_READ_CHARS],
+                    "last": session_id == newest,
+                }
             )
         if len(found) == READ_COUNT:
             break

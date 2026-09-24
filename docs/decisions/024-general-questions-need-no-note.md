@@ -43,4 +43,4 @@ The strict mode used for the library (ADR 019) is unchanged.
 
 ## Not built yet
 
-The log of which notes grounded each turn (ADR 006's amendment), which would have made this diagnosis exact instead of a replay against today's vault. Making her answer first and ask second (her soul). A gentler treatment of an ordinary word that is a note's whole title, which still grounds it however long the message.
+Making her answer first and ask second (her soul). A gentler treatment of an ordinary word that is a note's whole title, which still grounds it however long the message.

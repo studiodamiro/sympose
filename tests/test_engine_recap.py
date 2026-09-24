@@ -421,8 +421,8 @@ def test_latest_gives_the_two_newest_recaps_newest_first_with_the_day_of_each():
     put(NEW, "first")
 
     assert recap.latest("samantha") == [
-        {"date": "2026-09-24", "text": "first", "last": True},
-        {"date": "2026-09-23", "text": "second", "last": False},
+        {"session": NEW, "date": "2026-09-24", "text": "first", "last": True},
+        {"session": OLD, "date": "2026-09-23", "text": "second", "last": False},
     ]
 
 
@@ -432,7 +432,9 @@ def test_a_recap_is_not_the_last_conversation_when_a_newer_session_has_none():
     put(OLD, "second")
     put(NEW, "")
 
-    assert recap.latest("samantha") == [{"date": "2026-09-23", "text": "second", "last": False}]
+    assert recap.latest("samantha") == [
+        {"session": OLD, "date": "2026-09-23", "text": "second", "last": False}
+    ]
 
 
 def test_the_last_conversation_is_the_newest_session_other_than_the_one_being_run():
@@ -440,7 +442,9 @@ def test_the_last_conversation_is_the_newest_session_other_than_the_one_being_ru
     talk(NEW)
     put(OLD, "second")
 
-    assert recap.latest("samantha", exclude=NEW) == [{"date": "2026-09-23", "text": "second", "last": True}]
+    assert recap.latest("samantha", exclude=NEW) == [
+        {"session": OLD, "date": "2026-09-23", "text": "second", "last": True}
+    ]
 
 
 def test_the_session_being_run_is_never_read_back_into_itself():

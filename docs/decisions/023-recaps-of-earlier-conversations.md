@@ -58,4 +58,4 @@ Two facts shape the design. The persona's earlier replies are not reliable evide
 
 ## Not built yet
 
-Out of scope: durable facts about the user (the vision's layer 2, a `memory.md` that ADR 001 already keeps out of version control), search across sessions, archival to a vault note, sharing recaps between personas (each reads only its own sessions), showing recaps in the dashboard, recording which recaps reached each turn (with the log of grounded notes, ADR 006's amendment, not built), and any measurement on a model other than `gemma2:9b`.
+Out of scope: durable facts about the user (the vision's layer 2, a `memory.md` that ADR 001 already keeps out of version control), search across sessions, archival to a vault note, sharing recaps between personas (each reads only its own sessions), showing recaps in the dashboard, showing which recaps reached each turn (they are recorded, ADR 025), and any measurement on a model other than `gemma2:9b`.

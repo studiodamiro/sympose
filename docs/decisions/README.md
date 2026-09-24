@@ -30,3 +30,4 @@ The original records 001–006 (backend dependencies, the legacy port strategy, 
 | [022](022-wire-the-reference-library.md) | Wiring the Sympose reference library into a persona's turns: a per-persona flag, its own labelled block, and what each persona is told | Proposed |
 | [023](023-recaps-of-earlier-conversations.md) | Recaps: a short, model-written summary of each earlier conversation, kept in the persona's own folder and read at the start of the next one | Proposed |
 | [024](024-general-questions-need-no-note.md) | A general question needs no note: notes attach only on a real share of the message, and she is told she may answer from her own knowledge | Proposed |
+| [025](025-record-what-reached-each-turn.md) | Record which notes and recaps reached each turn: paths and session ids on the turn record, never their text, never read back into a prompt | Proposed |

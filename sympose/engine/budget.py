@@ -36,9 +36,10 @@ AUTO_WINDOW_CEILING = 32768
 # support more.
 UNKNOWN_MODEL_WINDOW = 4096
 _SETTING = "context_window"
-# Below this a window cannot hold even the shipped soul, so a smaller (or
-# malformed) setting falls back to the default instead of failing every turn.
-_MIN_CONTEXT_WINDOW = 1024
+# Below this a window cannot hold the shipped persona's own instructions (about 940
+# tokens with the Sympose rules, ADR 022) and still leave room for a message, so a
+# smaller setting is raised to it instead of failing every turn.
+_MIN_CONTEXT_WINDOW = 2048
 # Room kept for the reply, and the limit a local model's reply is held to. It
 # scales with the window because a reasoning model spends its reply limit
 # thinking (`qwen3:8b` on a hard question was cut off at 1024 and finished at

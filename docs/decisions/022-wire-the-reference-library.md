@@ -41,7 +41,7 @@ The reply to "whats with our table today?" is now a question back ("what do you 
 
 ## Consequences
 
-Samantha's prompt is now about 940 tokens (the persona's voice, the rules and an empty turn), measured with the engine's own count. The smallest `context_window` the engine accepts, 1024, leaves 768 for the prompt, so at that setting every turn of the shipped persona is refused as too small (the message says to use a larger window). The default follows the model's own window and is unaffected; the floor's stated reason (room for the shipped soul) is out of date and the floor should be raised, which needs the trimming tests that use 1024 reworked.
+Samantha's prompt is now about 940 tokens (the persona's voice, the rules and an empty turn), measured with the engine's own count. The smallest `context_window` the engine accepted was 1024, which leaves 768 for the prompt, so at that setting every turn of the shipped persona was refused as too small. The floor is now 2048 (1536 for the prompt, about 600 tokens beyond Samantha's own instructions); a smaller setting is raised to it. The default follows the model's own window and was never affected. It is not a setting of its own: it only guards a `context_window` the user typed, who can already choose any number above it, and a persona or message that still does not fit gets the existing message naming the setting.
 
 The header shows a reference passage as `from Sympose reference/<note>.md`.
 
@@ -52,7 +52,6 @@ The header shows a reference passage as `from Sympose reference/<note>.md`.
 - The passage budget is not split between the two sources beyond the ordering above.
 - The drift guard beyond the version (ADR 019), a `/help` that lists the same notes, other models and cloud models.
 - The insisting-user case (above), and any check on models other than `gemma2:9b`.
-- Raising the window floor (above).
 - Whether a Sympose question should also suppress the vault's design notes about Sympose; today both appear, labelled, and the persona is told which to trust.
 
 ## Alternatives rejected

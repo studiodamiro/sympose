@@ -325,7 +325,7 @@ def test_a_long_chat_drops_the_oldest_turns_but_never_the_soul_or_the_record(
 ):
     from sympose import settings_store
 
-    settings_store.set("context_window", 1024)  # small on purpose: trimming starts early
+    settings_store.set("context_window", 2048)  # small on purpose: trimming starts early
     calls = _capture_call(monkeypatch)
     monkeypatch.setattr(
         turn.model_mod,
@@ -351,7 +351,7 @@ def test_a_long_chat_drops_the_oldest_turns_but_never_the_soul_or_the_record(
 def test_a_window_too_small_for_the_soul_fails_before_calling_the_model(sessions_root, monkeypatch):
     from sympose import settings_store
 
-    settings_store.set("context_window", 1024)
+    settings_store.set("context_window", 2048)
     calls = _capture_call(monkeypatch)
     with pytest.raises(turn.budget.ContextTooSmallError):
         turn.run_turn("samantha", "word " * 3000)
@@ -363,7 +363,7 @@ def test_a_window_too_small_for_the_soul_fails_before_calling_the_model(sessions
 def test_the_passages_reported_are_the_ones_the_model_actually_saw(sessions_root, monkeypatch):
     from sympose import settings_store
 
-    settings_store.set("context_window", 1024)
+    settings_store.set("context_window", 2048)
     hits = [
         {**_fake_grounding_result(), "title": f"Note{i}", "rel_path": f"Note{i}.md", "index": i + 1,
          "text": ("filler words for the passage " * 40) + f"unique{i}"}
@@ -389,7 +389,7 @@ def test_when_every_passage_is_left_out_the_prompt_does_not_claim_nothing_matche
 ):
     from sympose import settings_store
 
-    settings_store.set("context_window", 1024)
+    settings_store.set("context_window", 2048)
     big = {**_fake_grounding_result(), "text": "filler words for the passage " * 200}
     monkeypatch.setattr(grounding, "ground", lambda profile, msg, max_results=5: [big])
     calls = []
@@ -479,7 +479,7 @@ def test_a_rewritten_query_is_not_reported_when_every_passage_was_left_out_for_s
 ):
     from sympose import settings_store
 
-    settings_store.set("context_window", 1024)
+    settings_store.set("context_window", 2048)
     big = {**_fake_grounding_result(), "text": "filler words for the passage " * 200}
     result, _ = _first_turn_then_follow_up(monkeypatch, "why SQLite for Atlas", {"why SQLite for Atlas": [big]})
     assert result.grounding == [] and result.searched is None
@@ -505,7 +505,7 @@ def test_the_rewrite_call_runs_in_the_same_window_as_the_chat_call(sessions_root
 def test_the_result_reports_the_conversations_size_for_the_meter(sessions_root, monkeypatch):
     from sympose import settings_store
 
-    settings_store.set("context_window", 1024)  # prompt budget: 1024 minus a quarter kept for the reply
+    settings_store.set("context_window", 2048)  # prompt budget: 2048 minus a quarter kept for the reply
     monkeypatch.setattr(turn.budget, "count_tokens", lambda messages, model: sum(len(m["content"].split()) for m in messages))
     monkeypatch.setattr(grounding, "ground", lambda profile, msg, max_results=5: [])
     sent = []
@@ -517,7 +517,7 @@ def test_the_result_reports_the_conversations_size_for_the_meter(sessions_root, 
     monkeypatch.setattr(turn.model_mod, "call_model", call_model)
     result = turn.run_turn("samantha", "hello there")
     prompt_words = sum(len(m["content"].split()) for m in sent[0])
-    assert result.context_limit == 768
+    assert result.context_limit == 1536
     assert result.context_used == prompt_words + 3  # what was sent, plus the reply it produced
 
 
@@ -580,8 +580,8 @@ def test_when_the_prompt_does_not_fit_the_vaults_passages_go_before_the_referenc
     from sympose import settings_store
 
     _library_persona(sessions_root)
-    settings_store.set("context_window", 1024)
-    big = {**_fake_grounding_result(), "text": "filler words for the passage " * 60}
+    settings_store.set("context_window", 2048)
+    big = {**_fake_grounding_result(), "text": _text_of_tokens(_free_tokens() * 2)}  # too big to fit even alone
     calls = _capture_call(monkeypatch)
     monkeypatch.setattr(grounding, "ground", lambda profile, msg, max_results=5: [big, {**big, "title": "Other"}])
     monkeypatch.setattr(reference, "ground", lambda persona, msg: [_reference_hit()])
@@ -686,7 +686,7 @@ def test_under_a_tight_window_the_best_vault_passage_outlasts_the_weaker_referen
 def test_the_roster_is_read_once_per_turn_not_once_per_trimming_attempt(sessions_root, monkeypatch):
     from sympose import settings_store
 
-    settings_store.set("context_window", 1024)
+    settings_store.set("context_window", 2048)
     reads = []
     monkeypatch.setattr(turn.profile_mod, "reference_persona_names", lambda: reads.append(1) or [])
     monkeypatch.setattr(prompt, "reference_persona_names", lambda: reads.append(1) or [])

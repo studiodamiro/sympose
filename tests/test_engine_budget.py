@@ -85,19 +85,21 @@ def test_a_malformed_setting_means_automatic(monkeypatch, junk):
     assert budget.window_for("ollama_chat/m") == 8192
 
 
-@pytest.mark.parametrize("small", [1, 500, 1023])
+@pytest.mark.parametrize("small", [1, 500, 1024, 2047])
 def test_a_small_setting_is_raised_to_the_smallest_usable_window_not_read_as_automatic(monkeypatch, small):
     """Someone asking for a tiny window wants a small footprint: treating it as
     automatic would give them the opposite (the model's whole maximum)."""
     native(monkeypatch, {"ollama_chat/m": 32768})
     settings_store.set("context_window", small)
-    assert budget.context_setting() == 1024
-    assert budget.window_for("ollama_chat/m") == 1024
+    assert budget.context_setting() == 2048
+    assert budget.window_for("ollama_chat/m") == 2048
 
 
 def test_a_usable_setting_is_used(monkeypatch):
-    settings_store.set("context_window", 1024)
-    assert budget.context_setting() == 1024
+    settings_store.set("context_window", 2048)
+    assert budget.context_setting() == 2048
+    settings_store.set("context_window", 3000)
+    assert budget.context_setting() == 3000
 
 
 def test_a_cloud_model_gets_the_providers_window_and_ignores_the_setting(monkeypatch):
@@ -308,7 +310,7 @@ def test_real_litellm_model_info_gives_windows_in_the_shape_the_budget_reads():
     change in what litellm returns cannot silently drop every model to the
     unknown-window path."""
     local = budget.window_for("ollama/llama3")  # a model litellm knows statically
-    assert isinstance(local, int) and 1024 <= local <= budget.AUTO_WINDOW_CEILING
+    assert isinstance(local, int) and 2048 <= local <= budget.AUTO_WINDOW_CEILING
     cloud = budget.window_for("gpt-4o")
     assert isinstance(cloud, int) and cloud > 8192
     assert budget.budget_for("gpt-4o").num_ctx is None

@@ -1,7 +1,7 @@
 /**
  * Client for `GET /api/vault/search` — title/tag/content matches with
  * snippets, scoped to a persona's allowed folders. Always whole-persona-
- * scope, never narrowed to one folder — the dashboard derives its
+ * scope, never narrowed to one folder — the web app derives its
  * in-folder/beyond-folder tiers by filtering this one result set
  * client-side instead of asking the backend to narrow it. Returns an
  * empty result set on any failure (offline dev, a network error, or an

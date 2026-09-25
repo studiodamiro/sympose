@@ -6,10 +6,10 @@ const COOKIE = "sympose:active_persona"
 const DEFAULT_HANDLE = "samantha"
 
 /**
- * The dashboard's active persona — the handle every `?persona=` scoped request
+ * The web app's active persona — the handle every `?persona=` scoped request
  * (vault tree, note reads, backlinks) is made against. Persisted to a cookie,
  * not localStorage, per the UI-preference convention. There is no
- * server-side dashboard session: the picker is client state.
+ * server-side web app session: the picker is client state.
  */
 export function useActivePersona(): readonly [
   string,

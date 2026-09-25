@@ -1261,7 +1261,7 @@ export function AppShell() {
           />
         ) : vaultTree.length === 0 ? (
           <p className="text-sm text-fg-muted">
-            No notes in scope — check that the dashboard API is reachable
+            No notes in scope — check that the API is reachable
             and the persona has vault folders.
           </p>
         ) : (

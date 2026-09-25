@@ -44,7 +44,7 @@ function PersonaCard({
   if (!current) {
     return (
       <p className={cn("text-sm text-fg-muted", className)}>
-        No personas found. Check the dashboard API at <code>/api/personas</code>
+        No personas found. Check the API at <code>/api/personas</code>
         .
       </p>
     )

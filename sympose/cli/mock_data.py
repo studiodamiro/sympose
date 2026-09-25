@@ -70,6 +70,7 @@ MODEL_OPTIONS: list[ModelOption] = [
     # model works by name in `chat_model` (docs/decisions/007).
     ModelOption(id="openrouter/anthropic/claude-haiku-4.5", label="Claude Haiku 4.5 — OpenRouter", short="Claude Haiku 4.5"),
     ModelOption(id="openrouter/meta-llama/llama-3.3-70b-instruct", label="Llama 3.3 70B — OpenRouter", short="Llama 3.3 70B"),
+    ModelOption(id="openrouter/meta-llama/llama-3.1-8b-instruct", label="Llama 3.1 8B — OpenRouter", short="Llama 3.1 8B"),
     ModelOption(id="openrouter/deepseek/deepseek-v4-flash", label="DeepSeek V4 Flash — OpenRouter", short="DeepSeek V4 Flash"),
 ]
 

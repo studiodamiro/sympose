@@ -49,5 +49,6 @@ def test_every_model_in_the_picker_names_its_provider_and_appears_once():
         "gemini/gemini-pro-latest",
         "openrouter/anthropic/claude-haiku-4.5",
         "openrouter/meta-llama/llama-3.3-70b-instruct",
+        "openrouter/meta-llama/llama-3.1-8b-instruct",
         "openrouter/deepseek/deepseek-v4-flash",
     ]

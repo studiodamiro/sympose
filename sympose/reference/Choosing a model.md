@@ -6,7 +6,7 @@ The default is `ollama_chat/gemma2:9b`, a local model run by Ollama. Ollama has 
 
 ## How do I switch to a different model?
 
-Type `/model` in the chat to open a picker: Gemma2:9b (local, default), Claude Sonnet 5 (cloud), GPT-4o mini (cloud), Gemini Flash (cloud), Gemini Pro (cloud), and Claude Haiku 4.5, Llama 3.3 70B and DeepSeek V4 Flash through OpenRouter (cloud). The pick applies to your current conversation.
+Type `/model` in the chat to open a picker: Gemma2:9b (local, default), Claude Sonnet 5 (cloud), GPT-4o mini (cloud), Gemini Flash (cloud), Gemini Pro (cloud), and Claude Haiku 4.5, Llama 3.3 70B, Llama 3.1 8B and DeepSeek V4 Flash through OpenRouter (cloud). The pick applies to your current conversation.
 
 ## Which model runs when there are several choices?
 

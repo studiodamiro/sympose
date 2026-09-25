@@ -112,24 +112,17 @@ def test_deleting_the_same_path_twice_keeps_both_and_remembers_where_each_came_f
     assert original_paths == ["Sub/Note.md", "Sub/Note.md"]
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="a third delete of the same path within one second overwrites the second trashed copy: "
-    "the suffix has one-second resolution and os.rename replaces an existing file",
-)
-def test_deleting_the_same_path_three_times_in_one_second_loses_nothing(vault, monkeypatch):
+def test_deleting_the_same_path_many_times_in_one_second_loses_nothing(vault, monkeypatch):
     monkeypatch.setattr(vault_write_delete, "datetime", _FrozenClock)
-    for version in ("one", "two", "three"):
+    versions = ["one", "two", "three", "four", "five"]
+    for version in versions:
         write(vault, "Note.md", version)
         vault_write_delete.delete_note(ALL, "Note")
-    assert sorted(trash_files(vault).values()) == ["one", "three", "two"]
+    assert sorted(trash_files(vault).values()) == sorted(versions)
+    rows = vault_trash.list_trashed(vault, [vault])
+    assert [r["original_path"] for r in rows] == ["Note.md"] * 5  # each can be restored to where it was
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="a note already in the bin resolves as a note and is 'deleted' into .trash/.trash/, "
-    "which the recovery view skips (it ignores dot-folders)",
-)
 def test_a_note_already_in_the_bin_is_not_deleted_again(vault):
     write(vault, ".trash/Gone.md", "recoverable")
     delete = vault_write_delete.delete_note(ALL, ".trash/Gone")

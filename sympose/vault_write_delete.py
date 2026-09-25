@@ -33,6 +33,19 @@ def _trash_nonempty_folder(
     return dest, None
 
 
+def _unused_name(taken: str) -> str:
+    """`taken` with a timestamp before its extension, and a counter after that if even this is
+    taken (three deletes of one path in a second): `os.rename` replaces an existing file
+    silently, so a name in use must never be chosen."""
+    stem, ext = os.path.splitext(taken)
+    stamped = f"{stem}-{datetime.datetime.now().astimezone().strftime('%Y%m%d%H%M%S')}"
+    candidate, counter = f"{stamped}{ext}", 1
+    while os.path.exists(candidate):
+        counter += 1
+        candidate = f"{stamped}-{counter}{ext}"
+    return candidate
+
+
 def delete_folder(profile: dict[str, Any], folder_name: str) -> str:
     """Delete a vault folder. An *empty* folder is removed outright
     (`os.rmdir`) — nothing to recover. A folder holding notes and/or
@@ -98,6 +111,10 @@ def delete_note(profile: dict[str, Any], note_name: str) -> str:
         return NOTE_NOT_FOUND
     if not vault_paths.is_within_any(src, allowed_dirs):
         return NOTE_DENIED
+    # A note already in the bin is not a note to delete: moving it to `.trash/.trash/` would hide it
+    # from the recovery view, which skips dot-folders.
+    if is_safe_path(src, os.path.join(mv, TRASH_DIRNAME)):
+        return NOTE_NOT_FOUND
 
     old_rel = os.path.relpath(src, mv)
     dest = os.path.join(mv, TRASH_DIRNAME, old_rel)
@@ -108,8 +125,7 @@ def delete_note(profile: dict[str, Any], note_name: str) -> str:
             os.makedirs(os.path.dirname(dest), exist_ok=True)
             clashed = os.path.exists(dest)
             if clashed:
-                stem, ext = os.path.splitext(dest)
-                dest = f"{stem}-{datetime.datetime.now().astimezone().strftime('%Y%m%d%H%M%S')}{ext}"
+                dest = _unused_name(dest)
             os.rename(src, dest)
             # `os.rename` keeps the note's own mtime; stamp it to now so a
             # future trash view's "deleted N ago" reflects the deletion, not

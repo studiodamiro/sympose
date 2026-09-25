@@ -1376,6 +1376,29 @@ def test_menu_lines_never_get_a_gap(profiles):
     run_async(scenario())
 
 
+def test_system_lines_are_muted_and_chat_lines_are_not(profiles):
+    """Hints, confirmations and errors are "system" lines and must not look like a
+    reply: they carry `system-line` (a muted color); the user's and the persona's
+    lines do not (docs/decisions/005)."""
+
+    async def scenario():
+        app = SymposeCLI()
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            hint = list(app.transcript.children)[0]
+            assert "system-line" in hint.classes
+            app.composer.focus()
+            await pilot.press(*"hello", "enter")
+            await pilot.pause()
+            you_line, reply_line = list(app.transcript.children)[2:4]
+            assert "system-line" not in you_line.classes
+            assert "system-line" not in reply_line.classes
+            assert hint.styles.color == app.query_one(meter.ContextMeter).styles.color  # the theme's muted text
+            assert hint.styles.color != reply_line.styles.color
+
+    run_async(scenario())
+
+
 def test_gap_appears_between_user_and_persona_turns(profiles):
     async def scenario():
         app = SymposeCLI()

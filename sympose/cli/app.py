@@ -45,6 +45,9 @@ class SymposeCLI(App):
     .turn-gap {
         margin-top: 1;
     }
+    .system-line {
+        color: $text-muted;
+    }
     SelectionPanel {
         margin: 0 1;
     }

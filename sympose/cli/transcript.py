@@ -4,7 +4,9 @@ The gap is a chat-message thing, not a general transcript thing: it
 appears only between a "user" turn and a "persona" turn (or back), never
 around "system" lines — hints, `/help` output, confirmations, errors.
 Those always stay tight against whatever surrounds them, so a menu-like
-block never picks up the chat's own breathing room."""
+block never picks up the chat's own breathing room. They also carry the
+`system-line` class (muted in the app's CSS) so they cannot be mistaken
+for a reply (docs/decisions/005)."""
 
 from rich.style import Style
 from rich.text import Text
@@ -29,7 +31,8 @@ def mount_line(app, content, speaker: str) -> Static:
         and app.last_speaker in _CHAT_SPEAKERS
         and speaker != app.last_speaker
     )
-    widget = Static(content, classes="turn-gap" if changed else "")
+    classes = [name for name, on in (("turn-gap", changed), ("system-line", speaker == "system")) if on]
+    widget = Static(content, classes=" ".join(classes))
     app.transcript.mount(widget)
     app.last_speaker = speaker
     return widget

@@ -54,3 +54,8 @@ literally into the input otherwise.
   fix.** Rejected outright: it's the specific limitation this mock exists
   to move past, and `VISION.md` already ruled it out for the target
   experience.
+
+## Update: system lines are muted
+
+The hints, `/help`, confirmations and errors ("system" lines) were drawn in the same color as a reply's text, so a line like "Switched model to ..." could be read as something the persona said. They now carry a `system-line` class that sets the theme's muted text color (the same one the meter uses). A line that sets its own color keeps it (the red unknown-command error, `/help`'s colored command names, and the reply header).
+

@@ -5,11 +5,12 @@ the embedding model returns the keyword hits it was given: the search never fail
 
 import logging
 import threading
+import time
 from dataclasses import dataclass
 from typing import Any
 
 from sympose.engine import embedding_store as store
-from sympose.engine import embeddings, semantic_refresh
+from sympose.engine import embeddings, semantic_refresh, similarity
 from sympose.engine.grounding_index import PASSAGES_PER_NOTE, Index, Passage
 
 log = logging.getLogger(__name__)
@@ -27,14 +28,20 @@ _ADD = -0.02
 _SYNC_LIMIT = 64
 _LIBRARY_SYNC_LIMIT = 256
 _KEEP_INDEXES = 4
+# After the embedding model fails to answer, the turns search by keyword without trying it again for
+# this long: a hung Ollama must not cost every message its timeout (twice: notes and library).
+_COOLDOWN_SECONDS = 60.0
+_QUERIES_KEPT = 4  # the vault and the library are searched for the same message: one embedding call
 
 _WARNED: set[str] = set()
+_UNAVAILABLE_UNTIL: dict[str, float] = {}  # embedding model -> when to try it again
+_QUERIES: dict[tuple[str, str], Any] = {}  # (model, message) -> its unit vector
 
 
 @dataclass(frozen=True)
 class _Vectors:
     passages: list[Passage]
-    unit_vectors: list[list[float]]
+    unit_vectors: similarity.VectorSet
 
 
 # `(model, id(index))` -> (the index, its vectors); the index is held so its id is not reused.
@@ -55,6 +62,8 @@ def _vectors_for(index: Index, sync_limit: int, model: str) -> _Vectors | None:
         cached = _CACHE.get(token)
     if cached is not None and cached[0] is index:
         return cached[1]
+    if semantic_refresh.blocked(index, model):
+        return None  # a build is running or failed: keywords now, without reading the cache to see what is missing
     texts, keys, have, missing = semantic_refresh.pending(index, model)
     if len(missing) > sync_limit:
         semantic_refresh.start_build(index, model=model)
@@ -64,12 +73,27 @@ def _vectors_for(index: Index, sync_limit: int, model: str) -> _Vectors | None:
         fresh = {keys[i]: v for i, v in zip(missing, made)}
         store.save(fresh)  # if it cannot be kept, they are still used from memory
         have.update(fresh)
-    vectors = _Vectors(list(index.passages), [embeddings.unit(have[k]) for k in keys])
+    vectors = _Vectors(list(index.passages), similarity.VectorSet([embeddings.unit(have[k]) for k in keys]))
     with _CACHE_LOCK:
         while len(_CACHE) >= _KEEP_INDEXES:
             _CACHE.pop(next(iter(_CACHE)))
         _CACHE[token] = (index, vectors)
     return vectors
+
+
+def _query_vector(message: str, model: str) -> Any:
+    """The unit vector of `message`, embedded once however many indexes it is searched in."""
+    key = (model, message)
+    with _CACHE_LOCK:
+        found = _QUERIES.get(key)
+    if found is not None:
+        return found
+    vector = embeddings.unit(embeddings.embed([message], "query", model)[0])
+    with _CACHE_LOCK:
+        while len(_QUERIES) >= _QUERIES_KEPT:
+            _QUERIES.pop(next(iter(_QUERIES)))
+        _QUERIES[key] = vector
+    return vector
 
 
 def _hit(passage: Passage, similarity: float, via: str) -> dict[str, Any]:
@@ -113,18 +137,21 @@ def refine(
     if mode == embeddings.KEYWORDS:
         return keyword_hits
     model = embeddings.model()  # once: the settings file may change while this runs
+    if time.monotonic() < _UNAVAILABLE_UNTIL.get(model, 0.0):
+        return keyword_hits
     try:
         vectors = _vectors_for(index, _LIBRARY_SYNC_LIMIT if library else _SYNC_LIMIT, model)
         if vectors is None:
             return keyword_hits
-        query = embeddings.unit(embeddings.embed([message], "query", model)[0])
+        query = _query_vector(message, model)
     except embeddings.EmbeddingUnavailable as e:
+        _UNAVAILABLE_UNTIL[model] = time.monotonic() + _COOLDOWN_SECONDS
         _warn_once(str(e))
         return keyword_hits
-    if vectors.unit_vectors and len(query) != len(vectors.unit_vectors[0]):
+    if vectors.unit_vectors.dims and len(query) != vectors.unit_vectors.dims:
         _warn_once("the stored vectors are from an embedding model of another size")
         return keyword_hits
-    sims = [embeddings.dot(query, v) for v in vectors.unit_vectors]
+    sims = vectors.unit_vectors.scores(query)
     threshold = embeddings.min_similarity() + (_LIBRARY if library else 0.0)
     notes = max_results  # never more notes than passages the caller will take
     if mode == embeddings.EMBEDDINGS:
@@ -143,4 +170,6 @@ def refine(
 def _forget_for_tests() -> None:
     with _CACHE_LOCK:
         _CACHE.clear()
+        _QUERIES.clear()
+    _UNAVAILABLE_UNTIL.clear()
     _WARNED.clear()

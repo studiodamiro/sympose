@@ -9,7 +9,16 @@ import threading
 import pytest
 
 from sympose import settings_store
-from sympose.engine import embedding_store, embeddings, followup, grounding, reference, semantic, semantic_refresh
+from sympose.engine import (
+    embedding_store,
+    embeddings,
+    followup,
+    grounding,
+    reference,
+    semantic,
+    semantic_refresh,
+    similarity,
+)
 
 WHOLE = {"vault_folders": ["*"]}
 LIBRARY = {"vault_folders": ["*"], "sympose_reference": True}
@@ -766,16 +775,19 @@ def test_vectors_of_another_size_than_the_message_fall_back_to_keywords(setup, m
     assert [h["rel_path"] for h in hits] == ["Carbonara.md"] and "via" not in hits[0]
 
 
-def test_vectors_are_kept_as_compact_arrays(setup):
+def test_vectors_are_kept_as_32_bit_floats_with_or_without_numpy(setup, monkeypatch):
     from array import array
 
     _vault(setup)
     _mode("embeddings")
     grounding.ground(WHOLE, "storage")
-
     [(_, vectors)] = list(semantic._CACHE.values())
 
-    assert all(isinstance(v, array) and v.typecode == "f" for v in vectors.unit_vectors)
+    if similarity.numpy is not None:
+        assert str(vectors.unit_vectors._matrix.dtype) == "float32"
+    monkeypatch.setattr(similarity, "numpy", None)
+    plain = similarity.VectorSet([embeddings.unit([3.0, 4.0])])
+    assert all(isinstance(row, array) and row.typecode == "f" for row in plain._rows)
 
 
 def test_only_the_last_few_indexes_are_kept_in_memory(setup):
@@ -981,3 +993,217 @@ def test_many_turns_at_once_do_not_corrupt_the_cache_of_indexes(setup):
         t.join(30)
 
     assert errors == [] and len(semantic._CACHE) <= 4
+
+
+# -- the scan, with and without numpy ----------------------------------------------------
+
+
+def _unit_rows(count=40, dims=16):
+    import random
+
+    rng = random.Random(7)
+    return [embeddings.unit([rng.uniform(-1, 1) for _ in range(dims)]) for _ in range(count)]
+
+
+def test_the_scan_gives_the_cosine_of_each_vector_in_the_order_given(setup, monkeypatch):
+    monkeypatch.setattr(similarity, "numpy", None)
+    rows = [embeddings.unit([1.0, 0.0]), embeddings.unit([0.0, 1.0]), embeddings.unit([1.0, 1.0])]
+
+    scores = similarity.VectorSet(rows).scores(embeddings.unit([1.0, 0.0]))
+
+    assert scores == pytest.approx([1.0, 0.0, 0.7071], abs=1e-4)
+
+
+def test_numpy_and_the_plain_loop_give_the_same_scores(setup, monkeypatch):
+    pytest.importorskip("numpy")
+    rows, query = _unit_rows(), embeddings.unit(_unit_rows(1)[0])
+    fast = similarity.VectorSet(rows)
+    monkeypatch.setattr(similarity, "numpy", None)
+    plain = similarity.VectorSet(rows)
+
+    assert fast._matrix is not None and plain._matrix is None
+    assert fast.scores(query) == pytest.approx(plain.scores(query), abs=1e-6)
+    assert fast.dims == plain.dims == 16
+
+
+def test_an_empty_set_has_no_dimensions_and_no_scores(setup, monkeypatch):
+    assert similarity.VectorSet([]).dims == 0 and similarity.VectorSet([]).scores([1.0]) == []
+    monkeypatch.setattr(similarity, "numpy", None)
+    assert similarity.VectorSet([]).dims == 0 and similarity.VectorSet([]).scores([1.0]) == []
+
+
+def test_the_search_gives_the_same_answers_without_numpy(setup, monkeypatch):
+    monkeypatch.setattr(similarity, "numpy", None)
+    _vault(setup)
+    _write(setup, "Both.md", "# Both\n\nDatabase notes and pasta notes.")
+    _mode("embeddings", threshold=0.95)
+    strict = {h["rel_path"] for h in grounding.ground(WHOLE, "the database")}
+    _mode("embeddings", threshold=0.5)
+    loose = {h["rel_path"] for h in grounding.ground(WHOLE, "the database")}
+    _mode("hybrid", threshold=0.6)
+    hybrid = {h["rel_path"]: h["via"] for h in grounding.ground(WHOLE, "storage railway")}
+
+    assert strict == {"Atlas.md"} and loose == {"Atlas.md", "Both.md"}
+    assert hybrid == {"Model Railway.md": "keyword", "Atlas.md": "embedding"}
+    assert [v.unit_vectors._matrix for _, v in semantic._CACHE.values()] == [None]
+
+
+def test_vectors_of_another_size_still_fall_back_without_numpy(setup, monkeypatch):
+    monkeypatch.setattr(similarity, "numpy", None)
+    _vault(setup)
+    _mode("embeddings")
+    monkeypatch.setattr(
+        embeddings, "embed",
+        lambda texts, kind, model_name=None: [[1.0, 0.0, 0.0] if kind == "query" else [1.0, 0.0] for _ in texts],
+    )
+
+    hits = grounding.ground(WHOLE, "carbonara")
+
+    assert [h["rel_path"] for h in hits] == ["Carbonara.md"] and "via" not in hits[0]
+
+
+# -- what the third review found -----------------------------------------------------------
+
+
+def test_a_failure_starting_the_background_index_is_logged_not_thrown_over_the_terminal(setup, monkeypatch, caplog):
+    thrown = []
+    monkeypatch.setattr(threading, "excepthook", lambda args: thrown.append(args))
+    monkeypatch.setenv("SYMPOSE_PROFILES_DIR", str(setup / "profiles"))
+    from helpers import write_persona
+
+    write_persona(setup / "profiles", "samantha", "name: Samantha\nvault_folders: '*'\n")
+    _mode("embeddings")
+    monkeypatch.setattr(grounding, "scope_index", lambda persona: (_ for _ in ()).throw(OSError("unreadable vault")))
+
+    with caplog.at_level("ERROR"):
+        semantic_refresh.refresh_in_background("samantha")
+        _wait_for_threads("embeddings-")
+
+    assert thrown == [] and any("Could not start the search index" in r.message for r in caplog.records)
+
+
+def _token(index):
+    return ("ollama/nomic-embed-text", id(index))
+
+
+def test_while_a_build_runs_a_turn_searches_by_keyword_without_reading_the_cache(setup, monkeypatch, calls):
+    _vault(setup)
+    _mode("embeddings")
+    index = grounding.scope_index(WHOLE)
+    semantic_refresh._BUILDING.add(_token(index))
+    monkeypatch.setattr(embedding_store, "load", lambda keys: (_ for _ in ()).throw(AssertionError("cache read")))
+
+    hits = grounding.ground(WHOLE, "carbonara")
+
+    assert [h["rel_path"] for h in hits] == ["Carbonara.md"] and "via" not in hits[0]
+    assert calls["embed"] == []
+
+
+def test_after_a_failed_build_a_turn_does_not_read_the_cache_until_the_retry_is_due(setup, monkeypatch):
+    import time
+
+    _vault(setup)
+    _mode("embeddings")
+    index = grounding.scope_index(WHOLE)
+    semantic_refresh._FAILED[_token(index)] = (time.monotonic(), index)
+    reads = []
+    monkeypatch.setattr(embedding_store, "load", lambda keys, real=embedding_store.load: reads.append(1) or real(keys))
+
+    grounding.ground(WHOLE, "carbonara")
+    assert reads == []
+
+    monkeypatch.setattr(semantic_refresh, "_RETRY_AFTER_SECONDS", 0.0)
+    grounding.ground(WHOLE, "carbonara")
+    assert reads != []
+
+
+def test_after_the_embedding_model_fails_turns_stop_trying_it_for_a_while(setup, monkeypatch):
+    _vault(setup)
+    _mode("embeddings")
+    attempts = []
+
+    def hang(texts, kind, model_name=None):
+        attempts.append(kind)
+        raise embeddings.EmbeddingUnavailable("timed out")
+
+    monkeypatch.setattr(embeddings, "embed", hang)
+
+    first = grounding.ground(WHOLE, "carbonara")
+    for _ in range(3):
+        grounding.ground(WHOLE, "carbonara")
+
+    assert len(attempts) == 1 and [h["rel_path"] for h in first] == ["Carbonara.md"]
+
+
+def test_the_cooldown_covers_the_library_too_and_ends(setup, monkeypatch):
+    _vault(setup)
+    _mode("embeddings")
+    attempts = []
+
+    def hang(texts, kind, model_name=None):
+        attempts.append(kind)
+        raise embeddings.EmbeddingUnavailable("timed out")
+
+    monkeypatch.setattr(embeddings, "embed", hang)
+    grounding.ground(LIBRARY, "carbonara")
+    reference.ground(LIBRARY, "carbonara")
+
+    assert len(attempts) == 1  # the library was not tried after the vault failed
+
+    semantic._UNAVAILABLE_UNTIL.clear()  # the time is up
+    grounding.ground(LIBRARY, "carbonara")
+
+    assert len(attempts) == 2
+
+
+def test_the_cooldown_belongs_to_the_model_that_failed(setup, monkeypatch, calls):
+    _vault(setup)
+    _mode("embeddings")
+    semantic._UNAVAILABLE_UNTIL["ollama/nomic-embed-text"] = float("inf")
+
+    assert grounding.ground(WHOLE, "what storage engine did we pick?") == []
+    settings_store.set("embedding_model", "ollama/another")
+
+    assert [h["rel_path"] for h in grounding.ground(WHOLE, "what storage engine did we pick?")] == ["Atlas.md"]
+
+
+def test_the_vault_and_the_library_share_one_embedding_of_the_message(setup, calls):
+    _vault(setup)
+    _mode("embeddings")
+
+    grounding.ground(LIBRARY, "how do I add another vault?")
+    reference.ground(LIBRARY, "how do I add another vault?")
+    queries = [texts for kind, texts in calls["embed"] if kind == "query"]
+    assert queries == [["how do I add another vault?"]]
+
+    grounding.ground(LIBRARY, "a different message")
+    assert len([1 for kind, _ in calls["embed"] if kind == "query"]) == 2
+
+
+def test_only_the_last_few_message_vectors_are_kept(setup):
+    _vault(setup)
+    _mode("embeddings")
+
+    for i in range(7):
+        grounding.ground(WHOLE, f"message number {i}")
+
+    assert len(semantic._QUERIES) == 4
+
+
+def test_a_failing_model_is_the_one_that_is_cooled_down_not_the_default(setup, monkeypatch, calls):
+    _vault(setup)
+    _mode("embeddings")
+    settings_store.set("embedding_model", "ollama/failing")
+
+    def embed(texts, kind, model_name=None):
+        if model_name == "ollama/failing":
+            raise embeddings.EmbeddingUnavailable("no such model")
+        return [_vector(t) for t in texts]
+
+    monkeypatch.setattr(embeddings, "embed", embed)
+    grounding.ground(WHOLE, "what storage engine did we pick?")
+    assert set(semantic._UNAVAILABLE_UNTIL) == {"ollama/failing"}
+
+    settings_store.set("embedding_model", "ollama/nomic-embed-text")
+
+    assert [h["rel_path"] for h in grounding.ground(WHOLE, "what storage engine did we pick?")] == ["Atlas.md"]

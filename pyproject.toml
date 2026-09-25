@@ -13,9 +13,15 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+# numpy makes the search by meaning's scan a matrix product instead of a plain loop
+# (docs/decisions/027); nothing needs it.
+fast = [
+    "numpy>=1.26",
+]
 dev = [
     "ruff>=0.6.0",
     "pytest>=8.0.0",
+    "numpy>=1.26",
 ]
 
 [build-system]

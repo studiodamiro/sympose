@@ -94,13 +94,25 @@ def _run(index: Any, token: tuple[str, int]) -> None:
             _PROGRESS.pop(token, None)
 
 
+def _blocked(token: tuple[str, int]) -> bool:
+    """Running now, or failed recently (the caller holds the lock)."""
+    failed = _FAILED.get(token)
+    return token in _BUILDING or (failed is not None and time.monotonic() - failed[0] < _RETRY_AFTER_SECONDS)
+
+
+def blocked(index: Any, model: str) -> bool:
+    """Whether a build of `index` for `model` is running or failed recently: a turn then searches by
+    keyword at once, without reading the cache to find out what is missing."""
+    with _LOCK:
+        return _blocked((model, id(index)))
+
+
 def start_build(index: Any, wait: bool = False, model: str | None = None) -> threading.Thread | None:
     """Build `index` in a background thread for `model` (the setting, by default), unless that build
     is already running or failed recently."""
     token = (model or embeddings.model(), id(index))
     with _LOCK:
-        failed = _FAILED.get(token)
-        if token in _BUILDING or (failed is not None and time.monotonic() - failed[0] < _RETRY_AFTER_SECONDS):
+        if _blocked(token):
             return None
         _BUILDING.add(token)
     thread = threading.Thread(target=_run, args=(index, token), name="embedding-index", daemon=True)
@@ -121,12 +133,15 @@ def refresh_in_background(handle: str) -> None:
         from sympose import profile as profile_mod
         from sympose.engine import grounding, reference
 
-        persona = profile_mod.resolve_profile(handle)
-        if persona is None:
-            return
-        for index in (grounding.scope_index(persona), reference.library_index(persona)):
-            if index is not None:
-                start_build(index, wait=True)
+        try:
+            persona = profile_mod.resolve_profile(handle)
+            if persona is None:
+                return
+            for index in (grounding.scope_index(persona), reference.library_index(persona)):
+                if index is not None:
+                    start_build(index, wait=True)
+        except Exception:  # an unreadable vault or persona file must not print over the terminal UI
+            log.exception("Could not start the search index for %s", handle)
 
     threading.Thread(target=work, name=f"embeddings-{handle}", daemon=True).start()
 

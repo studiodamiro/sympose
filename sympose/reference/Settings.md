@@ -58,6 +58,10 @@ The `grounding_search` setting is how Samantha finds notes for your message. The
 
 The first time `grounding_search` is on, your notes are indexed in the background, which can take a minute or two for a big vault, and the search stays on keywords until that is done. The right end of the line under the chat box shows `indexing 40%` meanwhile. The index is a cache in `embedding_cache.sqlite` beside `settings.json`, and it can be deleted at any time.
 
+## Can the search by meaning be made faster?
+
+Installing numpy (`pip install "sympose[fast]"`) makes each search much faster on a big vault. Nothing needs it, and it is used automatically when it is installed.
+
 ## embedding_model
 
 The `embedding_model` setting is the embedding model used by `grounding_search`. The default is `ollama/nomic-embed-text`. Another model needs its own `embedding_min_similarity`.

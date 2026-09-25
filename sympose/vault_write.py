@@ -1,5 +1,5 @@
 """
-Vault note writes: `overwrite_note` (the dashboard editor saving an
+Vault note writes: `overwrite_note` (the web app editor saving an
 *existing* note back to disk verbatim), plus the shared primitives
 (`get_file_lock`, `write_atomic_text`) that `vault_write_create.py`,
 `vault_write_delete.py`, and `vault_write_rename.py` build on.
@@ -69,7 +69,7 @@ def overwrite_note(
 ) -> str:
     """Replace an *existing* vault note's file with `content`, verbatim (the
     editor already owns the whole document, frontmatter included). Resolves
-    the same file a read would return, so a dashboard save lands back on the
+    the same file a read would return, so a web app save lands back on the
     note it was opened from. Overwrite only — a path with no existing file
     returns `NOTE_NOT_FOUND` rather than creating one; a path outside the
     persona's sandbox returns `NOTE_DENIED`; a caller-supplied

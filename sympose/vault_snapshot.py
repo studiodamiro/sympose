@@ -1,6 +1,6 @@
 """
 Vault content snapshot — a mtime-cached, flat read of every note under a set
-of directories, shared by the tree/manifest projection so a dashboard
+of directories, shared by the tree/manifest projection so a web app
 request doesn't re-walk and re-read the whole vault every time.
 """
 

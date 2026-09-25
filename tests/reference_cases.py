@@ -78,7 +78,7 @@ REF_CASES: list[RefCase] = [
     RefCase(
         "start-chatting",
         "how do I start chatting with it in the terminal?",
-        find=("python -m sympose.cli",),
+        find=("sympose cli",),
         first="Getting started.md",
     ),
     RefCase(
@@ -102,7 +102,7 @@ REF_CASES: list[RefCase] = [
     RefCase(
         "switch-vault-in-terminal",
         "can I change vault from the terminal?",
-        find=("dashboard",),
+        find=("web app",),
         first="Add or switch vaults.md",
     ),
     # Personas
@@ -124,9 +124,16 @@ REF_CASES: list[RefCase] = [
         find=("persona.yaml",),
     ),
     RefCase(
-        "make-agent-in-dashboard",
+        "make-agent-in-the-web-app",
+        "can I make a new agent from the web app?",
+        find=("the web app cannot either",),
+        first="Personas.md",
+    ),
+    # the old name still finds its way (docs/decisions/028)
+    RefCase(
+        "make-agent-in-the-dashboard",
         "can I make a new agent from the dashboard?",
-        find=("the dashboard cannot either",),
+        find=("the web app cannot either",),
         first="Personas.md",
     ),
     RefCase(
@@ -226,18 +233,39 @@ REF_CASES: list[RefCase] = [
         find=("Ollama",),
         first="Privacy and data.md",
     ),
-    # The dashboard
+    # The web app (once called the dashboard, docs/decisions/028)
     RefCase(
         "nebula",
         "what is the Knowledge Nebula?",
         find=("graph",),
-        first="The dashboard.md",
+        first="The web app.md",
+    ),
+    RefCase(
+        "what-is-the-dashboard",
+        "what is the dashboard?",
+        find=("web app",),
+        first="The web app.md",
+        known_gap="The old name is a single word, and the library's strict search needs two of the message's "
+        "words in a note's own text (ADR 019), so 'dashboard' alone finds nothing. A two-word question with "
+        "it does (below), and searching by meaning (ADR 027) covers this one too.",
+    ),
+    RefCase(
+        "start-the-web-app",
+        "how do I start the web app?",
+        find=("sympose web",),
+        first="The web app.md",
+    ),
+    RefCase(
+        "start-the-dashboard",
+        "how do I start the dashboard?",
+        find=("sympose web",),
+        first="The web app.md",
     ),
     RefCase(
         "deleted-note",
         "how do I get back a note I deleted?",
         find=("trash",),
-        first="The dashboard.md",
+        first="The web app.md",
     ),
     # What it cannot do: an honest "not yet" is part of the library
     RefCase(

@@ -63,7 +63,7 @@ def test_the_shipped_notes_are_in_the_package_data_glob():
 
     with open(os.path.join(reference.REFERENCE_DIR, "..", "..", "pyproject.toml"), "rb") as f:
         config = tomllib.load(f)
-    assert config["tool"]["setuptools"]["package-data"]["sympose"] == ["reference/*.md"]
+    assert "reference/*.md" in config["tool"]["setuptools"]["package-data"]["sympose"]  # the web app is there too (ADR 028)
     assert all(n.endswith(".md") for n in os.listdir(reference.REFERENCE_DIR))
 
 

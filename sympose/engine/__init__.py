@@ -1,5 +1,5 @@
 """The chat engine (docs/decisions/006, docs/decisions/007) — `run_turn` is
-the one entrypoint every channel (CLI today; Slack/dashboard later) calls."""
+the one entrypoint every channel (CLI today; Slack/web later) calls."""
 
 from sympose.engine.model import EngineModelError
 from sympose.engine.recap_refresh import refresh_in_background as refresh_recaps

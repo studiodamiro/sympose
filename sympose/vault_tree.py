@@ -1,6 +1,6 @@
 """
 Projection of the manifest — plus a live, directory-only disk listing — into
-a nested directory tree for the dashboard's vault browser (`GET
+a nested directory tree for the web app's vault browser (`GET
 /api/vault/tree`). Navigation only — no note bodies. Persona scoping is
 applied here as a vault-relative path-prefix filter, so one whole-vault
 manifest still serves a scoped tree.

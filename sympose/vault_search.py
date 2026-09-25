@@ -7,7 +7,7 @@ already does the mtime-cached walk-and-parse this needs. This is also the
 grounding mechanism for chat, once that exists — the same matcher, just
 auto-triggered per turn instead of by a typed query.
 
-Always whole-persona-scope, never narrowed to one folder — the dashboard
+Always whole-persona-scope, never narrowed to one folder — the web app
 derives both its "in the folder you're viewing" and "beyond it" tiers by
 filtering one unscoped result set client-side (`rel_path` prefix), rather
 than this module re-deriving "which folder is the user looking at" from
@@ -134,7 +134,7 @@ def search_structured(
     never reaching a genuine title match that happens to sit later in walk
     order, silently breaking the title > tag > content priority this
     function otherwise guarantees. `max_results` defaults higher than a
-    single-tier search would need, because the one caller (the dashboard)
+    single-tier search would need, because the one caller (the web app)
     derives two tiers — the folder in view, and everything beyond it —
     from this one unscoped list, and a low cap could starve the in-folder
     tier if enough out-of-folder matches happened to come first."""

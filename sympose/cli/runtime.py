@@ -85,8 +85,8 @@ async def run_command(app, command) -> None:
             await transcript.remove_children()
             app.last_speaker = None
     elif command.name == "/settings":
-        # No dashboard-style Settings page exists in a terminal, so unlike
-        # the dashboard's `/settings` (wired to real navigation), this
+        # No web-style Settings page exists in a terminal, so unlike
+        # the web app's `/settings` (wired to real navigation), this
         # stays inert-by-default.
         transcript_mod.mount_line(
             app, "Settings aren't available in the CLI yet — this is a mock.", "system"

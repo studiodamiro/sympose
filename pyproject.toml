@@ -12,6 +12,9 @@ dependencies = [
     "litellm>=1.50.0",
 ]
 
+[project.scripts]
+sympose = "sympose.launcher:main"
+
 [project.optional-dependencies]
 # numpy makes the search by meaning's scan a matrix product instead of a plain loop
 # (docs/decisions/027); nothing needs it.
@@ -32,8 +35,9 @@ build-backend = "setuptools.build_meta"
 include = ["sympose*"]
 
 [tool.setuptools.package-data]
-# The Sympose reference notes (docs/decisions/019, 022) are read at run time.
-sympose = ["reference/*.md"]
+# The Sympose reference notes (docs/decisions/019, 022) are read at run time, and the built web
+# app (docs/decisions/028) is served by `sympose web`.
+sympose = ["reference/*.md", "webui/*", "webui/assets/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -1,4 +1,4 @@
-"""`python -m sympose.cli` entry point."""
+"""The terminal chat: `python -m sympose.cli`, or `sympose cli` (docs/decisions/028)."""
 
 import os
 
@@ -12,7 +12,8 @@ load_dotenv()
 
 from sympose.cli.app import SymposeCLI  # noqa: E402 — after load_dotenv()
 
-if __name__ == "__main__":
+
+def main() -> None:
     SymposeCLI().run()
     # A model call can't be cancelled once its thread is blocked inside
     # litellm's network call (docs/decisions/007); quitting while one is
@@ -24,3 +25,7 @@ if __name__ == "__main__":
     # completed by the time `run()` returns, and nothing else here holds
     # state that needs Python's normal atexit/cleanup machinery.
     os._exit(0)
+
+
+if __name__ == "__main__":
+    main()

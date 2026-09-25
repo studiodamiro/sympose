@@ -20,4 +20,4 @@ Not by default. It runs on a local model, so a message costs nothing beyond your
 
 ## What is Sympose made of?
 
-Sympose has a chat in the terminal where you talk to a persona, a dashboard in the browser (a vault tree, a markdown editor, search and a graph of your notes), and personas: Samantha ships with Sympose and you can create your own.
+Sympose has a chat in the terminal where you talk to a persona, a web app in the browser (a vault tree, a markdown editor, search and a graph of your notes), and personas: Samantha ships with Sympose and you can create your own.

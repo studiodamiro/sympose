@@ -1,6 +1,6 @@
 """Canned data for the CLI mock. Personas are a real read through
 `sympose/profile.py` and `profiles/*.yaml` — the same "functional but
-mock" split the dashboard's persona picker uses (real data, just little of
+mock" split the web app's persona picker uses (real data, just little of
 it configured yet). Chat history has no backing store anywhere yet, so that
 stays hardcoded. Model ids are now the real litellm-resolvable strings the
 engine's `/model` picker override passes straight through (docs/decisions/007)
@@ -34,7 +34,7 @@ class ModelOption:
 
 def list_personas() -> list[PersonaOption]:
     """The CLI's narrower projection of `profile.list_profiles()` — the
-    one canonical roster the dashboard's `GET /api/personas` also builds
+    one canonical roster the web app's `GET /api/personas` also builds
     on (docs/decisions/009), so a malformed/unsafe profile file is
     already handled and handles are already lowercased/deduped there."""
     return [

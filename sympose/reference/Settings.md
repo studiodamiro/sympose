@@ -8,11 +8,11 @@ In `settings.json`, in the folder where you run Sympose, or wherever `SYMPOSE_SE
 
 ## active_vault
 
-The `active_vault` setting is the vault in use. It is set by the dashboard's workspace switcher.
+The `active_vault` setting is the vault in use. It is set by the web app's workspace switcher.
 
 ## added_vaults
 
-The `added_vaults` setting holds the vaults you added from the dashboard's workspace switcher.
+The `added_vaults` setting holds the vaults you added from the web app's workspace switcher.
 
 ## chat_model
 
@@ -80,4 +80,4 @@ Only an explicit `false` turns a setting off. Anything else leaves the default.
 
 ## Which settings go in .env?
 
-`VAULT_PATHS` (your vaults, comma separated), `SYMPOSE_PROFILES_DIR` (where persona folders live, default `./profiles`), `SYMPOSE_SETTINGS_PATH`, `OLLAMA_API_BASE` (an Ollama server that is not at the default address) and `PORT` (the dashboard backend's port, default 8000).
+`VAULT_PATHS` (your vaults, comma separated), `SYMPOSE_PROFILES_DIR` (where persona folders live, default `./profiles`), `SYMPOSE_SETTINGS_PATH`, `OLLAMA_API_BASE` (an Ollama server that is not at the default address) and `PORT` (the port `sympose web` listens on, default 8000).

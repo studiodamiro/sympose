@@ -7,11 +7,11 @@ multi-call orchestration.
 
 ## Current status
 
-A first vault-dashboard backend and frontend were built, then deleted
+A first vault web app (backend and frontend) was built, then deleted
 (2026-09-22) after both turned out to be salvaged from `sympose-legacy`
 with far less filtering than intended. Both have since been rebuilt
 properly — traced file-by-file and function-by-function down to only
-what's actually reachable from the real dashboard shell. Working today:
+what's actually reachable from the real web app shell. Working today:
 vault browsing, the markdown editor, note/folder create/rename/delete,
 trash recovery (list/restore/purge), full-text search, and the
 Knowledge Nebula graph. Still not built: chat/persona dialogue (the
@@ -43,17 +43,20 @@ roster — see `docs/VISION.md` for what's next and why.
 
 ## Running it
 
-- Backend: `python -m sympose.main` (repo root) — serves on
-  `127.0.0.1:8000`, local dev only, no auth yet.
-- Frontend: `npm run dev` (from `ui/`) — serves on `localhost:5173`.
+- Terminal chat: `sympose cli`.
+- Web app: `sympose web` — the API and the built app together on
+  `127.0.0.1:8000` (`--port` or `PORT` in `.env` changes it), this machine
+  only, no auth yet.
+- Working on the app itself: `python -m sympose.main` (repo root) for the
+  API, and `npm run dev` (from `ui/`) on `localhost:5173`.
 
 See `CLAUDE.md`'s Primary Commands section for the full command list.
 
 ## Standards and decisions
 
 - `docs/VISION.md` — what Sympose is building toward beyond the
-  dashboard: search, multi-vault, the chat engine and its channels
-  (Slack, CLI, dashboard), persona design, and what's deliberately out
+  web app: search, multi-vault, the chat engine and its channels
+  (Slack, CLI, web), persona design, and what's deliberately out
   of scope.
 - `docs/COLLABORATION_STANDARDS.md` — tone, pacing, and working practices.
 - `docs/CODE_QUALITY_STANDARDS.md` — the engineering process: tooling,

@@ -1,8 +1,8 @@
-# The dashboard
+# The web app
 
-The dashboard is Sympose's browser app for your vault. It works on the active vault and stays inside the folders the active persona may see. The setup note explains how to run it.
+The web app, also called the dashboard, is Sympose's browser app for your vault. It works on the active vault and stays inside the folders the active persona may see. Start it with `sympose web`.
 
-## What can I do in the dashboard?
+## What can I do in the web app?
 
 Browse your notes and folders in a tree, edit notes in a markdown editor, create, rename and delete notes and folders, search the whole vault from the search bar, and switch or add vaults from the workspace switcher.
 
@@ -14,6 +14,6 @@ A deleted note or folder goes to the Bin, which is the vault's trash (the `.tras
 
 The Knowledge Nebula is a graph of your notes, in 2D or 3D. Each note is a point and the links between notes are the lines. It shows only the folders the active persona may see.
 
-## Can I chat in the dashboard?
+## Can I chat in the web app?
 
-Not yet. The dashboard has a chat panel, but it is only a design mock for now. Chatting works in the terminal.
+Not yet. The web app has a chat panel, but it is only a design mock for now. Chatting works in the terminal.

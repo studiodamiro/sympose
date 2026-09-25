@@ -4,7 +4,7 @@ Sympose is early. These things do not exist yet, so Samantha cannot do them and 
 
 ## Can Samantha write or edit my notes?
 
-No. In the chat Samantha only reads your notes. She cannot write, create, edit, move or delete a note. The dashboard's editor is the only way to change a note.
+No. In the chat Samantha only reads your notes. She cannot write, create, edit, move or delete a note. The web app's editor is the only way to change a note.
 
 ## Can Samantha do things for me?
 
@@ -12,7 +12,7 @@ No. There are no tools yet, so Samantha cannot create a persona, change your set
 
 ## Does Sympose work in Slack?
 
-Not yet. Slack is planned as the first remote way to reach your vault, and Telegram or others may follow. Today Sympose is the terminal chat and the dashboard.
+Not yet. Slack is planned as the first remote way to reach your vault, and Telegram or others may follow. Today Sympose is the terminal chat and the web app.
 
 ## Does Samantha remember me between conversations?
 

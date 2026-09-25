@@ -1,6 +1,6 @@
 # Add or switch vaults
 
-Sympose works with one vault at a time, called the active vault. The chat and the dashboard both use it.
+Sympose works with one vault at a time, called the active vault. The chat and the web app both use it.
 
 ## How do I list the vaults I have?
 
@@ -8,15 +8,15 @@ Sympose works with one vault at a time, called the active vault. The chat and th
 
 ## How do I add a second vault?
 
-In the dashboard, open the workspace switcher from the brand mark, type the folder path of the vault and press Enter; it becomes active straight away. Or add its path to `VAULT_PATHS` in `.env`. The folder must already exist.
+In the web app, open the workspace switcher from the brand mark, type the folder path of the vault and press Enter; it becomes active straight away. Or add its path to `VAULT_PATHS` in `.env`. The folder must already exist.
 
 ## How do I switch between vaults?
 
-The workspace switcher in the dashboard lists your vaults, and picking one makes it the active vault. Vaults added there, and your choice of active vault, are remembered in `settings.json` as `added_vaults` and `active_vault`.
+The workspace switcher in the web app lists your vaults, and picking one makes it the active vault. Vaults added there, and your choice of active vault, are remembered in `settings.json` as `added_vaults` and `active_vault`.
 
 ## Can I change vault from the terminal?
 
-No. The terminal chat has no command to change vault and uses whichever vault is active, so switch it in the dashboard.
+No. The terminal chat has no command to change vault and uses whichever vault is active, so switch it in the web app.
 
 ## How do I remove a vault?
 

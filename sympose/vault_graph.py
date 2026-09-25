@@ -1,5 +1,5 @@
 """
-The nested directory tree for the dashboard's vault browser (`GET
+The nested directory tree for the web app's vault browser (`GET
 /api/vault/tree`), the persona-scoped graph projection for the Knowledge
 Nebula (`GET /api/vault/graph`), plus the mtime-cached real-folder walk
 the tree needs so an empty folder still shows up. Navigation only — never

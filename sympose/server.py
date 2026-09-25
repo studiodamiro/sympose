@@ -1,9 +1,9 @@
 """
-Minimal FastAPI backend for the Sympose dashboard — vault browsing, note
+Minimal FastAPI backend for the Sympose web app — vault browsing, note
 editing, trash recovery, and the Knowledge Nebula graph. Ported from
 sympose-legacy's much larger `server.py` (~21 routes: chat, personas,
 skills, Slack, search, TLS, and a password-auth middleware), trimmed to
-the routes the dashboard's tree, editor, note-management menus, bin,
+the routes the web app's tree, editor, note-management menus, bin,
 nebula, and search actually call. Deliberately not included yet: asset
 (image) serving. No auth yet — this is a local dev server bound to
 localhost; add `DashboardAuthMiddleware` back before this is ever exposed
@@ -30,7 +30,7 @@ from sympose.server_models import TrashEmpty, TrashRestore, VaultActivate
 
 def create_app() -> FastAPI:
     app = FastAPI(
-        title="Sympose Dashboard API (minimal)",
+        title="Sympose Web API (minimal)",
         description="Vault browsing and note editing — no auth, local dev only.",
     )
 

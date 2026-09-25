@@ -1,5 +1,5 @@
 """
-Vault-list / active-vault / add-vault route handler logic for the dashboard
+Vault-list / active-vault / add-vault route handler logic for the web app
 API — the workspace switcher (ADR 003, ADR 004). Split out the same way
 search and the bin are, to keep each handler module to one concern
 (project's 200-LOC-per-file guideline).

@@ -1,5 +1,5 @@
 """
-Note/folder route handler logic for the dashboard API — split out of
+Note/folder route handler logic for the web API — split out of
 `server.py` to keep that file to route registration only, out of
 `server_models.py` to keep this file to logic only, and out of
 `server_trash_handlers.py` to keep this file to the note/folder CRUD routes

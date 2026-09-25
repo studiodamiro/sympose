@@ -1,7 +1,7 @@
 """
 Persona-profile loading — enough for the vault routes to scope a request to
 a persona's allowed folders, plus the shared roster/default-persona
-resolution every channel (dashboard, CLI, engine) builds on. The legacy
+resolution every channel (web app, CLI, engine) builds on. The legacy
 backend's `ProfileManager` does much more (soul/memory file bootstrapping,
 skills, wiki layer) and pulls in the LLM/skills stack just by importing it;
 this module deliberately stays free of that — no `litellm` import here, see
@@ -187,7 +187,7 @@ def resolve_profile(persona: str | None) -> dict[str, Any] | None:
 def list_profiles() -> list[dict[str, Any]]:
     """Every configured `profiles/<handle>/persona.yaml` handle, normalized the same way
     `get_profile` normalizes a single one — the one canonical roster this
-    module owns, shared by the CLI's persona picker and the dashboard's
+    module owns, shared by the CLI's persona picker and the web app's
     `GET /api/personas`. Falls back to a synthetic Samantha entry when no
     profiles directory exists yet, matching `get_profile`'s own fallback;
     an existing-but-empty directory deliberately returns `[]` rather than

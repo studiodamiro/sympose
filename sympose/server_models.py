@@ -1,11 +1,11 @@
-"""Request body models for the dashboard API — split out of
+"""Request body models for the web API — split out of
 `server_handlers.py` (project's 200-LOC-per-file guideline)."""
 
 from pydantic import BaseModel, Field
 
 
 class NoteWrite(BaseModel):
-    """Body of `PUT /api/vault/note` — the dashboard editor saving an
+    """Body of `PUT /api/vault/note` — the web app editor saving an
     *existing* note back to the vault verbatim, frontmatter included."""
 
     path: str = Field(..., min_length=1)

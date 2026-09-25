@@ -31,7 +31,7 @@ def get_master_vault() -> str | None:
 
 
 def get_vault_name() -> str | None:
-    """Display name for the active vault, for the dashboard's note-path
+    """Display name for the active vault, for the web app's note-path
     breadcrumb — same `name` `vault_registry.get_configured_vaults()` gives
     that vault (basename, or `<parent>/<basename>` on a collision). `None`
     when no vault is configured, same contract as `get_master_vault`."""

@@ -18,8 +18,8 @@ Sympose skips folders that hold no notes of yours: .obsidian, .git, Attachments,
 
 ## Does Sympose use my links?
 
-Yes. Wikilinks between notes, like [[Another note]], are what the Knowledge Nebula graph in the dashboard draws.
+Yes. Wikilinks between notes, like [[Another note]], are what the Knowledge Nebula graph in the web app draws.
 
 ## Does Sympose change my notes?
 
-The chat only reads your vault. The dashboard's editor is the only part that writes, and what it saves are ordinary edits to the markdown files, the same files Obsidian shows.
+The chat only reads your vault. The web app's editor is the only part that writes, and what it saves are ordinary edits to the markdown files, the same files Obsidian shows.

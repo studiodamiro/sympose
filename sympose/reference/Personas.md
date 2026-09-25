@@ -8,7 +8,7 @@ Each persona has its own folder, `profiles/<handle>/`, holding `persona.yaml` (i
 
 ## How do I create a new persona?
 
-Make a folder named with the handle, lowercase and one word, and put a `persona.yaml` in it, and a `soul.md` for its voice. This is the same as making a new agent or profile. Samantha cannot create personas for you yet, and the dashboard cannot either, so it is done by hand.
+Make a folder named with the handle, lowercase and one word, and put a `persona.yaml` in it, and a `soul.md` for its voice. This is the same as making a new agent or profile. Samantha cannot create personas for you yet, and the web app cannot either, so it is done by hand.
 
 ## What does a persona.yaml look like?
 
@@ -28,7 +28,7 @@ The `model` line is optional.
 
 ## Can I stop a persona from seeing some of my folders?
 
-Yes. `vault_folders` in `persona.yaml` lists the top-level folders a persona may read, or `'*'` for all of them. It is a hard boundary: searching, note grounding, the dashboard and the graph all stay inside it.
+Yes. `vault_folders` in `persona.yaml` lists the top-level folders a persona may read, or `'*'` for all of them. It is a hard boundary: searching, note grounding, the web app and the graph all stay inside it.
 
 ## How do I switch persona or make one the default?
 

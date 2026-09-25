@@ -14,7 +14,7 @@ Yes. An earlier project was started on 24 August 2026. Its ideas were kept, and 
 
 ## What happened in the first days?
 
-On 22 September 2026 the vault dashboard was rebuilt: browsing, editing, trash recovery, search and the Knowledge Nebula graph, plus switching between several vaults and a written product vision.
+On 22 September 2026 the vault web app was rebuilt: browsing, editing, trash recovery, search and the Knowledge Nebula graph, plus switching between several vaults and a written product vision.
 
 On 23 September 2026 the chat engine arrived, with note grounding, saved conversations and the terminal chat, then queued messages and the first persona profiles.
 

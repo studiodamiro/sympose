@@ -175,3 +175,16 @@ def test_note_stem_scan_matches_the_snapshots_ignore_rules(vault):
     assert {"Diary", "readme"} <= stems
     assert "image" not in stems
     assert "Gone" not in stems
+
+
+def test_a_link_that_differs_in_case_from_a_hidden_note_leaks_no_ghost(vault):
+    """Links resolve without regard to case, so `[[foo]]` means a note called `Foo`: when that note is
+    hidden from the persona it must not appear as a ghost named after it."""
+    _write(vault, "Code/A.md", "links to [[foo]]")
+    _write(vault, "Private/Foo.md", "hidden")
+
+    graph = vault_graph.get_vault_graph(CODE_ONLY)
+
+    assert _ids(graph) == {"Code/A.md"}
+    assert graph["links"] == []
+

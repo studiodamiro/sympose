@@ -130,11 +130,12 @@ def get_vault_graph(profile: dict[str, Any]) -> dict[str, Any]:
     links = manifest.get("links", [])
 
     if _scope_prefixes(mv, allowed_dirs) != [""]:
-        hidden_stems = _vault_note_stems(mv)
+        # Lowercased on both sides: a link `[[foo]]` means a note called `Foo`.
+        hidden_stems = {stem.lower() for stem in _vault_note_stems(mv)}
         ghosts = {
             n["id"]
             for n in all_nodes
-            if not n.get("exists", True) and n["id"] in hidden_stems
+            if not n.get("exists", True) and n["id"].lower() in hidden_stems
         }
         if ghosts:
             all_nodes = [n for n in all_nodes if n["id"] not in ghosts]

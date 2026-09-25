@@ -20,7 +20,8 @@ from sympose.engine.prompt_text import (
     HOW_YOU_WORK, NO_NOTES, NO_RECAP, NO_REFERENCE, NO_TOPIC, POINT_TO_REFERENCE, RECAPS_LABEL,
     RECAP_INSTRUCTIONS, REFERENCE_LABEL, REWRITE_INSTRUCTIONS, SYMPOSE_RULE,
 )
-from sympose.profile import load_soul, reference_persona_names
+from sympose.persona_files import load_soul
+from sympose.profile import reference_persona_names
 
 __all__ = [
     "ANSWER_FROM_NOTES", "ANSWER_FROM_RECAPS", "ANSWER_FROM_REFERENCE", "DEFAULT_SOUL",

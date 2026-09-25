@@ -6,7 +6,7 @@ import os
 import uuid
 from datetime import datetime, timezone
 
-from sympose.profile import persona_dir, profiles_dir
+from sympose.persona_files import persona_dir, profiles_dir
 from sympose.security import is_safe_path
 
 

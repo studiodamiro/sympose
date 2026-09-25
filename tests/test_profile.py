@@ -5,7 +5,7 @@
 import pytest
 from helpers import write_persona
 
-from sympose import profile
+from sympose import persona_files, profile
 
 
 @pytest.fixture(autouse=True)
@@ -261,19 +261,19 @@ def test_load_soul_returns_the_stripped_text(profiles_dir):
     directory = _persona_with(profiles_dir, "samantha")
     (directory / "soul.md").write_text("\n  You are warm.  \n\n")
 
-    assert profile.load_soul("samantha") == "You are warm."
+    assert persona_files.load_soul("samantha") == "You are warm."
 
 
 def test_load_soul_is_none_when_missing_or_empty(profiles_dir):
     directory = _persona_with(profiles_dir, "samantha")
-    assert profile.load_soul("samantha") is None
+    assert persona_files.load_soul("samantha") is None
 
     (directory / "soul.md").write_text("   \n")
-    assert profile.load_soul("samantha") is None
+    assert persona_files.load_soul("samantha") is None
 
 
 def test_load_soul_is_none_with_no_profiles_dir(no_profiles_dir):
-    assert profile.load_soul("samantha") is None
+    assert persona_files.load_soul("samantha") is None
 
 
 def test_load_soul_rejects_a_traversal_handle(profiles_dir):
@@ -281,7 +281,7 @@ def test_load_soul_rejects_a_traversal_handle(profiles_dir):
     outside.mkdir()
     (outside / "soul.md").write_text("should never be read")
 
-    assert profile.load_soul("../outside") is None
+    assert persona_files.load_soul("../outside") is None
 
 
 def test_load_soul_degrades_to_none_and_logs_when_unreadable(profiles_dir, caplog):
@@ -289,7 +289,7 @@ def test_load_soul_degrades_to_none_and_logs_when_unreadable(profiles_dir, caplo
     (directory / "soul.md").write_bytes(b"\xff\xfe not valid utf-8 \x80")
 
     with caplog.at_level("WARNING"):
-        assert profile.load_soul("samantha") is None
+        assert persona_files.load_soul("samantha") is None
     assert "default soul" in caplog.text
 
 
@@ -312,7 +312,7 @@ def test_a_handle_that_is_not_a_single_path_component_resolves_to_nothing(profil
     (profiles_dir / "a" / "b" / "persona.yaml").write_text("name: Nested\n")
 
     assert profile.get_profile(handle) is None
-    assert profile.load_soul(handle) is None
+    assert persona_files.load_soul(handle) is None
 
 
 # -- the Sympose reference library flag (docs/decisions/022) --

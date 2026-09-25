@@ -10,7 +10,7 @@ from typing import Any
 from sympose import vault_paths
 from sympose.security import is_safe_path
 from sympose.vault_trash import TRASH_DIRNAME
-from sympose.vault_trash_index import record_clash
+from sympose.vault_trash_index import record_clash, record_clashes
 from sympose.vault_write import get_file_locks
 from sympose.vault_write_resolve import resolve_existing_note
 from sympose.vault_write_status import NOTE_DENIED, NOTE_NOT_FOUND
@@ -46,6 +46,20 @@ def _unused_name(taken: str) -> str:
     return candidate
 
 
+def _record_folder_clash(mv: str, dest: str, original_rel: str) -> None:
+    """A folder moved under a suffixed name puts every file inside it at a path that is not where it
+    came from: record each one's original path so the recovery view shows it and a restore goes
+    there. `original_rel` is the folder's own vault-relative path."""
+    troot = os.path.join(mv, TRASH_DIRNAME)
+    entries = {}
+    for cur, _, files in os.walk(dest):
+        for name in files:
+            trash_rel = os.path.relpath(os.path.join(cur, name), troot).replace(os.sep, "/")
+            inside = os.path.relpath(os.path.join(cur, name), dest).replace(os.sep, "/")
+            entries[trash_rel] = f"{original_rel.replace(os.sep, '/')}/{inside}"
+    record_clashes(troot, entries)
+
+
 def delete_folder(profile: dict[str, Any], folder_name: str) -> str:
     """Delete a vault folder. An *empty* folder is removed outright
     (`os.rmdir`) — nothing to recover. A folder holding notes and/or
@@ -63,12 +77,16 @@ def delete_folder(profile: dict[str, Any], folder_name: str) -> str:
     # `clean_name` resolving to the vault root itself (e.g. ".") is never a
     # real folder to delete — `is_safe_path` alone accepts it (target ==
     # base is safe by that check's own definition), so it needs its own
-    # explicit rejection here. Likewise `.trash` itself: it's a reserved
-    # path, not a folder a persona ever "deletes" — without this, a
-    # non-empty `.trash` would attempt an `os.rename` into its own subtree
-    # (guaranteed to fail, but with an opaque error) and an empty one would
-    # simply be rmdir'd away, silently discarding the whole recovery surface.
-    if target_dir in (os.path.normpath(mv), os.path.join(mv, TRASH_DIRNAME)):
+    # explicit rejection here. Likewise `.trash` and everything inside it:
+    # the bin is a reserved path, not a folder a persona ever "deletes" —
+    # without this, a non-empty `.trash` would attempt an `os.rename` into
+    # its own subtree (guaranteed to fail, but with an opaque error), an
+    # empty one would simply be rmdir'd away, silently discarding the whole
+    # recovery surface, and a folder inside it would move to `.trash/.trash/`,
+    # which the recovery view skips (it ignores dot-folders).
+    if target_dir == os.path.normpath(mv) or is_safe_path(
+        target_dir, os.path.join(mv, TRASH_DIRNAME)
+    ):
         return NOTE_DENIED
     if not vault_paths.is_within_any(target_dir, allowed_dirs):
         return NOTE_DENIED
@@ -91,9 +109,12 @@ def delete_folder(profile: dict[str, Any], folder_name: str) -> str:
             except OSError as e:
                 return f"Error: Failed to delete folder: {e}"
 
+        planned = dest
         dest, error = _trash_nonempty_folder(target_dir, dest)
         if error is not None:
             return error
+        if dest != planned:
+            _record_folder_clash(mv, dest, rel_display)
         dest_rel = os.path.relpath(dest, mv).replace(os.sep, "/")
         return f"Moved folder to the bin: `{dest_rel}`"
 

@@ -3,7 +3,8 @@ The `.trash-index.json` sidecar — split out of `vault_trash.py` (project's
 200-LOC-per-file guideline).
 
 `vault_write_delete.delete_note` appends `-YYYYMMDDHHMMSS` before `.md` when
-a same-named note is already in the trash. Inferring that suffix by
+a same-named note is already in the trash (`delete_folder` appends it to the
+folder's name). Inferring that suffix by
 stripping a trailing `-\\d{14}` would false-positive on a legitimately
 timestamp-named file (a real `Meeting-20240315120000.md`) — this index
 instead *records* the original path explicitly whenever a clash actually
@@ -47,17 +48,24 @@ def _save_index(troot: str, index: dict[str, str]) -> None:
         pass
 
 
-def record_clash(troot: str, trash_rel: str, original_rel: str) -> None:
-    """Called by `delete_note` only when a same-named clash actually forced
-    a timestamp suffix onto `trash_rel` — the non-clash common case needs no
-    index entry, since `trash_rel` already equals `original_rel` there.
+def record_clashes(troot: str, entries: dict[str, str]) -> None:
+    """Called by the delete functions only when a same-named clash actually
+    forced a timestamp suffix onto a trash path — the non-clash common case
+    needs no index entry, since the trash path already equals the original
+    path there. Takes several entries at once because a folder moved under a
+    suffixed name puts every file inside it under a suffixed path.
     Locks the whole load-mutate-save cycle: locking only the save still lets
     two concurrent clashes both load the same pre-update dict, so whichever
-    saves last would silently discard the other's entry."""
+    saves last would silently discard the other's entries."""
     with get_file_lock(_index_path(troot)):
         index = load_index(troot)
-        index[trash_rel] = original_rel
+        index.update(entries)
         _save_index(troot, index)
+
+
+def record_clash(troot: str, trash_rel: str, original_rel: str) -> None:
+    """`record_clashes` for the one note that `delete_note` just suffixed."""
+    record_clashes(troot, {trash_rel: original_rel})
 
 
 def original_relpath(troot: str, trash_rel: str) -> str:

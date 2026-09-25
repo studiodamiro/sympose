@@ -175,6 +175,7 @@ def test_delete_folder_moves_the_whole_tree_with_its_files(vault):
     assert result == f"Moved folder to the bin: `{os.path.join('.trash', 'Stuff')}`"
     assert trash_files(vault) == {"Stuff/a.md": "A", "Stuff/Inner/b.md": "B"}
     assert not os.path.exists(os.path.join(vault, "Stuff"))
+    assert load_index(os.path.join(vault, ".trash")) == {}  # no clash, nothing to remember
 
 
 def test_delete_a_nested_folder_keeps_its_place_in_the_bin(vault):
@@ -231,6 +232,32 @@ def test_deleting_a_folder_of_the_same_name_twice_keeps_both(vault):
     assert "Stuff/one.md" in files
     (other,) = [name for name in files if name != "Stuff/one.md"]
     assert re.fullmatch(r"Stuff-\d{14}/two\.md", other)
+
+
+def test_a_folder_deleted_under_a_clash_name_restores_to_its_own_place(vault):
+    write(vault, "A/x.md", "note")
+    vault_write_delete.delete_note(ALL, "A/x")  # the bin now holds `A/x.md`, so folder `A` clashes
+    write(vault, "A/y.md", "why")
+    write(vault, "A/Sub/z.md", "zed")
+    vault_write_delete.delete_folder(ALL, "A")
+
+    rows = {r["trash_path"]: r["original_path"] for r in vault_trash.list_trashed(vault, [vault])}
+    suffixed = {name: original for name, original in rows.items() if name != "A/x.md"}
+    assert sorted(suffixed.values()) == ["A/Sub/z.md", "A/y.md"]
+    assert all(re.fullmatch(r"A-\d{14}/(Sub/z|y)\.md", name) for name in suffixed)
+
+    (y_trash,) = [name for name, original in suffixed.items() if original == "A/y.md"]
+    assert vault_trash.restore(vault, [vault], y_trash) == "A/y.md"
+    assert read(os.path.join(vault, "A", "y.md")) == "why"
+    assert y_trash not in trash_files(vault)
+    assert set(load_index(os.path.join(vault, ".trash"))) == {n for n in suffixed if n != y_trash}
+
+
+def test_a_folder_inside_the_bin_is_not_deleted_out_of_recovery(vault):
+    write(vault, ".trash/Old/n.md", "recoverable")
+    assert vault_write_delete.delete_folder(ALL, ".trash/Old") in (NOTE_NOT_FOUND, NOTE_DENIED)
+    assert os.path.exists(os.path.join(vault, ".trash", "Old", "n.md"))
+    assert [r["trash_path"] for r in vault_trash.list_trashed(vault, [vault])] == ["Old/n.md"]
 
 
 def test_delete_folder_that_cannot_be_moved_reports_the_error_and_keeps_it(vault, monkeypatch):

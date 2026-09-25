@@ -64,7 +64,7 @@ ANSWER_FROM_REFERENCE = "If the message is about Sympose itself, answer it from 
 
 # Next to the notes, only when there are some.
 ANSWER_FROM_NOTES = (
-    "These notes were found by keywords and may not be about the user's message. If the message is "
+    "These notes were found by a search and may not be about the user's message. If the message is "
     "about the user's own notes, answer from them in your own voice, and if they don't answer it, say "
     "you couldn't find it in the vault rather than guessing. If it is a general question that does not "
     "depend on the vault, ignore the notes and answer from your own knowledge."

@@ -12,7 +12,8 @@ import math
 from typing import Any
 
 from sympose import vault_paths
-from sympose.engine.grounding_index import Index, Passage, build_index, index_terms
+from sympose.engine import semantic
+from sympose.engine.grounding_index import PASSAGES_PER_NOTE, Index, Passage, build_index, index_terms
 from sympose.vault_snapshot import get_vault_snapshot
 
 _K1, _B = 1.2, 0.75  # standard BM25 constants
@@ -24,7 +25,6 @@ _MIN_NOTES_FOR_SHARE = 10
 # Keep only passages scoring at least this fraction of the best one, so one
 # strong hit is not diluted by a tail of weak ones.
 _RELATIVE_CUTOFF = 0.4
-_PASSAGES_PER_NOTE = 2
 # Of the message's informative words a passage must match at least this share (and two).
 _MIN_SHARE = 0.4
 # "sam" is addressing Samantha; two letters would be a prefix of too many words.
@@ -162,7 +162,7 @@ def retrieve(
     for score, passage, matched_count in scored:
         if score < floor or len(hits) >= max_results:
             break
-        if per_note.get(passage.rel_path, 0) >= _PASSAGES_PER_NOTE:
+        if per_note.get(passage.rel_path, 0) >= PASSAGES_PER_NOTE:
             continue
         per_note[passage.rel_path] = per_note.get(passage.rel_path, 0) + 1
         hits.append(
@@ -180,14 +180,20 @@ def retrieve(
     return hits
 
 
+def scope_index(profile: dict[str, Any]) -> Index | None:
+    """The search index of the notes `profile` may read, or `None` with no vault."""
+    scope = vault_paths.resolve_sandbox(profile)
+    return _index_for(*scope) if scope else None
+
+
 def ground(profile: dict[str, Any], user_message: str, max_results: int = 5) -> list[dict[str, Any]]:
     """Passages from the notes `profile` may read that `user_message` is
     about; `[]` if no vault is configured or nothing is relevant."""
-    scope = vault_paths.resolve_sandbox(profile)
-    if scope is None:
+    index = scope_index(profile)
+    if index is None:
         return []
-    mv, allowed_dirs = scope
     # The persona's name, handle and aliases: what the user calls her is addressing, not a topic.
     names = [profile.get("name") or "", profile.get("handle") or "", *(profile.get("aliases") or [])]
     address = frozenset(index_terms(" ".join(n for n in names if isinstance(n, str))))
-    return retrieve(_index_for(mv, allowed_dirs), user_message, max_results, address=address)
+    hits = retrieve(index, user_message, max_results, address=address)
+    return semantic.refine(index, user_message, hits, max_results=max_results)  # the knob (docs/decisions/027)

@@ -53,6 +53,7 @@ def recap_calls(monkeypatch):
     and on a persona switch: never a real one here. The handles it was asked for."""
     calls: list[str] = []
     monkeypatch.setattr(engine, "refresh_recaps", calls.append)
+    monkeypatch.setattr(engine, "refresh_embeddings", lambda handle: None)  # docs/decisions/027: never a real build
     return calls
 
 

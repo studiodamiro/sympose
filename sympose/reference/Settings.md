@@ -50,6 +50,22 @@ Setting `session_recaps` to `false` stops Samantha writing and reading recaps of
 
 Setting `grounding_followups` to `"off"` stops the extra search for follow-up questions.
 
+## grounding_search
+
+The `grounding_search` setting is how Samantha finds notes for your message. The default, `"keywords"`, matches words. `"embeddings"` matches by meaning, using a small embedding model in Ollama, and `"hybrid"` uses both. It needs the model pulled once (`ollama pull nomic-embed-text`). Without it, or when Ollama is not running, Samantha searches by keyword instead.
+
+## How long does the first meaning search take to start?
+
+The first time `grounding_search` is on, your notes are indexed in the background, which can take a minute or two for a big vault, and the search stays on keywords until that is done. The index is a cache in `embedding_cache.sqlite` beside `settings.json`, and it can be deleted at any time.
+
+## embedding_model
+
+The `embedding_model` setting is the embedding model used by `grounding_search`. The default is `ollama/nomic-embed-text`. Another model needs its own `embedding_min_similarity`.
+
+## embedding_min_similarity
+
+The `embedding_min_similarity` setting is how close in meaning a note must be to your message to be used, a number between 0 and 1. The default is 0.68, for the default embedding model. A higher number attaches fewer notes and a lower number more.
+
 ## How do the true or false settings work?
 
 Only an explicit `false` turns a setting off. Anything else leaves the default.

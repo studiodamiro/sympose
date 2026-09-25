@@ -7,6 +7,7 @@ import logging
 import os
 from typing import Any
 
+from sympose.engine import semantic
 from sympose.engine.grounding import retrieve
 from sympose.engine.grounding_index import Index, build_index
 from sympose.vault_snapshot import get_vault_snapshot
@@ -33,6 +34,11 @@ def _index() -> Index | None:
     return _CACHE[1]
 
 
+def library_index(persona: dict[str, Any]) -> Index | None:
+    """The library's search index for a persona that has the library, else `None`."""
+    return _index() if persona.get("sympose_reference") else None
+
+
 def ground(persona: dict[str, Any], message: str) -> list[dict[str, Any]]:
     """Passages of the reference library for `message`, best first, or `[]`:
     for a persona without the library, when nothing qualifies, or when the notes
@@ -44,4 +50,5 @@ def ground(persona: dict[str, Any], message: str) -> list[dict[str, Any]]:
         log.warning("The Sympose reference notes are missing from this install: %s", REFERENCE_DIR)
         return []
     hits = retrieve(index, message, MAX_PASSAGES, strict=True)
+    hits = semantic.refine(index, message, hits, library=True, max_results=MAX_PASSAGES)  # docs/decisions/027
     return [{**hit, "rel_path": f"{LABEL}/{hit['rel_path']}", "source": SOURCE} for hit in hits]

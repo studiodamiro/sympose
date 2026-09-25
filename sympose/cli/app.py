@@ -147,6 +147,7 @@ class SymposeCLI(App):
         self.last_speaker: str | None = None
         picker.update_banner(self)
         engine.refresh_recaps(self.persona.handle)  # background, while the user types (ADR 023)
+        engine.refresh_embeddings(self.persona.handle)  # background, only if the knob is on (ADR 027)
         transcript_mod.mount_line(self, "Talking to the real engine now — local by default.", "system")
         transcript_mod.mount_line(self, "Type a message, or / for commands.", "system")
         picker.close_panel(self)  # syncs the composer's initial spacing (no panel yet)

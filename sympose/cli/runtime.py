@@ -124,6 +124,7 @@ def apply_picker_choice(app, kind: str, value: str | None) -> None:
             meter.clear(app)  # a fresh session starts empty
             picker.update_banner(app)
             engine.refresh_recaps(persona.handle)  # ADR 023
+            engine.refresh_embeddings(persona.handle)  # ADR 027
             transcript_mod.mount_line(app, f"Now talking to @{persona.handle}.", "system")
     elif kind == "history":
         transcript_mod.mount_line(

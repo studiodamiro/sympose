@@ -20,7 +20,7 @@ In a real conversation the user asked, twice, for "names of female coders from h
 The strict mode used for the library (ADR 019) is unchanged.
 
 **What she is told.**
-- The notes directive says the notes were found by keywords and may not be about the message: if it is about the user's own notes, answer from them and say so when they do not answer it; if it is a general question that does not depend on the vault, ignore the notes and answer from her own knowledge.
+- The notes directive says the notes were found by a search (it said "by keywords" until ADR 027, when a search by meaning made that untrue) and may not be about the message: if it is about the user's own notes, answer from them and say so when they do not answer it; if it is a general question that does not depend on the vault, ignore the notes and answer from her own knowledge.
 - With no notes the line ends "otherwise answer from your own knowledge" (the vault question is still not guessed).
 - `HOW_YOU_WORK` says she has no internet but can answer general questions from her own knowledge. The rule that she states facts about the user's vault only from the notes is unchanged.
 

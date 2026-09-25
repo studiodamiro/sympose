@@ -64,7 +64,12 @@ def _sent(
     (docs/decisions/025): where each note came from, never its text."""
     return {
         "notes": [
-            {"path": hit["rel_path"], "heading": hit.get("heading", ""), "source": hit.get("source", "vault")}
+            {
+                "path": hit["rel_path"],
+                "heading": hit.get("heading", ""),
+                "source": hit.get("source", "vault"),
+                **({"via": hit["via"]} if "via" in hit else {}),  # how it was found, when the knob is on (ADR 027)
+            }
             for hit in grounding
         ],
         "recaps": [r["session"] for r in recaps],

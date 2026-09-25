@@ -25,6 +25,10 @@ settings.json
 # only the fallback when no profiles/ directory exists at all.
 sessions/
 
+# The cache of passage vectors for meaning-based search (docs/decisions/027), beside settings.json;
+# rebuilt whenever it is missing.
+embedding_cache.sqlite*
+
 # Recaps of those sessions (docs/decisions/023): the same, in profiles/<handle>/recaps/
 # or, in that fallback, here.
 recaps/

@@ -39,6 +39,7 @@ _WORD = re.compile(r"\w+")
 _HEADING = re.compile(r"^\s{0,3}#{1,6}\s+(.*?)\s*#*\s*$")
 _SENTENCE_END = re.compile(r"(?<=[.!?])\s+")
 MAX_PASSAGE_CHARS = 400
+PASSAGES_PER_NOTE = 2  # at most this many passages of one note are attached (by keyword or by meaning)
 
 # How much a term's appearance counts by where it appears: a note's title or
 # tag says far more about what it is than one word of its body does.

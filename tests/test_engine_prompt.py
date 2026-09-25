@@ -419,7 +419,7 @@ def test_only_the_recap_of_the_real_last_conversation_is_called_that():
 def test_the_notes_may_be_ignored_for_a_general_question_but_not_for_one_about_the_vault():
     text = prompt.build_user_turn("who wrote Emma?", [_grounding_result()])
 
-    assert "found by keywords and may not be about the user's message" in text
+    assert "found by a search and may not be about the user's message" in text
     assert "If it is a general question that does not depend on the vault, ignore the notes and answer from your own knowledge." in text
     assert "if they don't answer it, say you couldn't find it in the vault rather than guessing" in text
 

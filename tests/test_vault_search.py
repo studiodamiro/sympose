@@ -162,3 +162,50 @@ def test_title_match_is_never_dropped_by_a_flood_of_content_matches(vault_root):
 
     assert results[0]["rel_path"] == "ZZZ-keyword-title.md"
     assert results[0]["match_type"] == "title"
+
+
+def test_content_match_line_number_counts_the_frontmatter(vault_root):
+    """The line is reported as a line of the note, which is how the web app shows it, so the
+    frontmatter block above the body counts."""
+    _write(vault_root, "Note.md", "---\na: 1\nb: 2\n---\nfirst body line\nfind the needle here\n")
+
+    results = vault_search.search_structured({"vault_folders": ["*"]}, "needle")
+
+    assert results[0]["line_no"] == 6
+    assert results[0]["snippet"] == "find the needle here"
+
+
+def test_a_rule_that_is_not_frontmatter_does_not_shift_the_line_number(vault_root):
+    """A note that starts with `---` but never closes it has no frontmatter, so nothing is skipped."""
+    _write(vault_root, "Note.md", "---\nnot closed\nthe needle\n")
+
+    results = vault_search.search_structured({"vault_folders": ["*"]}, "needle")
+
+    assert results[0]["line_no"] == 3
+
+
+def test_a_line_separator_character_does_not_shift_the_snippet(vault_root):
+    """`str.splitlines` also splits on characters such as U+2028, which the file's own line count does not."""
+    _write(vault_root, "Note.md", "one still line one\nthe needle line")
+
+    results = vault_search.search_structured({"vault_folders": ["*"]}, "needle")
+
+    assert results[0]["line_no"] == 2
+    assert results[0]["snippet"] == "the needle line"
+
+
+def test_a_multi_line_match_after_frontmatter_reports_the_line_it_starts_on(vault_root):
+    _write(vault_root, "Note.md", "---\nk: v\n---\nintro\nfirst half\nsecond half\nend")
+
+    results = vault_search.search_structured({"vault_folders": ["*"]}, "first half\nsecond half")
+
+    assert results[0]["line_no"] == 5
+
+
+def test_the_fallback_snippet_names_the_line_of_the_note(vault_root):
+    """A matched line with no readable text once cleaned (`**`) gets a generic snippet, which names the file line."""
+    _write(vault_root, "Note.md", "---\nk: v\n---\nintro\n**\n")
+
+    results = vault_search.search_structured({"vault_folders": ["*"]}, "**")
+
+    assert results[0]["snippet"] == "Match found on line 5"

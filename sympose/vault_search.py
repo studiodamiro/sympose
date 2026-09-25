@@ -58,13 +58,20 @@ def _extract_content_match(body: str, query_clean: str) -> tuple[int, str]:
     if match_idx == -1:
         return 1, ""
     line_no = lower_body.count("\n", 0, match_idx) + 1
-    line = body.splitlines()[line_no - 1]
+    line = body.split("\n")[line_no - 1]  # not splitlines(): it also splits on U+2028 and others the count above ignores
     clean_l = " ".join(line.strip().strip("#*-> ").split())
     first_query_line = query_clean.splitlines()[0] if query_clean else query_clean
     q_idx = clean_l.lower().find(first_query_line)
     if q_idx > 25:
         clean_l = "..." + clean_l[max(q_idx - 15, 0) :]
     return line_no, _truncate_snippet(clean_l)
+
+
+def _frontmatter_lines(entry: dict[str, Any]) -> int:
+    """How many lines of the file come before its `body` (the frontmatter block), so a line
+    number found in the body is the line of the note the user sees."""
+    full, body = entry["full_content"], entry["body"]
+    return full[: len(full) - len(body)].count("\n") if full.endswith(body) else 0
 
 
 def _base_match_result(entry: dict[str, Any], match_type: str, tags: list[str]) -> dict[str, Any]:
@@ -112,8 +119,8 @@ def _classify_snapshot_entry(entry: dict[str, Any], query_clean: str) -> dict[st
     if query_clean in body.lower():
         line_no, snippet = _extract_content_match(body, query_clean)
         result = _base_match_result(entry, "content", tags)
-        result["line_no"] = line_no
-        result["snippet"] = snippet or f"Match found on line {line_no}"
+        result["line_no"] = line_no + _frontmatter_lines(entry)
+        result["snippet"] = snippet or f"Match found on line {result['line_no']}"
         return result
 
     return None

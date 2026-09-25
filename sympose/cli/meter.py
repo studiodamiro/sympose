@@ -10,6 +10,7 @@ from sympose import settings_store
 from sympose.engine import semantic_refresh
 
 SETTING = "show_context_meter"
+NOTICE_SETTING = "show_index_notice"  # the notice has its own knob (docs/decisions/027)
 
 _BAR_CELLS = 10
 _WARN_AT = 70
@@ -65,10 +66,12 @@ class ContextMeter(Static):
 
 
 def build_notice() -> str:
-    """`indexing 40%` while a search index is being built, else nothing. A label and a number, not
-    a sentence, and shown even when the meter itself is off: it is about search, not the conversation."""
+    """`indexing 40%` while a search index is being built, else nothing (or when its knob is off). A
+    label and a number, not a sentence; independent of the meter's own knob."""
     percent_done = semantic_refresh.progress()
-    return "" if percent_done is None else f"indexing {percent_done}%"
+    if percent_done is None or not settings_store.flag(NOTICE_SETTING):
+        return ""
+    return f"indexing {percent_done}%"
 
 
 def enabled() -> bool:

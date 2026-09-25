@@ -66,6 +66,10 @@ The `embedding_model` setting is the embedding model used by `grounding_search`.
 
 The `embedding_min_similarity` setting is how close in meaning a note must be to your message to be used, a number between 0 and 1. The default is 0.68, for the default embedding model. A higher number attaches fewer notes and a lower number more.
 
+## show_index_notice
+
+Setting `show_index_notice` to `false` hides the `indexing 40%` notice at the right end of the line under the chat box. It is separate from `show_context_meter`.
+
 ## How do the true or false settings work?
 
 Only an explicit `false` turns a setting off. Anything else leaves the default.

@@ -2106,3 +2106,44 @@ def test_the_notice_moves_to_the_new_right_edge_when_the_terminal_is_resized(pro
     before, after = run_async(scenario())
 
     assert before[0] == before[1] and after[0] == after[1] and after[1] > before[1]
+
+
+def test_the_notice_has_its_own_knob_and_only_an_explicit_false_turns_it_off(monkeypatch):
+    from sympose import settings_store
+
+    _progress(monkeypatch, 40)
+    assert meter.NOTICE_SETTING == "show_index_notice"
+    assert meter.build_notice() == "indexing 40%"
+    for malformed in ("false", 0, None, "no"):
+        settings_store.set(meter.NOTICE_SETTING, malformed)
+        assert meter.build_notice() == "indexing 40%"
+    settings_store.set(meter.NOTICE_SETTING, False)
+    assert meter.build_notice() == ""
+
+
+def test_turning_the_notice_off_leaves_the_meter_and_turning_the_meter_off_leaves_the_notice(profiles, monkeypatch):
+    from sympose import settings_store
+
+    async def then(app, pilot):
+        widget = app.query_one(meter.ContextMeter)
+        _progress(monkeypatch, 40)
+        settings_store.set(meter.NOTICE_SETTING, False)
+        widget.refresh_notice()
+        return _meter_text(app)
+
+    assert _run_meter_scenario(monkeypatch, [_result(3100, 5000)], then)["then"] == "context ██████░░░░ 62%"
+    # (the reverse, the meter off and the notice on, is `test_the_notice_shows_even_when_the_meter_is_turned_off`)
+
+
+def test_a_notice_already_showing_goes_when_its_knob_is_turned_off(profiles, monkeypatch):
+    from sympose import settings_store
+
+    async def then(app, pilot):
+        widget = app.query_one(meter.ContextMeter)
+        _progress(monkeypatch, 40)
+        widget.refresh_notice()
+        settings_store.set(meter.NOTICE_SETTING, False)
+        widget.refresh_notice()  # what the once-a-second timer does
+        return _meter_text(app)
+
+    assert _run_meter_scenario(monkeypatch, [_result(3100, 5000)], then)["then"] == "context ██████░░░░ 62%"

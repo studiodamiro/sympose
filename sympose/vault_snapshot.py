@@ -13,7 +13,7 @@ import yaml
 
 from sympose import vault_paths
 from sympose.security import is_safe_path
-from sympose.vault_defaults import IGNORE_FOLDERS
+from sympose.vault_defaults import IGNORE_FOLDERS, NOTE_EXTENSIONS
 
 log = logging.getLogger(__name__)
 
@@ -71,7 +71,7 @@ def get_vault_snapshot(mv: str, dirs: list[str]) -> list[dict[str, Any]]:
                     if d.lower() not in ignore_dirs and not d.startswith(".")
                 ]
                 for file in sorted(files):
-                    if not file.endswith((".md", ".markdown", ".txt")):
+                    if not file.endswith(NOTE_EXTENSIONS):
                         continue
                     file_path = os.path.join(root, file)
                     if not is_safe_path(file_path, allowed):

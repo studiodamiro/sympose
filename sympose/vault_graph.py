@@ -10,7 +10,7 @@ import os
 from typing import Any
 
 from sympose import vault_manifest_build, vault_paths, vault_tree
-from sympose.vault_defaults import IGNORE_FOLDERS
+from sympose.vault_defaults import IGNORE_FOLDERS, NOTE_EXTENSIONS
 from sympose.vault_snapshot import get_vault_snapshot
 
 _REAL_FOLDERS_CACHE: dict[tuple[Any, ...], tuple[float, list[str]]] = {}
@@ -63,7 +63,7 @@ def _vault_note_stems(mv: str) -> set[str]:
             stems.update(
                 os.path.splitext(f)[0]
                 for f in files
-                if f.endswith((".md", ".markdown", ".txt"))
+                if f.endswith(NOTE_EXTENSIONS)
             )
         return stems
 

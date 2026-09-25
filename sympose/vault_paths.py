@@ -17,6 +17,7 @@ from typing import Any, Callable, TypeVar
 
 from sympose import vault_registry
 from sympose.security import is_safe_path
+from sympose.vault_defaults import NOTE_EXTENSIONS
 
 _T = TypeVar("_T")
 
@@ -131,7 +132,7 @@ def dirs_mtime(dirs: list[str], ignore: set[str] | None = None) -> float:
                 except OSError:
                     pass
             for f in files:
-                if not f.endswith((".md", ".markdown", ".txt")):
+                if not f.endswith(NOTE_EXTENSIONS):
                     continue
                 try:
                     mtime = max(mtime, os.stat(os.path.join(root, f)).st_mtime)

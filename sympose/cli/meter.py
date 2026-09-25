@@ -7,12 +7,15 @@ from rich.text import Text
 from textual.widgets import Static
 
 from sympose import settings_store
+from sympose.engine import semantic_refresh
 
 SETTING = "show_context_meter"
 
 _BAR_CELLS = 10
 _WARN_AT = 70
 _ERROR_AT = 90
+_POLL_SECONDS = 1.0  # how often the far-right notice is looked at
+_MIN_GAP = 2
 
 
 class ContextMeter(Static):
@@ -30,6 +33,42 @@ class ContextMeter(Static):
         color: $text-muted;
     }
     """
+
+    # The meter itself (empty until a reply), and the notice at the far right of the same line
+    # while the search index is being built (docs/decisions/027).
+    _left = Text("")
+    _notice = ""
+
+    def on_mount(self) -> None:
+        self.set_interval(_POLL_SECONDS, self.refresh_notice)
+
+    def on_resize(self) -> None:
+        self._paint()
+
+    def set_left(self, text: Text) -> None:
+        self._left = text
+        self._paint()
+
+    def refresh_notice(self) -> None:
+        notice = build_notice()
+        if notice != self._notice:
+            self._notice = notice
+            self._paint()
+
+    def _paint(self) -> None:
+        """The meter at the left and the notice pushed to the far right of the line."""
+        if not self._notice:
+            self.update(self._left)
+            return
+        gap = max(_MIN_GAP, self.size.width - self._left.cell_len - Text(self._notice).cell_len)
+        self.update(Text.assemble(self._left, " " * gap, self._notice))
+
+
+def build_notice() -> str:
+    """`indexing 40%` while a search index is being built, else nothing. A label and a number, not
+    a sentence, and shown even when the meter itself is off: it is about search, not the conversation."""
+    percent_done = semantic_refresh.progress()
+    return "" if percent_done is None else f"indexing {percent_done}%"
 
 
 def enabled() -> bool:
@@ -64,7 +103,7 @@ def clear(app) -> None:
     """Empties the line and makes any reply still in flight stale."""
     widget = app.query_one(ContextMeter)
     widget.epoch += 1
-    widget.update("")
+    widget.set_left(Text(""))
 
 
 def show(app, used: int | None, limit: int | None, since: int) -> None:
@@ -76,7 +115,7 @@ def show(app, used: int | None, limit: int | None, since: int) -> None:
     if widget.epoch != since:
         return
     if used is None or not limit or not enabled():
-        widget.update("")
+        widget.set_left(Text(""))
         return
     warn, error = app.theme_color("warning", "yellow"), app.theme_color("error", "red")
-    widget.update(format_meter(used, limit, warn, error))
+    widget.set_left(format_meter(used, limit, warn, error))

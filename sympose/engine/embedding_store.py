@@ -42,7 +42,10 @@ def load(keys: list[str]) -> dict[str, array]:
                 marks = ",".join("?" * len(chunk))
                 for k, blob in conn.execute(f"SELECT key, vec FROM vectors WHERE key IN ({marks})", chunk):
                     vec = array("f")
-                    vec.frombytes(blob)
+                    try:
+                        vec.frombytes(blob)
+                    except ValueError:  # a truncated or hand-edited row: as if it were not there
+                        continue
                     found[k] = vec
         finally:
             conn.close()

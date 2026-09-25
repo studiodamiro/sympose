@@ -56,7 +56,7 @@ The `grounding_search` setting is how Samantha finds notes for your message. The
 
 ## How long does the first meaning search take to start?
 
-The first time `grounding_search` is on, your notes are indexed in the background, which can take a minute or two for a big vault, and the search stays on keywords until that is done. The index is a cache in `embedding_cache.sqlite` beside `settings.json`, and it can be deleted at any time.
+The first time `grounding_search` is on, your notes are indexed in the background, which can take a minute or two for a big vault, and the search stays on keywords until that is done. The right end of the line under the chat box shows `indexing 40%` meanwhile. The index is a cache in `embedding_cache.sqlite` beside `settings.json`, and it can be deleted at any time.
 
 ## embedding_model
 

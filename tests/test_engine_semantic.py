@@ -267,11 +267,12 @@ def test_the_index_is_built_in_the_background_when_it_is_too_big_to_do_in_a_turn
         _write(setup, f"Note{i}.md", f"# Note{i}\n\n" + ("Zanzibar spice trade." if i == 0 else f"Filler number {i}."))
     _mode("embeddings")
     started = []
-    monkeypatch.setattr(semantic_refresh, "start_build", lambda index, wait=False: started.append(index))
+    monkeypatch.setattr(semantic_refresh, "start_build", lambda index, wait=False, model=None: started.append((index, model)))
 
     hits = grounding.ground(WHOLE, "zanzibar")
 
-    assert len(started) == 1 and started[0] is grounding.scope_index(WHOLE)
+    assert len(started) == 1 and started[0][0] is grounding.scope_index(WHOLE)
+    assert started[0][1] == "ollama/nomic-embed-text"  # the model the search read, not a later look at the setting
     assert hits and "via" not in hits[0]  # this turn was searched by keyword
     assert all(kind != "query" for kind, _ in calls["embed"])  # and the message was not embedded
 
@@ -383,7 +384,7 @@ def test_two_builds_of_the_same_index_do_not_run_at_once(setup, monkeypatch):
     index = grounding.scope_index(WHOLE)
     release, running = threading.Event(), []
 
-    def slow_build(idx):
+    def slow_build(idx, token=None):
         running.append(idx)
         release.wait(5)
 
@@ -399,7 +400,7 @@ def test_two_builds_of_the_same_index_do_not_run_at_once(setup, monkeypatch):
 def _failing_build(monkeypatch):
     attempts = []
 
-    def build(idx):
+    def build(idx, token=None):
         attempts.append(idx)
         raise embeddings.EmbeddingUnavailable("down")
 
@@ -435,7 +436,7 @@ def test_a_failed_build_is_tried_again_after_a_while(setup, monkeypatch):
 def test_an_unexpected_error_in_a_build_is_contained_and_counts_as_a_failure(setup, monkeypatch):
     _vault(setup)
     index = grounding.scope_index(WHOLE)
-    monkeypatch.setattr(semantic_refresh, "build", lambda idx: 1 / 0)
+    monkeypatch.setattr(semantic_refresh, "build", lambda idx, token=None: 1 / 0)
 
     assert semantic_refresh.start_build(index, wait=True) is not None
     assert semantic_refresh.start_build(index, wait=True) is None  # failed, so not at once again
@@ -813,3 +814,170 @@ def test_saving_says_whether_the_cache_could_be_written(setup, monkeypatch, tmp_
     monkeypatch.setenv("SYMPOSE_SETTINGS_PATH", str(blocker / "settings.json"))
 
     assert embedding_store.save({"k": [1.0]}) is False
+
+
+# -- the progress the CLI shows -------------------------------------------------------
+
+
+def test_no_build_running_means_no_progress(setup):
+    assert semantic_refresh.progress() is None
+
+
+def _notes(setup, count):
+    for i in range(count):
+        _write(setup, f"Note{i}.md", f"# Note{i}\n\nFiller number {i}.")
+
+
+def test_a_build_reports_how_much_of_what_it_had_to_do_is_done(setup, monkeypatch):
+    _notes(setup, 130)  # three batches of 64, 64, 2
+    index = grounding.scope_index(WHOLE)
+    token = ("ollama/nomic-embed-text", id(index))
+    seen = []
+
+    def embed(texts, kind, model_name=None):
+        seen.append(semantic_refresh.progress())
+        return [[1.0, 0.0] for _ in texts]
+
+    monkeypatch.setattr(embeddings, "embed", embed)
+    semantic_refresh._BUILDING.add(token)  # what start_build does before the thread runs
+
+    semantic_refresh.build(index, token)
+
+    assert seen == [0, 49, 98]  # before each batch: 0, 64 and 128 of 130
+    assert semantic_refresh.progress() == 100
+
+
+def test_progress_covers_every_build_running_and_goes_when_they_end(setup, monkeypatch):
+    first, second = ("m", 1), ("m", 2)
+    semantic_refresh._BUILDING.update({first, second})
+    semantic_refresh._report(first, 50, 100)
+    semantic_refresh._report(second, 0, 300)
+
+    assert semantic_refresh.progress() == 12  # 50 of 400
+
+    semantic_refresh._BUILDING.clear()
+    assert semantic_refresh.progress() is None
+
+
+def test_a_build_that_has_not_counted_its_work_or_has_none_is_not_indexing(setup):
+    semantic_refresh._BUILDING.add(("m", 1))
+    assert semantic_refresh.progress() is None  # not counted yet
+
+    semantic_refresh._report(("m", 1), 0, 0)
+    assert semantic_refresh.progress() is None  # a warm cache: nothing to embed
+
+    semantic_refresh._BUILDING.add(("m", 2))
+    semantic_refresh._report(("m", 2), 30, 100)
+    assert semantic_refresh.progress() == 30  # only the build with work counts
+
+
+def test_a_build_with_a_warm_cache_never_shows_as_indexing(setup, monkeypatch):
+    _vault(setup)
+    index = grounding.scope_index(WHOLE)
+    semantic_refresh.build(index)  # warms the cache
+    token = ("ollama/nomic-embed-text", id(index))
+    semantic_refresh._BUILDING.add(token)
+    seen = []
+    monkeypatch.setattr(embedding_store, "load", lambda keys, real=embedding_store.load: seen.append(semantic_refresh.progress()) or real(keys))
+
+    semantic_refresh.build(index, token)
+
+    assert seen and set(seen) == {None}
+    assert semantic_refresh.progress() is None
+
+
+def test_a_finished_or_failed_build_leaves_no_progress_behind(setup, monkeypatch):
+    _vault(setup)
+    index = grounding.scope_index(WHOLE)
+
+    semantic_refresh.start_build(index, wait=True)
+
+    assert semantic_refresh.progress() is None and semantic_refresh._PROGRESS == {}
+
+
+# -- what the second review found ------------------------------------------------------
+
+
+def test_a_damaged_row_in_the_cache_is_a_missing_vector_not_a_failed_search(setup):
+    import sqlite3
+
+    good, bad = embedding_store.key("m", "good"), embedding_store.key("m", "bad")
+    embedding_store.save({good: [1.0, 2.0]})
+    conn = sqlite3.connect(embedding_store.path())
+    with conn:
+        conn.execute("INSERT INTO vectors (key, vec) VALUES (?, ?)", (bad, b"abcde"))  # 5 bytes: not whole floats
+    conn.close()
+
+    loaded = embedding_store.load([good, bad])
+
+    assert list(loaded) == [good]
+
+
+def test_a_search_over_a_cache_with_a_damaged_row_embeds_that_passage_again(setup, calls):
+    import sqlite3
+
+    _vault(setup)
+    _mode("embeddings")
+    index = grounding.scope_index(WHOLE)
+    passage = index.passages[0]
+    key = embedding_store.key("ollama/nomic-embed-text", embeddings.passage_text(passage))
+    embedding_store.save({key: [1.0]})
+    conn = sqlite3.connect(embedding_store.path())
+    with conn:
+        conn.execute("UPDATE vectors SET vec = ? WHERE key = ?", (b"abcde", key))
+    conn.close()
+
+    hits = grounding.ground(WHOLE, "what storage engine did we pick?")
+
+    assert [h["rel_path"] for h in hits] == ["Atlas.md"]
+    assert len(embedding_store.load([key])) == 1  # and the row is whole again
+
+
+def test_a_failure_is_remembered_with_its_index_and_old_ones_are_forgotten(setup, monkeypatch):
+    _vault(setup)
+    index = grounding.scope_index(WHOLE)
+    _failing_build(monkeypatch)
+    semantic_refresh.start_build(index, wait=True)
+    token = ("ollama/nomic-embed-text", id(index))
+
+    assert semantic_refresh._FAILED[token][1] is index  # held, so its id cannot be given to another index
+
+    monkeypatch.setattr(semantic_refresh, "_RETRY_AFTER_SECONDS", 0.0)
+    other = _index_of(("Other.md", "text"))
+    semantic_refresh.start_build(other, wait=True)
+
+    assert list(semantic_refresh._FAILED) == [("ollama/nomic-embed-text", id(other))]  # the old entry was let go
+
+
+def test_a_build_uses_the_model_it_was_started_for_not_the_one_in_the_settings_now(setup, monkeypatch):
+    _vault(setup)
+    index = grounding.scope_index(WHOLE)
+    used = []
+    monkeypatch.setattr(
+        embeddings, "embed", lambda texts, kind, model_name=None: used.append(model_name) or [[1.0, 0.0] for _ in texts]
+    )
+    settings_store.set("embedding_model", "ollama/changed-since")
+
+    semantic_refresh.start_build(index, wait=True, model="ollama/started-with")
+
+    assert used == ["ollama/started-with"]
+
+
+def test_many_turns_at_once_do_not_corrupt_the_cache_of_indexes(setup):
+    settings_store.set("grounding_search", "embeddings")
+    errors = []
+
+    def turn(n):
+        try:
+            for i in range(25):
+                semantic._vectors_for(_index_of((f"N{n}-{i}.md", f"text {n} {i}")), 64, "ollama/nomic-embed-text")
+        except Exception as e:  # noqa: BLE001 - any error is the failure
+            errors.append(e)
+
+    threads = [threading.Thread(target=turn, args=(n,)) for n in range(8)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join(30)
+
+    assert errors == [] and len(semantic._CACHE) <= 4

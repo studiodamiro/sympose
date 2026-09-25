@@ -40,3 +40,5 @@ The number is an estimate that leans high (the margin), so a conversation can lo
 - **A percentage of the raw window.** It tops out at the reserve line and would show 75 percent for a conversation that is already dropping turns.
 - **Counting the typed message live.** A token count on every keystroke, for a number that only matters once the message is sent.
 - **A status bar or header line instead of under the composer.** The header already carries per-reply facts (TTFT, notes, trim notice), which is what fills its width; the meter describes the conversation, not one reply, so it sits by the box the user types into.
+
+**Update (docs/decisions/027):** the line also carries a notice at its far right while the search index is being built, `indexing 40%`, whether or not the meter is on.

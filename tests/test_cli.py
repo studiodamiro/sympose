@@ -1971,3 +1971,138 @@ def test_a_reply_that_lands_after_a_model_switch_does_not_show_the_old_models_pe
 
 def test_a_reply_with_no_switch_meanwhile_does_fill_the_meter(profiles, monkeypatch):
     assert _switched_while_in_flight(profiles, monkeypatch, lambda app: None) == "context ██████░░░░ 62%"
+
+
+# -- the search-index notice at the far right of the meter line (docs/decisions/027) --
+
+
+def _progress(monkeypatch, value):
+    from sympose.engine import semantic_refresh
+
+    monkeypatch.setattr(semantic_refresh, "progress", lambda: value)
+
+
+def test_the_notice_is_a_label_and_a_number_or_nothing(monkeypatch):
+    _progress(monkeypatch, None)
+    assert meter.build_notice() == ""
+    _progress(monkeypatch, 0)
+    assert meter.build_notice() == "indexing 0%"
+    _progress(monkeypatch, 40)
+    assert meter.build_notice() == "indexing 40%"
+
+
+def test_with_no_reply_yet_the_notice_sits_alone_at_the_far_right(profiles, monkeypatch):
+    async def then(app, pilot):
+        _progress(monkeypatch, 40)
+        app.query_one(meter.ContextMeter).refresh_notice()
+        width = app.query_one(meter.ContextMeter).size.width
+        return _meter_text(app), width
+
+    text, width = _run_meter_scenario(monkeypatch, [], then)["then"]
+
+    assert text.endswith("indexing 40%") and text.strip() == "indexing 40%"
+    assert len(text) == width  # padded out to the right edge of the line
+
+
+def test_the_notice_shares_the_line_with_the_meter_and_ends_at_the_right_edge(profiles, monkeypatch):
+    async def then(app, pilot):
+        _progress(monkeypatch, 40)
+        app.query_one(meter.ContextMeter).refresh_notice()
+        return _meter_text(app), app.query_one(meter.ContextMeter).size.width
+
+    seen = _run_meter_scenario(monkeypatch, [_result(3100, 5000)], then)
+    text, width = seen["then"]
+
+    assert seen["text"] == "context ██████░░░░ 62%"  # before the notice
+    assert text.startswith("context ██████░░░░ 62%") and text.endswith("indexing 40%")
+    assert len(text) == width and "\n" not in text
+
+
+def test_the_notice_shows_even_when_the_meter_is_turned_off(profiles, monkeypatch):
+    from sympose import settings_store
+
+    settings_store.set(meter.SETTING, False)
+
+    async def then(app, pilot):
+        _progress(monkeypatch, 40)
+        app.query_one(meter.ContextMeter).refresh_notice()
+        return _meter_text(app)
+
+    seen = _run_meter_scenario(monkeypatch, [_result(3100, 5000)], then)
+
+    assert seen["text"] == "" and seen["then"].strip() == "indexing 40%"
+
+
+def test_the_notice_goes_when_the_build_ends_and_the_meter_stays(profiles, monkeypatch):
+    async def then(app, pilot):
+        widget = app.query_one(meter.ContextMeter)
+        _progress(monkeypatch, 40)
+        widget.refresh_notice()
+        _progress(monkeypatch, None)
+        widget.refresh_notice()
+        return _meter_text(app)
+
+    assert _run_meter_scenario(monkeypatch, [_result(3100, 5000)], then)["then"] == "context ██████░░░░ 62%"
+
+
+def test_a_reply_after_the_notice_appeared_keeps_the_notice(profiles, monkeypatch):
+    async def then(app, pilot):
+        widget = app.query_one(meter.ContextMeter)
+        _progress(monkeypatch, 60)
+        widget.refresh_notice()
+        meter.show(app, 4600, 5000, meter.epoch(app))  # a later reply
+        return _meter_text(app)
+
+    text = _run_meter_scenario(monkeypatch, [_result(3100, 5000)], then)["then"]
+
+    assert text.startswith("context █████████░ 92%") and text.endswith("indexing 60%")
+
+
+def test_the_notice_is_looked_at_on_a_timer_without_anyone_calling_it(profiles, monkeypatch):
+    monkeypatch.setattr(meter, "_POLL_SECONDS", 0.05)
+    _progress(monkeypatch, None)
+
+    async def scenario():
+        app = SymposeCLI()
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            assert _meter_text(app) == ""
+            _progress(monkeypatch, 25)
+            await pilot.pause(0.4)
+            shown = _meter_text(app).strip()
+            _progress(monkeypatch, None)
+            await pilot.pause(0.4)
+            return shown, _meter_text(app)
+
+    assert run_async(scenario()) == ("indexing 25%", "")
+
+
+def test_in_a_terminal_too_narrow_for_both_they_stay_apart(profiles, monkeypatch):
+    async def scenario():
+        app = SymposeCLI()
+        async with app.run_test(size=(30, 24)) as pilot:
+            await pilot.pause()
+            meter.show(app, 3100, 5000, meter.epoch(app))
+            _progress(monkeypatch, 40)
+            app.query_one(meter.ContextMeter).refresh_notice()
+            return _meter_text(app)
+
+    assert run_async(scenario()) == "context ██████░░░░ 62%  indexing 40%"
+
+
+def test_the_notice_moves_to_the_new_right_edge_when_the_terminal_is_resized(profiles, monkeypatch):
+    async def scenario():
+        app = SymposeCLI()
+        async with app.run_test(size=(60, 24)) as pilot:
+            await pilot.pause()
+            _progress(monkeypatch, 40)
+            widget = app.query_one(meter.ContextMeter)
+            widget.refresh_notice()
+            before = (len(_meter_text(app)), widget.size.width)
+            await pilot.resize_terminal(100, 24)
+            await pilot.pause(0.2)
+            return before, (len(_meter_text(app)), widget.size.width)
+
+    before, after = run_async(scenario())
+
+    assert before[0] == before[1] and after[0] == after[1] and after[1] > before[1]

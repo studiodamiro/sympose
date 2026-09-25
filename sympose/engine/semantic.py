@@ -4,6 +4,7 @@ message's, instead of, or as well as, sharing a word with it. The knob `groundin
 the embedding model returns the keyword hits it was given: the search never fails a turn."""
 
 import logging
+import threading
 from dataclasses import dataclass
 from typing import Any
 
@@ -38,6 +39,7 @@ class _Vectors:
 
 # `(model, id(index))` -> (the index, its vectors); the index is held so its id is not reused.
 _CACHE: dict[tuple[str, int], tuple[Index, _Vectors]] = {}
+_CACHE_LOCK = threading.Lock()  # two personas can be answering at once
 
 
 def _warn_once(reason: str) -> None:
@@ -49,12 +51,13 @@ def _warn_once(reason: str) -> None:
 def _vectors_for(index: Index, sync_limit: int, model: str) -> _Vectors | None:
     """The vectors of every passage of `index`, or `None` while a background build is still running."""
     token = (model, id(index))
-    cached = _CACHE.get(token)
+    with _CACHE_LOCK:
+        cached = _CACHE.get(token)
     if cached is not None and cached[0] is index:
         return cached[1]
     texts, keys, have, missing = semantic_refresh.pending(index, model)
     if len(missing) > sync_limit:
-        semantic_refresh.start_build(index)
+        semantic_refresh.start_build(index, model=model)
         return None
     if missing:
         made = embeddings.embed([texts[i] for i in missing], "document", model)
@@ -62,9 +65,10 @@ def _vectors_for(index: Index, sync_limit: int, model: str) -> _Vectors | None:
         store.save(fresh)  # if it cannot be kept, they are still used from memory
         have.update(fresh)
     vectors = _Vectors(list(index.passages), [embeddings.unit(have[k]) for k in keys])
-    while len(_CACHE) >= _KEEP_INDEXES:
-        _CACHE.pop(next(iter(_CACHE)))
-    _CACHE[token] = (index, vectors)
+    with _CACHE_LOCK:
+        while len(_CACHE) >= _KEEP_INDEXES:
+            _CACHE.pop(next(iter(_CACHE)))
+        _CACHE[token] = (index, vectors)
     return vectors
 
 
@@ -137,5 +141,6 @@ def refine(
 
 
 def _forget_for_tests() -> None:
-    _CACHE.clear()
+    with _CACHE_LOCK:
+        _CACHE.clear()
     _WARNED.clear()

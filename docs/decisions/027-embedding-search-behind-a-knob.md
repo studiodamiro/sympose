@@ -58,3 +58,7 @@ Through the built code (`tests/live_retrieval_cases.py`, the default threshold, 
 ## Not built yet
 
 Making it the default (waiting on a calibration on the user's real messages), a threshold that adjusts to the vault, a model reranker on top, embedding the user's messages across sessions, embedding models other than the default (the query and document prefixes are set for `nomic-embed-text` only), and showing a note's similarity in the reply header.
+
+## Update: a notice while the index is building
+
+While a build is running the meter line under the chat box (ADR 018) shows `indexing 40%` at its far right, in the same dim style, and it disappears when the build ends. The wording is a label and a number, not a sentence. The number is the share of the passages that build had to embed which are done, over all the builds running (the notes and the Sympose library). It is shown whether or not the meter itself is turned off (`show_context_meter`), because it says something about search, not about the conversation, and it lasts a minute or two once. It is not shown for the few passages embedded on the spot during a turn, and a build that failed shows nothing (the log has the warning). Nothing else about the fallback changes: the turns during the build are searched by keyword. Checked in the real CLI (headless, the user's vault read-only, a scratch cache): the notice appeared within three seconds of launch, climbed from 1% to 98% in about 93 seconds sampled every three, filled the line to the right edge, and was gone when the build ended.

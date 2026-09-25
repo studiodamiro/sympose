@@ -301,3 +301,17 @@ def test_relinking_keeps_a_private_notes_permissions_and_a_symlink(vault):
     assert os.stat(private).st_mode & 0o777 == 0o600
     assert os.path.islink(os.path.join(vault, "Link.md"))
     assert read(real) == b"[[New]]"
+
+
+def test_renaming_a_note_with_a_dot_in_its_name_relinks_the_notes_that_link_to_it(vault):
+    write(vault, "Node.js.md", "the runtime")
+    link = write(vault, "A.md", "uses [[Node.js]] and [[Node.js#Install|how]]")
+    assert vault_write_rename.rename_note(ALL, "Node.js", "Runtime") == "Renamed to `Runtime.md` (1 file relinked)"
+    assert read(link) == b"uses [[Runtime]] and [[Runtime#Install|how]]"
+
+
+def test_renaming_a_note_relinks_a_link_written_in_another_case(vault):
+    write(vault, "Foo.md", "x")
+    link = write(vault, "A.md", "see [[foo]] and [[FOO]]")
+    assert vault_write_rename.rename_note(ALL, "Foo", "Bar") == "Renamed to `Bar.md` (1 file relinked)"
+    assert read(link) == b"see [[Bar]] and [[Bar]]"

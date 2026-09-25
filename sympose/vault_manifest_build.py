@@ -12,6 +12,7 @@ import re
 import time
 from typing import Any
 
+from sympose.vault_defaults import ATTACHMENT_EXTENSIONS, NOTE_EXTENSIONS
 from sympose.vault_write_concurrency import current_mtime
 
 _WIKILINK = re.compile(r"\[\[([^\]\|#]+)(?:#[^\]\|]+)?(?:\|[^\]]+)?\]\]")
@@ -30,8 +31,20 @@ def _tags_of(meta: dict[str, Any]) -> list[str]:
     return []
 
 
+def _link_target(text: str) -> str | None:
+    """The note name a wikilink's target text means, or `None` when it names an attachment. Only a
+    note extension is dropped (`[[Note.md]]` is `Note`): any other dot is part of the name, so
+    `[[Node.js]]` is `Node.js`, which is what the note `Node.js.md` is called."""
+    name = os.path.basename(text.strip())
+    root, ext = os.path.splitext(name)
+    if ext.lower() in ATTACHMENT_EXTENSIONS:
+        return None
+    return root if ext.lower() in NOTE_EXTENSIONS else name
+
+
 def _targets_in(text: str) -> list[str]:
-    return [_stem(m.group(1)) for m in _WIKILINK.finditer(text or "")]
+    targets = (_link_target(m.group(1)) for m in _WIKILINK.finditer(text or ""))
+    return [t for t in targets if t]
 
 
 def _mtime_of(path: str, fallback: float = 0.0) -> float:
@@ -65,7 +78,7 @@ def _pick_link_target(
     share a name in different folders) -> prefer one in the same top-level
     folder as the linking note, else the alphabetically-first path. No
     candidate at all -> None (a ghost node)."""
-    candidates = by_stem.get(stem)
+    candidates = by_stem.get(stem.lower())  # a link finds a note whatever the case, as in Obsidian
     if not candidates:
         return None
     if len(candidates) == 1:
@@ -83,7 +96,7 @@ def _resolve_links(
     by_stem: dict[str, list[dict]] = {}
     for n in nodes:
         if n.get("exists"):
-            by_stem.setdefault(_stem(n["id"]), []).append(n)
+            by_stem.setdefault(_stem(n["id"]).lower(), []).append(n)
     by_id = {n["id"]: n for n in nodes}
 
     links: list[dict] = []

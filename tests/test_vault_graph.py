@@ -188,3 +188,22 @@ def test_a_link_that_differs_in_case_from_a_hidden_note_leaks_no_ghost(vault):
     assert _ids(graph) == {"Code/A.md"}
     assert graph["links"] == []
 
+
+
+def test_a_link_that_differs_in_case_from_a_visible_note_still_resolves(vault):
+    _write(vault, "Code/A.md", "links to [[foo]]")
+    _write(vault, "Code/Foo.md", "visible")
+
+    graph = vault_graph.get_vault_graph(CODE_ONLY)
+
+    assert _ids(graph) == {"Code/A.md", "Code/Foo.md"}
+    assert [(link["source"], link["target"]) for link in graph["links"]] == [("Code/A.md", "Code/Foo.md")]
+
+
+def test_a_note_with_a_dot_in_its_name_is_linked_not_a_ghost(vault):
+    _write(vault, "Code/Node.js.md", "the runtime")
+    _write(vault, "Code/A.md", "uses [[Node.js]]")
+
+    graph = vault_graph.get_vault_graph(CODE_ONLY)
+
+    assert _ids(graph) == {"Code/A.md", "Code/Node.js.md"}

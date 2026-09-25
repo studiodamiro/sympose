@@ -70,13 +70,13 @@ def build(index: Any, token: tuple[str, int] | None = None) -> bool:
     return True
 
 
-def _fail(token: tuple[str, int], index: Any, reason: str) -> None:
+def _fail(token: tuple[str, int], index: Any, reason: str, level: int = logging.WARNING) -> None:
     now = time.monotonic()
     with _LOCK:
         for old in [t for t, (when, _) in _FAILED.items() if now - when >= _RETRY_AFTER_SECONDS]:
             del _FAILED[old]  # forgotten, so the table does not grow and an old index is let go
         _FAILED[token] = (now, index)
-    log.warning("The search index could not be built, searching by keyword (%s)", reason)
+    log.log(level, "The search index could not be built, searching by keyword (%s)", reason)
 
 
 def _run(index: Any, token: tuple[str, int]) -> None:
@@ -84,7 +84,7 @@ def _run(index: Any, token: tuple[str, int]) -> None:
         if not build(index, token):
             _fail(token, index, "the embedding cache could not be written")
     except embeddings.EmbeddingUnavailable as e:
-        _fail(token, index, str(e))
+        _fail(token, index, str(e), embeddings.unavailable_log_level())
     except Exception:  # a background build must not take the chat down
         log.exception("The search index build failed")
         _fail(token, index, "unexpected error")

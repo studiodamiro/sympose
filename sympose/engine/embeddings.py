@@ -1,6 +1,6 @@
 """Meaning-based search, the parts that do not depend on a vault (docs/decisions/027):
-the three settings, and the call that turns text into a vector. The default, `keywords`,
-never reaches this module's model call."""
+the settings, and the call that turns text into a vector. `keywords` never reaches this
+module's model call."""
 
 import logging
 import math
@@ -21,10 +21,13 @@ litellm.suppress_debug_info = True
 MODE_SETTING = "grounding_search"
 MODEL_SETTING = "embedding_model"
 THRESHOLD_SETTING = "embedding_min_similarity"
-KEYWORDS, EMBEDDINGS, HYBRID = "keywords", "embeddings", "hybrid"
-_MODES = (KEYWORDS, EMBEDDINGS, HYBRID)
+MARGIN_SETTING = "embedding_margin"
+AUTO, KEYWORDS, EMBEDDINGS, HYBRID = "auto", "keywords", "embeddings", "hybrid"
+_MODES = (AUTO, KEYWORDS, EMBEDDINGS, HYBRID)
+DEFAULT_MODE = AUTO  # the tests set it to KEYWORDS (tests/conftest.py)
 DEFAULT_MODEL = "ollama/nomic-embed-text"
-DEFAULT_THRESHOLD = 0.68  # for the default model; a different model needs its own number
+DEFAULT_THRESHOLD = 0.72  # for the default model; a different model needs its own number
+DEFAULT_MARGIN = 0.02  # a note is kept when its best passage is this close to the best note's
 _BATCH = 16
 _TIMEOUT_SECONDS = 30  # a hung Ollama must not hold a turn: the search falls back to keywords
 _MAX_CHARS = 1500
@@ -38,7 +41,7 @@ class EmbeddingUnavailable(Exception):
 
 def mode() -> str:
     value = settings_store.get(MODE_SETTING)
-    return value if value in _MODES else KEYWORDS
+    return value if value in _MODES else DEFAULT_MODE
 
 
 def model() -> str:
@@ -51,6 +54,19 @@ def min_similarity() -> float:
     value = settings_store.get(THRESHOLD_SETTING)
     ok = isinstance(value, (int, float)) and not isinstance(value, bool) and 0 < value < 1
     return float(value) if ok else DEFAULT_THRESHOLD
+
+
+def margin() -> float:
+    """A number from 0 to 1 (1 keeps every note that reaches the threshold); anything else is the default."""
+    value = settings_store.get(MARGIN_SETTING)
+    ok = isinstance(value, (int, float)) and not isinstance(value, bool) and 0 <= value <= 1
+    return float(value) if ok else DEFAULT_MARGIN
+
+
+def unavailable_log_level() -> int:
+    """How loudly to log that the embedding model is missing: a note in `auto`, where that is the normal
+    state of someone who set nothing up, a warning when the user asked for meaning-based search."""
+    return logging.INFO if mode() == AUTO else logging.WARNING
 
 
 def _prefix(kind: str, name: str) -> str:

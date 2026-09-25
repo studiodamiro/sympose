@@ -80,16 +80,19 @@ def _vault(tmp_path):
     _write(tmp_path, "Model Railway.md", "# Model Railway\n\nEleven wagons and two locomotives.")
 
 
-def _mode(mode, threshold=0.6):
+def _mode(mode, threshold=0.6, margin=1.0):
+    """The margin is off (1) unless a test is about it, so the tests of the threshold stay about the threshold."""
     settings_store.set("grounding_search", mode)
     settings_store.set("embedding_min_similarity", threshold)
+    settings_store.set("embedding_margin", margin)
 
 
 # -- the knob and its settings --------------------------------------------------------
 
 
-def test_the_default_is_keyword_search_and_no_embedding_model_is_touched(setup, calls):
+def test_keywords_touches_no_embedding_model(setup, calls):
     _vault(setup)
+    settings_store.set("grounding_search", "keywords")
 
     hits = grounding.ground(WHOLE, "what storage engine did we pick?")
 
@@ -97,13 +100,22 @@ def test_the_default_is_keyword_search_and_no_embedding_model_is_touched(setup, 
     assert calls["embed"] == []
 
 
+@pytest.mark.shipped_defaults
+def test_the_shipped_default_is_auto_and_finds_a_note_by_meaning(setup):
+    _vault(setup)
+
+    assert embeddings.mode() == "auto"
+    assert [h["rel_path"] for h in grounding.ground(WHOLE, "what storage engine did we pick?")] == ["Atlas.md"]
+
+
+@pytest.mark.shipped_defaults
 @pytest.mark.parametrize("value", ["semantic", "", 5, True, None, ["embeddings"]])
-def test_a_value_that_is_not_a_mode_leaves_keywords(setup, value):
+def test_a_value_that_is_not_a_mode_is_the_default_auto(setup, value):
     settings_store.set("grounding_search", value)
-    assert embeddings.mode() == "keywords"
+    assert embeddings.mode() == "auto"
 
 
-@pytest.mark.parametrize("mode", ["keywords", "embeddings", "hybrid"])
+@pytest.mark.parametrize("mode", ["auto", "keywords", "embeddings", "hybrid"])
 def test_each_mode_is_read_as_it_is_written(setup, mode):
     settings_store.set("grounding_search", mode)
     assert embeddings.mode() == mode
@@ -112,7 +124,19 @@ def test_each_mode_is_read_as_it_is_written(setup, mode):
 @pytest.mark.parametrize("value", ["0.7", 0, 1, 1.5, -0.2, True, None])
 def test_a_threshold_that_is_not_a_number_between_0_and_1_is_the_default(setup, value):
     settings_store.set("embedding_min_similarity", value)
-    assert embeddings.min_similarity() == 0.68
+    assert embeddings.min_similarity() == 0.72
+
+
+@pytest.mark.parametrize("value", ["0.05", -0.01, 1.01, True, None, [0.02]])
+def test_a_margin_that_is_not_a_number_from_0_to_1_is_the_default(setup, value):
+    settings_store.set("embedding_margin", value)
+    assert embeddings.margin() == 0.02
+
+
+@pytest.mark.parametrize("value, expected", [(0, 0.0), (0.05, 0.05), (1, 1.0)])
+def test_a_margin_from_0_to_1_is_read_as_written(setup, value, expected):
+    settings_store.set("embedding_margin", value)
+    assert embeddings.margin() == expected
 
 
 def test_a_threshold_and_a_model_are_read_from_the_settings(setup):
@@ -190,6 +214,130 @@ def test_no_more_passages_than_the_caller_takes(setup):
     _mode("embeddings", threshold=0.5)
 
     assert len(grounding.ground(WHOLE, "database", max_results=3)) == 3
+
+
+# -- the margin and `auto` -----------------------------------------------------------------
+
+
+def test_only_the_notes_within_the_margin_of_the_best_one_are_attached(setup):
+    _vault(setup)
+    _write(setup, "Both.md", "# Both\n\nDatabase notes and pasta notes.")  # cosine about 0.71 with "the database"
+    _mode("embeddings", threshold=0.5, margin=0.02)
+    narrow = {h["rel_path"] for h in grounding.ground(WHOLE, "the database")}
+    _mode("embeddings", threshold=0.5, margin=0.4)
+    wide = {h["rel_path"] for h in grounding.ground(WHOLE, "the database")}
+
+    assert narrow == {"Atlas.md"}
+    assert wide == {"Atlas.md", "Both.md"}
+
+
+def test_notes_that_tie_are_all_attached_and_a_margin_of_zero_keeps_only_the_top_score(setup):
+    _write(setup, "Atlas.md", "# Atlas\n\nSQLite storage.")
+    _write(setup, "Ledger.md", "# Ledger\n\nPostgres storage.")
+    _mode("embeddings", threshold=0.5, margin=0.0)
+
+    assert {h["rel_path"] for h in grounding.ground(WHOLE, "the database")} == {"Atlas.md", "Ledger.md"}
+
+
+def test_the_margin_is_measured_from_the_best_note_that_reaches_the_threshold(setup):
+    _vault(setup)
+    _write(setup, "Both.md", "# Both\n\nDatabase notes and pasta notes.")
+    _mode("embeddings", threshold=0.95, margin=0.02)  # only Atlas reaches it: nothing else to compare with
+
+    assert {h["rel_path"] for h in grounding.ground(WHOLE, "the database")} == {"Atlas.md"}
+
+
+def test_auto_searches_by_meaning_like_embeddings(setup):
+    _vault(setup)
+    _mode("auto")
+
+    assert [h["rel_path"] for h in grounding.ground(WHOLE, "what storage engine did we pick?")] == ["Atlas.md"]
+
+
+def test_auto_without_the_embedding_model_uses_keywords_and_only_notes_it_in_the_log(setup, monkeypatch, caplog):
+    _vault(setup)
+    _mode("auto")
+    _unavailable(monkeypatch)
+
+    with caplog.at_level("INFO"):
+        hits = grounding.ground(WHOLE, "carbonara")
+
+    assert [h["rel_path"] for h in hits] == ["Carbonara.md"]
+    (record,) = [r for r in caplog.records if "meaning-based search is not available" in r.message]
+    assert record.levelname == "INFO"
+
+
+def test_a_note_made_in_auto_does_not_hide_the_warning_after_switching_to_embeddings(setup, monkeypatch, caplog):
+    _vault(setup)
+    _unavailable(monkeypatch)
+    with caplog.at_level("INFO"):
+        _mode("auto")
+        grounding.ground(WHOLE, "carbonara")
+        semantic._UNAVAILABLE_UNTIL.clear()
+        _mode("embeddings")
+        grounding.ground(WHOLE, "carbonara")
+
+    levels = [r.levelname for r in caplog.records if "meaning-based search is not available" in r.message]
+    assert levels == ["INFO", "WARNING"]
+
+
+def test_vectors_of_another_size_are_a_misconfiguration_and_warn_even_in_auto(setup, monkeypatch, caplog):
+    _vault(setup)
+    _mode("auto")
+    monkeypatch.setattr(
+        embeddings, "embed",
+        lambda texts, kind, model_name=None: [[1.0, 0.0, 0.0] if kind == "query" else [1.0, 0.0] for _ in texts],
+    )
+
+    with caplog.at_level("INFO"):
+        grounding.ground(WHOLE, "carbonara")
+
+    (record,) = [r for r in caplog.records if "another size" in r.message]
+    assert record.levelname == "WARNING"
+
+
+def test_auto_with_a_build_that_cannot_reach_the_model_only_notes_it_in_the_log(setup, monkeypatch, caplog):
+    _vault(setup)
+    _mode("auto")
+    _failing_build(monkeypatch)
+
+    with caplog.at_level("INFO"):
+        semantic_refresh.start_build(grounding.scope_index(WHOLE), wait=True)
+
+    (record,) = [r for r in caplog.records if "could not be built" in r.message]
+    assert record.levelname == "INFO"
+
+
+def test_asking_for_embeddings_still_warns_when_the_build_cannot_reach_the_model(setup, monkeypatch, caplog):
+    _vault(setup)
+    _mode("embeddings")
+    _failing_build(monkeypatch)
+
+    with caplog.at_level("INFO"):
+        semantic_refresh.start_build(grounding.scope_index(WHOLE), wait=True)
+
+    (record,) = [r for r in caplog.records if "could not be built" in r.message]
+    assert record.levelname == "WARNING"
+
+
+def test_auto_builds_the_index_at_launch_and_keywords_does_not(setup, monkeypatch):
+    _vault(setup)
+    started = []
+    monkeypatch.setattr(semantic_refresh, "start_build", lambda index, **kw: started.append(index))
+    monkeypatch.setattr("sympose.profile.resolve_profile", lambda handle: WHOLE)
+
+    def launch():
+        semantic_refresh.refresh_in_background("samantha")
+        for thread in threading.enumerate():
+            if thread.name == "embeddings-samantha":
+                thread.join(5)
+
+    _mode("keywords")
+    launch()
+    assert started == []
+    _mode("auto")
+    launch()
+    assert len(started) >= 1
 
 
 # -- hybrid mode -------------------------------------------------------------------
@@ -600,9 +748,9 @@ def _similarity_of(monkeypatch, similarity: float):
     monkeypatch.setattr(embeddings, "embed", embed)
 
 
-@pytest.mark.parametrize("similarity, vault, library", [(0.65, False, False), (0.67, False, True), (0.69, True, True)])
+@pytest.mark.parametrize("similarity, vault, library", [(0.69, False, False), (0.71, False, True), (0.73, True, True)])
 def test_the_library_needs_a_little_less_similarity_than_the_users_notes(setup, monkeypatch, similarity, vault, library):
-    settings_store.set("grounding_search", "embeddings")  # the default threshold, 0.68
+    settings_store.set("grounding_search", "embeddings")  # the default threshold, 0.72
     _similarity_of(monkeypatch, similarity)
 
     in_vault = semantic.refine(_one_passage_index(), "message", [], library=False)
@@ -611,9 +759,9 @@ def test_the_library_needs_a_little_less_similarity_than_the_users_notes(setup, 
     assert bool(in_vault) is vault and bool(in_library) is library
 
 
-@pytest.mark.parametrize("similarity, kept, added", [(0.61, False, False), (0.63, True, False), (0.67, True, True)])
+@pytest.mark.parametrize("similarity, kept, added", [(0.65, False, False), (0.67, True, False), (0.71, True, True)])
 def test_hybrid_keeps_a_keyword_hit_within_0_06_and_adds_a_note_within_0_02(setup, monkeypatch, similarity, kept, added):
-    settings_store.set("grounding_search", "hybrid")  # 0.68: keep from 0.62, add from 0.66
+    settings_store.set("grounding_search", "hybrid")  # 0.72: keep from 0.66, add from 0.70
     _similarity_of(monkeypatch, similarity)
     keyword_hit = {"rel_path": "Note.md", "text": "text", "matched": 3}
 
@@ -624,6 +772,129 @@ def test_hybrid_keeps_a_keyword_hit_within_0_06_and_adds_a_note_within_0_02(setu
     if kept and not added:
         assert with_keyword[0]["via"] == "keyword" and with_keyword[0]["matched"] == 3
     assert bool(without_keyword) is added
+
+
+@pytest.mark.parametrize("mode, attached", [("auto", False), ("embeddings", False), ("hybrid", True)])
+def test_auto_does_not_keep_a_keyword_hit_that_is_only_nearly_close_in_meaning(setup, monkeypatch, mode, attached):
+    settings_store.set("grounding_search", mode)  # threshold 0.72; hybrid would keep a keyword hit from 0.66
+    _similarity_of(monkeypatch, 0.67)
+    keyword_hit = {"rel_path": "Note.md", "text": "text", "matched": 3}
+
+    assert bool(semantic.refine(_one_passage_index(), "message", [keyword_hit])) is attached
+
+
+# -- a clear winner just under the threshold ---------------------------------------------
+
+
+def _two_notes(monkeypatch, first: float, second: float):
+    """An index of two notes whose cosines with the message are exactly `first` and `second`."""
+    from collections import Counter
+
+    from sympose.engine.grounding_index import Index, Passage
+
+    def passage(rel_path):
+        return Passage(rel_path, rel_path[:-3], rel_path[:-3], rel_path[:-3], (), Counter(), 1, (), frozenset())
+
+    def unit_at(cosine):
+        return [cosine, (1 - cosine**2) ** 0.5]
+
+    by_text = {"A": unit_at(first), "B": unit_at(second)}
+
+    def embed(texts, kind, model_name=None):
+        return [[1.0, 0.0] if kind == "query" else by_text[t.split("\n")[0]] for t in texts]
+
+    monkeypatch.setattr(embeddings, "embed", embed)
+    return Index([passage("A.md"), passage("B.md")], {}, 2, 1.0)
+
+
+@pytest.mark.parametrize(
+    "first, second, attached",
+    [
+        (0.69, 0.60, True),   # 0.03 under 0.72, 0.09 ahead
+        (0.69, 0.64, False),  # only 0.05 ahead
+        (0.67, 0.55, False),  # 0.05 under the threshold
+        (0.75, 0.60, True),   # over the threshold: the ordinary way
+    ],
+)
+def test_a_note_just_under_the_threshold_is_attached_when_it_is_clearly_ahead(setup, monkeypatch, first, second, attached):
+    settings_store.set("grounding_search", "embeddings")  # 0.72, margin 0.02
+    index = _two_notes(monkeypatch, first, second)
+
+    hits = semantic.refine(index, "message", [])
+
+    assert [h["rel_path"] for h in hits] == (["A.md"] if attached else [])
+
+
+def test_the_clear_winner_rule_adds_nothing_when_a_note_reaches_the_threshold(setup, monkeypatch):
+    settings_store.set("grounding_search", "embeddings")
+    index = _two_notes(monkeypatch, 0.73, 0.60)
+
+    assert [h["rel_path"] for h in semantic.refine(index, "message", [])] == ["A.md"]
+
+
+def test_one_note_alone_is_not_a_clear_winner(setup, monkeypatch):
+    settings_store.set("grounding_search", "embeddings")
+    _similarity_of(monkeypatch, 0.70)
+
+    assert semantic.refine(_one_passage_index(), "message", []) == []
+
+
+def test_the_clear_winner_rule_is_for_meaning_only_and_auto_not_hybrid(setup, monkeypatch):
+    index = _two_notes(monkeypatch, 0.69, 0.60)
+    results = {}
+    for mode in ("auto", "embeddings", "hybrid"):
+        settings_store.set("grounding_search", mode)
+        results[mode] = [h["rel_path"] for h in semantic.refine(index, "message", [])]
+
+    assert results == {"auto": ["A.md"], "embeddings": ["A.md"], "hybrid": []}
+
+
+def test_the_library_uses_its_own_lower_bar_for_the_clear_winner_too(setup, monkeypatch):
+    settings_store.set("grounding_search", "embeddings")  # library bar 0.70: 0.67 is 0.03 under it
+    index = _two_notes(monkeypatch, 0.67, 0.55)
+
+    assert [h["rel_path"] for h in semantic.refine(index, "message", [], library=True)] == ["A.md"]
+    assert semantic.refine(index, "message", [], library=False) == []  # 0.05 under 0.72
+
+
+@pytest.mark.parametrize(
+    "mode, library, attached",
+    [("auto", True, True), ("auto", False, False), ("embeddings", True, False), ("hybrid", False, True)],
+)
+def test_under_auto_the_library_keeps_a_keyword_hit_that_is_nearly_close_in_meaning(setup, monkeypatch, mode, library, attached):
+    """The library is small and its notes are question headings, so a word in common is strong evidence there
+    (docs/decisions/027): `auto` searches it like `hybrid` and searches the user's notes by meaning only."""
+    settings_store.set("grounding_search", mode)  # bars: notes 0.72, library 0.70; hybrid keeps from 0.06 under
+    _similarity_of(monkeypatch, 0.66)
+    keyword_hit = {"rel_path": "Note.md", "text": "text", "matched": 3}
+
+    hits = semantic.refine(_one_passage_index(), "message", [keyword_hit], library=library)
+
+    assert bool(hits) is attached
+
+
+def test_hybrid_adds_a_better_passage_of_a_note_that_a_keyword_hit_already_brought(setup, monkeypatch):
+    """The library keeps many answers in one note: a keyword hit on one of them must not hide the passage
+    that is closest in meaning."""
+    from collections import Counter
+
+    from sympose.engine.grounding_index import Index, Passage
+
+    def passage(heading):
+        return Passage("Notes.md", "Notes", heading, heading, (), Counter(), 1, (), frozenset())
+
+    def embed(texts, kind, model_name=None):
+        near = {"Near": [0.95, 0.312], "Word": [0.8, 0.6]}
+        return [[1.0, 0.0] if kind == "query" else near[t.split("\n")[1]] for t in texts]
+
+    monkeypatch.setattr(embeddings, "embed", embed)
+    settings_store.set("grounding_search", "hybrid")
+    index = Index([passage("Word"), passage("Near")], {}, 2, 1.0)
+    keyword_hit = {"rel_path": "Notes.md", "heading": "Word", "text": "Word", "matched": 3}
+
+    hits = semantic.refine(index, "message", [keyword_hit])
+
+    assert [(h["heading"], h["via"]) for h in hits] == [("Word", "keyword"), ("Near", "embedding")]
 
 
 # -- the turn record and the cache's edges --------------------------------------------
@@ -703,7 +974,8 @@ def test_a_notes_closeness_is_that_of_its_best_passage_not_its_last(setup, monke
 
     hits = semantic.refine(index, "message", [{"rel_path": "Note.md", "text": "the far part", "matched": 2}])
 
-    assert [h["via"] for h in hits] == ["keyword"]
+    # kept although its own passage is far (the note's best passage is close), and the near passage follows it
+    assert [(h["via"], h["text"]) for h in hits] == [("keyword", "the far part"), ("embedding", "the near part")]
 
 
 def test_keyword_hits_and_notes_found_by_meaning_together_never_pass_the_limit(setup, monkeypatch):

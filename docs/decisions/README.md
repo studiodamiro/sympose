@@ -32,5 +32,5 @@ The original records 001–006 (backend dependencies, the legacy port strategy, 
 | [024](024-general-questions-need-no-note.md) | A general question needs no note: notes attach only on a real share of the message, and she is told she may answer from her own knowledge | Proposed |
 | [025](025-record-what-reached-each-turn.md) | Record which notes and recaps reached each turn: paths and session ids on the turn record, never their text, never read back into a prompt | Proposed |
 | [026](026-recaps-in-the-system-prompt.md) | Recaps go in the system prompt, not beside the message: next to a same-topic request mid-chat they made her comment instead of continue | Proposed |
-| [027](027-embedding-search-behind-a-knob.md) | Search notes by meaning as well as by keyword, behind a `grounding_search` knob (keywords, embeddings, hybrid), default unchanged | Proposed |
+| [027](027-embedding-search-behind-a-knob.md) | Search notes by meaning as well as by keyword, behind a `grounding_search` knob (auto, keywords, embeddings, hybrid); `auto` is the default, threshold 0.72, `embedding_margin` 0.02 | Proposed |
 | [028](028-the-sympose-command-and-the-web-app.md) | One `sympose` command with `cli` and `web`, and the browser app is the "web app" (formerly "the dashboard", which older records still say) | Proposed |

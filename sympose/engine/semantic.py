@@ -1,7 +1,7 @@
 """Search by meaning (docs/decisions/027): a passage is attached when its vector is close to the
 message's, instead of, or as well as, sharing a word with it. The knob `grounding_search` decides
-(`keywords` is today's search and never gets here past the first line of `refine`). Any trouble with
-the embedding model returns the keyword hits it was given: the search never fails a turn."""
+(`keywords` never gets here past the first line of `refine`). Any trouble with the embedding model
+returns the keyword hits it was given: the search never fails a turn."""
 
 import logging
 import threading
@@ -11,7 +11,8 @@ from typing import Any
 
 from sympose.engine import embedding_store as store
 from sympose.engine import embeddings, semantic_refresh, similarity
-from sympose.engine.grounding_index import PASSAGES_PER_NOTE, Index, Passage
+from sympose.engine import semantic_pick as pick
+from sympose.engine.grounding_index import Index, Passage
 
 log = logging.getLogger(__name__)
 
@@ -33,7 +34,7 @@ _KEEP_INDEXES = 4
 _COOLDOWN_SECONDS = 60.0
 _QUERIES_KEPT = 4  # the vault and the library are searched for the same message: one embedding call
 
-_WARNED: set[str] = set()
+_WARNED: set[tuple[int, str]] = set()
 _UNAVAILABLE_UNTIL: dict[str, float] = {}  # embedding model -> when to try it again
 _QUERIES: dict[tuple[str, str], Any] = {}  # (model, message) -> its unit vector
 
@@ -49,10 +50,13 @@ _CACHE: dict[tuple[str, int], tuple[Index, _Vectors]] = {}
 _CACHE_LOCK = threading.Lock()  # two personas can be answering at once
 
 
-def _warn_once(reason: str) -> None:
-    if reason not in _WARNED:
-        _WARNED.add(reason)
-        log.warning("Searching by keyword: meaning-based search is not available (%s)", reason)
+def _warn_once(reason: str, level: int | None = None) -> None:
+    """Once per reason and level, so a note made in `auto` does not hide the warning the same fault
+    deserves under `embeddings`. `level` defaults to how loudly a missing model is logged."""
+    level = embeddings.unavailable_log_level() if level is None else level
+    if (level, reason) not in _WARNED:
+        _WARNED.add((level, reason))
+        log.log(level, "Searching by keyword: meaning-based search is not available (%s)", reason)
 
 
 def _vectors_for(index: Index, sync_limit: int, model: str) -> _Vectors | None:
@@ -96,44 +100,15 @@ def _query_vector(message: str, model: str) -> Any:
     return vector
 
 
-def _hit(passage: Passage, similarity: float, via: str) -> dict[str, Any]:
-    """A hit shaped like a keyword hit. Meaning is strong evidence, so `matched` is 2: it does not
-    ask the follow-up rewrite to check it (docs/decisions/021)."""
-    return {
-        "rel_path": passage.rel_path,
-        "title": passage.title,
-        "heading": passage.heading,
-        "text": passage.text,
-        "tags": list(passage.tags),
-        "score": round(similarity, 3),
-        "matched": 2,
-        "via": via,
-    }
-
-
-def _by_meaning(
-    vectors: _Vectors, sims: list[float], threshold: float, notes: int, via: str = "embedding"
-) -> list[dict[str, Any]]:
-    """The passages of the `notes` closest notes whose best passage reaches `threshold`, best first."""
-    per_note: dict[str, list[tuple[float, int]]] = {}
-    for i, sim in enumerate(sims):
-        if sim >= threshold:
-            per_note.setdefault(vectors.passages[i].rel_path, []).append((sim, i))
-    ranked = sorted(per_note.values(), key=lambda found: -max(found)[0])[:notes]
-    return [
-        _hit(vectors.passages[i], sim, via)
-        for found in ranked
-        for sim, i in sorted(found, reverse=True)[:PASSAGES_PER_NOTE]
-    ]
-
-
 def refine(
     index: Index, message: str, keyword_hits: list[dict[str, Any]], library: bool = False, max_results: int = 5
 ) -> list[dict[str, Any]]:
     """`keyword_hits` as the knob says: as they are (`keywords`), replaced by the passages closest
-    in meaning (`embeddings`), or the keyword hits that agree in meaning plus the notes close in
-    meaning that share no word (`hybrid`)."""
+    in meaning (`embeddings`, and `auto`, which differs only in staying quiet when it cannot), or the
+    keyword hits that agree in meaning plus the notes close in meaning that share no word (`hybrid`)."""
     mode = embeddings.mode()
+    if library and mode == embeddings.AUTO:
+        mode = embeddings.HYBRID  # the library's own words are strong evidence: meaning confirms them
     if mode == embeddings.KEYWORDS:
         return keyword_hits
     model = embeddings.model()  # once: the settings file may change while this runs
@@ -149,20 +124,23 @@ def refine(
         _warn_once(str(e))
         return keyword_hits
     if vectors.unit_vectors.dims and len(query) != vectors.unit_vectors.dims:
-        _warn_once("the stored vectors are from an embedding model of another size")
+        _warn_once("the stored vectors are from an embedding model of another size", logging.WARNING)
         return keyword_hits
     sims = vectors.unit_vectors.scores(query)
     threshold = embeddings.min_similarity() + (_LIBRARY if library else 0.0)
+    margin = embeddings.margin()
     notes = max_results  # never more notes than passages the caller will take
-    if mode == embeddings.EMBEDDINGS:
-        hits = _by_meaning(vectors, sims, threshold, notes)
+    if mode in (embeddings.EMBEDDINGS, embeddings.AUTO):
+        args = (vectors.passages, sims, threshold, margin, notes)
+        hits = pick.by_meaning(*args) or pick.clear_winner(*args)
     else:
         best: dict[str, float] = {}
         for passage, sim in zip(vectors.passages, sims):
             best[passage.rel_path] = max(sim, best.get(passage.rel_path, 0.0))
         kept = [{**h, "via": "keyword"} for h in keyword_hits if best.get(h["rel_path"], 0.0) >= threshold + _KEEP]
-        have = {h["rel_path"] for h in kept}
-        added = [h for h in _by_meaning(vectors, sims, threshold + _ADD, notes) if h["rel_path"] not in have]
+        have = {(h["rel_path"], h["text"]) for h in kept}  # a passage, not a note: one note can hold many answers
+        found = pick.by_meaning(vectors.passages, sims, threshold + _ADD, margin, notes)
+        added = [h for h in found if (h["rel_path"], h["text"]) not in have]
         hits = kept + added
     return [{**h, "index": n} for n, h in enumerate(hits[:max_results], start=1)]
 

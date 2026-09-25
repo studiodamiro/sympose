@@ -670,3 +670,13 @@ def test_a_real_session_behind_ten_throwaways_is_not_looked_for(asked):
     recap_refresh.refresh("samantha", now=LATER)
 
     assert asked == []  # the eleventh newest is past the scan
+
+
+def test_a_cloud_model_gets_room_to_think_for_the_recap(asked, profiles):
+    write_persona(profiles, "ada", "name: Ada\nvault_folders: '*'\nmodel: 'gemini/gemini-flash-latest'\n")
+    talk(NEW, handle="ada")
+
+    recap_refresh.refresh("ada", now=LATER)
+
+    assert asked[0]["model"] == "gemini/gemini-flash-latest"
+    assert asked[0]["max_tokens"] == 4000

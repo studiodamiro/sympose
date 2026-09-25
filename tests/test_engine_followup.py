@@ -213,7 +213,7 @@ def test_the_rewrite_prompt_carries_the_last_two_exchanges_and_the_message(monke
     assert "OLDEST" not in user["content"]
     for text in ("middle q", "middle a", "Atlas", "SQLite", "Last message: why?"):
         assert text in user["content"]
-    assert calls[0]["max_tokens"] == 60
+    assert calls[0]["max_tokens"] == 4000  # "m" is not a local model: room for thinking
 
 
 def test_long_messages_are_cut_in_the_rewrite_prompt(monkeypatch):
@@ -301,3 +301,11 @@ def test_an_ordinary_failure_does_not_stop_later_rewrites(monkeypatch):
     followup.rewrite_query(HISTORY, "why?", "m", None)
     followup.rewrite_query(HISTORY, "why?", "m", None)
     assert len(calls) == 2
+
+
+def test_a_cloud_model_gets_room_to_think_and_a_local_one_the_small_limit(monkeypatch):
+    calls = fake_model(monkeypatch, "q")
+    followup.rewrite_query(HISTORY, "why?", "gemini/gemini-flash-latest", None)
+    followup.rewrite_query(HISTORY, "why?", "ollama_chat/x", None)
+    followup.rewrite_query(HISTORY, "why?", "ollama/y", None)
+    assert [c["max_tokens"] for c in calls] == [4000, 60, 60]

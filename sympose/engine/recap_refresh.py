@@ -7,7 +7,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from sympose import profile as profile_mod
-from sympose.engine import budget, prompt, recap, session
+from sympose.engine import budget, helper_limit, prompt, recap, session
 from sympose.engine import model as model_mod
 
 log = logging.getLogger(__name__)
@@ -72,7 +72,7 @@ def _write_one(
             _request(turns),
             model=model,
             num_ctx=limits.num_ctx if limits else None,
-            max_tokens=_MAX_RECAP_TOKENS,
+            max_tokens=helper_limit.for_model(model, _MAX_RECAP_TOKENS),
         )
     except model_mod.ReplyLimitError as e:
         log.warning("'%s' cannot write a recap in its reply limit; not asking again: %s", model, e)

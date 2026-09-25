@@ -13,7 +13,7 @@ import re
 from typing import Any, Callable
 
 from sympose import settings_store, vault_paths
-from sympose.engine import budget, grounding, prompt
+from sympose.engine import budget, grounding, helper_limit, prompt
 from sympose.engine import model as model_mod
 
 log = logging.getLogger(__name__)
@@ -67,7 +67,7 @@ def rewrite_query(
     try:
         # The chat's own window, so a local model is not reloaded for this call.
         reply = model_mod.call_model(
-            request, model=model, num_ctx=limits.num_ctx if limits else None, max_tokens=_MAX_QUERY_TOKENS
+            request, model=model, num_ctx=limits.num_ctx if limits else None, max_tokens=helper_limit.for_model(model, _MAX_QUERY_TOKENS)
         )
     except model_mod.ReplyLimitError as e:
         log.warning("'%s' cannot write a follow-up rewrite in its reply limit; not asking again: %s", model, e)

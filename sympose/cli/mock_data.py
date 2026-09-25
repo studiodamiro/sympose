@@ -61,6 +61,16 @@ MODEL_OPTIONS: list[ModelOption] = [
     # cloud opt-in credential UX beyond that is future scope, not this slice.
     ModelOption(id="anthropic/claude-sonnet-5", label="Claude Sonnet 5 — cloud", short="Claude Sonnet 5"),
     ModelOption(id="openai/gpt-4o-mini", label="GPT-4o mini — cloud", short="GPT-4o mini"),
+    # The `-latest` aliases, not a dated name: Google retires named versions
+    # (the 2.x ones already answer "no longer available"), an alias follows.
+    # Needs `GEMINI_API_KEY` in `.env` (docs/decisions/007).
+    ModelOption(id="gemini/gemini-flash-latest", label="Gemini Flash — cloud", short="Gemini Flash"),
+    ModelOption(id="gemini/gemini-pro-latest", label="Gemini Pro — cloud", short="Gemini Pro"),
+    # One `OPENROUTER_API_KEY` for models from other makers; any other OpenRouter
+    # model works by name in `chat_model` (docs/decisions/007).
+    ModelOption(id="openrouter/anthropic/claude-haiku-4.5", label="Claude Haiku 4.5 — OpenRouter", short="Claude Haiku 4.5"),
+    ModelOption(id="openrouter/meta-llama/llama-3.3-70b-instruct", label="Llama 3.3 70B — OpenRouter", short="Llama 3.3 70B"),
+    ModelOption(id="openrouter/deepseek/deepseek-v4-flash", label="DeepSeek V4 Flash — OpenRouter", short="DeepSeek V4 Flash"),
 ]
 
 def model_option_for(model_id: str) -> ModelOption:

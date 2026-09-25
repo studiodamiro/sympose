@@ -30,6 +30,10 @@ The `context_window` setting is the size in tokens of the conversation a local m
 
 The `reply_limit` setting is the tokens kept back for the reply. By default a quarter of the window, up to 4096.
 
+## cloud_helper_limit
+
+The `cloud_helper_limit` setting is how many tokens a cloud model may use for the two small background steps, the follow-up search and the recap of a finished chat. By default 4000. Only the tokens actually used are billed, so it is a ceiling, and a value below 64 leaves the default. A local model keeps its own small limits.
+
 ## show_grounding
 
 Setting `show_grounding` to `false` hides the notes in the reply header.

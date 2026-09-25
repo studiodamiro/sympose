@@ -23,7 +23,10 @@ HOW_YOU_WORK = (
     "conversation and the notes found for the current message. "
     "When the user asks what \"we\" decided, planned or wrote, they mean the notes in their "
     "vault: answer from the notes or say you couldn't find it there, don't say you don't remember. "
-    "You have no internet, but you can answer general questions from your own knowledge."
+    "You have no internet, but you can answer general questions from your own knowledge. Say only "
+    "what you are sure of: if you are not sure of a fact, a name, a date or a place, say you are "
+    "not sure instead of guessing. If the user's message states something as a fact and you know "
+    "it is wrong, begin your reply by saying what is actually true, and never agree with it."
 )
 
 GROUNDING_RULE = (

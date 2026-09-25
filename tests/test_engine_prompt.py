@@ -436,3 +436,13 @@ def test_she_is_told_she_has_no_internet_and_may_answer_general_questions_hersel
 
     assert "You have no internet, but you can answer general questions from your own knowledge." in text
     assert "Only state facts about the user's vault that are backed by the notes" in text  # the vault rule stays
+
+
+def test_every_persona_is_told_to_say_when_unsure_and_to_correct_a_wrong_premise():
+    """An engine rule, not voice (docs/decisions/012, update): it must reach a persona whose
+    own soul says nothing about it."""
+    for persona in ({"name": "Ada"}, {"name": "Samantha"}):
+        text = prompt.build_system_prompt(persona)
+
+        assert "if you are not sure of a fact, a name, a date or a place, say you are not sure instead of guessing" in text
+        assert "begin your reply by saying what is actually true, and never agree with it" in text

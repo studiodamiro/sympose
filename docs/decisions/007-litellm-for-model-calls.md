@@ -59,3 +59,7 @@ What a recommendation needs before it is written, so that it is one a general us
 - The hardware a local model needs (memory, and what happens when it does not fit), since the local default is a choice a user's machine may not allow.
 - Where it would show: probably the "Choosing a model" note and a line when a model is picked, not a first-run questionnaire.
 
+## Update: the reply is tidied
+
+The default model ends most replies with blank lines and puts two spaces after a full stop: of 68 replies saved in real sessions, 39 ended in whitespace (up to three blank lines) and 45 had a double space after a sentence. Nothing removed it, so it was shown in the terminal, saved, and sent back to the model as history, where a model copies what it sees. `sympose/engine/reply_text.py` now tidies the text `call_model` returns: leading and trailing whitespace is removed, a run of blank lines becomes one blank line, and two or more spaces after `.`, `!`, `?` or an ellipsis become one. Code (between triple backticks) is left exactly as written. A reply of only whitespace now counts as an empty reply (it was "returned" and saved as nothing). The same tidy is applied to a saved reply when a session is loaded as history, so a chat that already has padded replies stops teaching the habit; the session file itself is not rewritten.
+

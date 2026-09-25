@@ -14,6 +14,7 @@ import os
 from datetime import datetime, timezone
 from typing import Any
 
+from sympose.engine import reply_text
 from sympose.engine.session_paths import (
     new_session_id,
     recaps_dir,
@@ -86,7 +87,7 @@ def history_as_messages(session: dict[str, Any] | None, max_turns: int = 20) -> 
     messages: list[dict[str, str]] = []
     for turn in session["turns"][-max_turns:]:
         messages.append({"role": "user", "content": turn["user"]})
-        messages.append({"role": "assistant", "content": turn["assistant"]})
+        messages.append({"role": "assistant", "content": reply_text.tidy(turn["assistant"])})
     return messages
 
 

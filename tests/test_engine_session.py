@@ -269,3 +269,13 @@ def test_what_was_sent_is_not_part_of_the_history_the_model_gets(sessions_root):
     history = session.history_as_messages(session.load_session("samantha", sid))
 
     assert history == [{"role": "user", "content": "one"}, {"role": "assistant", "content": "reply"}]
+
+
+def test_a_padded_saved_reply_is_sent_back_tidy_but_the_file_keeps_what_was_saved(sessions_root):
+    sid = session.new_session_id()
+    session.append_turn("samantha", sid, "hi", "Hey!  How are you?\n\n\n")
+
+    loaded = session.load_session("samantha", sid)
+
+    assert session.history_as_messages(loaded)[1] == {"role": "assistant", "content": "Hey! How are you?"}
+    assert loaded["turns"][0]["assistant"] == "Hey!  How are you?\n\n\n"

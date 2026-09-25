@@ -26,3 +26,8 @@ A turn record written before this lacks the key, and nothing that reads a sessio
 ## Not built yet
 
 A command or dashboard view that reads `sent` back to the user. A record of the passage scores. Recording the notes of a turn that failed before its reply (a turn is written only once it has a reply, so a failed call leaves no record, as before).
+
+## Note: a note can be listed twice in one turn
+
+A turn's `notes` list has one entry per passage sent, so a long section of a note that was split into two passages (ADR 014) appears twice with the same path and heading. Checked on real turns (12 turns in which it happened, searched again, read-only): all 11 repeated sections were two different passages, not a duplicate. The reply header already shows each note once.
+

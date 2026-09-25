@@ -12,6 +12,7 @@ from dataclasses import dataclass
 import litellm
 
 from sympose import settings_store
+from sympose.engine import reply_text
 
 log = logging.getLogger(__name__)
 
@@ -118,7 +119,7 @@ def call_model(
         raise EngineModelError(
             f"Couldn't reach model '{target_model}': {e}"
         ) from e
-    content = "".join(parts)
+    content = reply_text.tidy("".join(parts))
     if not content and truncated:
         raise ReplyLimitError(
             f"Model '{target_model}' reached its reply limit before writing an answer "

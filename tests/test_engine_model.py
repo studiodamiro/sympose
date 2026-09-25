@@ -267,3 +267,16 @@ def test_a_model_that_spends_its_whole_reply_limit_thinking_gets_a_clear_error(s
     )
     with pytest.raises(model.ReplyLimitError, match="reply limit"):
         model.call_model([{"role": "user", "content": "hi"}], max_tokens=5)
+
+
+def test_the_reply_is_tidied_before_it_is_returned(settings_file, monkeypatch):
+    monkeypatch.setattr(model.litellm, "completion", lambda **kw: _stream("Hi there!", "  How are you?", " \n\n\n"))
+
+    assert model.call_model([{"role": "user", "content": "hi"}]).text == "Hi there! How are you?"
+
+
+def test_a_reply_of_only_whitespace_is_an_empty_reply(settings_file, monkeypatch):
+    monkeypatch.setattr(model.litellm, "completion", lambda **kw: _stream(" \n", "\n\n"))
+
+    with pytest.raises(model.EngineModelError, match="empty reply"):
+        model.call_model([{"role": "user", "content": "hi"}])

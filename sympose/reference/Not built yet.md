@@ -24,4 +24,4 @@ No, not the logs. Every conversation is saved as a session log in `profiles/<han
 
 ## What else is missing?
 
-There is no settings screen, so settings are edited in `settings.json`. `/compact` does nothing yet and long conversations are not condensed automatically. Skills, playbooks a persona could follow, are not built. Notes are found by keywords only, not by meaning.
+There is no settings screen, so settings are edited in `settings.json`. `/compact` does nothing yet and long conversations are not condensed automatically. Skills, playbooks a persona could follow, are not built. Notes are found by meaning when the small search model is installed, and by keywords otherwise.

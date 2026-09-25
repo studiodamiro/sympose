@@ -250,6 +250,29 @@ LIVE_CASES: list[LiveCase] = [
         expect=(r"(?:couldn't|can't|cannot|could not) find|don't see|not (?:in|finding)|no (?:notes|record|mention)|nothing (?:in|about|on)",),
         forbid=(r"I don't remember|we (?:haven't|have not) (?:talked|discussed)|do you remember",),
     ),
+    # Search by meaning is explained from the reference library (docs/decisions/027).
+    LiveCase(
+        "explains-search-by-meaning",
+        ("what does it mean that you search my notes by meaning?",),
+        expect=(r"numbers?|compar|about",),
+        forbid=(r"I (?:don't|do not) know|can't (?:find|see)|couldn't find",),
+    ),
+    LiveCase(
+        "says-what-to-install-for-better-search",
+        ("do I need to install anything to make your search of my notes smarter?",),
+        expect=(r"nomic-embed-text",),
+    ),
+    LiveCase(
+        "search-by-meaning-stays-on-the-computer",
+        ("when you search my notes by meaning, does my vault get sent anywhere?",),
+        expect=(r"Ollama|your computer|locally|stay|(?:not|n't) (?:sent|send|leave)",),
+        forbid=(r"sent to (?:the |a )?cloud|uploaded to|(?:yes|it does)[,.]? (?:it )?(?:is |gets )?sent",),
+    ),
+    LiveCase(
+        "unrelated-notes-can-be-tuned",
+        ("you keep bringing up notes that have nothing to do with what I ask, can I fix that?",),
+        expect=(r"embedding_min_similarity|raise|higher",),
+    ),
 ]
 
 

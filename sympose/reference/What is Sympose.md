@@ -12,7 +12,7 @@ Sympose is for asking about what you already wrote: decisions, plans, people, re
 
 ## How does Sympose keep the cost down?
 
-Sympose finds the relevant notes itself with plain keyword search, then makes one model call per message to answer from them, so there is no chain of expensive model calls behind each question. Only a follow-up question with no searchable words of its own costs one extra small model call.
+Sympose finds the relevant notes itself, by meaning when a small search model is installed and by plain keywords otherwise, then makes one model call per message to answer from them, so there is no chain of expensive model calls behind each question. Only a follow-up question with no searchable words of its own costs one extra small model call.
 
 ## Does Sympose cost money to run?
 

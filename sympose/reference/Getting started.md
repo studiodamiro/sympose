@@ -22,6 +22,10 @@ Run `sympose web`, then open http://127.0.0.1:8000 in your browser. It serves th
 
 Run `python -m sympose.main` for the API, and from the `ui` folder run `npm install` once and `npm run dev`, which serves the app with live reload on localhost:5173.
 
+## Is there anything optional that makes the search smarter?
+
+Yes. Pull a small search model once with `ollama pull nomic-embed-text` and Sympose finds notes by meaning instead of only by words. Without it everything still works.
+
 ## What if something does not work?
 
 See Troubleshooting.

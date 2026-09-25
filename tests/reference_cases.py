@@ -309,6 +309,39 @@ REF_CASES: list[RefCase] = [
         find=("cannot",),
         first="Not built yet.md",
     ),
+    # Search by meaning, in plain words
+    RefCase(
+        "what-is-search-by-meaning",
+        "what does searching by meaning mean?",
+        find=("lists of numbers",),
+        first="How Samantha uses your notes.md",
+    ),
+    RefCase(
+        "install-for-better-search",
+        "do I need to install anything to make the search smarter?",
+        find=("nomic-embed-text",),
+    ),
+    RefCase(
+        "search-sent-to-cloud",
+        "is my vault sent anywhere when she searches my notes by meaning?",
+        find=("Ollama",),
+    ),
+    RefCase(
+        "indexing-notice",
+        "what does the indexing notice at the right of the chat box mean?",
+        find=("cache",),  # the Settings section on the first index and the note on grounding both answer it
+    ),
+    RefCase(
+        "missed-or-unrelated-notes",
+        "why does she bring notes that have nothing to do with my question?",
+        find=("embedding_min_similarity",),
+        first="How Samantha uses your notes.md",
+    ),
+    RefCase(
+        "back-to-keywords",
+        "how do I make her search by words only again?",
+        find=('"keywords"',),
+    ),
     # Ordinary chat must attach nothing from the library
     RefCase("small-talk", "hey, how are you today?", none=True),
     RefCase("rough-day", "hey. rough day, my brain is completely fried", none=True),

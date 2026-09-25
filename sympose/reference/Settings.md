@@ -56,11 +56,11 @@ Setting `grounding_followups` to `"off"` stops the extra search for follow-up qu
 
 ## grounding_search
 
-The `grounding_search` setting is how Samantha finds notes for your message. The default, `"keywords"`, matches words. `"embeddings"` matches by meaning, using a small embedding model in Ollama, and `"hybrid"` uses both. It needs the model pulled once (`ollama pull nomic-embed-text`). Without it, or when Ollama is not running, Samantha searches by keyword instead.
+The `grounding_search` setting is how Samantha finds notes. The default, `"auto"`, matches by meaning with a small model in Ollama (`ollama pull nomic-embed-text`, once) and uses keywords when it is missing. `"keywords"`, `"embeddings"` and `"hybrid"` force one way. Meaning search can miss a note you name only by a very short title; a few more words about it help.
 
 ## How long does the first meaning search take to start?
 
-The first time `grounding_search` is on, your notes are indexed in the background, which can take a minute or two for a big vault, and the search stays on keywords until that is done. The right end of the line under the chat box shows `indexing 40%` meanwhile. The index is a cache in `embedding_cache.sqlite` beside `settings.json`, and it can be deleted at any time.
+The first time, your notes are indexed in the background (a minute or two for a big vault) and the search uses keywords until it is done; `indexing 40%` shows at the right end of the line under the chat box. The index is the cache `embedding_cache.sqlite` beside `settings.json`, safe to delete. Setting `grounding_search` to `"keywords"` skips it.
 
 ## Can the search by meaning be made faster?
 
@@ -72,7 +72,11 @@ The `embedding_model` setting is the embedding model used by `grounding_search`.
 
 ## embedding_min_similarity
 
-The `embedding_min_similarity` setting is how close in meaning a note must be to your message to be used, a number between 0 and 1. The default is 0.68, for the default embedding model. A higher number attaches fewer notes and a lower number more.
+The `embedding_min_similarity` setting is how close in meaning a note must be to your message to be used, a number between 0 and 1. The default is 0.72, for the default embedding model. A higher number attaches fewer notes and a lower number more. A big vault usually wants a higher number than a small one.
+
+## embedding_margin
+
+The `embedding_margin` setting keeps only the notes that are nearly as close in meaning as the best one, so a near neighbour does not come along with the note you needed. It is a number from 0 to 1 and the default is 0.02. A larger number attaches more notes, and 1 attaches every note that reaches `embedding_min_similarity`.
 
 ## show_index_notice
 

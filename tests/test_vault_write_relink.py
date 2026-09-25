@@ -206,20 +206,12 @@ def test_a_file_that_cannot_be_read_is_counted_as_failed_and_the_others_still_ru
     assert read(other) == b"[[New]]"
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="the file is read in text mode, so a Windows (CRLF) note comes back with every line ending changed to LF",
-)
 def test_line_endings_are_kept(vault):
     path = write(vault, "Crlf.md", b"one\r\nsee [[Old]]\r\nthree\r\n")
     run(vault, ["Crlf.md"])
     assert read(path) == b"one\r\nsee [[New]]\r\nthree\r\n"
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="the file is read with errors='ignore', so a byte that is not valid UTF-8 is dropped when it is written back",
-)
 def test_bytes_that_are_not_valid_utf8_are_kept(vault):
     path = write(vault, "Latin1.md", b"caf\xe9 see [[Old]]\n")
     run(vault, ["Latin1.md"])
@@ -280,3 +272,32 @@ def test_a_new_name_that_would_break_wikilinks_is_refused_and_nothing_changes(va
     assert vault_write_rename.rename_note(ALL, "Old", bad) == NOTE_INVALID_NAME
     assert os.path.exists(old)
     assert read(link) == b"[[Old]]"
+
+
+def test_a_byte_order_mark_and_mixed_line_endings_are_kept(vault):
+    path = write(vault, "Bom.md", b"\xef\xbb\xbfone\r\ntwo [[Old]]\rthree\nfour\r\n")
+    run(vault, ["Bom.md"])
+    assert read(path) == b"\xef\xbb\xbfone\r\ntwo [[New]]\rthree\nfour\r\n"
+
+
+def test_a_write_that_fails_leaves_the_note_as_it_was_and_no_temporary_file(vault, monkeypatch):
+    path = write(vault, "A.md", "[[Old]] and more text")
+
+    def refuse(*_args):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(os, "replace", refuse)
+    assert run(vault, ["A.md"]) == (0, 1)
+    assert read(path) == b"[[Old]] and more text"
+    assert os.listdir(vault) == ["A.md"]
+
+
+def test_relinking_keeps_a_private_notes_permissions_and_a_symlink(vault):
+    private = write(vault, "Private.md", "[[Old]]")
+    os.chmod(private, 0o600)
+    real = write(vault, "Real.md", "[[Old]]")
+    os.symlink(real, os.path.join(vault, "Link.md"))
+    assert run(vault, ["Private.md", "Link.md"]) == (2, 0)
+    assert os.stat(private).st_mode & 0o777 == 0o600
+    assert os.path.islink(os.path.join(vault, "Link.md"))
+    assert read(real) == b"[[New]]"

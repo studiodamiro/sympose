@@ -8,7 +8,7 @@ import os
 import re
 
 from sympose.security import is_safe_path
-from sympose.vault_write import get_file_lock
+from sympose.vault_write import get_file_lock, write_atomic_text
 
 log = logging.getLogger(__name__)
 
@@ -100,15 +100,16 @@ def relink_referencing_notes(
             continue
         try:
             with get_file_lock(fp):
-                with open(fp, "r", encoding="utf-8", errors="ignore") as f:
+                # Exactly as it is on disk: line endings kept (`newline=""`) and bytes that are not
+                # valid UTF-8 carried through (`surrogateescape`), so only the links change.
+                with open(fp, "r", encoding="utf-8", errors="surrogateescape", newline="") as f:
                     content = f.read()
                 rewritten, hits = rewrite_wikilink_targets(
                     content, old_rel, new_stem, source_rel, same_stem_paths
                 )
                 if not hits:
                     continue
-                with open(fp, "w", encoding="utf-8") as f:
-                    f.write(rewritten)
+                write_atomic_text(fp, rewritten, newline="", errors="surrogateescape")
             updated += 1
         except OSError as e:
             log.warning("[vault] relink failed for %s after renaming %s: %s", fp, old_rel, e)

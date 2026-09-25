@@ -61,3 +61,13 @@ def test_no_configured_vaults_resolves_to_none(monkeypatch):
     monkeypatch.delenv("VAULT_PATHS", raising=False)
     assert vault_paths.get_master_vault() is None
     assert vault_paths.get_vault_name() is None
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="looking up a persona's folders creates them, so a misspelt `vault_folders` entry adds an empty "
+    "folder to the user's vault on a read-only request",
+)
+def test_looking_up_a_personas_folders_creates_nothing(vault_root):
+    vault_paths.get_allowed_dirs({"vault_folders": ["Misspelt"]})
+    assert os.listdir(vault_root) == []

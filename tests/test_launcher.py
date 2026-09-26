@@ -120,3 +120,21 @@ def test_only_this_machines_own_names_may_address_the_web_server(ran, monkeypatc
     for host in ("evil.example", "evil.example:8000", "localhost.evil.example", "127.0.0.1.evil.example", "testserver"):
         assert client.get("/health", headers={"host": host}).status_code == 400
         assert client.get("/", headers={"host": host}).status_code == 400
+
+
+def _scratch_env(monkeypatch, tmp_path, **variables):
+    """A working folder holding a `.env` with `variables`, and an environment where none of them is set
+    (`monkeypatch.setenv` first, so the value `load_dotenv` writes later is removed at the end of the test)."""
+    for name in variables:
+        monkeypatch.setenv(name, "unset")
+        monkeypatch.delenv(name)
+    (tmp_path / ".env").write_text("".join(f"{k}={v}\n" for k, v in variables.items()))
+    monkeypatch.chdir(tmp_path)
+
+
+def test_web_reads_the_env_file_of_the_folder_it_runs_in(ran, monkeypatch, tmp_path):
+    _scratch_env(monkeypatch, tmp_path, PORT="9300")
+
+    launcher.main(["web"])
+
+    assert ran["web"]["port"] == 9300

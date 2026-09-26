@@ -4,11 +4,12 @@ optionally `SYMPOSE_PROFILES_DIR`) from the environment — see `.env.example`."
 import os
 
 import uvicorn
-from dotenv import load_dotenv
 
-load_dotenv()
+from sympose.envfile import load_env
 
-from sympose.server import create_app  # noqa: E402 — after load_dotenv()
+load_env()
+
+from sympose.server import create_app  # noqa: E402 — after load_env()
 
 app = create_app()
 

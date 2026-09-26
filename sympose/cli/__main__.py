@@ -3,15 +3,15 @@
 import os
 import sys
 
-from dotenv import load_dotenv
+from sympose.envfile import load_env
 
 # Unlike `sympose/main.py` (the FastAPI server entrypoint), nothing else in
 # this package loaded `.env` — harmless while the CLI was pure mock data,
 # but now that chat grounding depends on `VAULT_PATHS` (docs/decisions/006),
 # a bare `python -m sympose.cli` needs this too.
-load_dotenv()
+load_env()
 
-from sympose.cli.app import SymposeCLI  # noqa: E402 — after load_dotenv()
+from sympose.cli.app import SymposeCLI  # noqa: E402 — after load_env()
 
 
 def main() -> None:

@@ -17,9 +17,9 @@ def _run_cli(args: argparse.Namespace) -> int:
 
 
 def _run_web(args: argparse.Namespace) -> int:
-    from dotenv import load_dotenv
+    from sympose.envfile import load_env
 
-    load_dotenv()
+    load_env()
     import uvicorn
 
     from starlette.middleware.trustedhost import TrustedHostMiddleware

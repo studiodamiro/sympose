@@ -8,6 +8,7 @@ import os
 import pytest
 from helpers import write_persona
 
+from sympose import settings_store
 from sympose.engine import followup, grounding, prompt, reference, session, turn
 from sympose.engine.model import ModelReply
 
@@ -823,6 +824,7 @@ def test_when_no_recap_fits_the_turn_does_not_claim_there_were_none(sessions_roo
 
 def test_recaps_reach_the_prompt_of_a_model_whose_window_is_unknown_too(sessions_root, monkeypatch):
     _put_recap("20260923T090000-bbbbbbbb", "Was planning a trip to Lisbon.")
+    settings_store.set("cloud_share", ["recaps"])  # a cloud model reads recaps once the user allows it (ADR 031)
     calls = _capture_call(monkeypatch)
 
     turn.run_turn("samantha", "hello", model="someprovider/unknown-model")
@@ -963,3 +965,90 @@ def test_what_was_sent_never_comes_back_into_a_later_prompt(sessions_root, monke
     history = calls[1]["messages"][1:-1]  # after the system prompt, before the new message
     assert [m["role"] for m in history] == ["user", "assistant"]
     assert all("Zebra/Path.md" not in m["content"] for m in history)
+
+
+# -- what a cloud model may receive (docs/decisions/031) --
+
+CLOUD = "anthropic/claude-sonnet-5"
+
+
+def _with_a_note_and_a_recap(monkeypatch):
+    _put_recap("20260923T090000-bbbbbbbb", "Was planning a trip to Lisbon.")
+    calls = _capture_call(monkeypatch)  # first: it also stubs the search to find nothing
+    monkeypatch.setattr(grounding, "ground", lambda profile, msg, max_results=5: [_fake_grounding_result()])
+    return calls
+
+
+def test_a_cloud_model_gets_no_note_and_no_recap_until_the_user_approves(sessions_root, monkeypatch):
+    calls = _with_a_note_and_a_recap(monkeypatch)
+
+    result = turn.run_turn("samantha", "tell me about typography", model=CLOUD)
+
+    everything = " ".join(m["content"] for m in calls[0]["messages"])
+    assert "distinguishably unique text" not in everything and "Lisbon" not in everything
+    assert prompt.WITHHELD_NOTES in calls[0]["messages"][-1]["content"]
+    assert prompt.WITHHELD_RECAPS in calls[0]["messages"][0]["content"]
+    assert result.grounding == [] and result.cloud == [] and result.withheld == ["notes", "recaps"]
+
+
+def test_the_record_of_a_cloud_turn_says_what_was_held_back_and_never_the_text(sessions_root, monkeypatch):
+    _with_a_note_and_a_recap(monkeypatch)
+
+    result = turn.run_turn("samantha", "tell me about typography", model=CLOUD)
+
+    sent = _sent_of(result)
+    assert sent["notes"] == [] and sent["recaps"] == []
+    assert sent["cloud"] == [] and sent["withheld"] == ["notes", "recaps"]
+    raw = open(session.session_path("samantha", result.session_id), encoding="utf-8").read()
+    assert "distinguishably unique text" not in raw
+
+
+def test_an_approved_category_reaches_a_cloud_model_and_is_reported_as_sent(sessions_root, monkeypatch):
+    settings_store.set("cloud_share", ["notes"])
+    calls = _with_a_note_and_a_recap(monkeypatch)
+
+    result = turn.run_turn("samantha", "tell me about typography", model=CLOUD)
+
+    assert "distinguishably unique text" in calls[0]["messages"][-1]["content"]
+    assert "Lisbon" not in calls[0]["messages"][0]["content"]  # recaps are a category of their own
+    assert (result.cloud, result.withheld) == (["notes"], ["recaps"])
+    sent = _sent_of(result)
+    assert (sent["cloud"], sent["withheld"]) == (["notes"], ["recaps"])
+    assert [n["path"] for n in sent["notes"]] == ["Typography.md"]
+
+
+def test_a_local_model_gets_everything_and_the_record_has_no_cloud_lists(sessions_root, monkeypatch):
+    calls = _with_a_note_and_a_recap(monkeypatch)
+
+    result = turn.run_turn("samantha", "tell me about typography", model="ollama_chat/gemma2:9b")
+
+    assert "distinguishably unique text" in calls[0]["messages"][-1]["content"]
+    assert "Lisbon" in calls[0]["messages"][0]["content"]
+    assert result.cloud == [] and result.withheld == []
+    assert "cloud" not in _sent_of(result) and "withheld" not in _sent_of(result)
+
+
+def test_the_sympose_reference_reaches_a_cloud_model_with_nothing_approved(sessions_root, monkeypatch):
+    _library_persona(sessions_root)
+    calls = _capture_call(monkeypatch)
+    monkeypatch.setattr(grounding, "ground", lambda profile, msg, max_results=5: [_fake_grounding_result()])
+    monkeypatch.setattr(reference, "ground", lambda persona, msg: [_reference_hit()])
+
+    result = turn.run_turn("samantha", "do you remember last time?", model=CLOUD)
+
+    last = calls[0]["messages"][-1]["content"]
+    assert "A new conversation starts without the last one." in last
+    assert "distinguishably unique text" not in last
+    assert [h.get("source") for h in result.grounding] == ["sympose"]
+    assert result.cloud == [] and result.withheld == ["notes"]  # the library is not the user's data
+
+
+def test_the_token_count_is_of_the_prompt_that_was_sent_withheld_lines_included(sessions_root, monkeypatch):
+    monkeypatch.setattr(turn.budget, "_native_max", lambda model: 4096)
+    calls = _with_a_note_and_a_recap(monkeypatch)
+
+    result = turn.run_turn("samantha", "tell me about typography", model=CLOUD)
+
+    sent = turn.budget.count_tokens(calls[0]["messages"], CLOUD)
+    assert prompt.WITHHELD_NOTES in calls[0]["messages"][-1]["content"]
+    assert result.context_used == sent + turn._reply_tokens("reply", CLOUD)

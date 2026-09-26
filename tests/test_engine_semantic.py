@@ -1567,3 +1567,84 @@ def test_an_index_with_no_passages_does_not_embed_the_message(setup, calls):
 
     assert semantic.refine(empty, "what storage engine did we pick?", []) == []
     assert calls["embed"] == []
+
+
+# -- a cloud embedder and the notes (docs/decisions/031) --
+
+CLOUD_EMBEDDER = "openai/text-embedding-3-small"
+
+
+def test_a_cloud_embedder_is_sent_no_note_until_the_user_approves(setup, calls, caplog):
+    _vault(setup)
+    _mode("embeddings")
+    settings_store.set("embedding_model", CLOUD_EMBEDDER)
+
+    with caplog.at_level("WARNING"):
+        hits = grounding.ground(WHOLE, "SQLite prototype")
+
+    assert calls["embed"] == []  # neither a passage nor the message left the machine
+    assert [h["rel_path"] for h in hits] == ["Atlas.md"]  # the keyword search still answers
+    assert "may not be sent" in caplog.text
+
+
+def test_a_cloud_embedder_gets_the_notes_once_the_user_approves(setup, calls):
+    _vault(setup)
+    _mode("embeddings")
+    settings_store.set("embedding_model", CLOUD_EMBEDDER)
+    settings_store.set("cloud_share", ["notes"])
+
+    hits = grounding.ground(WHOLE, "database storage engine")
+
+    assert any(kind == "document" for kind, _ in calls["embed"])
+    assert "Atlas.md" in [h["rel_path"] for h in hits]
+
+
+def test_a_cloud_embedder_is_sent_no_message_for_the_library_either(setup, calls):
+    """The library is public, but the message that searches it is the user's: ADR 031 counts messages
+    sent to a cloud embedder under `notes`."""
+    _mode("embeddings")
+    settings_store.set("embedding_model", CLOUD_EMBEDDER)
+
+    reference.ground(LIBRARY, "how do I add or switch vaults")
+    assert calls["embed"] == []
+
+    settings_store.set("cloud_share", ["notes"])
+    reference.ground(LIBRARY, "how do I add or switch vaults")
+    assert any(kind == "query" for kind, _ in calls["embed"])
+
+
+def test_the_launch_time_build_embeds_nothing_for_a_cloud_embedder_until_approved(setup, calls, monkeypatch):
+    from helpers import write_persona
+
+    _vault(setup)
+    profiles = setup / "profiles"
+    write_persona(profiles, "samantha", "name: Samantha\nvault_folders: '*'\nsympose_reference: true\n")
+    monkeypatch.setenv("SYMPOSE_PROFILES_DIR", str(profiles))
+    _mode("embeddings")
+    settings_store.set("embedding_model", CLOUD_EMBEDDER)
+
+    semantic_refresh.refresh_in_background("samantha")
+    _wait_for_threads("embeddings-")
+
+    assert calls["embed"] == []  # neither the user's notes nor the library that their messages would search
+
+
+def test_a_build_stops_when_the_user_takes_the_approval_back(setup, calls, monkeypatch):
+    """Approval is asked again before each batch: a running build must not keep sending notes to a cloud
+    embedder after `/share` turned them off."""
+    _vault(setup)
+    _mode("embeddings")
+    settings_store.set("embedding_model", CLOUD_EMBEDDER)
+    settings_store.set("cloud_share", ["notes"])
+    monkeypatch.setattr(semantic_refresh, "_BATCH_SAVE", 1)
+    fake = embeddings.embed
+
+    def revoking_embed(texts, kind, model_name=None):
+        settings_store.set("cloud_share", [])  # the user runs /share while the first batch is out
+        return fake(texts, kind, model_name)
+
+    monkeypatch.setattr(embeddings, "embed", revoking_embed)
+
+    semantic_refresh.build(grounding.scope_index(WHOLE))
+
+    assert len(calls["embed"]) == 1  # the first batch was already on its way; no second one followed

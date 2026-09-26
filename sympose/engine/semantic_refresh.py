@@ -12,7 +12,7 @@ from collections import Counter
 from typing import Any
 
 from sympose.engine import embedding_store as store
-from sympose.engine import embeddings
+from sympose.engine import embeddings, sharing
 
 log = logging.getLogger(__name__)
 
@@ -70,11 +70,14 @@ def build(index: Any, token: tuple[str, int] | None = None) -> bool:
     """Embed every passage of `index` that has no vector yet and save them, a batch at a time so an
     interrupted build keeps what it has done. `False` when the cache could not be written. `token`
     is the build's identity when it runs in the background, so its progress can be shown, and it
-    fixes the model: the one the caller keyed the build by."""
+    fixes the model: the one the caller keyed the build by. Approval for a cloud embedder is asked again
+    before each batch (docs/decisions/031): taking it back with `/share` stops the build."""
     model = token[0] if token is not None else embeddings.model()
     texts, keys, _, todo = pending(index, model)
     _report(token, 0, len(todo))
     for start in range(0, len(todo), _BATCH_SAVE):
+        if not sharing.embeds_notes(model):
+            break
         chunk = todo[start : start + _BATCH_SAVE]
         vectors = embeddings.embed([texts[i] for i in chunk], "document", model)
         if not store.save({keys[i]: v for i, v in zip(chunk, vectors)}):
@@ -150,6 +153,8 @@ def refresh_in_background(handle: str) -> None:
             persona = profile_mod.resolve_profile(handle)
             if persona is None:
                 return
+            if not sharing.embeds_notes(embeddings.model()):
+                return  # a cloud embedder gets neither the notes nor the messages that search them (ADR 031)
             for index in (grounding.scope_index(persona), reference.library_index(persona)):
                 if index is not None:
                     start_build(index, wait=True)

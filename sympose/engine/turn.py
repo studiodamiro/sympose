@@ -11,9 +11,10 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from sympose import profile as profile_mod
-from sympose.engine import budget, followup, prompt, recap, recap_refresh, reference, session
+from sympose.engine import budget, followup, prompt, recap, recap_refresh, reference, session, sharing
 from sympose.engine import model as model_mod
 from sympose.engine.model import EngineModelError
+from sympose.engine.turn_record import sent_record
 
 __all__ = ["TurnResult", "run_turn", "EngineModelError", "PersonaNotFoundError"]
 
@@ -50,6 +51,11 @@ class TurnResult:
     # The session file was written; `False` when it could not be, so this reply is not part of the
     # record and later messages will not remember it (a warning is in the log as well).
     saved: bool = True
+    # For a model that is not local (docs/decisions/031): the categories of the user's vault that were
+    # sent to it this turn, and the ones held back because the user has not allowed them. Both are
+    # empty for a local model, where nothing leaves the machine.
+    cloud: list[str] = field(default_factory=list)
+    withheld: list[str] = field(default_factory=list)
 
 
 def _interleave(first: list[dict[str, Any]], second: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -58,27 +64,6 @@ def _interleave(first: list[dict[str, Any]], second: list[dict[str, Any]]) -> li
     for i in range(max(len(first), len(second))):
         merged.extend(part[i] for part in (first, second) if i < len(part))
     return merged
-
-
-def _sent(
-    grounding: list[dict[str, Any]], recaps: list[dict[str, Any]], searched: str | None, dropped: int
-) -> dict[str, Any]:
-    """What reached the model besides the messages, for the session record
-    (docs/decisions/025): where each note came from, never its text."""
-    return {
-        "notes": [
-            {
-                "path": hit["rel_path"],
-                "heading": hit.get("heading", ""),
-                "source": hit.get("source", "vault"),
-                **({"via": hit["via"]} if "via" in hit else {}),  # how it was found, when the knob is on (ADR 027)
-            }
-            for hit in grounding
-        ],
-        "recaps": [r["session"] for r in recaps],
-        "searched": searched,
-        "history_dropped": dropped,
-    }
 
 
 def _reply_tokens(text: str, model: str) -> int:
@@ -119,7 +104,10 @@ def run_turn(
     # What earlier conversations were about (docs/decisions/023); the session being
     # run is excluded, its own turns are already the history.
     recap_refresh.wait_for_refresh(handle)  # right after launch the recap may still be being written
-    recaps_found = recap.latest(handle, exclude=sid)
+    # Only what this model may receive goes any further (docs/decisions/031): the prompt, its token
+    # count and the record below all see the same set.
+    gated = sharing.gate(target_model, grounding_results, recap.latest(handle, exclude=sid))
+    grounding_results, recaps_found, withheld = gated.grounding, gated.recaps, gated.withheld
 
     reference_found = sum(1 for h in grounding_results if h.get("source") == reference.SOURCE)
     vault_found = len(grounding_results) - reference_found
@@ -140,6 +128,7 @@ def run_turn(
             point_to=point_to,
             recaps=recaps,
             recaps_omitted=len(recaps_found) - len(recaps),
+            withheld=withheld,
         )
 
     prompt_tokens = 0
@@ -158,6 +147,10 @@ def run_turn(
     )
 
     searched_used = searched if any(h.get("source") != reference.SOURCE for h in grounding_results) else None
+    cloud = None if sharing.is_local(target_model) else (
+        sharing.categories_of(grounding_results, recaps_sent),
+        [name for name in sharing.CATEGORIES if name in withheld],
+    )
     saved = session.append_turn(
         handle,
         sid,
@@ -166,7 +159,7 @@ def run_turn(
         existing=existing,
         ttft_ms=reply.ttft_ms,
         model=target_model,
-        sent=_sent(grounding_results, recaps_sent, searched_used, dropped),
+        sent=sent_record(grounding_results, recaps_sent, searched_used, dropped, cloud),
         truncated=reply.truncated,
     )
     return TurnResult(
@@ -181,4 +174,6 @@ def run_turn(
         context_limit=limits.prompt_tokens if limits else None,
         truncated=reply.truncated,
         saved=saved,
+        cloud=cloud[0] if cloud else [],
+        withheld=cloud[1] if cloud else [],
     )

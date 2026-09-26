@@ -88,6 +88,25 @@ NO_NOTES = (
     "couldn't find it there rather than guessing; otherwise answer from your own knowledge."
 )
 
+# What a cloud model is told when the user has not allowed a kind of their content to be sent to it
+# (docs/decisions/031), so it does not claim the vault has nothing (as when passages do not fit).
+WITHHELD_NOTES = (
+    "Notes in the vault matched this message, but the user has not allowed notes to be sent to this "
+    "cloud model. Don't say the vault has nothing on it: say you cannot use the notes with this "
+    "model, and tell the person you are talking to that they can allow it with /share; write \"you\", "
+    "not \"the user\"."
+)
+WITHHELD_PROPERTIES = (
+    "(The properties of the matching notes were not included: the user has not allowed properties to "
+    "be sent to this cloud model. If they matter to the question, say so, and tell the person you are "
+    "talking to that they can allow it with /share; write \"you\", not \"the user\".)"
+)
+WITHHELD_RECAPS = (
+    "Recaps of earlier conversations exist, but the user has not allowed them to be sent to this "
+    "cloud model. Don't say there were none: say you cannot use them with this model, and tell the "
+    "person you are talking to that they can allow it with /share; write \"you\", not \"the user\"."
+)
+
 # Earlier conversations (docs/decisions/023): the recaps of them travel with the
 # message, and the recap itself is written by the same model from the session log.
 RECAPS_LABEL = "Earlier conversations with the user (short recaps of what was talked about, not facts about the vault):"

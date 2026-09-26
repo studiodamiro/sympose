@@ -112,6 +112,7 @@ def test_it_asks_the_personas_own_model_in_its_window_with_a_short_reply_limit(a
 
 def test_a_model_chosen_for_the_run_is_asked_instead_of_the_personas_own(asked, profiles):
     write_persona(profiles, "ada", "name: Ada\nvault_folders: '*'\nmodel: 'ollama_chat/other:1b'\n")
+    settings_store.set("cloud_share", ["recaps"])  # a cloud model writes recaps only once the user allows it (ADR 031)
     talk(NEW, handle="ada")
 
     recap_refresh.refresh("ada", model="anthropic/claude-sonnet-5", now=LATER)
@@ -695,9 +696,38 @@ def test_a_real_session_behind_ten_throwaways_is_not_looked_for(asked):
 
 def test_a_cloud_model_gets_room_to_think_for_the_recap(asked, profiles):
     write_persona(profiles, "ada", "name: Ada\nvault_folders: '*'\nmodel: 'gemini/gemini-flash-latest'\n")
+    settings_store.set("cloud_share", ["recaps"])
     talk(NEW, handle="ada")
 
     recap_refresh.refresh("ada", now=LATER)
 
     assert asked[0]["model"] == "gemini/gemini-flash-latest"
     assert asked[0]["max_tokens"] == 4000
+
+
+# -- recaps and a cloud model (docs/decisions/031) --
+
+
+def test_a_cloud_model_is_sent_no_conversation_to_recap_until_the_user_approves(asked):
+    talk(NEW)
+
+    recap_refresh.refresh("samantha", model="anthropic/claude-sonnet-5", now=LATER)
+
+    assert asked == [] and not has_recap(NEW)
+
+
+def test_approving_notes_does_not_approve_recaps(asked):
+    settings_store.set("cloud_share", ["notes", "properties"])
+    talk(NEW)
+
+    recap_refresh.refresh("samantha", model="anthropic/claude-sonnet-5", now=LATER)
+
+    assert asked == []
+
+
+def test_a_local_model_writes_recaps_with_nothing_approved(asked):
+    talk(NEW)
+
+    recap_refresh.refresh("samantha", model="ollama_chat/gemma2:9b", now=LATER)
+
+    assert len(asked) == 1 and has_recap(NEW)

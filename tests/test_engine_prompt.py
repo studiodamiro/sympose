@@ -5,7 +5,7 @@ out: the persona and the rules in the system prompt, the notes with the question
 import pytest
 from helpers import write_persona
 
-from sympose.engine import prompt
+from sympose.engine import prompt, prompt_blocks
 
 
 @pytest.fixture(autouse=True)
@@ -158,7 +158,7 @@ def test_a_heading_that_is_only_the_title_is_not_announced_as_headings():
 def test_a_title_only_hit_of_the_reference_library_is_shown_as_empty_too():
     hit = {"title": "Stub", "heading": "", "text": "", "kind": "title", "rel_path": "Sympose reference/Stub.md"}
 
-    assert "- Stub: this note is empty: it has no text yet, only its title" in prompt._reference_block([hit])
+    assert "- Stub: this note is empty: it has no text yet, only its title" in prompt_blocks.reference_block([hit])
 
 
 def test_a_title_only_note_shows_its_aliases():
@@ -482,3 +482,12 @@ def test_every_persona_is_told_to_say_when_unsure_and_to_correct_a_wrong_premise
 
         assert "if you are not sure of a fact, a name, a date or a place, say you are not sure instead of guessing" in text
         assert "begin your reply by saying what is actually true, and never agree with it" in text
+
+
+def test_a_withheld_category_does_not_hide_that_matching_notes_did_not_fit():
+    """Two reasons for no notes in the block must both be said, or the model tells the user the vault
+    has nothing on the topic (ADR 015, 031)."""
+    block = prompt_blocks.notes_block([], omitted=3, withheld={"properties": 1})
+
+    assert "too long for the context window" in block
+    assert "properties" in block

@@ -7,7 +7,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from sympose import profile as profile_mod
-from sympose.engine import budget, helper_limit, prompt, recap, session
+from sympose.engine import budget, helper_limit, prompt, recap, session, sharing
 from sympose.engine import model as model_mod
 
 log = logging.getLogger(__name__)
@@ -106,6 +106,8 @@ def refresh(handle: str, model: str | None = None, now: datetime | None = None) 
     model = model or model_mod.resolve_model(persona.get("model"))
     if model in _CANNOT_RECAP:
         return
+    if sharing.RECAPS not in sharing.allowed(model):
+        return  # the user's messages would go to a cloud model that they have not approved for recaps (ADR 031)
     limits = budget.budget_for(model)
     now = now or datetime.now(timezone.utc)
     worth_a_recap = 0

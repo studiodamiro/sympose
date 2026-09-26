@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from sympose.engine import embedding_store as store
-from sympose.engine import embeddings, semantic_refresh, similarity
+from sympose.engine import embeddings, semantic_refresh, sharing, similarity
 from sympose.engine import semantic_pick as pick
 from sympose.engine.grounding_index import Index, Passage
 
@@ -112,6 +112,11 @@ def refine(
     if mode == embeddings.KEYWORDS or not index.passages:
         return keyword_hits  # nothing to compare the message with: embedding it would only risk a timeout
     model = embeddings.model()  # once: the settings file may change while this runs
+    if not sharing.embeds_notes(model):
+        # A cloud embedder would receive the message, and every passage of the notes: the user has not
+        # approved that (ADR 031). The library is public, but the message that searches it is not.
+        _warn_once(f"'{model}' is a cloud model and the notes and messages may not be sent to it", logging.WARNING)
+        return keyword_hits
     if time.monotonic() < _UNAVAILABLE_UNTIL.get(model, 0.0):
         return keyword_hits
     try:

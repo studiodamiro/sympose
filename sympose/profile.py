@@ -29,7 +29,7 @@ def resolve_default_persona() -> str:
     this same shape. No setter/route exists yet, same as `chat_model`'s
     own settings-store read path today — `settings_store.set` already
     works the moment something needs to call it."""
-    return settings_store.get(_DEFAULT_PERSONA_SETTINGS_KEY, FACTORY_DEFAULT_PERSONA)
+    return settings_store.text(_DEFAULT_PERSONA_SETTINGS_KEY, FACTORY_DEFAULT_PERSONA)
 
 
 def set_default_persona(handle: str) -> bool:

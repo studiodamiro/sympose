@@ -60,7 +60,7 @@ def resolve_model(persona_model: str | None = None) -> str:
     the persona's own `model`, else the `chat_model` setting, else the
     built-in local default (docs/decisions/010). An explicit per-call
     model (`call_model`'s `model` argument) sits above all of these."""
-    return persona_model or settings_store.get(_SETTINGS_KEY, DEFAULT_LOCAL_MODEL)
+    return persona_model or settings_store.text(_SETTINGS_KEY, DEFAULT_LOCAL_MODEL)
 
 
 def _read(chunk) -> tuple[str, str | None]:

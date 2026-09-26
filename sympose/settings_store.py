@@ -46,6 +46,14 @@ def flag(key: str, default: bool = True) -> bool:
     return value if isinstance(value, bool) else default
 
 
+def text(key: str, default: str) -> str:
+    """A name-like knob: only a non-blank string counts, anything else (a
+    hand-edited `null`, `""`, a number or a list) leaves it at `default`, so
+    a malformed value never reaches code that expects a string."""
+    value = get(key, default)
+    return value if isinstance(value, str) and value.strip() else default
+
+
 def set(key: str, value: Any) -> bool:
     """Merges `key: value` into the settings file and writes it back
     whole — the file is small (a handful of app-wide knobs), so a

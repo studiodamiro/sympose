@@ -361,11 +361,6 @@ def test_the_names_of_the_personas_that_have_the_library(profiles_dir):
 # -- found in the review of the CLI and settings (wave D of the cleanup) ----------------------
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="a `default_persona` that is null, a number or blank is returned as it is and becomes a handle: "
-    "every request that names no persona then fails with AttributeError; other settings ignore a wrong kind of value",
-)
 @pytest.mark.parametrize("value", [None, 3, "", ["samantha"]])
 def test_a_default_persona_setting_that_is_not_a_handle_is_the_factory_default(profiles_dir, value):
     from sympose import settings_store

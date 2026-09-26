@@ -60,6 +60,15 @@ def test_flag_only_honours_a_real_boolean(tmp_path, monkeypatch):
         assert settings_store.flag("knob", default=False) is False
 
 
+def test_text_only_honours_a_non_blank_string(settings_file):
+    assert settings_store.text("name", "fallback") == "fallback"  # missing: the default
+    settings_store.set("name", "chosen")
+    assert settings_store.text("name", "fallback") == "chosen"
+    for junk in (None, "", "   ", 5, True, ["chosen"], {"a": "b"}):  # never reaches a caller expecting a string
+        settings_store.set("name", junk)
+        assert settings_store.text("name", "fallback") == "fallback"
+
+
 # -- found in the review of the CLI and settings (wave D of the cleanup) ----------------------
 
 

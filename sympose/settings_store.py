@@ -13,6 +13,8 @@ import logging
 import os
 from typing import Any
 
+from sympose.atomic_write import write_atomic_text
+
 log = logging.getLogger(__name__)
 
 
@@ -28,7 +30,7 @@ def _load() -> dict[str, Any]:
         with open(path, "r", encoding="utf-8") as f:
             data = json.load(f)
         return data if isinstance(data, dict) else {}
-    except (OSError, json.JSONDecodeError):
+    except (OSError, ValueError):  # ValueError: not JSON, or not valid UTF-8
         return {}
 
 
@@ -51,10 +53,10 @@ def set(key: str, value: Any) -> bool:
     that a second backend process could silently drift from."""
     data = _load()
     data[key] = value
+    text = json.dumps(data, indent=2)  # first: a value that is not JSON raises here, with the file untouched
     try:
         os.makedirs(os.path.dirname(settings_path()) or ".", exist_ok=True)
-        with open(settings_path(), "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2)
+        write_atomic_text(settings_path(), text)  # whole or not at all: this file is all the configuration
         return True
     except OSError as e:
         log.warning("Failed to write %s: %s", settings_path(), e)

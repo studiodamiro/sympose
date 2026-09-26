@@ -6,12 +6,12 @@ Vault note writes: `overwrite_note` (the web app editor saving an
 """
 
 import os
-import shutil
 import threading
 from contextlib import ExitStack, contextmanager
 from typing import Any, Iterator
 
 from sympose import vault_paths
+from sympose.atomic_write import write_atomic_text
 from sympose.vault_write_concurrency import NOTE_CONFLICT, mtime_matches
 from sympose.vault_write_resolve import resolve_existing_note
 from sympose.vault_write_status import NOTE_DENIED, NOTE_NOT_FOUND
@@ -42,30 +42,6 @@ def get_file_locks(*paths: str) -> Iterator[None]:
         for p in sorted(set(paths)):
             stack.enter_context(get_file_lock(p))
         yield
-
-
-def write_atomic_text(path: str, content: str, *, newline: str | None = None, errors: str = "strict") -> None:
-    """Writes `content` to `path` via a tmp file + `os.replace` — the rename
-    is atomic on the same filesystem, so a crash mid-write can't leave
-    `path` truncated. The file keeps its permissions (a private note stays
-    private) and a symlink is written through, not replaced. `newline=""`
-    writes line endings exactly as they are in `content`, and
-    `errors="surrogateescape"` writes back bytes that were read as such (a
-    rewrite of an existing note must not change what it did not mean to)."""
-    target = os.path.realpath(path)
-    tmp = f"{target}.{os.getpid()}.{threading.get_ident()}.tmp"
-    try:
-        with open(tmp, "w", encoding="utf-8", errors=errors, newline=newline) as f:
-            f.write(content)
-        if os.path.exists(target):
-            shutil.copymode(target, tmp)
-        os.replace(tmp, target)
-    except BaseException:  # any failure, not only OSError: an unencodable character must not leave the tmp file
-        try:
-            os.unlink(tmp)
-        except OSError:
-            pass
-        raise
 
 
 def overwrite_note(

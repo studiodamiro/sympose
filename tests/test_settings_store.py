@@ -1,6 +1,7 @@
 """Tests for sympose.settings_store — the app-wide settings JSON file
 (ADR 003)."""
 
+import json
 import os
 
 import pytest
@@ -62,11 +63,6 @@ def test_flag_only_honours_a_real_boolean(tmp_path, monkeypatch):
 # -- found in the review of the CLI and settings (wave D of the cleanup) ----------------------
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="the file is emptied before the value is written, so a value that cannot be written as JSON "
-    "leaves it half written and every other setting is lost",
-)
 def test_a_value_that_cannot_be_written_leaves_the_other_settings_alone(settings_file):
     settings_store.set("active_vault", "/vault/one")
     settings_store.set("chat_model", "ollama_chat/x")
@@ -80,13 +76,51 @@ def test_a_value_that_cannot_be_written_leaves_the_other_settings_alone(settings
     assert settings_store.get("chat_model") == "ollama_chat/x"
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="a file that is not valid UTF-8 raises UnicodeDecodeError out of every settings read, which "
-    "the CLI hits after the model has answered, so the app crashes and the reply is lost",
-)
 def test_a_settings_file_that_is_not_utf8_reads_as_no_settings(settings_file):
     with open(settings_file, "wb") as f:
         f.write(b'{"chat_model": "\xff\xfe"}')
 
     assert settings_store.get("chat_model", "fallback") == "fallback"
+
+
+def test_saving_a_setting_keeps_the_files_permissions(settings_file):
+    settings_store.set("chat_model", "ollama_chat/x")
+    os.chmod(settings_file, 0o600)
+
+    settings_store.set("active_vault", "/vault/one")
+
+    assert os.stat(settings_file).st_mode & 0o777 == 0o600
+
+
+def test_a_settings_file_that_is_a_symlink_is_written_through_not_replaced(settings_file, tmp_path):
+    real = tmp_path / "elsewhere" / "settings.json"
+    real.parent.mkdir()
+    real.write_text('{"chat_model": "ollama_chat/x"}')
+    os.symlink(real, settings_file)
+
+    settings_store.set("active_vault", "/vault/one")
+
+    assert os.path.islink(settings_file)
+    assert json.loads(real.read_text()) == {"chat_model": "ollama_chat/x", "active_vault": "/vault/one"}
+
+
+def test_no_temporary_file_is_left_beside_the_settings(settings_file):
+    settings_store.set("chat_model", "ollama_chat/x")
+    settings_store.set("active_vault", "/vault/one")
+
+    assert os.listdir(os.path.dirname(settings_file)) == [os.path.basename(settings_file)]
+
+
+def test_a_write_that_fails_keeps_the_previous_settings_whole(settings_file, monkeypatch):
+    settings_store.set("active_vault", "/vault/one")
+    settings_store.set("chat_model", "ollama_chat/x")
+
+    def refuse(src, dst):
+        raise OSError("disk full")
+
+    with monkeypatch.context() as failing:
+        failing.setattr(os, "replace", refuse)
+        assert settings_store.set("active_vault", "/vault/two") is False
+
+    assert settings_store.get("active_vault") == "/vault/one"
+    assert settings_store.get("chat_model") == "ollama_chat/x"

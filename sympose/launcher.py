@@ -46,6 +46,14 @@ def _run_web(args: argparse.Namespace) -> int:
     return 0
 
 
+def _run_doctor(args: argparse.Namespace) -> int:
+    from sympose import doctor
+    from sympose.envfile import load_env
+
+    load_env()
+    return doctor.run(fix=args.fix)
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="sympose", description="Sympose: an AI companion for your Obsidian vault.")
     commands = parser.add_subparsers(dest="command", title="commands")
@@ -54,6 +62,9 @@ def build_parser() -> argparse.ArgumentParser:
     web = commands.add_parser("web", help="open the web app for your vault (on this machine only)")
     web.add_argument("--port", type=int, help="the port to listen on (default: PORT in .env, else 8000)")
     web.set_defaults(run=_run_web)
+    doctor = commands.add_parser("doctor", help="check the installation and, with --fix, correct what is Sympose's own")
+    doctor.add_argument("--fix", action="store_true", help="apply the fixes (persona folder names, wrong-kind settings)")
+    doctor.set_defaults(run=_run_doctor)
     return parser
 
 

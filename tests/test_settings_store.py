@@ -3,6 +3,7 @@
 
 import json
 import os
+from pathlib import Path
 
 import pytest
 
@@ -133,3 +134,13 @@ def test_a_write_that_fails_keeps_the_previous_settings_whole(settings_file, mon
 
     assert settings_store.get("active_vault") == "/vault/one"
     assert settings_store.get("chat_model") == "ollama_chat/x"
+
+
+def test_remove_drops_only_its_key_and_leaves_a_damaged_file_alone(settings_file):
+    path = Path(settings_file)
+    path.write_text(json.dumps({"a": 1, "b": 2}))
+    assert settings_store.remove("a") and json.loads(path.read_text()) == {"b": 2}
+    assert settings_store.remove("missing") and json.loads(path.read_text()) == {"b": 2}
+
+    path.write_text("{not json")
+    assert settings_store.remove("a") and path.read_text() == "{not json"

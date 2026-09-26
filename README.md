@@ -30,7 +30,7 @@ Not built yet: chat inside the web app (its chat panel is a mock and the backend
 ## Local setup
 
 1. Copy `.env.example` to `.env` and set `VAULT_PATHS` to an
-   Obsidian vault on disk.
+   Obsidian vault on disk. Sympose reads the `.env` in the folder you run it from (and only that file).
 2. Backend: `pip install -e ".[dev]"` from the repo root.
 3. Frontend: `npm install` from `ui/`.
 4. For chat: run [Ollama](https://ollama.com) and pull the default chat model (`ollama pull gemma2:9b`). For search by meaning also `ollama pull nomic-embed-text`; without it, search falls back to keywords.
@@ -38,6 +38,7 @@ Not built yet: chat inside the web app (its chat panel is a mock and the backend
 ## Running it
 
 - Terminal chat: `sympose cli`.
+- Health check: `sympose doctor` reports what is wrong with the installation (a persona folder that is not lower case, an unreadable persona or settings file, a setting of the wrong kind); `sympose doctor --fix` corrects what belongs to Sympose and never touches your notes.
 - Web app: `sympose web` — the API and the built app together on
   `127.0.0.1:8000` (`--port` or `PORT` in `.env` changes it), this machine
   only, no auth yet.

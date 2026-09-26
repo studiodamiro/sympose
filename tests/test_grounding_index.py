@@ -1,7 +1,6 @@
 """Tests for sympose.engine.grounding_index — passage splitting, term
 folding, and index building (docs/decisions/014)."""
 
-import pytest
 
 from sympose.engine import grounding_index as gi
 
@@ -58,11 +57,16 @@ def test_a_fenced_code_block_is_one_passage_and_its_comments_are_not_headings():
     ]
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="a line that opens and closes a fence on itself (```py x```) is inline code, but it "
-    "toggles the fence state, so the rest of the note becomes one passage under the wrong heading",
-)
+def test_a_block_fenced_with_tildes_is_one_passage_too():
+    body = "Setup notes.\n\n~~~bash\n# Install the package\npip install foo\n\npip install bar\n~~~\n\nAfter that, restart."
+
+    assert gi.split_passages(body) == [
+        ("", "Setup notes."),
+        ("", "# Install the package pip install foo pip install bar"),
+        ("", "After that, restart."),
+    ]
+
+
 def test_a_line_of_inline_code_that_starts_with_backticks_does_not_open_a_fence():
     body = "# A\n\n```py x```\n\n## Real Heading\n\nAfter one.\n\nAfter two."
 

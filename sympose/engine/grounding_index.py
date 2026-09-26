@@ -113,6 +113,15 @@ def _chunks(paragraph: str) -> list[str]:
     return pieces
 
 
+def _is_fence(line: str) -> bool:
+    """A fence marker: three or more tildes, or backticks with none after them on the line (a line
+    such as ```py x``` opens and closes on itself, so it is inline code, not a fence)."""
+    stripped = line.strip()
+    if stripped.startswith("~~~"):
+        return True
+    return stripped.startswith("```") and "`" not in stripped.lstrip("`")
+
+
 def split_passages(body: str) -> list[tuple[str, str]]:
     """`(nearest_heading, text)` for each paragraph of `body`, where a
     paragraph is a run of lines between blank lines or headings. A fenced
@@ -129,7 +138,7 @@ def split_passages(body: str) -> list[tuple[str, str]]:
         passages.extend((heading, piece) for piece in _chunks(paragraph) if piece)
 
     for line in body.splitlines():
-        if line.strip().startswith(("```", "~~~")):
+        if _is_fence(line):
             flush()
             in_fence = not in_fence
             continue

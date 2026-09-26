@@ -9,6 +9,7 @@ from collections import Counter
 from dataclasses import dataclass
 from typing import Any
 
+from sympose.engine.grounding_split import MAX_PASSAGE_CHARS, has_words, headings_of, split_passages  # noqa: F401
 from sympose.vault_manifest_build import _stem, _tags_of
 
 # Generic English filler, plus the product's own vocabulary: "note" and
@@ -36,9 +37,6 @@ STOPWORDS = frozenset(
 )
 
 _WORD = re.compile(r"\w+")
-_HEADING = re.compile(r"^\s{0,3}#{1,6}\s+(.*?)\s*#*\s*$")
-_SENTENCE_END = re.compile(r"(?<=[.!?])\s+")
-MAX_PASSAGE_CHARS = 400
 PASSAGES_PER_NOTE = 2  # at most this many passages of one note are attached (by keyword or by meaning)
 
 # How much a term's appearance counts by where it appears: a note's title or
@@ -75,6 +73,9 @@ class Passage:
     # this tells a message that is just a note's name from one that shares words
     # with the passage (docs/decisions/019).
     title_terms: frozenset[str]
+    # "text": a paragraph of the body. "title": the note has no body text, so the title (and its
+    # aliases, as the text) stands for it; the prompt says so (docs/decisions/030).
+    kind: str = "text"
 
 
 @dataclass(frozen=True)
@@ -85,77 +86,63 @@ class Index:
     avg_length: float
 
 
-def _chunks(paragraph: str) -> list[str]:
-    """One paragraph as pieces of at most `MAX_PASSAGE_CHARS`: cut at
-    sentence ends where possible, at a word boundary where a single sentence
-    is itself too long."""
-    if len(paragraph) <= MAX_PASSAGE_CHARS:
-        return [paragraph]
-    pieces: list[str] = []
-    current = ""
-    for sentence in _SENTENCE_END.split(paragraph):
-        while len(sentence) > MAX_PASSAGE_CHARS:
-            cut = sentence.rfind(" ", 0, MAX_PASSAGE_CHARS)
-            if cut <= 0:  # no space to cut at (a long URL, say): hard cut
-                cut = MAX_PASSAGE_CHARS
-            if current:
-                pieces.append(current)
-                current = ""
-            pieces.append(sentence[:cut])
-            sentence = sentence[cut:].lstrip()
-        if current and len(current) + 1 + len(sentence) > MAX_PASSAGE_CHARS:
-            pieces.append(current)
-            current = sentence
-        else:
-            current = f"{current} {sentence}".strip()
-    if current:
-        pieces.append(current)
-    return pieces
+def _aliases_of(meta: dict[str, Any]) -> list[str]:
+    """The other names of a note (`aliases:`, and the older `alias:`): a list of names, or one string that
+    may hold several separated by commas; each name once; anything that is not text is ignored."""
+    names: list[str] = []
+    for key in ("aliases", "alias"):
+        value = meta.get(key)
+        if isinstance(value, str):
+            value = value.split(",")
+        if isinstance(value, list):
+            names += [name.strip() for name in value if isinstance(name, str) and name.strip()]
+    seen: set[str] = set()
+    return [name for name in names if not (name.lower() in seen or seen.add(name.lower()))]
 
 
-def _is_fence(line: str) -> bool:
-    """A fence marker: three or more tildes, or backticks with none after them on the line (a line
-    such as ```py x``` opens and closes on itself, so it is inline code, not a fence)."""
-    stripped = line.strip()
-    if stripped.startswith("~~~"):
-        return True
-    return stripped.startswith("```") and "`" not in stripped.lstrip("`")
+def _note_passages(note: dict[str, Any]) -> list[Passage]:
+    """The passages of one note: its body paragraphs; else, when everything in it is filler words, those
+    (findable by the title, shown as the text they are); else, when it has no text, its title, aliases and
+    headings as one passage that says so (docs/decisions/030)."""
+    meta = note.get("meta") or {}
+    stem = _stem(note["file_name"])
+    title = str(meta.get("title") or meta.get("name") or stem)
+    tags = tuple(_tags_of(meta))
+    aliases = _aliases_of(meta)
+    # A set: a title that equals the filename (the usual case) must not count double. The aliases are
+    # other names for the same title.
+    title_terms = frozenset(index_terms(f"{title} {stem} {' '.join(aliases)}"))
+    header = Counter({term: _TITLE_WEIGHT for term in title_terms})
+    for term in index_terms(" ".join(tags)):
+        header[term] += _TAG_WEIGHT
 
+    def passage(heading: str, text: str, body_terms: list[str], length: int, labelled: tuple[str, ...], kind: str = "text"):
+        tf = Counter(body_terms)
+        for term in index_terms(heading):
+            tf[term] += _HEADING_WEIGHT
+        tf.update(header)
+        labels = tuple(dict.fromkeys(frozenset(index_terms(label)) for label in (title, stem, *aliases, *tags, *labelled)))
+        return Passage(note["rel_path"], title, heading, text, tags, tf, length, labels, title_terms, kind)
 
-def split_passages(body: str) -> list[tuple[str, str]]:
-    """`(nearest_heading, text)` for each paragraph of `body`, where a
-    paragraph is a run of lines between blank lines or headings. A fenced
-    code block is one passage: a `# comment` inside it is code, not a
-    heading, and the fence lines themselves are dropped."""
-    heading = ""
-    passages: list[tuple[str, str]] = []
-    buffer: list[str] = []
-    in_fence = False
-
-    def flush() -> None:
-        paragraph = " ".join(" ".join(buffer).split())
-        buffer.clear()
-        passages.extend((heading, piece) for piece in _chunks(paragraph) if piece)
-
-    for line in body.splitlines():
-        if _is_fence(line):
-            flush()
-            in_fence = not in_fence
-            continue
-        if in_fence:
-            if line.strip():
-                buffer.append(line.strip())
-            continue
-        match = _HEADING.match(line)
-        if match:
-            flush()
-            heading = match.group(1)
-        elif not line.strip():
-            flush()
-        else:
-            buffer.append(line.strip())
-    flush()
-    return passages
+    body = note.get("body") or ""
+    found: list[Passage] = []
+    filler: list[tuple[str, str]] = []
+    for heading, text in split_passages(body):
+        body_terms = index_terms(text)
+        if body_terms:
+            found.append(passage(heading, text, body_terms, len(body_terms), (heading,)))
+        elif has_words(text):
+            filler.append((heading, text))
+        # else a rule or a stray marker: nothing to retrieve, and with a title boost and a near-zero
+        # length it would otherwise outscore real text.
+    if found:
+        return found  # (a filler-only paragraph beside real text is dropped for the same reason)
+    if filler:
+        return [passage(h, t, [], max(1, len(title_terms)), (h,)) for h, t in filler] if header else []
+    headings = headings_of(body)
+    if not header and not index_terms(" ".join(headings)):
+        return []
+    return [passage(", ".join(headings), ", ".join(aliases), [], len(title_terms) + len(index_terms(" ".join(headings))), tuple(headings), "title")]
 
 
 def build_index(notes: list[dict[str, Any]]) -> Index:
@@ -164,45 +151,10 @@ def build_index(notes: list[dict[str, Any]]) -> Index:
     note_df: Counter = Counter()
     note_count = 0
     for note in notes:
-        meta = note.get("meta") or {}
-        stem = _stem(note["file_name"])
-        title = str(meta.get("title") or meta.get("name") or stem)
-        tags = tuple(_tags_of(meta))
-        header_terms = Counter()
-        # A set: a title that equals the filename (the usual case) must not
-        # count double.
-        title_terms = frozenset(index_terms(f"{title} {stem}"))
-        for term in title_terms:
-            header_terms[term] += _TITLE_WEIGHT
-        for term in index_terms(" ".join(tags)):
-            header_terms[term] += _TAG_WEIGHT
-
-        note_terms: set[str] = set()
-        made_any = False
-        for heading, text in split_passages(note.get("body") or ""):
-            body_terms = index_terms(text)
-            if not body_terms:
-                # A rule ("---"), a stray marker, a passage of only filler
-                # words: nothing to retrieve, and with a title boost and a
-                # near-zero length it would otherwise outscore real text.
-                continue
-            tf = Counter(body_terms)
-            heading_terms = index_terms(heading)
-            for term in heading_terms:
-                tf[term] += _HEADING_WEIGHT
-            tf.update(header_terms)
-            note_terms.update(tf)
-            labels = tuple(dict.fromkeys(
-                frozenset(index_terms(label)) for label in (title, stem, *tags, heading)
-            ))
-            passages.append(
-                Passage(
-                    note["rel_path"], title, heading, text, tags, tf, len(body_terms), labels, title_terms
-                )
-            )
-            made_any = True
-        if made_any:
+        made = _note_passages(note)
+        if made:
             note_count += 1
-            note_df.update(note_terms)
+            note_df.update(set().union(*(p.tf.keys() for p in made)))
+            passages += made
     avg = sum(p.length for p in passages) / len(passages) if passages else 0.0
     return Index(passages, dict(note_df), note_count, avg)

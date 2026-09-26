@@ -132,6 +132,42 @@ def test_the_user_turn_puts_the_notes_first_and_the_message_last():
     assert text.index(prompt.ANSWER_FROM_NOTES) < text.index("User's message:")
 
 
+def test_a_note_with_no_text_besides_its_title_is_shown_as_that_and_not_as_empty_content():
+    hit = _grounding_result(title="Anna Ruiz", rel_path="People/Anna Ruiz.md", snippet="")
+    hit["kind"] = "title"
+
+    assert "- Anna Ruiz (People/Anna Ruiz.md): this note is empty: it has no text yet, only its title" in prompt.build_user_turn("who?", [hit])
+
+
+def test_an_outline_is_shown_with_its_headings_and_as_having_no_text_under_them():
+    hit = _grounding_result(title="Packing Outline", rel_path="Travel/Packing Outline.md", snippet="")
+    hit["kind"], hit["heading"] = "title", "Clothes, Chargers"
+
+    assert "(Travel/Packing Outline.md › Clothes, Chargers): this note is empty: it has no text yet, only its title and these headings" in prompt.build_user_turn("?", [hit])
+
+
+def test_a_heading_that_is_only_the_title_is_not_announced_as_headings():
+    hit = _grounding_result(title="Packing", rel_path="Packing.md", snippet="")
+    hit["kind"], hit["heading"] = "title", "Packing"  # a heading equal to the title is not shown in the path either
+
+    text = prompt.build_user_turn("?", [hit])
+
+    assert "(Packing.md): this note is empty: it has no text yet, only its title" in text and "headings" not in text
+
+
+def test_a_title_only_hit_of_the_reference_library_is_shown_as_empty_too():
+    hit = {"title": "Stub", "heading": "", "text": "", "kind": "title", "rel_path": "Sympose reference/Stub.md"}
+
+    assert "- Stub: this note is empty: it has no text yet, only its title" in prompt._reference_block([hit])
+
+
+def test_a_title_only_note_shows_its_aliases():
+    hit = _grounding_result(title="Anna Ruiz", rel_path="People/Anna Ruiz.md", snippet="Annie, A. Ruiz")
+    hit["kind"] = "title"
+
+    assert "(People/Anna Ruiz.md): this note is empty: it has no text yet, only its title; also called Annie, A. Ruiz" in prompt.build_user_turn("who?", [hit])
+
+
 def test_with_no_notes_the_turn_says_so_and_carries_no_answer_from_them_directive():
     text = prompt.build_user_turn("hey, how are you?", [])
 

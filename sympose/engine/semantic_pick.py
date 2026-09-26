@@ -20,6 +20,7 @@ def hit(passage: Passage, similarity: float, via: str) -> dict[str, Any]:
         "heading": passage.heading,
         "text": passage.text,
         "tags": list(passage.tags),
+        "kind": passage.kind,
         "score": round(similarity, 3),
         "matched": 2,
         "via": via,

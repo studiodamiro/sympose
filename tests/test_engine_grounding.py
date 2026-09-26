@@ -450,3 +450,50 @@ def test_a_notes_front_matter_title_alone_can_ground_it_when_the_filename_says_s
     _write(vault_root, "q3.md", "---\ntitle: Atlas Roadmap\n---\nMilestones for the year.")
 
     assert _grounded(vault_root, "how is the roadmap looking for the long winter season please") == ["q3.md"]
+
+
+# -- notes with no body text (docs/decisions/030) -----------------------------------------------
+
+
+def test_a_note_with_only_a_title_is_found_by_its_title_and_says_it_has_no_other_text(vault_root):
+    _write(vault_root, "Quotes/Simplicity is the ultimate sophistication.md", "")
+    _write(vault_root, "Other.md", "Something about gardens and soil.")
+
+    [hit] = grounding.ground(WHOLE, "simplicity ultimate sophistication")
+
+    assert hit["rel_path"] == "Quotes/Simplicity is the ultimate sophistication.md"
+    assert hit["kind"] == "title" and hit["text"] == ""
+
+
+def test_a_card_with_only_properties_is_found_by_an_alias(vault_root):
+    _write(vault_root, "People/Anna Ruiz.md", "---\nrole: designer\naliases:\n  - Annie\n---\n")
+    _write(vault_root, "Other.md", "Something about gardens and soil.")
+
+    [hit] = grounding.ground(WHOLE, "who is Annie?")
+
+    assert hit["rel_path"] == "People/Anna Ruiz.md" and hit["kind"] == "title" and hit["text"] == "Annie"
+
+
+def test_a_note_with_a_body_is_found_by_an_alias_too(vault_root):
+    _write(vault_root, "People/Anna Ruiz.md", "---\naliases: Annie\n---\nMet at the conference in May.")
+    _write(vault_root, "Other.md", "Something about gardens and soil.")
+
+    [hit] = grounding.ground(WHOLE, "tell me about Annie")
+
+    assert hit["rel_path"] == "People/Anna Ruiz.md" and hit["kind"] == "text"
+
+
+def test_an_outline_is_found_by_a_heading_and_shows_them(vault_root):
+    _write(vault_root, "Travel/Packing Outline.md", "# Packing\n\n## Clothes\n\n## Chargers and adapters\n")
+    _write(vault_root, "Other.md", "Something about gardens and soil.")
+
+    [hit] = grounding.ground(WHOLE, "what chargers and adapters do I need?")
+
+    assert hit["rel_path"] == "Travel/Packing Outline.md" and hit["kind"] == "title"
+    assert hit["heading"] == "Packing, Clothes, Chargers and adapters"
+
+
+def test_a_hit_from_a_body_says_it_is_text():
+    index = build_index([_note("Typography", "Some notes about fonts.")])
+
+    assert [h["kind"] for h in grounding.retrieve(index, "typography")] == ["text"]

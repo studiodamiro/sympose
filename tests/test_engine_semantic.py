@@ -507,6 +507,23 @@ def test_a_hit_by_meaning_is_strong_evidence_and_asks_for_no_rewrite(setup):
     assert [h["rel_path"] for h in hits] == ["Atlas.md"] and searched is None
 
 
+def test_a_hit_by_meaning_says_whether_its_passage_is_text_or_a_title():
+    from sympose.engine import semantic_pick
+    from sympose.engine.grounding_index import build_index
+
+    passages = build_index(
+        [
+            {"rel_path": "Body.md", "file_name": "Body.md", "meta": {}, "body": "Some words in a body."},
+            {"rel_path": "Card.md", "file_name": "Card.md", "meta": {}, "body": ""},
+        ]
+    ).passages
+
+    assert {p.rel_path: semantic_pick.hit(p, 0.9, "embedding")["kind"] for p in passages} == {
+        "Body.md": "text",
+        "Card.md": "title",
+    }
+
+
 # -- the cache file ------------------------------------------------------------------
 
 
@@ -966,11 +983,29 @@ def test_more_vectors_than_one_query_can_hold_are_all_loaded(setup):
 def test_a_long_passage_is_cut_before_it_is_embedded(setup):
     from types import SimpleNamespace
 
-    passage = SimpleNamespace(title="T", heading="H", text="x" * 5000)
+    passage = SimpleNamespace(title="T", heading="H", text="x" * 5000, kind="text")
 
     text = embeddings.passage_text(passage)
 
     assert len(text) == 1500 and text.startswith("T\nH\nxxx")
+
+
+def test_the_aliases_of_a_title_passage_are_embedded_as_other_names_of_the_note():
+    from sympose.engine.grounding_index import build_index
+
+    [passage] = build_index(
+        [{"rel_path": "A.md", "file_name": "Anna Ruiz.md", "meta": {"aliases": ["Annie", "A. Ruiz"]}, "body": ""}]
+    ).passages
+
+    assert embeddings.passage_text(passage) == "Anna Ruiz\n\nalso called Annie, A. Ruiz"
+
+
+def test_a_title_passage_with_no_aliases_or_headings_is_embedded_as_its_title():
+    from sympose.engine.grounding_index import build_index
+
+    [passage] = build_index([{"rel_path": "A.md", "file_name": "Anna Ruiz.md", "meta": {}, "body": ""}]).passages
+
+    assert embeddings.passage_text(passage) == "Anna Ruiz\n\n"
 
 
 def _index_of(*passages):

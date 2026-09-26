@@ -7,6 +7,12 @@ DEFAULT_SOUL = (
     "about their Obsidian vault. Keep replies natural and concise."
 )
 
+# How a note with no text of its own is shown among the notes found (docs/decisions/030): as empty, so it is not
+# taken for a note whose content was left out, and so a note that exists is not reported as missing.
+EMPTY_NOTE = "this note is empty: it has no text yet, only its title"
+EMPTY_NOTE_HEADINGS = " and these headings"
+EMPTY_NOTE_ALIASES = "; also called {names}"
+
 # Added after an earlier reply of hers that stopped at the reply limit when it comes back as
 # history, so she does not treat half an answer as a finished one (docs/decisions/015).
 CUT_OFF_NOTE = "[This reply was cut off at the length limit.]"

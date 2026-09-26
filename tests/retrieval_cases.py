@@ -140,3 +140,31 @@ _OK = {
     "who made Sympose?": (ROADMAP, PERSONA_IDEAS),
 }
 MESSAGES = [Msg(**{**m.__dict__, "ok": _OK.get(m.text, m.ok)}) for m in _build()]
+
+# Notes with no body text (docs/decisions/030): a card of properties, quotes titled by the quote, an outline,
+# a date-titled note. Kept apart from MESSAGES so that set stays comparable with the numbers in ADR 027; the
+# notes are in the same vault, so MESSAGES also shows whether they attach where they should not.
+_NO_BODY = [
+    ("title", "which quote says done is better than perfect?", "Quotes/Done is better than perfect.md"),
+    ("title", "do I have a note about slow is smooth and smooth is fast?", "Quotes/Slow is smooth and smooth is fast.md"),
+    ("title", "what did I write on 2026-09-22?", "Journal/2026-09-22.md"),
+    ("card", "who is Anna Ruiz?", "People/Anna Ruiz.md"),
+    ("card", "tell me about Annie", "People/Anna Ruiz.md"),
+    ("card", "what does Marc do?", "People/Marcus Webb.md"),
+    ("card", "what is Marcus Webb's role?", "People/Marcus Webb.md"),
+    ("outline", "what chargers and adapters do I need to pack?", "Travel/Packing Outline.md"),
+    ("outline", "do I have an outline for what to pack?", "Travel/Packing Outline.md"),
+]
+_NO_BODY_NONE = [
+    ("nothing", "I feel slow this morning"),
+    ("nothing", "good, I'm done for today"),
+    ("nothing", "what is the capital of Portugal?"),
+    ("nothing", "how are you today?"),
+]
+NO_BODY_MESSAGES = [
+    Msg(f"{cat}-{n}", cat, text, lib=None, need=(need,), ok=("Travel/Lisbon Trip.md",) if cat == "outline" else (), split="dev" if n % 2 == 0 else "test")
+    for n, (cat, text, need) in enumerate(_NO_BODY)
+] + [
+    Msg(f"{cat}-{n}", cat, text, lib=False, split="dev" if n % 2 == 0 else "test")
+    for n, (cat, text) in enumerate(_NO_BODY_NONE, start=len(_NO_BODY))
+]

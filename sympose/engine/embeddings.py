@@ -93,8 +93,9 @@ def embed(texts: list[str], kind: str, model_name: str | None = None) -> list[li
 
 def passage_text(passage: Any) -> str:
     """What is embedded for a passage: its note's title and heading with its text, cut to a size the
-    embedding model takes whole."""
-    return f"{passage.title}\n{passage.heading}\n{passage.text}"[:_MAX_CHARS]
+    embedding model takes whole. The text of a title passage is the note's aliases, said as that."""
+    text = f"also called {passage.text}" if passage.kind == "title" and passage.text else passage.text
+    return f"{passage.title}\n{passage.heading}\n{text}"[:_MAX_CHARS]
 
 
 def unit(vector: Sequence[float]) -> array:

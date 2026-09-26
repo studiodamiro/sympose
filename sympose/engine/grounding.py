@@ -172,6 +172,7 @@ def retrieve(
                 "heading": passage.heading,
                 "text": passage.text,
                 "tags": list(passage.tags),
+                "kind": passage.kind,
                 "score": round(score, 3),
                 "matched": matched_count,
                 "index": len(hits) + 1,

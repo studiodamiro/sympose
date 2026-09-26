@@ -19,6 +19,7 @@ from sympose.engine.prompt_text import (
     ANSWER_FROM_NOTES, ANSWER_FROM_RECAPS, ANSWER_FROM_REFERENCE, DEFAULT_SOUL, GROUNDING_RULE,
     HOW_YOU_WORK, NO_NOTES, NO_RECAP, NO_REFERENCE, NO_TOPIC, POINT_TO_REFERENCE, RECAPS_LABEL,
     RECAP_INSTRUCTIONS, REFERENCE_LABEL, REWRITE_INSTRUCTIONS, SYMPOSE_RULE,
+    EMPTY_NOTE, EMPTY_NOTE_ALIASES, EMPTY_NOTE_HEADINGS,
 )
 from sympose.persona_files import load_soul
 from sympose.profile import reference_persona_names
@@ -48,10 +49,22 @@ def _reference_block(hits: list[dict[str, Any]], omitted: int = 0) -> str:
     lines = [REFERENCE_LABEL]
     for hit in hits:
         where = hit["title"] if hit.get("heading") in (None, "", hit["title"]) else f"{hit['title']} › {hit['heading']}"
-        lines.append(f"- {where}: {hit['text']}")
+        lines.append(f"- {where}: {_text_of(hit)}")
     if omitted:
         lines.append(f"({omitted} more reference passages were left out to fit the context window.)")
     return "\n".join(lines)
+
+
+def _text_of(result: dict[str, Any]) -> str:
+    """What a grounded note says; a note with no text of its own is shown as empty, with its other names."""
+    if result.get("kind") != "title":
+        return result["text"]
+    headings = result.get("heading") and result["heading"] != result["title"]  # as `where` shows them
+    return (
+        EMPTY_NOTE
+        + (EMPTY_NOTE_HEADINGS if headings else "")
+        + (EMPTY_NOTE_ALIASES.format(names=result["text"]) if result["text"] else "")
+    )
 
 
 def _recaps_block(recaps: list[dict[str, Any]], omitted: int = 0) -> str | None:
@@ -97,7 +110,7 @@ def _notes_block(grounding_results: list[dict[str, Any]], omitted: int = 0) -> s
         where = result["rel_path"]
         if heading and heading != result["title"]:
             where += f" › {heading}"
-        lines.append(f"- {result['title']} ({where}): {result['text']}")
+        lines.append(f"- {result['title']} ({where}): {_text_of(result)}")
     if omitted:
         lines.append(f"({omitted} more matching passages were left out to fit the context window.)")
     return "\n".join(lines)

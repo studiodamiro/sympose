@@ -156,7 +156,7 @@ def list_profiles() -> list[dict[str, Any]]:
     handles = sorted(
         {
             os.path.basename(os.path.dirname(p)).lower()
-            for p in glob.glob(os.path.join(base, "*", PERSONA_FILENAME))
+            for p in glob.glob(os.path.join(glob.escape(base), "*", PERSONA_FILENAME))
         }
     )
     return [p for h in handles if (p := get_profile(h)) is not None]

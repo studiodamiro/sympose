@@ -375,11 +375,6 @@ def test_a_default_persona_setting_that_is_not_a_handle_is_the_factory_default(p
     assert profile.resolve_default_persona() == profile.FACTORY_DEFAULT_PERSONA
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="the profiles folder's own path goes into a glob pattern, so `[` `]` `*` `?` in it (a folder named "
-    "`Notes [Vault]`) match nothing and the roster is empty though the personas are there",
-)
 def test_the_roster_is_found_when_the_profiles_folder_has_glob_characters_in_its_path(tmp_path, monkeypatch):
     base = tmp_path / "Notes [Vault]" / "profiles"
     write_persona(base, "samantha", "name: Samantha\nvault_folders: '*'\n")

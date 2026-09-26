@@ -95,14 +95,15 @@ def _write_one(
     return True
 
 
-def refresh(handle: str, now: datetime | None = None) -> None:
+def refresh(handle: str, model: str | None = None, now: datetime | None = None) -> None:
     """Write the recaps that are missing (or out of date) for `handle`'s newest
-    sessions. Never raises for a model or file problem: the session simply has no
-    recap yet and is looked at again the next time."""
+    sessions, with `model` (the one the user picked for the run, as a turn's `model`
+    argument, else the persona's own). Never raises for a model or file problem: the
+    session simply has no recap yet and is looked at again the next time."""
     persona = profile_mod.resolve_profile(handle)
     if persona is None or not recap.enabled():
         return
-    model = model_mod.resolve_model(persona.get("model"))
+    model = model or model_mod.resolve_model(persona.get("model"))
     if model in _CANNOT_RECAP:
         return
     limits = budget.budget_for(model)
@@ -139,8 +140,8 @@ _RUNNING_LOCK = threading.Lock()
 _WAIT_SECONDS = 20.0
 
 
-def refresh_in_background(handle: str) -> bool:
-    """Start `refresh` on a daemon thread and return at once, so the user can type
+def refresh_in_background(handle: str, model: str | None = None) -> bool:
+    """Start `refresh` (with `model`, as there) on a daemon thread and return at once, so the user can type
     their first message meanwhile and quitting never waits on a model call. `False`
     when one is already running for `handle` (a persona switched to twice)."""
     with _RUNNING_LOCK:
@@ -150,7 +151,7 @@ def refresh_in_background(handle: str) -> bool:
 
     def work() -> None:
         try:
-            refresh(handle)
+            refresh(handle, model)
         except Exception as e:  # a background thread must not print a traceback into the terminal
             log.warning("Recap refresh for %s failed: %s", handle, e)
         finally:

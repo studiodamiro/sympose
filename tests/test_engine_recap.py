@@ -110,6 +110,27 @@ def test_it_asks_the_personas_own_model_in_its_window_with_a_short_reply_limit(a
     assert asked[0]["num_ctx"] == 8192 and asked[0]["max_tokens"] == 200
 
 
+def test_a_model_chosen_for_the_run_is_asked_instead_of_the_personas_own(asked, profiles):
+    write_persona(profiles, "ada", "name: Ada\nvault_folders: '*'\nmodel: 'ollama_chat/other:1b'\n")
+    talk(NEW, handle="ada")
+
+    recap_refresh.refresh("ada", model="anthropic/claude-sonnet-5", now=LATER)
+
+    assert [call["model"] for call in asked] == ["anthropic/claude-sonnet-5"]
+
+
+def test_the_background_refresh_passes_the_chosen_model_on(monkeypatch):
+    seen: list = []
+    monkeypatch.setattr(recap_refresh, "refresh", lambda handle, model=None: seen.append((handle, model)))
+
+    recap_refresh.refresh_in_background("samantha", "anthropic/claude-sonnet-5")
+    for thread in threading.enumerate():
+        if thread.name.startswith("recaps-"):
+            thread.join(5)
+
+    assert seen == [("samantha", "anthropic/claude-sonnet-5")]
+
+
 def test_a_session_with_one_turn_gets_no_recap(asked):
     talk(NEW, turns=1)
 
@@ -496,7 +517,7 @@ def test_the_refresh_runs_on_its_own_thread_and_a_second_call_meanwhile_is_refus
     started, release = threading.Event(), threading.Event()
     seen: list[str] = []
 
-    def slow_refresh(handle):
+    def slow_refresh(handle, model=None):
         seen.append(threading.current_thread().name)
         started.set()
         release.wait(5)
@@ -520,7 +541,7 @@ def test_the_refresh_runs_on_its_own_thread_and_a_second_call_meanwhile_is_refus
 
 
 def test_a_failure_on_the_thread_is_logged_not_raised_and_the_handle_is_freed(monkeypatch, caplog):
-    def boom(handle):
+    def boom(handle, model=None):
         raise RuntimeError("broken")
 
     monkeypatch.setattr(recap_refresh, "refresh", boom)
@@ -541,7 +562,7 @@ def test_the_thread_is_a_daemon_so_quitting_never_waits_for_a_model_call(monkeyp
     release = threading.Event()
     flags: list[bool] = []
 
-    def wait(handle):
+    def wait(handle, model=None):
         flags.append(threading.current_thread().daemon)
         release.wait(5)
 
@@ -558,7 +579,7 @@ def test_the_thread_is_a_daemon_so_quitting_never_waits_for_a_model_call(monkeyp
 
 def test_a_turn_can_wait_for_a_refresh_still_running_and_gives_up_after_the_timeout(monkeypatch):
     release = threading.Event()
-    monkeypatch.setattr(recap_refresh, "refresh", lambda handle: release.wait(5))
+    monkeypatch.setattr(recap_refresh, "refresh", lambda handle, model=None: release.wait(5))
 
     assert recap_refresh.wait_for_refresh("samantha", timeout=0) is True  # none running: nothing to wait for
     recap_refresh.refresh_in_background("samantha")

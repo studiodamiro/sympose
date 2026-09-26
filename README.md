@@ -7,24 +7,17 @@ multi-call orchestration.
 
 ## Current status
 
-A first vault web app (backend and frontend) was built, then deleted
-(2026-09-22) after both turned out to be salvaged from `sympose-legacy`
-with far less filtering than intended. Both have since been rebuilt
-properly — traced file-by-file and function-by-function down to only
-what's actually reachable from the real web app shell. Working today:
-vault browsing, the markdown editor, note/folder create/rename/delete,
-trash recovery (list/restore/purge), full-text search, and the
-Knowledge Nebula graph. Still not built: chat/persona dialogue (the
-actual "talk to Samantha" feature), Slack status, and a multi-persona
-roster — see `docs/VISION.md` for what's next and why.
+What works today:
+
+- **Terminal chat** (`sympose cli`): talk to a persona (Samantha by default) about your vault. Replies are grounded in real notes, found by meaning when a local embedding model is available and by keywords otherwise, and the CLI can show which notes grounded each one. It also has saved sessions, recaps of earlier conversations, a context meter, and a model picker (a local Ollama model by default; Gemini and OpenRouter are opt-in).
+- **Web app** (`sympose web`): vault browsing, the markdown editor, note and folder create, rename and delete, trash recovery, full-text search, and the Knowledge Nebula graph.
+
+Not built yet: chat inside the web app (its chat panel is a mock and the backend has no chat route), Slack, tool-calling, skills, durable memory and compaction, and a multi-persona roster. See `docs/VISION.md` for what's next and why.
 
 ## Project layout
 
-- `sympose/` — Python backend (FastAPI): vault browsing, note editing,
-  trash recovery, full-text search, the Knowledge Nebula graph API.
-- `ui/` — React/TypeScript frontend (Vite): vault tree, markdown editor,
-  the bin, Knowledge Nebula 2D/3D graph. No chat panel or Slack status
-  yet — those still have no backend behind them.
+- `sympose/` — the Python package: the chat engine and terminal chat (`engine/`, `cli/`), and the FastAPI backend for the web app (vault browsing, note editing, trash recovery, full-text search, the Knowledge Nebula graph API).
+- `ui/` — the React/TypeScript web app (Vite): vault tree, markdown editor, the bin, Knowledge Nebula 2D/3D graph, and a chat panel that is a mock with no backend behind it yet. Its build is committed as `sympose/webui/`.
 - `profiles/` — one directory per persona (`profiles/<handle>/persona.yaml`,
   plus that persona's soul, memory, and chat sessions). Only Samantha's
   `persona.yaml` and `soul.md` (the shipped default) are committed; any other
@@ -40,6 +33,7 @@ roster — see `docs/VISION.md` for what's next and why.
    Obsidian vault on disk.
 2. Backend: `pip install -e ".[dev]"` from the repo root.
 3. Frontend: `npm install` from `ui/`.
+4. For chat: run [Ollama](https://ollama.com) and pull the default chat model (`ollama pull gemma2:9b`). For search by meaning also `ollama pull nomic-embed-text`; without it, search falls back to keywords.
 
 ## Running it
 
@@ -50,7 +44,7 @@ roster — see `docs/VISION.md` for what's next and why.
 - Working on the app itself: `python -m sympose.main` (repo root) for the
   API, and `npm run dev` (from `ui/`) on `localhost:5173`.
 
-See `CLAUDE.md`'s Primary Commands section for the full command list.
+Checks: `pytest` and `ruff check .` from the repo root; `npm run test`, `npm run lint`, `npm run typecheck` and `npm run build` from `ui/` (the build writes into `sympose/webui/`).
 
 ## Standards and decisions
 

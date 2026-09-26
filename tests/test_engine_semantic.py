@@ -1479,3 +1479,40 @@ def test_a_failing_model_is_the_one_that_is_cooled_down_not_the_default(setup, m
     settings_store.set("embedding_model", "ollama/nomic-embed-text")
 
     assert [h["rel_path"] for h in grounding.ground(WHOLE, "what storage engine did we pick?")] == ["Atlas.md"]
+
+
+# -- found in the review of search and meaning (wave D of the cleanup) -----------------
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="vectors of different lengths (a truncated cache row, or a model of the same name with another "
+    "size) raise ValueError out of `VectorSet`, which `refine` does not catch, so every turn fails",
+)
+def test_vectors_of_different_lengths_fall_back_to_keywords_and_do_not_fail_the_turn(setup, monkeypatch):
+    _vault(setup)
+    _mode("embeddings")
+    first = embedding_store.load  # the real one: read what a first search saved
+
+    grounding.ground(WHOLE, "what storage engine did we pick?")  # fills the cache
+    semantic._forget_for_tests()
+
+    def truncated(keys):
+        found = first(keys)
+        return {k: v[:-1] if i == 0 else v for i, (k, v) in enumerate(found.items())}
+
+    monkeypatch.setattr(embedding_store, "load", truncated)
+    grounding.ground(WHOLE, "what storage engine did we pick?")  # must not raise
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="an index with no passages still embeds the message, a network call that can time out and start "
+    "the cooldown, though there is nothing to compare it with",
+)
+def test_an_index_with_no_passages_does_not_embed_the_message(setup, calls):
+    _mode("embeddings")
+    empty = semantic.Index(passages=[], note_df={}, note_count=0, avg_length=0.0)
+
+    assert semantic.refine(empty, "what storage engine did we pick?", []) == []
+    assert calls["embed"] == []

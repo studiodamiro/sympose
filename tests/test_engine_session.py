@@ -279,3 +279,69 @@ def test_a_padded_saved_reply_is_sent_back_tidy_but_the_file_keeps_what_was_save
 
     assert session.history_as_messages(loaded)[1] == {"role": "assistant", "content": "Hey! How are you?"}
     assert loaded["turns"][0]["assistant"] == "Hey!  How are you?\n\n\n"
+
+
+# -- found in the review of the engine (wave D of the cleanup) --------------------------------
+
+
+def _two_turns(handle="samantha"):
+    sid = session.new_session_id()
+    session.append_turn(handle, sid, "first question", "first answer")
+    session.append_turn(handle, sid, "second question", "second answer")
+    return sid, session.session_path(handle, sid)
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="a session whose first (meta) line is damaged loads as no session, and the next message "
+    "rewrites the file from scratch, destroying every turn that was still valid",
+)
+def test_a_damaged_first_line_does_not_cost_the_turns_after_it(sessions_root):
+    sid, path = _two_turns()
+    lines = open(path, encoding="utf-8").read().splitlines()
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(lines[0][:20] + "\n" + "\n".join(lines[1:]) + "\n")
+
+    session.append_turn("samantha", sid, "third question", "third answer", existing=session.load_session("samantha", sid))
+
+    kept = [json.loads(line) for line in open(path, encoding="utf-8").read().splitlines()]
+    assert [t["user"] for t in kept if t["type"] == "turn"] == ["first question", "second question", "third question"]
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="a turn record without a `user` or `assistant` text raises KeyError for every later message "
+    "of that session, so it can never be resumed",
+)
+def test_a_turn_record_without_its_text_does_not_break_the_history(sessions_root):
+    sid, path = _two_turns()
+    with open(path, "a", encoding="utf-8") as f:
+        f.write(json.dumps({"type": "turn", "assistant": "an answer with no question"}) + "\n")
+
+    messages = session.history_as_messages(session.load_session("samantha", sid))
+
+    assert [m["content"] for m in messages][:2] == ["first question", "first answer"]
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="the log is rewritten in place: the file is emptied first, so a failure part-way through "
+    "(a full disk, a killed process) loses the whole conversation; recaps are written through a temporary file",
+)
+def test_a_write_that_fails_part_way_leaves_the_earlier_turns_on_disk(sessions_root, monkeypatch):
+    sid, path = _two_turns()
+    real_dumps, calls = json.dumps, []
+
+    def fails_on_the_third_line(obj, *args, **kwargs):
+        calls.append(1)
+        if len(calls) == 3:
+            raise OSError("no space left on device")
+        return real_dumps(obj, *args, **kwargs)
+
+    monkeypatch.setattr(session.json, "dumps", fails_on_the_third_line)
+    session.append_turn("samantha", sid, "third question", "third answer")
+    monkeypatch.undo()
+
+    survivor = session.load_session("samantha", sid)
+    assert survivor is not None
+    assert [t["user"] for t in survivor["turns"]] == ["first question", "second question"]

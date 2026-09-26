@@ -209,3 +209,16 @@ def test_the_fallback_snippet_names_the_line_of_the_note(vault_root):
     results = vault_search.search_structured({"vault_folders": ["*"]}, "**")
 
     assert results[0]["snippet"] == "Match found on line 5"
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="a title written as a number or a date in the frontmatter is returned as it is, not as text: "
+    "the API field is a number, and the manifest and the grounding index already convert it",
+)
+def test_a_title_that_yaml_reads_as_a_number_is_returned_as_text(vault_root):
+    _write(vault_root, "Year.md", "---\ntitle: 2024\n---\nreview of the year")
+
+    (result,) = vault_search.search_structured({"vault_folders": ["*"]}, "review")
+
+    assert result["title"] == "2024"

@@ -280,3 +280,17 @@ def test_a_reply_of_only_whitespace_is_an_empty_reply(settings_file, monkeypatch
 
     with pytest.raises(model.EngineModelError, match="empty reply"):
         model.call_model([{"role": "user", "content": "hi"}])
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="a `chat_model` that is null, blank or not text is returned as it is and crashes the turn; "
+    "the true/false and number settings fall back to their default in that case",
+)
+@pytest.mark.parametrize("value", [None, "", "   ", 5, ["ollama_chat/x"]])
+def test_a_chat_model_setting_that_is_not_a_model_name_is_the_default(settings_file, value):
+    from sympose import settings_store
+
+    settings_store.set("chat_model", value)
+
+    assert model.resolve_model() == model.DEFAULT_LOCAL_MODEL

@@ -57,3 +57,36 @@ def test_flag_only_honours_a_real_boolean(tmp_path, monkeypatch):
         settings_store.set("knob", junk)
         assert settings_store.flag("knob") is True
         assert settings_store.flag("knob", default=False) is False
+
+
+# -- found in the review of the CLI and settings (wave D of the cleanup) ----------------------
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="the file is emptied before the value is written, so a value that cannot be written as JSON "
+    "leaves it half written and every other setting is lost",
+)
+def test_a_value_that_cannot_be_written_leaves_the_other_settings_alone(settings_file):
+    settings_store.set("active_vault", "/vault/one")
+    settings_store.set("chat_model", "ollama_chat/x")
+
+    try:
+        settings_store.set("broken", object())
+    except TypeError:
+        pass
+
+    assert settings_store.get("active_vault") == "/vault/one"
+    assert settings_store.get("chat_model") == "ollama_chat/x"
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="a file that is not valid UTF-8 raises UnicodeDecodeError out of every settings read, which "
+    "the CLI hits after the model has answered, so the app crashes and the reply is lost",
+)
+def test_a_settings_file_that_is_not_utf8_reads_as_no_settings(settings_file):
+    with open(settings_file, "wb") as f:
+        f.write(b'{"chat_model": "\xff\xfe"}')
+
+    assert settings_store.get("chat_model", "fallback") == "fallback"

@@ -356,3 +356,34 @@ def test_the_names_of_the_personas_that_have_the_library(profiles_dir):
     _write(profiles_dir, "ada", "name: Ada\nsympose_reference: true\n")
 
     assert profile.reference_persona_names() == ["Ada", "Samantha"]
+
+
+# -- found in the review of the CLI and settings (wave D of the cleanup) ----------------------
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="a `default_persona` that is null, a number or blank is returned as it is and becomes a handle: "
+    "every request that names no persona then fails with AttributeError; other settings ignore a wrong kind of value",
+)
+@pytest.mark.parametrize("value", [None, 3, "", ["samantha"]])
+def test_a_default_persona_setting_that_is_not_a_handle_is_the_factory_default(profiles_dir, value):
+    from sympose import settings_store
+
+    settings_store.set("default_persona", value)
+
+    assert profile.resolve_default_persona() == profile.FACTORY_DEFAULT_PERSONA
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="the profiles folder's own path goes into a glob pattern, so `[` `]` `*` `?` in it (a folder named "
+    "`Notes [Vault]`) match nothing and the roster is empty though the personas are there",
+)
+def test_the_roster_is_found_when_the_profiles_folder_has_glob_characters_in_its_path(tmp_path, monkeypatch):
+    base = tmp_path / "Notes [Vault]" / "profiles"
+    write_persona(base, "samantha", "name: Samantha\nvault_folders: '*'\n")
+    monkeypatch.setenv("SYMPOSE_PROFILES_DIR", str(base))
+
+    assert profile.get_profile("samantha") is not None
+    assert [p["handle"] for p in profile.list_profiles()] == ["samantha"]

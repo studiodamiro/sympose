@@ -34,3 +34,4 @@ The original records 001–006 (backend dependencies, the legacy port strategy, 
 | [026](026-recaps-in-the-system-prompt.md) | Recaps go in the system prompt, not beside the message: next to a same-topic request mid-chat they made her comment instead of continue | Accepted |
 | [027](027-embedding-search-behind-a-knob.md) | Search notes by meaning as well as by keyword, behind a `grounding_search` knob (auto, keywords, embeddings, hybrid); `auto` is the default, threshold 0.72, `embedding_margin` 0.02 | Accepted |
 | [028](028-the-sympose-command-and-the-web-app.md) | One `sympose` command with `cli` and `web`, and the browser app is the "web app" (formerly "the dashboard", which older records still say) | Accepted |
+| [029](029-sympose-doctor.md) | `sympose doctor`: a health check for an installation (persona folder names, unreadable persona and settings files, wrong-kind settings) that fixes only Sympose's own files with `--fix`, never the notes | Accepted |

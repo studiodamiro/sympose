@@ -4,6 +4,7 @@ that's `vault_write.overwrite_note`'s job.
 """
 
 import datetime
+import json
 import os
 from typing import Any
 
@@ -120,7 +121,7 @@ def create_note(
             if raw_tmpl and raw_tmpl.strip().startswith("---"):
                 content = f"{_render_template(raw_tmpl, title, now)}\n\n# {title}\n\n"
             else:
-                content = f"---\ntitle: {title}\ncreated: {now.strftime('%Y-%m-%d')}\ntags: []\n---\n\n# {title}\n\n"
+                content = f"---\ntitle: {json.dumps(title, ensure_ascii=False)}\ncreated: {now.strftime('%Y-%m-%d')}\ntags: []\n---\n\n# {title}\n\n"
 
         rel_display = os.path.relpath(target_file, mv)
         try:

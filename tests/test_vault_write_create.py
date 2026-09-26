@@ -182,15 +182,16 @@ def test_a_failed_write_reports_the_error_and_leaves_no_note(vault, monkeypatch)
     assert not os.path.exists(os.path.join(vault, "Nope.md"))
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="the title is written into the frontmatter unquoted, so ` #3` starts a YAML comment and a word such as "
-    "`Yes` or a number is read as a boolean or an integer",
-)
-@pytest.mark.parametrize("title", ["Meeting #3", "Yes", "2024", "null"])
+@pytest.mark.parametrize("title", ["Meeting #3", "Yes", "2024", "Null", 'Say "Hi" Now', "A: B", "Café: 日本"])  # `.title()` writes "Null"
 def test_the_generated_title_reads_back_as_the_same_text(vault, title):
     create.create_note(ALL, title)
     assert parse_frontmatter(read(vault, f"{title}.md"))[0]["title"] == title
+
+
+def test_the_generated_title_is_written_readably_in_the_file(vault):
+    create.create_note(ALL, "Café 日本")
+
+    assert 'title: "Café 日本"\n' in read(vault, "Café 日本.md")  # quoted, and not as \\u escapes
 
 
 # --- create_folder --------------------------------------------------------------------------

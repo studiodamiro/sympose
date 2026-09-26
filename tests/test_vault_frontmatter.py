@@ -73,13 +73,17 @@ def test_frontmatter_that_is_not_key_value_gives_no_metadata_but_is_still_remove
     assert parse_frontmatter(f"---\n{block}\n---\nbody") == ({}, "body")
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="an empty frontmatter block (Obsidian writes one when the last property is deleted) is not recognised, "
-    "so its two rules stay in the body",
+@pytest.mark.parametrize(
+    "text, body",
+    [("---\n---\nbody", "body"), ("---\r\n---\r\nbody", "body"), ("---\n--- \nbody", "body"), ("---\n---", "")],
 )
-def test_an_empty_frontmatter_block_is_removed_from_the_body():
-    assert parse_frontmatter("---\n---\nbody") == ({}, "body")
+def test_an_empty_frontmatter_block_is_removed_from_the_body(text, body):
+    assert parse_frontmatter(text) == ({}, body)
+
+
+def test_an_empty_block_is_preferred_to_a_later_rule_as_the_end_of_the_frontmatter():
+    text = "---\n---\nbody\n---\nmore"
+    assert parse_frontmatter(text) == ({}, "body\n---\nmore")
 
 
 # --- get_vault_snapshot ---------------------------------------------------------------------
@@ -172,13 +176,9 @@ def test_a_note_that_is_not_valid_utf8_is_read_with_a_replacement_character(vaul
     assert entry["full_content"] == "caf� here"
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="a byte order mark (Windows Notepad writes one) is read as text, so `---` is no longer the first "
-    "characters and the note's whole frontmatter is treated as body",
-)
 def test_a_note_that_starts_with_a_byte_order_mark_still_has_its_frontmatter(vault):
     write(vault, "a.md", b"\xef\xbb\xbf---\ntitle: T\n---\nbody")
     (entry,) = snapshot(vault)
     assert entry["meta"] == {"title": "T"}
     assert entry["body"] == "body"
+    assert not entry["full_content"].startswith("\ufeff")

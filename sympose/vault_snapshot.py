@@ -25,6 +25,11 @@ def parse_frontmatter(content: str) -> tuple[dict[str, Any], str]:
     if not content.startswith("---"):
         return {}, content
 
+    # An empty block (Obsidian writes one when the last property is deleted) has no line between the rules.
+    empty = re.match(r"^---\r?\n---[ \t]*(?:\r?\n(.*))?\Z", content, re.DOTALL)
+    if empty:
+        return {}, empty.group(1) or ""
+
     # Closing `---` may be the last line of the file (frontmatter-only note),
     # carry trailing spaces, or be followed by a body. All three are valid.
     match = re.match(
@@ -78,7 +83,7 @@ def get_vault_snapshot(mv: str, dirs: list[str]) -> list[dict[str, Any]]:
                         continue
                     try:
                         with open(
-                            file_path, "r", encoding="utf-8", errors="replace"
+                            file_path, "r", encoding="utf-8-sig", errors="replace"  # a BOM is not text
                         ) as f:
                             full_content = f.read()
                     except Exception as e:

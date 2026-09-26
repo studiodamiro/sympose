@@ -33,7 +33,7 @@ _ENGINE_EXECUTOR = concurrent.futures.ThreadPoolExecutor(
 )
 
 
-def _show_failure(app, transcript, message: str) -> None:
+def _show_failure(app, transcript, handle: str, message: str) -> None:
     """`/quit` fired while this call was in flight — `_exit` is a
     private/underscore Textual attribute, not part of its public API, but
     the only signal available for that; worth a test catching a future
@@ -42,7 +42,9 @@ def _show_failure(app, transcript, message: str) -> None:
     test)."""
     if app._exit:
         return
-    transcript_mod.mount_line(app, f"Sam couldn't reply: {message}", "system")
+    # A `Text`, not a string: the message comes from a provider, and a string is read as markup
+    # (a `[/foo]` in it would stop the app when the line is drawn).
+    transcript_mod.mount_line(app, Text(f"@{handle} couldn't reply: {message}"), "system")
     transcript.scroll_end(animate=False)
 
 
@@ -124,7 +126,7 @@ async def _send_message(app, value: str) -> None:
                 _ENGINE_EXECUTOR, engine.run_turn, handle, value, session_id, model_id
             )
         except engine.EngineModelError as e:
-            _show_failure(app, transcript, str(e))
+            _show_failure(app, transcript, handle, str(e))
             return
         except Exception as e:
             # Anything other than EngineModelError is a bug somewhere in
@@ -133,7 +135,7 @@ async def _send_message(app, value: str) -> None:
             # line rather than letting it crash the whole app, the same
             # as every other failure path here.
             log.warning("Unexpected error during a turn: %s", e)
-            _show_failure(app, transcript, f"unexpected error ({e}).")
+            _show_failure(app, transcript, handle, f"unexpected error ({e}).")
             return
         if app._exit:  # /quit fired while this call was in flight
             return

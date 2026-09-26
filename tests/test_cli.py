@@ -758,11 +758,6 @@ def test_engine_model_error_shows_a_friendly_message_not_a_crash(profiles, monke
     run_async(scenario())
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="an error text is shown as Textual markup, so one with brackets that look like a closing tag "
-    "(`[/foo]`) raises MarkupError when it is drawn and the app stops; the line also says `Sam` for any persona",
-)
 def test_an_error_message_with_brackets_is_shown_as_text_not_parsed(profiles, monkeypatch):
     def failing_run_turn(handle, user_message, session_id=None, model=None):
         raise engine.EngineModelError("the server said: bad [/foo] request")
@@ -778,6 +773,27 @@ def test_an_error_message_with_brackets_is_shown_as_text_not_parsed(profiles, mo
             await pilot.pause()
             lines = [plain_text(child) for child in app.transcript.children]
             assert any("bad [/foo] request" in line for line in lines)
+
+    run_async(scenario())
+
+
+def test_the_failure_line_names_the_persona_that_was_addressed(profiles, monkeypatch):
+    def failing_run_turn(handle, user_message, session_id=None, model=None):
+        raise engine.EngineModelError("the server said no")
+
+    monkeypatch.setattr(turns.engine, "run_turn", failing_run_turn)
+
+    async def scenario():
+        app = SymposeCLI()
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            aria = next(p for p in runtime.list_personas() if p.handle == "aria")
+            runtime.apply_picker_choice(app, "persona", aria.handle)
+            app.composer.focus()
+            await pilot.press(*"hello", "enter")
+            await pilot.pause()
+            lines = [plain_text(child) for child in app.transcript.children]
+            assert "@aria couldn't reply: the server said no" in lines
 
     run_async(scenario())
 

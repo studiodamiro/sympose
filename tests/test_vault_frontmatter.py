@@ -115,13 +115,16 @@ def test_each_note_is_an_entry_with_its_path_text_metadata_and_body(vault):
     }
 
 
-def test_only_note_files_are_read_and_in_name_order(vault):
+def test_only_md_files_are_notes_and_they_are_read_in_name_order(vault):
+    """`.markdown` and `.txt` files are not notes (#52): they are not read, and so they are not in the tree,
+    the graph, the search or the grounding either. The vault health report is where they are mentioned."""
     write(vault, "b.md")
-    write(vault, "a.markdown")
-    write(vault, "c.txt")
+    write(vault, "a.md")
+    write(vault, "c.markdown")
+    write(vault, "d.txt")
     write(vault, "pic.png")
     write(vault, "data.json")
-    assert [e["file_name"] for e in snapshot(vault)] == ["a.markdown", "b.md", "c.txt"]
+    assert [e["file_name"] for e in snapshot(vault)] == ["a.md", "b.md"]
 
 
 def test_ignored_and_hidden_folders_are_left_out(vault):

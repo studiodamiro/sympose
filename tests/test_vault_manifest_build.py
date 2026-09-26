@@ -69,8 +69,12 @@ def test_spaces_around_a_link_target_are_ignored():
     assert mb._targets_in("[[ Note ]] [[  Folder/Deep  ]]") == ["Note", "Deep"]
 
 
-def test_a_link_with_a_note_extension_names_the_note_without_it():
-    assert mb._targets_in("[[Note.md]] [[Other.MD]] [[Old.markdown]] [[Plain.txt]]") == ["Note", "Other", "Old", "Plain"]
+def test_a_link_with_the_md_extension_names_the_note_without_it():
+    assert mb._targets_in("[[Note.md]] [[Other.MD]]") == ["Note", "Other"]
+
+
+def test_a_link_to_a_markdown_or_txt_file_keeps_its_whole_name_since_those_are_not_notes():
+    assert mb._targets_in("[[Old.markdown]] [[Plain.txt]]") == ["Old.markdown", "Plain.txt"]
 
 
 def test_a_dot_in_a_note_name_is_part_of_the_name():

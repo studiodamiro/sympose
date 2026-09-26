@@ -172,7 +172,8 @@ def test_note_stem_scan_matches_the_snapshots_ignore_rules(vault):
 
     stems = vault_graph._vault_note_stems(vault)
 
-    assert {"Diary", "readme"} <= stems
+    assert "Diary" in stems
+    assert "readme" not in stems  # a .txt file is not a note (#52)
     assert "image" not in stems
     assert "Gone" not in stems
 

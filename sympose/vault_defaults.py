@@ -6,7 +6,9 @@ in that whole settings layer."""
 IGNORE_FOLDERS: list[str] = [".obsidian", ".git", "Attachments", "Drawings", ".trash"]
 
 # The file types the vault treats as notes (snapshot, note-name scan, file-change detection, link targets).
-NOTE_EXTENSIONS = (".md", ".markdown", ".txt")
+# Only `.md`: every write (create, rename, save, delete) assumes it, so a `.markdown` or `.txt` file is not a note
+# and is not listed (#52); the vault health report is where such files are mentioned (#77).
+NOTE_EXTENSIONS = (".md",)
 
 # File types Obsidian opens as attachments: a link or embed of one is not a link to a note.
 ATTACHMENT_EXTENSIONS = frozenset(

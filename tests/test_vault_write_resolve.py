@@ -84,17 +84,6 @@ def test_a_bare_name_still_finds_the_note_in_a_folder(vault, profile):
     assert vault_write_resolve.resolve_existing_note(profile, "note.md") == path
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="the tree lists .markdown and .txt files as notes, but the resolver always appends .md, "
-    "so the web app cannot open, save, rename or delete them",
-)
-@pytest.mark.parametrize("name", ["F/a.txt", "F/b.markdown"])
-def test_an_exact_path_to_a_note_with_another_note_extension_resolves(vault, profile, name):
-    path = write_note(vault, name)
-    assert vault_write_resolve.resolve_existing_note(profile, name) == path
-
-
 # The four callers: with only `B/Note.md` present, a request for `A/Note.md` (a tree that is out of
 # date, a double click) must be "not found" and leave `B/Note.md` alone.
 

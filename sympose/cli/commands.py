@@ -21,6 +21,7 @@ COMMANDS: list[SlashCommand] = [
     SlashCommand("/persona", "Switch the active persona"),
     SlashCommand("/default", "Make the current persona the default"),
     SlashCommand("/grounding", "Show or hide which notes grounded a reply"),
+    SlashCommand("/share", "Choose what cloud models may receive"),
     SlashCommand("/history", "Browse past conversations (placeholder)"),
     SlashCommand("/compact", "Compact the conversation (mock)"),
     SlashCommand("/clear", "Clear the transcript", danger=True),

@@ -8,7 +8,7 @@ from rich.style import Style
 from rich.text import Text
 from textual.widgets import OptionList
 
-from sympose.cli import picker, runtime, turns
+from sympose.cli import picker, runtime, share, turns
 from sympose.cli import transcript as transcript_mod
 from sympose.cli.commands import find_command
 
@@ -90,3 +90,7 @@ async def on_option_selected(app, event: OptionList.OptionSelected) -> None:
             await runtime.run_command(app, command)
         return
     runtime.apply_picker_choice(app, kind, value)
+    # A cloud model was just chosen and some of the vault is not yet allowed for it: ask about it now
+    # (docs/decisions/031); `/share` keeps its list open so several can be flipped, Esc closes it.
+    if kind == share.PICKER_KIND or (kind == "model" and share.should_ask(app)):
+        await share.open_picker(app)

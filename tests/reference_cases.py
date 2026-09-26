@@ -233,6 +233,16 @@ REF_CASES: list[RefCase] = [
         find=("Ollama",),
         first="Privacy and data.md",
     ),
+    RefCase(
+        "cloud-receives",
+        "what does a cloud model receive from my vault?",
+        find=("/share",),  # the privacy answer and the setting's own section both say it
+    ),
+    RefCase(
+        "share-command",
+        "how do I let a cloud model use my notes?",
+        find=("/share",),
+    ),
     # The web app (once called the dashboard, docs/decisions/028)
     RefCase(
         "nebula",

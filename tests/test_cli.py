@@ -364,7 +364,9 @@ def test_model_picker_digit_select_updates_model_and_banner(profiles):
             await pilot.press("2")
             await pilot.pause()
             assert app.model_override.id == "anthropic/claude-sonnet-5"
-            assert app.panel is None  # closed after selection
+            assert app.panel_kind == "share"  # a cloud model: what it may receive is asked next (ADR 031)
+            await pilot.press("escape")
+            assert app.panel is None
             banner = plain_text(app.query_one("#banner"))
             assert "Claude Sonnet 5" in banner
 
@@ -1017,6 +1019,8 @@ def test_a_model_picked_with_slash_model_is_the_one_a_persona_switch_writes_reca
             await pilot.press(*"/model", "enter")
             await pilot.pause()
             await pilot.press("2")
+            await pilot.pause()
+            await pilot.press("escape")  # the cloud-sharing question that follows a cloud model (ADR 031)
             await pilot.pause()
             await pilot.press(*"/persona", "enter")
             await pilot.pause()
@@ -2245,3 +2249,202 @@ def test_a_notice_already_showing_goes_when_its_knob_is_turned_off(profiles, mon
         return _meter_text(app)
 
     assert _run_meter_scenario(monkeypatch, [_result(3100, 5000)], then)["then"] == "context ██████░░░░ 62%"
+
+
+# -- what a cloud model may receive (docs/decisions/031) --
+
+
+def _lines(app):
+    return [plain_text(c) for c in app.transcript.children]
+
+
+def test_share_header_segments_name_what_was_sent_and_what_was_held_back():
+    from sympose.cli import share
+
+    assert share.header_segment(["notes", "recaps"], ["properties"]) == " · cloud: notes, recaps · withheld: properties"
+    assert share.header_segment([], ["notes"]) == " · withheld: notes"
+    assert share.header_segment(["notes"], []) == " · cloud: notes"
+    assert share.header_segment([], []) == ""  # a local turn, or nothing of the vault involved
+
+
+def test_choosing_a_cloud_model_says_what_it_receives_and_asks_about_the_vault(profiles):
+    from sympose import settings_store
+
+    async def scenario():
+        app = SymposeCLI()
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            app.composer.focus()
+            await pilot.press(*"/model", "enter")
+            await pilot.pause()
+            await pilot.press("2")
+            await pilot.pause()
+            notice = next(line for line in _lines(app) if "is a cloud model" in line)
+            assert "receives your messages and this conversation" in notice
+            assert "From your vault it may receive: nothing" in notice and "/share" in notice
+            assert app.panel_kind == "share"
+            await pilot.press("1")  # the first row: notes
+            await pilot.pause()
+            assert settings_store.get("cloud_share") == ["notes"]
+            assert app.panel_kind == "share"  # still open, so another can be flipped
+            assert any("may now receive passages of your notes" in line for line in _lines(app))
+            await pilot.press("escape")
+            assert app.panel is None
+
+    run_async(scenario())
+
+
+def test_declining_the_question_leaves_nothing_shared(profiles):
+    from sympose import settings_store
+
+    async def scenario():
+        app = SymposeCLI()
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            app.composer.focus()
+            await pilot.press(*"/model", "enter")
+            await pilot.pause()
+            await pilot.press("2", "escape")
+            await pilot.pause()
+            assert settings_store.get("cloud_share") is None
+
+    run_async(scenario())
+
+
+def test_choosing_a_local_model_gives_no_cloud_notice_and_no_question(profiles):
+    async def scenario():
+        app = SymposeCLI()
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            app.composer.focus()
+            await pilot.press(*"/model", "enter")
+            await pilot.pause()
+            await pilot.press("1")
+            await pilot.pause()
+            assert app.panel is None
+            assert not any("cloud model" in line for line in _lines(app))
+
+    run_async(scenario())
+
+
+def test_no_question_when_everything_is_already_allowed(profiles):
+    from sympose import settings_store
+
+    settings_store.set("cloud_share", ["notes", "properties", "recaps"])
+
+    async def scenario():
+        app = SymposeCLI()
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            app.composer.focus()
+            await pilot.press(*"/model", "enter")
+            await pilot.pause()
+            await pilot.press("2")
+            await pilot.pause()
+            assert app.panel is None
+            assert any("may receive: notes, properties, recaps" in line for line in _lines(app))
+
+    run_async(scenario())
+
+
+def test_slash_share_lists_the_categories_and_flips_one_each_time(profiles):
+    from sympose import settings_store
+
+    async def scenario():
+        app = SymposeCLI()
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            app.composer.focus()
+            await pilot.press(*"/share", "enter")
+            await pilot.pause()
+            assert app.panel_kind == "share"
+            labels = [str(app.panel.get_option_at_index(i).prompt) for i in range(3)]
+            assert all("not shared" in label for label in labels)
+            assert [name in labels[i] for i, name in enumerate(("notes", "properties", "recaps"))] == [True] * 3
+            await pilot.press("3")
+            await pilot.pause()
+            assert settings_store.get("cloud_share") == ["recaps"]
+            assert "— shared" in str(app.panel.get_option_at_index(2).prompt)
+            await pilot.press("3")
+            await pilot.pause()
+            assert settings_store.get("cloud_share") == []
+            assert any("may no longer receive recaps of your earlier conversations" in line for line in _lines(app))
+
+    run_async(scenario())
+
+
+def test_a_cloud_model_in_use_at_launch_is_said_out_loud(profiles):
+    from sympose import settings_store
+
+    settings_store.set("chat_model", "anthropic/claude-sonnet-5")
+
+    async def scenario():
+        app = SymposeCLI()
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            assert any("Claude Sonnet 5 is a cloud model" in line for line in _lines(app))
+
+    run_async(scenario())
+
+
+def test_the_default_local_model_is_not_announced_as_a_cloud_model(profiles):
+    async def scenario():
+        app = SymposeCLI()
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            assert not any("cloud model" in line for line in _lines(app))
+
+    run_async(scenario())
+
+
+def test_switching_to_a_persona_with_a_cloud_model_of_its_own_says_so(tmp_path, monkeypatch, profiles):
+    write_persona(profiles, "aria", "name: Aria\nhandle: aria\nmodel: gemini/gemini-flash-latest\n")
+
+    async def scenario():
+        app = SymposeCLI()
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            app.composer.focus()
+            await pilot.press(*"/persona", "enter")
+            await pilot.pause()
+            await pilot.press("1")  # sorted: aria is option 1
+            await pilot.pause()
+            assert any("Gemini Flash is a cloud model" in line for line in _lines(app))
+
+    run_async(scenario())
+
+
+def test_a_cloud_turns_header_says_what_was_sent_and_held_back(profiles, monkeypatch):
+    def fake_run_turn(handle, user_message, session_id=None, model=None):
+        return engine.TurnResult(
+            reply="ok", session_id="s", grounding=[], model="anthropic/claude-sonnet-5",
+            cloud=["notes"], withheld=["recaps"],
+        )
+
+    monkeypatch.setattr(turns.engine, "run_turn", fake_run_turn)
+
+    async def scenario():
+        app = SymposeCLI()
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            app.composer.focus()
+            await pilot.press(*"hi", "enter")
+            await pilot.pause(0.5)
+            header = next(line for line in _lines(app) if line.startswith("@samantha"))
+            assert " · cloud: notes · withheld: recaps" in header
+
+    run_async(scenario())
+
+
+def test_a_local_turns_header_has_no_cloud_segments(profiles):
+    async def scenario():
+        app = SymposeCLI()
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            app.composer.focus()
+            await pilot.press(*"hi", "enter")
+            await pilot.pause(0.5)
+            header = next(line for line in _lines(app) if line.startswith("@samantha"))
+            assert "cloud:" not in header and "withheld:" not in header
+
+    run_async(scenario())

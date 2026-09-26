@@ -11,7 +11,7 @@ out to hold the 200-LOC-per-file cap."""
 from rich.style import Style
 
 from sympose import engine
-from sympose.cli import grounding_line, meter, picker, transcript as transcript_mod
+from sympose.cli import grounding_line, meter, picker, share, transcript as transcript_mod
 from sympose.cli.commands import COMMANDS
 from sympose.cli.mock_data import MOCK_HISTORY, MODEL_OPTIONS, list_personas
 from sympose.cli.selection import SelectionOption
@@ -53,6 +53,8 @@ async def run_command(app, command) -> None:
         else:
             line = "Couldn't save the grounded-notes setting."
         transcript_mod.mount_line(app, line, "system")
+    elif command.name == "/share":
+        await share.open_picker(app)
     elif command.name == "/history":
         await picker.open_picker(
             app, "history", "Recent conversations", [SelectionOption(e, e) for e in MOCK_HISTORY]
@@ -109,6 +111,8 @@ def apply_picker_choice(app, kind: str, value: str | None) -> None:
             meter.clear(app)  # the old figure was measured against the previous window
             picker.update_banner(app)
             transcript_mod.mount_line(app, f"Switched model to {model.label}.", "system")
+            if share.is_cloud(model):
+                transcript_mod.mount_line(app, share.notice(model), "system")
     elif kind == "persona":
         persona = next((p for p in list_personas() if p.handle == value), None)
         if persona is not None and persona.handle != app.persona.handle:
@@ -127,6 +131,10 @@ def apply_picker_choice(app, kind: str, value: str | None) -> None:
             engine.refresh_recaps(persona.handle, app.model_override.id if app.model_override else None)
             engine.refresh_embeddings(persona.handle)  # ADR 027
             transcript_mod.mount_line(app, f"Now talking to @{persona.handle}.", "system")
+            share.announce(app)
+    elif kind == share.PICKER_KIND:
+        if value is not None:
+            share.toggle(app, value)
     elif kind == "history":
         transcript_mod.mount_line(
             app, "History browsing isn't wired up yet — this is a placeholder.", "system"

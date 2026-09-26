@@ -6,7 +6,15 @@ Not by default. With the default local model, run by Ollama, everything stays on
 
 ## What is sent when I use a cloud model?
 
-Your message, the recent conversation and the note passages found for it are sent to that provider. The vault itself is never uploaded as a whole. A recap of a finished conversation, when recaps are on, also sends your messages from it.
+Your messages and the conversation so far are always sent to that provider. What comes from your vault is sent only if you allow it, one kind at a time: your notes, their properties and your recaps. None is allowed by default. The vault itself is never uploaded as a whole.
+
+## How do I let a cloud model use my notes?
+
+When you choose a cloud model with /model, Sympose asks about each kind. Type /share to see or change what is allowed; it is kept in `cloud_share` in `settings.json`. A cloud reply's header shows `cloud:` for what was sent and `withheld:` for what was held back.
+
+## Is a recap sent to a cloud model?
+
+A recap written by a cloud model sends your messages from that conversation, so it is written only when recaps are allowed for cloud models.
 
 ## Where are my conversations stored?
 

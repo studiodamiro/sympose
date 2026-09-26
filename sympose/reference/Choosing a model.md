@@ -18,7 +18,11 @@ Yes. `chat_model` and a persona's `model` accept any model name litellm understa
 
 ## How do cloud models work?
 
-Cloud models are opt-in and need the provider's API key in `.env`: `ANTHROPIC_API_KEY` for Claude, `OPENAI_API_KEY` for GPT, `GEMINI_API_KEY` for Gemini and `OPENROUTER_API_KEY` for the OpenRouter ones. With a cloud model, your message, the recent conversation and any matching note passages are sent to that provider.
+Cloud models are opt-in and need the provider's API key in `.env`: `ANTHROPIC_API_KEY` for Claude, `OPENAI_API_KEY` for GPT, `GEMINI_API_KEY` for Gemini and `OPENROUTER_API_KEY` for the OpenRouter ones.
+
+## What does a cloud model receive?
+
+Your messages and the conversation are sent to that provider. Your notes, their properties and your recaps are sent only if you allow them: Sympose asks when you choose the model, and /share changes it later.
 
 ## Can I use another OpenRouter model?
 

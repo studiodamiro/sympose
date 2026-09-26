@@ -1,6 +1,6 @@
 # Chat commands
 
-The chat commands are /help, /model, /persona, /default, /grounding, /clear, /quit, and the placeholders /history, /compact and /settings. Type / in the chat to see them; Tab, or the Down and Up arrows, cycle through them.
+The chat commands are /help, /model, /persona, /default, /grounding, /share, /clear, /quit, and the placeholders /history, /compact and /settings. Type / in the chat to see them; Tab, or the Down and Up arrows, cycle through them.
 
 ## /help
 
@@ -21,6 +21,10 @@ The chat commands are /help, /model, /persona, /default, /grounding, /clear, /qu
 ## /grounding
 
 /grounding shows or hides which notes grounded each reply.
+
+## /share
+
+/share lists what a cloud model may receive from your vault (your notes, their properties, your recaps) and whether each is allowed. Choose a row to allow or stop it; Esc closes the list. Nothing is allowed by default.
 
 ## /clear
 

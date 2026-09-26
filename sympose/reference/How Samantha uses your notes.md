@@ -14,7 +14,7 @@ It is on by default, as `auto`. It needs one small model in Ollama, pulled once 
 
 ## Is my vault sent anywhere for searching by meaning?
 
-No. The small model runs in your Ollama on your computer, and the numbers for each passage are kept in a cache file, `embedding_cache.sqlite`, beside `settings.json`. Only if you set an `embedding_model` from a cloud provider would passages leave your computer.
+No. The small model runs in your Ollama on your computer, and the numbers for each passage are kept in a cache file, `embedding_cache.sqlite`, beside `settings.json`. Only if you set an `embedding_model` from a cloud provider, and allow notes for cloud models with /share, would passages leave your computer; without that yes she searches by keywords.
 
 ## What does indexing 40% mean?
 

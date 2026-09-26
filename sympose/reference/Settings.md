@@ -34,6 +34,10 @@ The `reply_limit` setting is the tokens kept back for the reply. By default a qu
 
 The `cloud_helper_limit` setting is how many tokens a cloud model may use for the two small background steps, the follow-up search and the recap of a finished chat. By default 4000. Only the tokens actually used are billed, so it is a ceiling, and a value below 64 leaves the default. A local model keeps its own small limits.
 
+## cloud_share
+
+The `cloud_share` setting lists what a cloud model may receive from your vault: `"notes"`, `"properties"` and `"recaps"`. It is empty by default, so it receives none. Change it with /share, or edit it by hand, for example `["notes"]`. A local model always receives everything.
+
 ## show_grounding
 
 Setting `show_grounding` to `false` hides the notes in the reply header.
@@ -48,7 +52,7 @@ Setting `show_context_meter` to `false` hides the meter under the chat box.
 
 ## session_recaps
 
-Setting `session_recaps` to `false` stops Samantha writing and reading recaps of your earlier conversations. Each recap is written by the model from your own messages, so with a cloud model those messages are sent to the provider.
+Setting `session_recaps` to `false` stops Samantha writing and reading recaps of your earlier conversations. Each recap is written by the model from your own messages, so with a cloud model those messages are sent to the provider, and only when `cloud_share` allows `"recaps"`.
 
 ## grounding_followups
 

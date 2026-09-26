@@ -164,7 +164,9 @@ def create_folder(body: FolderCreate) -> dict[str, Any]:
 
 def rename_note(body: NoteRename) -> dict[str, Any]:
     profile = require_profile(body.persona)
-    result = vault_write_rename.rename_note(profile, body.path, body.new_path)
+    result, new_path = vault_write_rename.rename_note_to_path(
+        profile, body.path, body.new_path
+    )
     translate_vault_result(
         result,
         not_found=_not_found("Note", body.path),
@@ -172,7 +174,7 @@ def rename_note(body: NoteRename) -> dict[str, Any]:
         denied=sandbox_denied(body.new_path),
         invalid_name="New name can't contain `[`, `]`, `|`, or `#` — those break wikilink syntax.",
     )
-    return {"path": body.new_path, "detail": result}
+    return {"path": new_path, "detail": result}
 
 
 def delete_note(path: str, persona: str | None) -> dict[str, Any]:

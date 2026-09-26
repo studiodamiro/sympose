@@ -131,7 +131,8 @@ export type RenameVaultNoteResult =
 
 /**
  * Client for `PATCH /api/vault/note` — rename `path` to `newName` (a bare stem
- * stays in the same folder) and rewrite the `[[wikilinks]]` that referenced it.
+ * stays in the same folder, `Folder/stem` is relative to the vault, `/stem` is
+ * the vault root) and rewrite the `[[wikilinks]]` that referenced it.
  * 404 source gone, 409 target taken, 403 outside the sandbox.
  * `path` in the result is the note's new vault-relative path.
  */
@@ -181,7 +182,8 @@ export async function moveVaultNote(
   if (destFolder === currentFolder) {
     return { ok: true, path, detail: "" }
   }
-  return renameVaultNote(path, destFolder ? `${destFolder}/${stem}` : stem, persona)
+  // A bare stem would keep the note in its folder; a leading slash is the root.
+  return renameVaultNote(path, destFolder ? `${destFolder}/${stem}` : `/${stem}`, persona)
 }
 
 export type DeleteVaultNoteResult =

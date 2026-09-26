@@ -40,7 +40,8 @@ class FolderCreate(BaseModel):
 class NoteRename(BaseModel):
     """Body of `PATCH /api/vault/note` — rename `path` to `new_path` and
     rewrite every `[[wikilink]]` that referenced it. `new_path` stays in
-    the same folder unless it carries a separator."""
+    the same folder unless it carries a separator (then it is relative to
+    the vault); a leading slash (`/name`) means the vault root."""
 
     path: str = Field(..., min_length=1)
     new_path: str = Field(..., min_length=1)

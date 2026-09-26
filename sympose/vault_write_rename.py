@@ -41,10 +41,13 @@ def _resolve_rename_destination(
     mv: str, allowed_dirs: list[str], src: str, new_name: str
 ) -> tuple[str | None, str]:
     """Validates and resolves `new_name`'s destination path for a rename:
-    same folder as `src` unless `new_name` itself carries a separator.
-    Returns (dst, "") on success, or
+    same folder as `src` unless `new_name` carries a separator (then it is
+    relative to the vault) or starts with one (`/name`: the vault root
+    itself, the only way to say "no folder"). Returns (dst, "") on success, or
     (None, NOTE_DENIED|NOTE_EXISTS|NOTE_INVALID_NAME)."""
-    clean_new = new_name.strip().strip("\"'").lstrip("/\\")
+    stripped = new_name.strip().strip("\"'")
+    clean_new = stripped.lstrip("/\\")
+    at_root = stripped != clean_new
     if not clean_new:
         return None, NOTE_DENIED
     if not clean_new.endswith(".md"):
@@ -54,7 +57,7 @@ def _resolve_rename_destination(
         return None, NOTE_INVALID_NAME
     dst = os.path.normpath(
         os.path.join(mv, clean_new)
-        if ("/" in clean_new or "\\" in clean_new)
+        if (at_root or "/" in clean_new or "\\" in clean_new)
         else os.path.join(os.path.dirname(src), clean_new)
     )
     if not vault_paths.is_within_any(dst, allowed_dirs):
@@ -83,25 +86,49 @@ def rename_note(
     ] = vault_backlinks.find_notes_by_stem,
 ) -> str:
     """Rename a vault note and rewrite every `[[wikilink]]` that pointed at
-    it. `new_name` stays in the same folder unless it carries a separator.
-    `NOTE_NOT_FOUND` / `NOTE_EXISTS` / `NOTE_DENIED` as for the other note
-    ops."""
+    it. `new_name` stays in the same folder unless it carries a separator;
+    a leading slash means the vault root. `NOTE_NOT_FOUND` / `NOTE_EXISTS` /
+    `NOTE_DENIED` as for the other note ops."""
+    return rename_note_to_path(
+        profile,
+        old_name,
+        new_name,
+        get_backlinks_fn=get_backlinks_fn,
+        find_notes_by_stem_fn=find_notes_by_stem_fn,
+    )[0]
+
+
+def rename_note_to_path(
+    profile: dict[str, Any],
+    old_name: str,
+    new_name: str,
+    *,
+    get_backlinks_fn: Callable[
+        [dict[str, Any], str], list[dict[str, Any]]
+    ] = vault_backlinks.get_backlinks,
+    find_notes_by_stem_fn: Callable[
+        [dict[str, Any], str], list[str]
+    ] = vault_backlinks.find_notes_by_stem,
+) -> tuple[str, str | None]:
+    """`rename_note`'s result together with the note's new vault-relative
+    path (`None` when the result is not a success), for a caller that must
+    tell its client where the note went."""
     scope = vault_paths.resolve_sandbox(profile)
     if scope is None:
-        return NOTE_DENIED
+        return NOTE_DENIED, None
     mv, allowed_dirs = scope
     src = resolve_existing_note(profile, old_name)
     if src is None:
-        return NOTE_NOT_FOUND
+        return NOTE_NOT_FOUND, None
     # Defense-in-depth re-check, same as `delete_note` — `resolve_existing_note`
     # already gates every path it returns on `is_safe_path`, but a rename
     # shouldn't rely on that invariant alone holding forever.
     if not vault_paths.is_within_any(src, allowed_dirs):
-        return NOTE_DENIED
+        return NOTE_DENIED, None
 
     dst, error = _resolve_rename_destination(mv, allowed_dirs, src, new_name)
     if error:
-        return error
+        return error, None
 
     old_rel, new_rel = os.path.relpath(src, mv), os.path.relpath(dst, mv)
     old_stem = os.path.splitext(os.path.basename(src))[0]
@@ -119,12 +146,12 @@ def rename_note(
         # `_resolve_rename_destination` is only a fast-path rejection — a
         # concurrent create/rename could have landed on `dst` in between.
         if _dst_already_taken(dst, src):
-            return NOTE_EXISTS
+            return NOTE_EXISTS, None
         try:
             os.makedirs(os.path.dirname(dst), exist_ok=True)
             os.rename(src, dst)
         except OSError as e:
-            return f"Error: Failed to rename note: {e}"
+            return f"Error: Failed to rename note: {e}", None
 
     updated, failed = relink_referencing_notes(
         mv, allowed_dirs, ref_files, old_rel, new_rel, dst, new_stem, same_stem_paths
@@ -136,4 +163,4 @@ def rename_note(
     if failed:
         bits.append(f"{failed} relink{'s' if failed != 1 else ''} failed — see server log")
     tail = f" ({', '.join(bits)})" if bits else ""
-    return f"Renamed to `{new_rel}`{tail}"
+    return f"Renamed to `{new_rel}`{tail}", new_rel.replace(os.sep, "/")

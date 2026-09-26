@@ -109,7 +109,7 @@ def get_profile(handle: str) -> dict[str, Any] | None:
     try:
         with open(path, "r", encoding="utf-8") as f:
             data = yaml.safe_load(f)
-    except (OSError, yaml.YAMLError):
+    except (OSError, UnicodeDecodeError, yaml.YAMLError):  # not valid UTF-8: drop this persona, not the roster
         return None
     if not isinstance(data, dict):
         return None

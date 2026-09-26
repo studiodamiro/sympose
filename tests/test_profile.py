@@ -370,6 +370,15 @@ def test_a_default_persona_setting_that_is_not_a_handle_is_the_factory_default(p
     assert profile.resolve_default_persona() == profile.FACTORY_DEFAULT_PERSONA
 
 
+def test_a_persona_file_that_is_not_utf8_drops_that_persona_and_not_the_whole_roster(profiles_dir):
+    _write(profiles_dir, "samantha", "name: Samantha\n")
+    _write(profiles_dir, "ada", "name: Ada\n")
+    (profiles_dir / "ada" / "persona.yaml").write_bytes(b"name: Ad\xe9\n")
+
+    assert profile.get_profile("ada") is None
+    assert [p["handle"] for p in profile.list_profiles()] == ["samantha"]
+
+
 def test_the_roster_is_found_when_the_profiles_folder_has_glob_characters_in_its_path(tmp_path, monkeypatch):
     base = tmp_path / "Notes [Vault]" / "profiles"
     write_persona(base, "samantha", "name: Samantha\nvault_folders: '*'\n")

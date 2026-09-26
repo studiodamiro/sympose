@@ -8,6 +8,7 @@ import logging
 import threading
 import time
 from array import array
+from collections import Counter
 from typing import Any
 
 from sympose.engine import embedding_store as store
@@ -26,11 +27,23 @@ _RETRY_AFTER_SECONDS = 300.0
 _BATCH_SAVE = 64
 
 
+def _same_size(have: dict[str, array]) -> dict[str, array]:
+    """`have` without the vectors whose length is not the usual one: a damaged or cut-short row would
+    otherwise make the whole set unusable (numpy refuses to stack them; without it the scores would be
+    wrong), and for every later turn since it stays in the cache. They count as missing, so they are
+    embedded again and the row is overwritten."""
+    sizes = Counter(len(v) for v in have.values())
+    if len(sizes) < 2:
+        return have
+    usual = sizes.most_common(1)[0][0]
+    return {k: v for k, v in have.items() if len(v) == usual}
+
+
 def pending(index: Any, model: str) -> tuple[list[str], list[str], dict[str, array], list[int]]:
     """`(texts, cache keys, the vectors the cache has, positions with none)` for the passages of `index`."""
     texts = [embeddings.passage_text(p) for p in index.passages]
     keys = [store.key(model, t) for t in texts]
-    have = store.load(keys)
+    have = _same_size(store.load(keys))
     return texts, keys, have, [i for i, k in enumerate(keys) if k not in have]
 
 

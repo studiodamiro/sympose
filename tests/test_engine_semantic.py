@@ -1505,25 +1505,25 @@ def test_a_failing_model_is_the_one_that_is_cooled_down_not_the_default(setup, m
 # -- found in the review of search and meaning (wave D of the cleanup) -----------------
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="vectors of different lengths (a truncated cache row, or a model of the same name with another "
-    "size) raise ValueError out of `VectorSet`, which `refine` does not catch, so every turn fails",
-)
-def test_vectors_of_different_lengths_fall_back_to_keywords_and_do_not_fail_the_turn(setup, monkeypatch):
+def test_a_cut_short_cached_vector_is_embedded_again_and_does_not_fail_the_turn(setup, calls, monkeypatch):
     _vault(setup)
     _mode("embeddings")
     first = embedding_store.load  # the real one: read what a first search saved
 
     grounding.ground(WHOLE, "what storage engine did we pick?")  # fills the cache
     semantic._forget_for_tests()
+    calls["embed"].clear()
 
     def truncated(keys):
         found = first(keys)
         return {k: v[:-1] if i == 0 else v for i, (k, v) in enumerate(found.items())}
 
     monkeypatch.setattr(embedding_store, "load", truncated)
-    grounding.ground(WHOLE, "what storage engine did we pick?")  # must not raise
+    hits = grounding.ground(WHOLE, "what storage engine did we pick?")  # must not raise
+
+    documents = [texts for kind, texts in calls["embed"] if kind == "document"]
+    assert [len(texts) for texts in documents] == [1]  # only the damaged one, not the whole vault
+    assert [h["rel_path"] for h in hits] == ["Atlas.md"]
 
 
 @pytest.mark.xfail(

@@ -14,7 +14,7 @@ from textual.containers import VerticalScroll
 from textual.widgets import Input, OptionList, Static
 
 from sympose import engine
-from sympose.cli import dispatch, picker, state, turns
+from sympose.cli import dispatch, picker, state
 from sympose.cli import transcript as transcript_mod
 from sympose.cli.composer import ComposerInput
 from sympose.cli.meter import ContextMeter
@@ -102,17 +102,9 @@ class SymposeCLI(App):
         self.composer.focus()
 
     async def action_quit(self) -> None:
-        # Textual's default ctrl+q binding and command-palette "Quit" both
-        # call this directly, bypassing `/quit`'s own in-flight check
-        # (`sympose/cli/turns.py`) entirely — reintroducing the exact hang
-        # that check exists to prevent, just through a different exit
-        # route. Overriding here, rather than only guarding the `/quit`
-        # command, covers every way this app can be told to quit.
-        # `pending_turns`, not `turn_locks[...].locked()` — any persona's
-        # turn counts, in flight *or* still queued behind another.
-        if self.pending_turns > 0:
-            turns._force_exit()
-            return
+        # Always the normal exit, even with a model call still running: Textual's teardown is what
+        # gives the terminal back (#65), and the call cannot be waited for or cancelled, so
+        # `__main__.main` ends the process with `os._exit` once `run()` returns.
         self.exit()
 
     @property

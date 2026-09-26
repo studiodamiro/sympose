@@ -782,27 +782,19 @@ def test_an_error_message_with_brackets_is_shown_as_text_not_parsed(profiles, mo
     run_async(scenario())
 
 
-def test_quit_while_a_call_is_in_flight_force_exits_instead_of_hanging(profiles, monkeypatch):
-    """Regression test, confirmed live before this fix: `/quit` calling
-    graceful `app.exit()` while a model call is still in flight doesn't
-    hang the app, it hangs the whole *process* — a thread already running
-    a blocking network call can't be cancelled
-    (`concurrent.futures.Future.cancel()` only works before a worker
-    picks the work up), so the coroutine awaiting it blocks until that
-    thread naturally finishes or times out before asyncio's own shutdown
-    can even proceed, up to `model._REQUEST_TIMEOUT_SECONDS`. `/quit`
-    must instead call `_force_exit` (an immediate, un-gracefully process
-    exit) whenever `app.turn_locks` is held, skipping the graceful path
-    entirely rather than waiting on it."""
+def test_quit_while_a_call_is_in_flight_exits_the_app_the_normal_way(profiles, monkeypatch):
+    """`/quit` with a model call still running exits through Textual's own teardown, which is what
+    puts the terminal back (the screen, the cursor, mouse reporting): it used to `os._exit` at once,
+    which left the shell broken (#65). The call cannot be cancelled, but the process no longer waits
+    for it: `main()` ends with `os._exit` after `run()` returns. What a real terminal gets is checked
+    in `test_cli_pty.py`."""
     release = threading.Event()
-    force_exit_called = threading.Event()
 
     def fake_run_turn(handle, user_message, session_id=None, model=None):
         release.wait(timeout=2)
         return engine.TurnResult(reply="late reply", session_id="sess-x", grounding=[])
 
     monkeypatch.setattr(turns.engine, "run_turn", fake_run_turn)
-    monkeypatch.setattr(turns, "_force_exit", force_exit_called.set)
 
     async def scenario():
         app = SymposeCLI()
@@ -817,24 +809,41 @@ def test_quit_while_a_call_is_in_flight_force_exits_instead_of_hanging(profiles,
             await pilot.press(*"/quit", "enter")
             await pilot.pause()
 
-            assert force_exit_called.is_set()
-            assert app._exit is not True  # the graceful path was skipped, not taken
+            assert app._exit is True
 
             release.set()
             await task  # must not raise
 
     run_async(scenario())
 
+def test_main_ends_the_process_with_the_apps_own_exit_status(monkeypatch):
+    """#66: a start that failed (no persona to talk to) set the app's return code to 1, and the
+    process exited 0 anyway. The real terminal is checked in `test_cli_pty.py`."""
+    from sympose.cli import __main__ as entry
+
+    class FailedApp:
+        return_code = 1
+
+        def run(self):
+            pass
+
+    class QuitApp(FailedApp):
+        return_code = None  # a normal quit leaves no code
+
+    exits = []
+    monkeypatch.setattr(entry.os, "_exit", exits.append)
+    for app in (FailedApp, QuitApp):
+        monkeypatch.setattr(entry, "SymposeCLI", app)
+        entry.main()
+
+    assert exits == [1, 0]
+
 
 def test_app_exit_while_a_call_is_in_flight_does_not_crash_on_resume(profiles, monkeypatch):
-    """`send_message`'s own `if app._exit: return` guards, kept as
-    defense-in-depth even though `/quit` itself now always routes a
-    locked-lock quit through `_force_exit` instead (see the test above) —
-    this exercises what happens if `app.exit()` is ever reached some other
-    way (a future keybinding, Textual's own default quit handling) while a
-    call is still in flight: the resuming coroutine must notice and bail
-    out instead of touching the transcript/timer of an already-exiting
-    app, not raise the `MountError` this was originally written to fix."""
+    """`send_message`'s own `if app._exit: return` guards: once the app is exiting, a call that
+    resumes afterwards (any way of quitting: `/quit`, ctrl+q, the command palette) must notice
+    and bail out instead of touching the transcript/timer of an already-exiting app, not raise
+    the `MountError` this was originally written to fix."""
     release = threading.Event()
 
     def fake_run_turn(handle, user_message, session_id=None, model=None):
@@ -852,7 +861,7 @@ def test_app_exit_while_a_call_is_in_flight_does_not_crash_on_resume(profiles, m
             task = asyncio.create_task(turns.send_message(app, "hello"))
             await asyncio.sleep(0.05)
 
-            app.exit()  # bypassing /quit's own pending_turns check entirely
+            app.exit()
             assert app._exit is True
 
             release.set()
@@ -997,12 +1006,9 @@ def test_reselecting_the_current_persona_does_not_reset_the_session(profiles):
     run_async(scenario())
 
 
-def test_ctrl_q_while_a_call_is_in_flight_also_force_exits(profiles, monkeypatch):
-    """Regression test: Textual's default ctrl+q binding (and its
-    command-palette Quit entry) both call `App.action_quit` directly,
-    bypassing `/quit`'s own pending_turns check entirely — reintroducing
-    the exact hang that check exists to prevent, through a different exit
-    route this app never overrode until now."""
+def test_ctrl_q_while_a_call_is_in_flight_also_exits_the_normal_way(profiles, monkeypatch):
+    """Textual's default ctrl+q binding (and its command-palette Quit entry) call `App.action_quit`
+    directly, not `/quit`: both routes end the same way."""
     release = threading.Event()
 
     def fake_run_turn(handle, user_message, session_id=None, model=None):
@@ -1010,8 +1016,6 @@ def test_ctrl_q_while_a_call_is_in_flight_also_force_exits(profiles, monkeypatch
         return engine.TurnResult(reply="late reply", session_id="sess-x", grounding=[])
 
     monkeypatch.setattr(turns.engine, "run_turn", fake_run_turn)
-    force_exit_called = threading.Event()
-    monkeypatch.setattr(turns, "_force_exit", force_exit_called.set)
 
     async def scenario():
         app = SymposeCLI()
@@ -1025,33 +1029,25 @@ def test_ctrl_q_while_a_call_is_in_flight_also_force_exits(profiles, monkeypatch
 
             await app.action_quit()  # what ctrl+q/the command palette call
 
-            assert force_exit_called.is_set()
-            assert app._exit is not True
+            assert app._exit is True
 
             release.set()
             await task
 
     run_async(scenario())
 
-
-def test_quit_while_a_second_message_is_queued_but_not_yet_started_force_exits(
+def test_quit_while_a_second_message_is_queued_but_not_yet_started_exits_the_normal_way(
     profiles, monkeypatch
 ):
-    """Distinct from the test above: here a second message for the same
-    persona is queued (waiting on the lock, never yet dispatched to the
-    engine at all) when `/quit` fires. `action_quit`'s `pending_turns`
-    check must still catch this, generalizing correctly to a multi-queued
-    case rather than only the single in-flight call it was originally
-    written against."""
+    """A second message for the same persona is queued (waiting on the lock, never yet dispatched to
+    the engine at all) when the quit comes: the app still exits and both calls end without raising."""
     release = threading.Event()
-    force_exit_called = threading.Event()
 
     def fake_run_turn(handle, user_message, session_id=None, model=None):
         release.wait(timeout=2)
         return engine.TurnResult(reply="late reply", session_id="sess-x", grounding=[])
 
     monkeypatch.setattr(turns.engine, "run_turn", fake_run_turn)
-    monkeypatch.setattr(turns, "_force_exit", force_exit_called.set)
 
     async def scenario():
         app = SymposeCLI()
@@ -1066,13 +1062,12 @@ def test_quit_while_a_second_message_is_queued_but_not_yet_started_force_exits(
 
             await app.action_quit()
 
-            assert force_exit_called.is_set()
+            assert app._exit is True
 
             release.set()
             await asyncio.gather(task1, task2)
 
     run_async(scenario())
-
 
 def test_pending_turns_counts_queued_and_in_flight_calls_for_quit_detection(
     profiles, monkeypatch
@@ -1117,33 +1112,6 @@ def test_pending_turns_counts_queued_and_in_flight_calls_for_quit_detection(
             release_first.set()
             await asyncio.gather(task1, task2)
             assert app.pending_turns == 0
-
-    run_async(scenario())
-
-
-def test_action_quit_reads_pending_turns_not_lock_state(profiles, monkeypatch):
-    """Directly exercises `action_quit`'s own decision, independent of any
-    real lock: sets `pending_turns` by hand with every `turn_locks` entry
-    left unlocked, and confirms `_force_exit` still fires. A test that only
-    drives this through a genuinely in-flight `send_message` call (as the
-    other quit tests do) can't distinguish `action_quit` reading
-    `pending_turns` from it reading `any(lock.locked() ...)` — both happen
-    to agree whenever nothing is mid-release. This one pins the actual
-    check `action_quit` makes."""
-    force_exit_called = threading.Event()
-    monkeypatch.setattr(turns, "_force_exit", force_exit_called.set)
-
-    async def scenario():
-        app = SymposeCLI()
-        async with app.run_test() as pilot:
-            await pilot.pause()
-            assert not any(lock.locked() for lock in app.turn_locks.values())
-
-            app.pending_turns = 1  # no real lock held anywhere
-            await app.action_quit()
-
-            assert force_exit_called.is_set()
-            assert app._exit is not True
 
     run_async(scenario())
 

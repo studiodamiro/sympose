@@ -221,3 +221,5 @@ human typing produces.
   mid-flight, so the seam has nothing to hook into; the CLI call site
   already knows everything it needs (whether another message queued behind
   this one) without the engine needing to know about queueing at all.
+
+**Update (#65):** `_force_exit` was removed, so where this record says a quit with a call pending calls it, the quit now takes the normal `self.exit()` path and `main()` ends the process; see the update at the end of ADR 006. `pending_turns` is still what marks a message as queued.

@@ -9,7 +9,6 @@ collision). Split out of `runtime.py` to hold the 200-LOC-per-file cap
 import asyncio
 import concurrent.futures
 import logging
-import os
 
 from rich.style import Style
 from rich.text import Text
@@ -32,13 +31,6 @@ log = logging.getLogger(__name__)
 _ENGINE_EXECUTOR = concurrent.futures.ThreadPoolExecutor(
     max_workers=4, thread_name_prefix="sympose-engine"
 )
-
-
-def _force_exit() -> None:
-    """A thin wrapper around `os._exit` — never called directly inline, so
-    tests can monkeypatch this one function instead of the real call
-    actually terminating the test process."""
-    os._exit(0)  # pragma: no cover - exercised via the monkeypatched stub in tests
 
 
 def _show_failure(app, transcript, message: str) -> None:

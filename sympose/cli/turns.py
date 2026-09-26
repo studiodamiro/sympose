@@ -149,6 +149,13 @@ async def _send_message(app, value: str) -> None:
         reply_header, result.grounding, app.size.width, result.searched
     )
     _stream_reply(app, result.reply, reply_header)
+    if not result.saved:
+        # The reply was given, but it is not in the conversation file (the log has the reason), so a
+        # later message will not remember it; saying so here is the only place the user looks.
+        transcript_mod.mount_line(
+            app, Text(f"@{handle}'s reply was not saved: the conversation file could not be written."), "system"
+        )
+        transcript.scroll_end(animate=False)
 
 
 def _format_ttft(ms: int) -> str:

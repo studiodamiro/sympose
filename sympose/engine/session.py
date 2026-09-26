@@ -14,8 +14,10 @@ import os
 from datetime import datetime, timezone
 from typing import Any
 
+from sympose.atomic_write import write_atomic_text
 from sympose.engine import reply_text
 from sympose.engine.prompt_text import CUT_OFF_NOTE
+from sympose.engine.session_records import has_its_text, make_title, meta_from_turns, unreadable
 from sympose.engine.session_paths import (
     new_session_id,
     recaps_dir,
@@ -38,18 +40,11 @@ __all__ = [
 
 log = logging.getLogger(__name__)
 
-_TITLE_WORDS = 6
-
-
-def _make_title(user_message: str) -> str:
-    words = user_message.split()
-    title = " ".join(words[:_TITLE_WORDS])
-    return title + "..." if len(words) > _TITLE_WORDS else title
-
-
 def load_session(handle: str, session_id: str) -> dict[str, Any] | None:
     """`{"meta": {...}, "turns": [...]}`, or `None` when the session has no
-    file yet (never used) or the file is missing/corrupt."""
+    file yet (never used) or nothing in it can be read. A file whose meta line
+    is damaged gets one rebuilt from its turns; a turn record without its text
+    is skipped."""
     path = session_path(handle, session_id)
     if not os.path.exists(path):
         return None
@@ -78,7 +73,13 @@ def load_session(handle: str, session_id: str) -> dict[str, Any] | None:
         if obj.get("type") == "meta":
             meta = obj
         elif obj.get("type") == "turn":
-            turns.append(obj)
+            if has_its_text(obj):
+                turns.append(obj)
+            else:
+                log.warning("Skipping a turn without its text in session %s", path)
+    if meta is None and turns:
+        log.warning("Session %s has no readable meta line; rebuilt from its turns", path)
+        meta = meta_from_turns(handle, session_id, turns, path)
     return {"meta": meta, "turns": turns} if meta is not None else None
 
 
@@ -105,7 +106,7 @@ def append_turn(
     model: str | None = None,
     sent: dict[str, Any] | None = None,
     truncated: bool = False,
-) -> None:
+) -> bool:
     """`existing` lets a caller that's already loaded the session (e.g.
     `turn.run_turn`, which loads it to build history) pass it straight
     through instead of this function re-reading and re-parsing an existing
@@ -119,8 +120,17 @@ def append_turn(
     lack the keys, and nothing reading a session depends on them. `sent`
     (docs/decisions/025) is what reached the model besides the messages: kept on
     the record for diagnosis and never read back into a prompt. `truncated` marks a reply that stopped at
-    the reply limit (docs/decisions/015); only then is the key written, and history says so."""
+    the reply limit (docs/decisions/015); only then is the key written, and history says so.
+
+    `True` when the session file was written. `False` (and a warning in the log) when it was not: the
+    disk refused it, or the file exists and cannot be read, which is never overwritten with a session
+    that starts again from this turn. The file is replaced whole or not at all, so a failure leaves the
+    earlier turns as they were."""
     session = existing if existing is not None else load_session(handle, session_id)
+    path = session_path(handle, session_id)
+    if session is None and unreadable(path):
+        log.warning("Not saving to session %s: the file exists and cannot be read", path)
+        return False
     now = datetime.now(timezone.utc).isoformat()
 
     if session is None:
@@ -128,7 +138,7 @@ def append_turn(
             "type": "meta",
             "session_id": session_id,
             "handle": handle.lower(),
-            "title": _make_title(user_message),
+            "title": make_title(user_message),
             "created_at": now,
             "updated_at": now,
             "turns_count": 0,
@@ -153,12 +163,11 @@ def append_turn(
     meta["updated_at"] = now
     meta["turns_count"] = len(turns)
 
-    path = session_path(handle, session_id)
     try:
+        text = "".join(json.dumps(record) + "\n" for record in (meta, *turns))
         os.makedirs(os.path.dirname(path), exist_ok=True)
-        with open(path, "w", encoding="utf-8") as f:
-            f.write(json.dumps(meta) + "\n")
-            for turn in turns:
-                f.write(json.dumps(turn) + "\n")
+        write_atomic_text(path, text)
+        return True
     except OSError as e:
         log.warning("Failed to write session %s: %s", path, e)
+        return False

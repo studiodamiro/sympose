@@ -47,6 +47,9 @@ class TurnResult:
     context_limit: int | None = None
     # The reply stopped at the reply limit, so it may end mid-sentence.
     truncated: bool = False
+    # The session file was written; `False` when it could not be, so this reply is not part of the
+    # record and later messages will not remember it (a warning is in the log as well).
+    saved: bool = True
 
 
 def _interleave(first: list[dict[str, Any]], second: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -155,7 +158,7 @@ def run_turn(
     )
 
     searched_used = searched if any(h.get("source") != reference.SOURCE for h in grounding_results) else None
-    session.append_turn(
+    saved = session.append_turn(
         handle,
         sid,
         user_message,
@@ -177,4 +180,5 @@ def run_turn(
         context_used=prompt_tokens + _reply_tokens(reply.text, target_model) if limits else None,
         context_limit=limits.prompt_tokens if limits else None,
         truncated=reply.truncated,
+        saved=saved,
     )

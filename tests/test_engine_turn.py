@@ -429,6 +429,19 @@ def test_a_cut_off_reply_is_marked_when_it_comes_back_as_history_on_the_next_tur
     assert session.load_session("samantha", first.session_id)["turns"][0]["truncated"] is True
 
 
+def test_a_reply_whose_session_could_not_be_saved_says_so_on_the_result(sessions_root, monkeypatch):
+    monkeypatch.setattr(grounding, "ground", lambda profile, msg, max_results=5: [])
+    monkeypatch.setattr(
+        turn.model_mod, "call_model", lambda messages, model=None, **limits: ModelReply("hello", 12)
+    )
+    assert turn.run_turn("samantha", "hi").saved is True
+
+    monkeypatch.setattr(turn.session, "append_turn", lambda *args, **kwargs: False)
+    result = turn.run_turn("samantha", "hi again")
+
+    assert result.saved is False and result.reply == "hello"  # the reply is still given
+
+
 def test_a_users_reply_limit_reaches_the_model_call(sessions_root, monkeypatch):
     from sympose import settings_store
 

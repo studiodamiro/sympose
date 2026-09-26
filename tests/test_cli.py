@@ -777,6 +777,39 @@ def test_an_error_message_with_brackets_is_shown_as_text_not_parsed(profiles, mo
     run_async(scenario())
 
 
+def test_a_reply_that_could_not_be_saved_says_so_under_it(profiles, monkeypatch):
+    def unsaved_run_turn(handle, user_message, session_id=None, model=None):
+        return engine.TurnResult(reply="hello there", session_id="sess-x", grounding=[], saved=False)
+
+    monkeypatch.setattr(turns.engine, "run_turn", unsaved_run_turn)
+
+    async def scenario():
+        app = SymposeCLI()
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            app.composer.focus()
+            await pilot.press(*"hello", "enter")
+            await pilot.pause(1.0)
+            lines = [plain_text(child) for child in app.transcript.children]
+            assert any("hello there" in line for line in lines)
+            assert any("not saved" in line for line in lines)
+
+    run_async(scenario())
+
+
+def test_a_reply_that_was_saved_says_nothing_about_saving(profiles):
+    async def scenario():
+        app = SymposeCLI()
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            app.composer.focus()
+            await pilot.press(*"hello", "enter")
+            await pilot.pause(1.0)
+            assert not any("not saved" in plain_text(child) for child in app.transcript.children)
+
+    run_async(scenario())
+
+
 def test_the_failure_line_names_the_persona_that_was_addressed(profiles, monkeypatch):
     def failing_run_turn(handle, user_message, session_id=None, model=None):
         raise engine.EngineModelError("the server said no")

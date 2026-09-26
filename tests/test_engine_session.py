@@ -313,11 +313,6 @@ def _two_turns(handle="samantha"):
     return sid, session.session_path(handle, sid)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="a session whose first (meta) line is damaged loads as no session, and the next message "
-    "rewrites the file from scratch, destroying every turn that was still valid",
-)
 def test_a_damaged_first_line_does_not_cost_the_turns_after_it(sessions_root):
     sid, path = _two_turns()
     lines = open(path, encoding="utf-8").read().splitlines()
@@ -330,11 +325,6 @@ def test_a_damaged_first_line_does_not_cost_the_turns_after_it(sessions_root):
     assert [t["user"] for t in kept if t["type"] == "turn"] == ["first question", "second question", "third question"]
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="a turn record without a `user` or `assistant` text raises KeyError for every later message "
-    "of that session, so it can never be resumed",
-)
 def test_a_turn_record_without_its_text_does_not_break_the_history(sessions_root):
     sid, path = _two_turns()
     with open(path, "a", encoding="utf-8") as f:
@@ -345,11 +335,6 @@ def test_a_turn_record_without_its_text_does_not_break_the_history(sessions_root
     assert [m["content"] for m in messages][:2] == ["first question", "first answer"]
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="the log is rewritten in place: the file is emptied first, so a failure part-way through "
-    "(a full disk, a killed process) loses the whole conversation; recaps are written through a temporary file",
-)
 def test_a_write_that_fails_part_way_leaves_the_earlier_turns_on_disk(sessions_root, monkeypatch):
     sid, path = _two_turns()
     real_dumps, calls = json.dumps, []
@@ -360,10 +345,86 @@ def test_a_write_that_fails_part_way_leaves_the_earlier_turns_on_disk(sessions_r
             raise OSError("no space left on device")
         return real_dumps(obj, *args, **kwargs)
 
-    monkeypatch.setattr(session.json, "dumps", fails_on_the_third_line)
-    session.append_turn("samantha", sid, "third question", "third answer")
-    monkeypatch.undo()
+    with monkeypatch.context() as failing:
+        failing.setattr(session.json, "dumps", fails_on_the_third_line)
+        assert session.append_turn("samantha", sid, "third question", "third answer") is False
 
     survivor = session.load_session("samantha", sid)
     assert survivor is not None
     assert [t["user"] for t in survivor["turns"]] == ["first question", "second question"]
+
+
+def test_a_replace_that_fails_keeps_the_file_as_it_was_and_leaves_nothing_beside_it(sessions_root, monkeypatch):
+    sid, path = _two_turns()
+    before = open(path, "rb").read()
+
+    def refuse(src, dst):
+        raise OSError("disk full")
+
+    with monkeypatch.context() as failing:
+        failing.setattr(os, "replace", refuse)
+        assert session.append_turn("samantha", sid, "third", "answer") is False
+
+    assert open(path, "rb").read() == before
+    assert os.listdir(os.path.dirname(path)) == [os.path.basename(path)]
+
+
+def test_a_saved_turn_reports_that_it_was_written(sessions_root):
+    sid = session.new_session_id()
+
+    assert session.append_turn("samantha", sid, "hi", "hello") is True
+
+
+def test_a_session_file_keeps_its_permissions_when_a_turn_is_added(sessions_root):
+    sid, path = _two_turns()
+    os.chmod(path, 0o600)
+
+    session.append_turn("samantha", sid, "third", "answer")
+
+    assert os.stat(path).st_mode & 0o777 == 0o600
+
+
+@pytest.mark.skipif(os.geteuid() == 0, reason="root can read any file")
+def test_a_file_that_cannot_be_read_is_not_overwritten_by_a_session_that_starts_again(sessions_root):
+    sid, path = _two_turns()
+    before = open(path, "rb").read()
+    os.chmod(path, 0o000)
+    try:
+        assert session.append_turn("samantha", sid, "third", "answer") is False
+    finally:
+        os.chmod(path, 0o600)
+
+    assert open(path, "rb").read() == before
+
+
+def test_a_lost_meta_line_is_rebuilt_from_the_turns_that_are_left(sessions_root):
+    sid, path = _two_turns()
+    lines = open(path, encoding="utf-8").read().splitlines()
+    turns = [json.loads(line) for line in lines[1:]]
+    with open(path, "w", encoding="utf-8") as f:
+        f.write("\n".join(["{not json", *lines[1:]]) + "\n")
+
+    meta = session.load_session("samantha", sid)["meta"]
+
+    assert meta["session_id"] == sid and meta["handle"] == "samantha"
+    assert meta["title"] == "first question"
+    assert meta["created_at"] == turns[0]["timestamp"] and meta["updated_at"] == turns[1]["timestamp"]
+    assert meta["turns_count"] == 2
+
+
+def test_a_file_with_nothing_readable_in_it_is_no_session(sessions_root):
+    sid = session.new_session_id()
+    path = session.session_path("samantha", sid)
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w", encoding="utf-8") as f:
+        f.write("{not json\n")
+
+    assert session.load_session("samantha", sid) is None
+
+
+def test_a_turn_record_without_its_text_is_not_counted(sessions_root):
+    sid, path = _two_turns()
+    with open(path, "a", encoding="utf-8") as f:
+        f.write(json.dumps({"type": "turn", "user": "a question with no answer"}) + "\n")
+
+    assert [t["user"] for t in session.load_session("samantha", sid)["turns"]] == ["first question", "second question"]

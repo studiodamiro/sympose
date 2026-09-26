@@ -164,6 +164,7 @@ def run_turn(
         ttft_ms=reply.ttft_ms,
         model=target_model,
         sent=_sent(grounding_results, recaps_sent, searched_used, dropped),
+        truncated=reply.truncated,
     )
     return TurnResult(
         reply=reply.text,

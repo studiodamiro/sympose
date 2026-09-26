@@ -413,6 +413,22 @@ def test_a_reply_that_hit_the_reply_limit_is_reported_on_the_result(sessions_roo
     assert turn.run_turn("samantha", "hello").truncated is True
 
 
+def test_a_cut_off_reply_is_marked_when_it_comes_back_as_history_on_the_next_turn(sessions_root, monkeypatch):
+    monkeypatch.setattr(grounding, "ground", lambda profile, msg, max_results=5: [])
+    calls = []
+    replies = [ModelReply("half a sen", 12, truncated=True), ModelReply("ok", 12)]
+    monkeypatch.setattr(
+        turn.model_mod, "call_model",
+        lambda messages, model=None, **limits: calls.append(messages) or replies[len(calls) - 1],
+    )
+    first = turn.run_turn("samantha", "write something long")
+    turn.run_turn("samantha", "and then?", session_id=first.session_id)
+
+    history = calls[1][1:-1]  # between the system prompt and the last user turn
+    assert history[1] == {"role": "assistant", "content": "half a sen\n\n[This reply was cut off at the length limit.]"}
+    assert session.load_session("samantha", first.session_id)["turns"][0]["truncated"] is True
+
+
 def test_a_users_reply_limit_reaches_the_model_call(sessions_root, monkeypatch):
     from sympose import settings_store
 

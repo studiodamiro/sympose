@@ -281,6 +281,28 @@ def test_a_padded_saved_reply_is_sent_back_tidy_but_the_file_keeps_what_was_save
     assert loaded["turns"][0]["assistant"] == "Hey!  How are you?\n\n\n"
 
 
+def test_a_reply_cut_at_the_length_limit_is_marked_on_the_record_and_flagged_in_the_history(sessions_root):
+    sid = session.new_session_id()
+    session.append_turn("samantha", sid, "list some names", "Ada, Grace and", truncated=True)
+
+    loaded = session.load_session("samantha", sid)
+    history = session.history_as_messages(loaded)
+
+    assert loaded["turns"][0]["truncated"] is True
+    assert loaded["turns"][0]["assistant"] == "Ada, Grace and"  # the file keeps what was said
+    assert history[1]["content"] == "Ada, Grace and\n\n[This reply was cut off at the length limit.]"
+
+
+def test_a_reply_that_finished_carries_no_mark(sessions_root):
+    sid = session.new_session_id()
+    session.append_turn("samantha", sid, "hi", "Hello!")
+
+    loaded = session.load_session("samantha", sid)
+
+    assert "truncated" not in loaded["turns"][0]  # as for a record written before the key existed
+    assert session.history_as_messages(loaded)[1]["content"] == "Hello!"
+
+
 # -- found in the review of the engine (wave D of the cleanup) --------------------------------
 
 

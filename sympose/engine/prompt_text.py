@@ -7,6 +7,10 @@ DEFAULT_SOUL = (
     "about their Obsidian vault. Keep replies natural and concise."
 )
 
+# Added after an earlier reply of hers that stopped at the reply limit when it comes back as
+# history, so she does not treat half an answer as a finished one (docs/decisions/015).
+CUT_OFF_NOTE = "[This reply was cut off at the length limit.]"
+
 # How this engine works, and what it can't do yet, stated to every persona so a
 # warm voice never plays along with an action that won't happen, and never
 # denies the search it is given every turn. Narrow this as tool-calling and

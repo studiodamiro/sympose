@@ -15,6 +15,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from sympose.engine import reply_text
+from sympose.engine.prompt_text import CUT_OFF_NOTE
 from sympose.engine.session_paths import (
     new_session_id,
     recaps_dir,
@@ -87,7 +88,10 @@ def history_as_messages(session: dict[str, Any] | None, max_turns: int = 20) -> 
     messages: list[dict[str, str]] = []
     for turn in session["turns"][-max_turns:]:
         messages.append({"role": "user", "content": turn["user"]})
-        messages.append({"role": "assistant", "content": reply_text.tidy(turn["assistant"])})
+        reply = reply_text.tidy(turn["assistant"])
+        if turn.get("truncated") is True:  # cut at the reply limit: say so, it is not a finished answer
+            reply = f"{reply}\n\n{CUT_OFF_NOTE}"
+        messages.append({"role": "assistant", "content": reply})
     return messages
 
 
@@ -100,6 +104,7 @@ def append_turn(
     ttft_ms: int | None = None,
     model: str | None = None,
     sent: dict[str, Any] | None = None,
+    truncated: bool = False,
 ) -> None:
     """`existing` lets a caller that's already loaded the session (e.g.
     `turn.run_turn`, which loads it to build history) pass it straight
@@ -113,7 +118,8 @@ def append_turn(
     as-is, `null` when unknown; records written before they existed simply
     lack the keys, and nothing reading a session depends on them. `sent`
     (docs/decisions/025) is what reached the model besides the messages: kept on
-    the record for diagnosis and never read back into a prompt."""
+    the record for diagnosis and never read back into a prompt. `truncated` marks a reply that stopped at
+    the reply limit (docs/decisions/015); only then is the key written, and history says so."""
     session = existing if existing is not None else load_session(handle, session_id)
     now = datetime.now(timezone.utc).isoformat()
 
@@ -141,6 +147,7 @@ def append_turn(
             "ttft_ms": ttft_ms,
             "model": model,
             **({"sent": sent} if sent is not None else {}),
+            **({"truncated": True} if truncated else {}),
         }
     )
     meta["updated_at"] = now

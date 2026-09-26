@@ -89,8 +89,8 @@ async def on_option_selected(app, event: OptionList.OptionSelected) -> None:
         if command is not None:
             await runtime.run_command(app, command)
         return
-    runtime.apply_picker_choice(app, kind, value)
-    # A cloud model was just chosen and some of the vault is not yet allowed for it: ask about it now
-    # (docs/decisions/031); `/share` keeps its list open so several can be flipped, Esc closes it.
-    if kind == share.PICKER_KIND or (kind == "model" and share.should_ask(app)):
+    ask = runtime.apply_picker_choice(app, kind, value)
+    # The model just moved from local to cloud and some of the vault is not yet allowed for it: ask
+    # now (docs/decisions/031); `/share` keeps its list open so several can be flipped, Esc closes it.
+    if kind == share.PICKER_KIND or ask:
         await share.open_picker(app)

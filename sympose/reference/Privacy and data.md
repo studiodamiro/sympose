@@ -10,7 +10,7 @@ Your messages and the conversation so far are always sent to that provider. What
 
 ## How do I let a cloud model use my notes?
 
-When you choose a cloud model with /model, Sympose asks about each kind. Type /share to see or change what is allowed; it is kept in `cloud_share` in `settings.json`. A cloud reply's header shows `cloud:` for what was sent and `withheld:` for what was held back.
+When you switch from a local model to a cloud one with /model, Sympose asks about each kind. Type /share to see or change what is allowed; it is kept in `cloud_share` in `settings.json`. A cloud reply's header shows `cloud:` for what was sent and `withheld:` for what was held back.
 
 ## Is a recap sent to a cloud model?
 

@@ -57,9 +57,23 @@ def announce(app) -> None:
         transcript_mod.mount_line(app, notice(model), "system")
 
 
-def should_ask(app) -> bool:
-    """A cloud model is in use and some category has not been approved: offer the choice."""
-    return is_cloud(active_model(app.persona, app.model_override)) and len(sharing.approved()) < len(sharing.CATEGORIES)
+def in_cloud(app) -> bool:
+    return is_cloud(active_model(app.persona, app.model_override))
+
+
+def on_change(app, was_cloud: bool) -> bool:
+    """Say so when the model in use moved between local and cloud since `was_cloud`, and nothing
+    otherwise: a switch between two cloud models was told and asked about already. `True` when the
+    user should now be asked (it became a cloud model and some category has not been approved)."""
+    model = active_model(app.persona, app.model_override)
+    if is_cloud(model) == was_cloud:
+        return False
+    if was_cloud:
+        line = f"{model.short} is a local model: nothing from your vault leaves your computer."
+    else:
+        line = notice(model)
+    transcript_mod.mount_line(app, line, "system")
+    return not was_cloud and len(sharing.approved()) < len(sharing.CATEGORIES)
 
 
 def header_segment(cloud: list[str], withheld: list[str]) -> str:

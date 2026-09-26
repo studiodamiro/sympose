@@ -2327,6 +2327,52 @@ def test_choosing_a_local_model_gives_no_cloud_notice_and_no_question(profiles):
     run_async(scenario())
 
 
+def _pick_models(*indexes):
+    """The lines the transcript gained and whether the share question was open, after picking each model in turn."""
+
+    async def scenario():
+        app = SymposeCLI()
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            app.composer.focus()
+            results = []
+            for index in indexes:
+                before = len(_lines(app))
+                await pilot.press(*"/model", "enter")
+                await pilot.pause()
+                await pilot.press(str(index))
+                await pilot.pause()
+                results.append((_lines(app)[before:], app.panel_kind == "share"))
+                if app.panel is not None:
+                    await pilot.press("escape")
+                    await pilot.pause()
+            return results
+
+    return run_async(scenario())
+
+
+def test_switching_from_one_cloud_model_to_another_says_and_asks_nothing(profiles):
+    """Only a change between local and cloud is worth a notice: the user was told and asked already."""
+    _, (second, asked) = _pick_models(2, 3)
+
+    assert not any("cloud model" in line or "local model" in line for line in second)
+    assert not asked
+
+
+def test_picking_the_cloud_model_already_in_use_says_and_asks_nothing(profiles):
+    _, (again, asked) = _pick_models(2, 2)
+
+    assert not any("cloud model" in line for line in again)
+    assert not asked
+
+
+def test_switching_from_cloud_to_local_says_nothing_leaves_the_computer(profiles):
+    _, (back, asked) = _pick_models(2, 1)
+
+    assert any("is a local model" in line and "leaves your computer" in line for line in back)
+    assert not asked
+
+
 def test_no_question_when_everything_is_already_allowed(profiles):
     from sympose import settings_store
 

@@ -102,8 +102,12 @@ async def run_command(app, command) -> None:
     transcript.scroll_end(animate=False)
 
 
-def apply_picker_choice(app, kind: str, value: str | None) -> None:
+def apply_picker_choice(app, kind: str, value: str | None) -> bool:
+    """Apply a picker choice. `True` when the vault is now open to a cloud model that has not been
+    asked about it yet, so the caller opens the `/share` list (docs/decisions/031)."""
     transcript = app.transcript
+    was_cloud = share.in_cloud(app)
+    ask = False
     if kind == "model":
         model = next((m for m in MODEL_OPTIONS if m.id == value), None)
         if model is not None:
@@ -111,8 +115,7 @@ def apply_picker_choice(app, kind: str, value: str | None) -> None:
             meter.clear(app)  # the old figure was measured against the previous window
             picker.update_banner(app)
             transcript_mod.mount_line(app, f"Switched model to {model.label}.", "system")
-            if share.is_cloud(model):
-                transcript_mod.mount_line(app, share.notice(model), "system")
+            ask = share.on_change(app, was_cloud)
     elif kind == "persona":
         persona = next((p for p in list_personas() if p.handle == value), None)
         if persona is not None and persona.handle != app.persona.handle:
@@ -131,7 +134,7 @@ def apply_picker_choice(app, kind: str, value: str | None) -> None:
             engine.refresh_recaps(persona.handle, app.model_override.id if app.model_override else None)
             engine.refresh_embeddings(persona.handle)  # ADR 027
             transcript_mod.mount_line(app, f"Now talking to @{persona.handle}.", "system")
-            share.announce(app)
+            share.on_change(app, was_cloud)  # told, not asked: `/share` is there when they want it
     elif kind == share.PICKER_KIND:
         if value is not None:
             share.toggle(app, value)
@@ -140,3 +143,4 @@ def apply_picker_choice(app, kind: str, value: str | None) -> None:
             app, "History browsing isn't wired up yet — this is a placeholder.", "system"
         )
     transcript.scroll_end(animate=False)
+    return ask

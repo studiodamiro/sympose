@@ -22,7 +22,7 @@ Cloud models are opt-in and need the provider's API key in `.env`: `ANTHROPIC_AP
 
 ## What does a cloud model receive?
 
-Your messages and the conversation are sent to that provider. Your notes, their properties and your recaps are sent only if you allow them: Sympose asks when you choose the model, and /share changes it later.
+Your messages and the conversation are sent to that provider. Your notes, their properties and your recaps are sent only if you allow them: Sympose asks when you switch from a local model to a cloud one, and /share changes it later.
 
 ## Can I use another OpenRouter model?
 

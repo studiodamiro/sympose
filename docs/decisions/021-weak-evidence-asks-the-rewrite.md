@@ -1,6 +1,6 @@
 # 021 — Weak evidence is not enough to ground a reply: a one-word match is checked by the rewrite step, and the persona's own name is no evidence
 
-> **Status: Proposed.** Amends ADR 014 (the retriever) and ADR 017 (the follow-up rewrite). **Scope of the model figures: Ollama and `gemma2:9b` only**, on a recorded set of twelve real messages replayed read-only against a real 679-note vault, and on the fixture vault. Another model may write different rewrites.
+> **Status: Accepted.** Amends ADR 014 (the retriever) and ADR 017 (the follow-up rewrite). **Scope of the model figures: Ollama and `gemma2:9b` only**, on a recorded set of twelve real messages replayed read-only against a real 679-note vault, and on the fixture vault. Another model may write different rewrites.
 
 ## Context
 
@@ -51,7 +51,7 @@ The cost is one short model call on weak or empty first searches (about half a s
 
 - A message whose word for a topic is also her name is left to the model's judgement; there is no other way to tell them apart.
 - The mixed-topic rewrite (above), and a check on models other than `gemma2:9b`.
-- Logging the notes per turn (amending ADR 006) and letting the model see, next turn, what its last answer used.
+- Logging the notes per turn is built (ADR 025). Letting the model see, next turn, what its last answer used is not (ADR 025 never reads the record back into a prompt).
 
 ## Alternatives rejected
 

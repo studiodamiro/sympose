@@ -1,6 +1,6 @@
 # 020 — The chat prompt in one place: the notes travel with the question, and the model is told how Sympose works
 
-> **Status: Proposed.** Built and measured; not yet reviewed as accepted. **Scope of every model figure here: Ollama and `gemma2:9b` only**, on the fixture vault and on one recorded conversation replayed against a real vault. Another model, especially a larger cloud model, may follow the voice less and the notes more, or the reverse; the wording was tuned on this one model and the layout is the part most likely to transfer.
+> **Status: Accepted.** Built and measured, and later amended by ADRs 021, 022, 023 and 024. **Scope of every model figure here: Ollama and `gemma2:9b` only**, on the fixture vault and on one recorded conversation replayed against a real vault. Another model, especially a larger cloud model, may follow the voice less and the notes more, or the reverse; the wording was tuned on this one model and the layout is the part most likely to transfer.
 
 ## Context
 
@@ -60,10 +60,10 @@ The system prompt grew from about 500 to about 750 tokens (measured with the eng
 
 ## Not built yet
 
-- **Retrieval precision: built as ADR 021 (Proposed), which supersedes what is written here about a rare lone word (measured not to work).** A message whose only informative word is common in the vault ("information", "read", or the persona's own name in "hey sam") still attaches unrelated notes, because ADR 014 lets a lone informative word match any body text. The persona's own name and handle are addressing, not a topic, and could be filler; a lone word could be required to be rare in the vault. This interacts with the prompt as measured above and should land with or straight after it.
+- **Retrieval precision: built as ADR 021, which supersedes what is written here about a rare lone word (measured not to work).** A message whose only informative word is common in the vault ("information", "read", or the persona's own name in "hey sam") still attaches unrelated notes, because ADR 014 lets a lone informative word match any body text. The persona's own name and handle are addressing, not a topic, and could be filler; a lone word could be required to be rare in the vault. This interacts with the prompt as measured above and should land with or straight after it.
 - Thin or cut-off passages (a list's introduction without its items) and the literal reading of an idiom ("what do we have in our table").
-- Logging the notes that grounded each turn in the session record, and saying so to the model on the next turn, which would let it answer "where did you get that" truthfully (an amendment to ADR 006).
-- The reference library (ADR 019) rendering: it must use this layout, in the user's turn, with its own label.
+- Logging the notes that grounded each turn in the session record: built as ADR 025. Saying so to the model on the next turn, which would let it answer "where did you get that" truthfully, is not built: ADR 025 deliberately never reads the record back into a prompt.
+- The reference library (ADR 019) rendering: built as ADR 022, in the user's turn with its own label.
 - A settings-level override of the prompt text, and per-persona additions beyond the soul.
 - Other models and cloud models.
 
@@ -75,5 +75,9 @@ The system prompt grew from about 500 to about 750 tokens (measured with the eng
 - **Telling the model to always answer in one line from the notes.** Would flatten the persona's voice, which is the reason the persona exists.
 
 **Update (ADR 023):** the text now lives in `engine/prompt_text.py` and the layout in `engine/prompt.py`, which re-exports the text, so the file stays under the size cap and `prompt` is still the one place other code imports from.
+
+**Update (ADR 022):** the smallest `context_window` the engine accepts is now 2048, not 1024, because the shipped persona's prompt grew to about 940 tokens. The paragraph on the floor in "Consequences" describes the state before this.
+
+**Update (ADR 026):** the recaps moved from the last user turn to the end of the system prompt, so the system prompt is no longer the same every turn of a session that has recaps.
 
 **Update (ADR 024):** the notes directive no longer says to answer from the notes unconditionally: a general question that does not depend on the vault is answered from her own knowledge, and `HOW_YOU_WORK` says she has no internet.

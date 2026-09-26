@@ -1,6 +1,6 @@
 # 022 — Wiring the Sympose reference library into a persona's turns
 
-> **Status: Proposed.** Builds ADR 019 (the library and its strict retrieval) on ADR 020 (the prompt layout). **Scope of the model figures: Ollama and `gemma2:9b` only.**
+> **Status: Accepted.** Builds ADR 019 (the library and its strict retrieval) on ADR 020 (the prompt layout). **Scope of the model figures: Ollama and `gemma2:9b` only.**
 
 ## Context
 

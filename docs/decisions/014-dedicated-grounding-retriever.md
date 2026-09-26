@@ -52,4 +52,4 @@ Amended by ADR 021: a hit that rests on a single matched word is now put to the 
 
 **Update (ADR 024):** a passage now qualifies only when the message names at least half of one of its labels (title, a tag, or its heading), or matches at least two of its words and two fifths of the message's informative words, or the message has one informative word. One ordinary word of a long title, or two words of a long request, no longer attach a note.
 
-**Update (docs/decisions/027):** the embeddings this record set aside are built as an opt-in knob, `grounding_search`: `keywords` (this retriever, the default), `embeddings`, or `hybrid`. Nothing here changes unless it is turned on.
+**Update (docs/decisions/027):** the embeddings this record set aside are built as an opt-in knob, `grounding_search`: `keywords` (this retriever), `embeddings`, or `hybrid`. Nothing here changes unless it is turned on. (Since the last update of ADR 027 the default is `auto`: meaning-based search with this retriever as the fallback.)

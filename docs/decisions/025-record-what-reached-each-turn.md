@@ -1,6 +1,6 @@
 # 025 — Record which notes and recaps reached each turn
 
-> **Status: Proposed.** Amends ADR 006 (the shape of a turn in the session log) and reverses one rejection in ADR 016 ("storing the display string in the session record"). Nothing here depends on a model, so there are no model figures.
+> **Status: Accepted.** Built. Amends ADR 006 (the shape of a turn in the session log) and reverses one rejection in ADR 016 ("storing the display string in the session record"). Nothing here depends on a model, so there are no model figures.
 
 ## Context
 
@@ -12,7 +12,7 @@ Each turn record in the session log gains a `sent` object, written from what the
 
 - `notes`: one entry per passage, `{"path", "heading", "source"}`, where `source` is `vault` (the user's own notes) or `sympose` (the Sympose library, ADR 019). The path and heading only, never the passage text: the note is still in the vault, and the log does not become a second copy of it.
 - `recaps`: the ids of the sessions whose recaps were shown, newest first. The id is the recap's file name, so the recap can be opened; the text is not copied (a recap may be edited or regenerated later, and what it said then is what the session's own turns already reflect).
-- `searched`: the query a follow-up was rewritten into when that is what grounded the reply (ADR 017), otherwise `null`.
+- `searched`: the query a follow-up was rewritten into when that is what grounded the reply (ADR 017), otherwise `null`. (When the notes were searched by meaning, each note also says how it was found, `via`, ADR 027.)
 - `history_dropped`: how many earlier turns did not fit the window (ADR 015).
 
 A turn record written before this lacks the key, and nothing that reads a session depends on it, as with `ttft_ms` and `model` (ADR 013). **Nothing reads it back into a prompt**: the history sent to the model and the transcript given to the recap writer are still built from `user` and `assistant` alone, so a stored path can never reach the model or a recap as if the user had said it.

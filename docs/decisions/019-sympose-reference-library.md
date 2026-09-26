@@ -1,6 +1,6 @@
 # 019 — A Sympose reference library: read-only notes about Sympose itself, searched by the same retriever
 
-> **Status: Proposed.** The library and its retrieval are built and measured, and a first real-model check was made. The wiring into the engine and the packaging are not built; see "Not built yet". **Scope: Ollama and `gemma2:9b` only for everything a model did** (the live check below); the retrieval numbers are deterministic and model-independent. Cloud models and other local models are unmeasured.
+> **Status: Accepted.** The library, its retrieval, its wiring into the engine (ADR 022) and its packaging are built and measured, and real-model checks were made. What is still open is under "Not built yet". **Scope: Ollama and `gemma2:9b` only for everything a model did** (the live check below); the retrieval numbers are deterministic and model-independent. Cloud models and other local models are unmeasured.
 
 ## Context
 
@@ -48,13 +48,13 @@ The engine is not wired to the library, so the prompt was built the way the wiri
 
 ## Not built yet
 
-- Wiring: built as ADR 022 (Proposed); what follows was the plan. A second index built from the package directory, searched for Samantha's turns, with its passages rendered in the prompt as Sympose reference (not as the user's notes), **placed after the voice and rules with a direct instruction to answer from it, or in the user's turn (the live check above; not in the middle of the system prompt)**, and shown in the header as such (`from Sympose: Personas`, distinct from the vault segment, ADR 016), and how the two sources share the passage budget (ADR 015). Whether the vault block should move the same way is a separate, unmeasured question.
-- Packaging: the notes ship only if the build includes them as package data (`pyproject.toml` declares no package data today).
-- The engine rule for every other persona: for a question about Sympose, point to Samantha. Open question: name Samantha or the default persona, since the default can be changed to another persona that has no library.
-- A real-model check of the wired flow, and of a turn that has both vault passages and library passages. Not checked at all: cloud models and other local models, and whether the library passages attach to real vault questions in a real vault (only the fixture vault's messages were tried).
-- Keeping the library true as the code changes. Only one fact is guarded (a version named in the notes must equal the package's version). The rest is not: settings, commands and paths named in the notes, the dated history, and facts stated in more than one note (who made Sympose is in two) can go stale unnoticed; a test that fails when a note names a setting or command that no longer exists is the next guard. Until then a change to a setting, command or feature needs its note edited in the same commit.
+- Wiring: built as ADR 022; what follows was the plan. A second index built from the package directory, searched for Samantha's turns, with its passages rendered in the prompt as Sympose reference (not as the user's notes), **placed after the voice and rules with a direct instruction to answer from it, or in the user's turn (the live check above; not in the middle of the system prompt)**, and shown in the header as such (`from Sympose: Personas`, distinct from the vault segment, ADR 016), and how the two sources share the passage budget (ADR 015). Whether the vault block should move the same way is a separate, unmeasured question.
+- Packaging: built. `pyproject.toml` lists `reference/*.md` as package data, and a test checks the glob against the shipped notes.
+- The engine rule for every other persona: built as ADR 022. It names the persona that has the library, read from the roster, not "Samantha" or "the default", since the default can be changed to a persona with no library.
+- A real-model check of the wired flow: done in ADR 022 (fixture vault and a replay against a real vault). Not checked at all: cloud models and other local models, and whether the library passages attach to real vault questions in a real vault (only the fixture vault's messages were tried).
+- Keeping the library true as the code changes. Only one fact is guarded (a version named in the notes must equal the package's version). The rest is not: settings, commands and paths named in the notes, the dated history, and facts stated in more than one note (who made Sympose is in two) can go stale unnoticed; a test that fails when a note names a setting or command that no longer exists is the next guard. Until then a change to a setting, command or feature needs its note edited in the same commit. Still true: the version is the only guarded fact.
 - `/help` browsing the same notes, and a user-facing documentation build from them (deferred by choice).
-- Known limit, carried from ADR 014: retrieval is by literal words, so a question that shares no word with the answer misses it; the library is written to use the words people use, which narrows this and does not remove it. The repository's own `README.md` still describes an earlier state and is not part of this.
+- Known limit, carried from ADR 014: retrieval is by literal words, so a question that shares no word with the answer misses it; the library is written to use the words people use, which narrows this and does not remove it. The repository's own `README.md` is not part of the library (it was brought up to date separately, #38).
 
 ## Alternatives rejected
 

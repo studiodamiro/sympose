@@ -1,6 +1,6 @@
 # 027 — Search notes by meaning as well as by keyword, behind a knob
 
-> **Status: Proposed.** Built as opt-in; the first update at the end of this record makes `auto` (meaning-based, keywords as the fallback) the default. Amends ADR 014 (what the retriever attaches), ADR 019 (how the library is searched) and ADR 002's "no embeddings yet". **Scope of every figure: Ollama, `gemma2:9b` for the chat model and `nomic-embed-text` for meaning-based search only.** Measured on an invented vault and invented messages, plus a read-only look at the user's own vault whose note names are not repeated here.
+> **Status: Accepted.** Built as opt-in; the last update at the end of this record makes `auto` (meaning-based, keywords as the fallback) the default, so where the text below says `keywords` is the default, read `auto`, with `embedding_min_similarity` 0.72 and `embedding_margin` 0.02. Amends ADR 014 (what the retriever attaches), ADR 019 (how the library is searched) and ADR 002's "no embeddings yet". **Scope of every figure: Ollama, `gemma2:9b` for the chat model and `nomic-embed-text` for meaning-based search only.** Measured on an invented vault and invented messages, plus a read-only look at the user's own vault whose note names are not repeated here.
 
 ## Context
 
@@ -56,6 +56,8 @@ Through the built code (`tests/live_retrieval_cases.py`, the default threshold, 
 - Meaning-based search is a black box: "why did it attach that?" is answered by a similarity number, not by a shared word.
 
 ## Not built yet
+
+**Correction (issue #1).** The final update's explanation of the short-title misses (people, films, quotes) was wrong for most of them: measured on a 619-note personal vault, about a quarter of the notes have no body text (frontmatter only, outlines, empty) and are not in the index at all, so neither search can return them, and 7 of the 14 needed notes that meaning-based search missed were of this kind. A title-match rescue on top was measured and is not worth building (the best rule fixed 1 of 76 messages). The fix is to index such notes, which needs its own decision record (#1).
 
 A threshold that adjusts to the vault, a model reranker on top, embedding the user's messages across sessions, embedding models other than the default (the query and document prefixes are set for `nomic-embed-text` only), and showing a note's similarity in the reply header.
 

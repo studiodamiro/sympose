@@ -109,8 +109,8 @@ def refine(
     mode = embeddings.mode()
     if library and mode == embeddings.AUTO:
         mode = embeddings.HYBRID  # the library's own words are strong evidence: meaning confirms them
-    if mode == embeddings.KEYWORDS:
-        return keyword_hits
+    if mode == embeddings.KEYWORDS or not index.passages:
+        return keyword_hits  # nothing to compare the message with: embedding it would only risk a timeout
     model = embeddings.model()  # once: the settings file may change while this runs
     if time.monotonic() < _UNAVAILABLE_UNTIL.get(model, 0.0):
         return keyword_hits

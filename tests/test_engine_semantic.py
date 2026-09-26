@@ -1526,11 +1526,6 @@ def test_a_cut_short_cached_vector_is_embedded_again_and_does_not_fail_the_turn(
     assert [h["rel_path"] for h in hits] == ["Atlas.md"]
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="an index with no passages still embeds the message, a network call that can time out and start "
-    "the cooldown, though there is nothing to compare it with",
-)
 def test_an_index_with_no_passages_does_not_embed_the_message(setup, calls):
     _mode("embeddings")
     empty = semantic.Index(passages=[], note_df={}, note_count=0, avg_length=0.0)

@@ -340,6 +340,27 @@ def test_auto_builds_the_index_at_launch_and_keywords_does_not(setup, monkeypatc
     assert len(started) >= 1
 
 
+def test_the_first_turn_after_the_active_vault_changes_starts_the_build_for_the_new_vault(setup, monkeypatch):
+    """Nothing is built at the switch itself (a switch in the web app happens in another process than
+    the chat), so the turn that first searches the new vault must be what starts its index."""
+    from sympose import vault_registry
+
+    for name in ("First", "Second"):
+        for i in range(80):  # more passages than a turn embeds on the spot
+            _write(setup, f"../{name}/{name} note {i}.md", f"# {name} note {i}\n\nStorage engine number {i} of the {name} vault.")
+    monkeypatch.setenv("VAULT_PATHS", f"{setup / 'First'},{setup / 'Second'}")
+    started = []
+    monkeypatch.setattr(semantic_refresh, "start_build", lambda index, **kw: started.append(index))
+    _mode("auto")
+
+    grounding.ground(WHOLE, "what storage engine did we pick?")
+    assert {p.rel_path.split(" ")[0] for p in started[-1].passages} == {"First"}
+    vault_registry.set_active_vault(str(setup / "Second"))
+    grounding.ground(WHOLE, "what storage engine did we pick?")
+
+    assert {p.rel_path.split(" ")[0] for p in started[-1].passages} == {"Second"}
+
+
 # -- hybrid mode -------------------------------------------------------------------
 
 
